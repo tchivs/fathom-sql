@@ -73,6 +73,7 @@ pub(all) struct TokenStream {
   pub source : @source.SourceText
   pub profile : DorisProfile
   pub tokens : Array[Token]
+  pub truncated_at : Int?
 }
 
 pub fn TokenStream::length(self : TokenStream) -> Int {

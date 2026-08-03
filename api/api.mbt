@@ -49,6 +49,7 @@ pub enum ParseError {
   UnknownProfile(profile_id~ : String)
   UnknownMode(mode_id~ : String)
   InputTooLarge(requested_bytes~ : Int, max_bytes~ : Int)
+  InvalidLimit(limit_name~ : String, value~ : Int)
 } derive(Eq, @debug.Debug)
 
 pub fn ParseOptions::new(profile_id : String, mode_id : String) -> Result[ParseOptions, ParseError] {
@@ -88,6 +89,22 @@ pub fn ParseOptions::mode(self : ParseOptions) -> ParseMode {
 
 pub fn ParseOptions::limits(self : ParseOptions) -> ParseLimits {
   self.limits
+}
+
+fn validate_limits(limits : ParseLimits) -> Result[Unit, ParseError] {
+  if limits.max_bytes < 0 {
+    Err(InvalidLimit(limit_name="max_bytes", value=limits.max_bytes))
+  } else if limits.max_tokens < 0 {
+    Err(InvalidLimit(limit_name="max_tokens", value=limits.max_tokens))
+  } else if limits.max_recursion_depth < 0 {
+    Err(InvalidLimit(limit_name="max_recursion_depth", value=limits.max_recursion_depth))
+  } else if limits.max_recovery_steps < 0 {
+    Err(InvalidLimit(limit_name="max_recovery_steps", value=limits.max_recovery_steps))
+  } else if limits.max_diagnostics < 0 {
+    Err(InvalidLimit(limit_name="max_diagnostics", value=limits.max_diagnostics))
+  } else {
+    Ok(())
+  }
 }
 pub struct PrimitiveNode {
   pub kind : String
@@ -185,7 +202,9 @@ fn mode_id(mode : ParseMode) -> String {
 }
 
 pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseError] {
-  let source = match @source.SourceText::new(raw) {
+  let limits = options.limits
+  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
     Ok(source) => source
     Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
       return Err(InputTooLarge(requested_bytes~, max_bytes~))
@@ -195,7 +214,6 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     ParseMode::Strict => @parser.ParseMode::Strict
     ParseMode::Editor => @parser.ParseMode::Editor
   }
-  let limits = options.limits
   let parser_limits = @parser.ParserLimits::new(
     limits.max_bytes,
     limits.max_tokens,

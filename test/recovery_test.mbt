@@ -42,13 +42,36 @@ test "caps_emit_resource_diagnostic_and_retain_bounded_remainder" {
   assert_true(resource)
 }
 
-test "max_bytes_and_depth_are_finite_and_source_backed" {
-  let bytes_limited = parse_with_limits(
-    b"SELECT abcdefghijklmnopqrstuvwxyz",
+test "max_bytes_is_rejected_before_source_parse_and_limits_are_structured" {
+  let options = @api.ParseOptions::for_profile_with_limits(
+    @token.DorisProfile::V4_X,
+    @api.ParseMode::Editor,
     @api.ParseLimits::new(8, 1000, 8, 8, 8),
   )
-  assert_eq(@printer.print_result(bytes_limited), b"SELECT abcdefghijklmnopqrstuvwxyz")
-  assert_true(!bytes_limited.valid)
+  let too_large = @api.parse(b"SELECT abcdefghijklmnopqrstuvwxyz", options)
+  assert_true(too_large is Err(@api.ParseError::InputTooLarge(requested_bytes=_, max_bytes=8)))
+  let invalid = @api.parse(
+    b"SELECT 1",
+    @api.ParseOptions::for_profile_with_limits(
+      @token.DorisProfile::V4_X,
+      @api.ParseMode::Editor,
+      @api.ParseLimits::new(-1, 1000, 8, 8, 8),
+    ),
+  )
+  assert_true(invalid is Err(@api.ParseError::InvalidLimit(limit_name="max_bytes", value=-1)))
+}
+
+test "max_tokens_stops_lexer_work_and_retains_remainder" {
+  let result = parse_with_limits(
+    b"SELECT 1; SELECT 2; SELECT 3",
+    @api.ParseLimits::new(8 * 1024 * 1024, 3, 128, 8, 8),
+  )
+  assert_true(!result.valid)
+  assert_true(has_kind(result.root, "skipped"))
+  assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+  assert_eq(@printer.print_result(result), b"SELECT 1; SELECT 2; SELECT 3")
+}
+test "max_recursion_depth_remains_bounded" {
   let deep = parse_with_limits(
     b"SELECT (((((((((((((((1)))))))))))))))",
     @api.ParseLimits::new(8 * 1024 * 1024, 1000, 2, 4, 8),

@@ -946,13 +946,27 @@ fn append_skipped(
   }
 }
 
+fn append_skipped_span(
+  root_children : Array[@syntax.SyntaxElement],
+  source : @source.SourceText,
+  start_byte : Int,
+) -> Unit {
+  if start_byte < source.byte_length() {
+    let span = make_span(source, start_byte, source.byte_length())
+    root_children.push(@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::skipped(
+      span,
+      [@syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceSkipped, span))],
+    )))
+  }
+}
+
 pub fn parse_with_limits(
   source : @source.SourceText,
   profile : @token.DorisProfile,
   mode : ParseMode,
   limits : ParserLimits,
 ) -> ParsedDocument {
-  let stream = @lexer.lex(source, profile)
+  let stream = @lexer.lex_with_limit(source, profile, limits.max_tokens)
   let root_span = make_span(source, 0, source.byte_length())
   let state = RecoveryState::{
     diagnostics: [],
@@ -973,12 +987,6 @@ pub fn parse_with_limits(
     }
     parse_end = cut_index
     resource_diagnostic(state, make_span(source, if cut_index < stream.length() { match stream.at(cut_index) { Some(token) => token.span.start_byte; None => limits.max_bytes } } else { limits.max_bytes }, source.byte_length()), 0)
-  }
-  if stream.length() > limits.max_tokens && parse_end > limits.max_tokens {
-    parse_end = limits.max_tokens
-    cut_index = limits.max_tokens
-    let at = if cut_index < stream.length() { match stream.at(cut_index) { Some(token) => token.span.start_byte; None => source.byte_length() } } else { source.byte_length() }
-    resource_diagnostic(state, make_span(source, at, source.byte_length()), 0)
   }
   let mut segment_start = 0
   let mut statement_id = 0
@@ -1005,6 +1013,13 @@ pub fn parse_with_limits(
   }
   if cut_index < stream.length() {
     append_skipped(root_children, stream, cut_index, stream.length())
+  }
+  match stream.truncated_at {
+    Some(at) => {
+      resource_diagnostic(state, make_span(source, at, source.byte_length()), statement_id_for_span(stream, make_span(source, at, at)))
+      append_skipped_span(root_children, source, at)
+    }
+    None => ()
   }
   // Lexical errors are retained in source-backed ERROR leaves and receive a
   // stable encoding/lexical diagnostic independent of editor recovery mode.

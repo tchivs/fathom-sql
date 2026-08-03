@@ -185,12 +185,12 @@ fn scan_quoted(bytes : Bytes, start : Int, quote : Int) -> (Int, String?) {
   (length, Some("LEX_UNTERMINATED_LITERAL"))
 }
 
-pub fn lex(source : @source.SourceText, profile : @token.DorisProfile) -> @token.TokenStream {
+pub fn lex_with_limit(source : @source.SourceText, profile : @token.DorisProfile, max_tokens : Int) -> @token.TokenStream {
   let bytes = source.bytes()
   let source_length = bytes.length()
   let tokens : Array[@token.Token] = []
   let mut index = 0
-  while index < source_length {
+  while index < source_length && (max_tokens < 0 || tokens.length() < max_tokens) {
     let byte = bytes[index].to_int()
     if index + 2 < source_length && byte == 239 && bytes[index + 1].to_int() == 187 &&
       bytes[index + 2].to_int() == 191 {
@@ -290,11 +290,17 @@ pub fn lex(source : @source.SourceText, profile : @token.DorisProfile) -> @token
       }
     }
   }
+  let truncated_at = if index < source_length { Some(index) } else { None }
   {
     source: source,
     profile: profile,
     tokens: tokens,
+    truncated_at: truncated_at,
   }
+}
+
+pub fn lex(source : @source.SourceText, profile : @token.DorisProfile) -> @token.TokenStream {
+  lex_with_limit(source, profile, 1_000_000)
 }
 
 test "lexer_preserves_trivia_literals_and_invalid_bytes" {
