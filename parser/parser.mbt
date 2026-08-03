@@ -118,28 +118,19 @@ fn make_span(source : @source.SourceText, start_byte : Int, end_byte : Int) -> @
 fn resource_diagnostic(state : RecoveryState, span : @source.Span, statement_id : Int) -> Unit {
   if !state.resource_emitted {
     state.resource_emitted = true
-    // A resource diagnostic is allowed to occupy the final diagnostic slot.
     let limit = if state.limits.max_diagnostics <= 0 { 1 } else { state.limits.max_diagnostics }
-    if state.diagnostics.length() >= limit {
-      if limit == 1 {
-        state.diagnostics[0] = {
-          severity: "error",
-          code: "DORIS-PARSE-004",
-          message: "parser resource limit reached",
-          expected_class: "resource",
-          span: span,
-          statement_id: statement_id,
-        }
-      }
+    let diagnostic = {
+      severity: "error",
+      code: "DORIS-PARSE-004",
+      message: "parser resource limit reached",
+      expected_class: "resource",
+      span: span,
+      statement_id: statement_id,
+    }
+    if state.diagnostics.length() < limit {
+      state.diagnostics.push(diagnostic)
     } else {
-      state.diagnostics.push({
-        severity: "error",
-        code: "DORIS-PARSE-004",
-        message: "parser resource limit reached",
-        expected_class: "resource",
-        span: span,
-        statement_id: statement_id,
-      })
+      state.diagnostics[limit - 1] = diagnostic
     }
   }
 }
@@ -153,11 +144,9 @@ fn add_diagnostic(
   statement_id : Int,
 ) -> Unit {
   let limit = if state.limits.max_diagnostics <= 0 { 1 } else { state.limits.max_diagnostics }
-  // Reserve the last slot for one deterministic resource diagnostic when a
-  // diagnostic cap is reached. This keeps output finite and predictable.
-  if state.diagnostics.length() + 1 >= limit {
-    resource_diagnostic(state, span, statement_id)
-  } else {
+  if state.resource_emitted {
+    ()
+  } else if state.diagnostics.length() < limit {
     state.diagnostics.push({
       severity: "error",
       code: code,
@@ -166,6 +155,8 @@ fn add_diagnostic(
       span: span,
       statement_id: statement_id,
     })
+  } else {
+    resource_diagnostic(state, span, statement_id)
   }
 }
 

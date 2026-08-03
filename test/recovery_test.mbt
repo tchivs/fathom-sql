@@ -92,6 +92,22 @@ test "max_recursion_depth_remains_bounded" {
   assert_true(resource)
 }
 
+test "diagnostic_caps_preserve_first_error_and_emit_one_resource" {
+  let raw = b"bad; bad; bad; bad; bad"
+  for cap in [1, 2, 4] {
+    let result = parse_with_limits(raw, @api.ParseLimits::new(8 * 1024 * 1024, 1000, 128, 100, cap))
+    assert_true(result.diagnostics.length() <= cap)
+    assert_true(result.diagnostics.length() > 0)
+    if cap == 1 { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-004") }
+    else { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-001") }
+    let mut resources = 0
+    for diagnostic in result.diagnostics {
+      if diagnostic.code == "DORIS-PARSE-004" { resources = resources + 1 }
+    }
+    assert_eq(resources, 1)
+  }
+}
+
 test "malformed_lexical_material_uses_stable_code_and_replays" {
   let raw = b"SELECT 'unterminated /* comment"
   let result = parse_with_limits(raw, @api.ParseLimits::default())
