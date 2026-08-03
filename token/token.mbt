@@ -20,6 +20,31 @@ pub fn DorisProfile::metadata(self : DorisProfile) -> ProfileMetadata {
   }
 }
 
+pub(all) enum DorisFeature {
+  Qualify
+  Tablet
+} derive(Eq, @debug.Debug)
+
+pub struct FeatureMetadata {
+  pub name : String
+  pub introduced_profile : String
+}
+
+pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
+  match self {
+    Qualify => { name: "QUALIFY", introduced_profile: "3.x" }
+    Tablet => { name: "TABLET", introduced_profile: "3.x" }
+  }
+}
+
+pub fn DorisProfile::supports(self : DorisProfile, feature : DorisFeature) -> Bool {
+  match self {
+    V2_1 => match feature { Qualify => false; Tablet => false }
+    V3_X => true
+    V4_X => true
+  }
+}
+
 pub fn DorisProfile::id(self : DorisProfile) -> String {
   self.metadata().id
 }
@@ -107,4 +132,13 @@ test "profile_metadata_is_stable_and_complete" {
   assert_eq(V2_1.metadata().introduced_features, "baseline")
   assert_eq(V3_X.metadata().introduced_features, "3.x-released")
   assert_eq(V4_X.metadata().introduced_features, "4.x-released")
+}
+
+
+test "released_feature_metadata_and_profile_gates_are_stable" {
+  assert_eq(DorisFeature::Qualify.metadata().name, "QUALIFY")
+  assert_eq(DorisFeature::Tablet.metadata().introduced_profile, "3.x")
+  assert_true(!V2_1.supports(DorisFeature::Qualify))
+  assert_true(V3_X.supports(DorisFeature::Qualify))
+  assert_true(V4_X.supports(DorisFeature::Tablet))
 }

@@ -130,6 +130,23 @@ test "released_profiles_gate_qualify_without_generic_fallback" {
   assert_eq(@printer.print_result(released), raw)
 }
 
+test "version_gate_diagnostic_spans_offending_tablet_keyword" {
+  let raw = b"SELECT k FROM t TABLET (1)"
+  let result = match @api.parse_with_ids(raw, "2.1", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!result.valid)
+  let mut found = false
+  for diagnostic in result.diagnostics {
+    if diagnostic.code == "DORIS-PARSE-006" {
+      found = true
+      assert_eq(diagnostic.end_byte - diagnostic.start_byte, 6)
+    }
+  }
+  assert_true(found)
+}
+
 test "industrial_boundary_set_chains_and_contextual_identifiers" {
   let raw = b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3; SELECT `group`, `window` FROM `table`"
   let result = match @api.parse_with_ids(raw, "2.1", "editor") {

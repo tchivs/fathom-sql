@@ -258,10 +258,12 @@ fn expect_word(
 }
 
 fn feature_allowed(profile : @token.DorisProfile, introduced : Bytes) -> Bool {
-  match profile {
-    @token.DorisProfile::V2_1 => introduced == b"2.1"
-    @token.DorisProfile::V3_X => introduced == b"2.1" || introduced == b"3.x"
-    @token.DorisProfile::V4_X => true
+  if introduced == b"3.x" {
+    profile.supports(@token.DorisFeature::Qualify)
+  } else if introduced == b"4.x" {
+    profile.supports(@token.DorisFeature::Tablet)
+  } else {
+    true
   }
 }
 
@@ -566,7 +568,14 @@ fn parse_table_ref(
   let mut option_done = false
   while !option_done {
     let option_name = if consume_word(cursor, b"PARTITION") { "PARTITION" }
-    else if consume_word(cursor, b"TABLET") { version_diagnostic(cursor, profile, b"3.x", "TABLET table option", state, source, statement_id); "TABLET" }
+    else if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"TABLET") {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      advance(cursor)
+      if !profile.supports(@token.DorisFeature::Tablet) {
+        add_diagnostic(state, "DORIS-PARSE-006", "feature TABLET is unavailable in the selected released profile", "released-version", span, statement_id)
+      }
+      "TABLET"
+    }
     else if consume_word(cursor, b"SAMPLE") { "SAMPLE" }
     else if consume_word(cursor, b"TABLESAMPLE") { "TABLESAMPLE" }
     else { option_done = true; "" }
