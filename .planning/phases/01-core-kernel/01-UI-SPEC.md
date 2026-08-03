@@ -1,10 +1,11 @@
 ---
 phase: 1
 slug: core-kernel
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-03
+reviewed_at: 2026-08-03
 ---
 
 # Phase 1 — UI Design Contract
@@ -169,18 +170,32 @@ These are host-facing surfaces, not Phase 1 implementation tasks.
 
 ## UI Considerations
 
-Applicable state considerations resolved: 8 covered, 0 dismissed — no unresolved assumptions.
+Applicable state considerations resolved: 22 covered, 0 dismissed, 0 unresolved — auto-resolved from the explicit Phase 1 editor contract.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | source editor, diagnostic list | ✅ covered | Empty input uses the `No SQL to parse` heading/body and directs the user to choose a profile, enter SQL, and use `Parse SQL`; zero diagnostics uses the documented `No diagnostics` copy. |
-| loading | parser result/status | ✅ covered | The core is synchronous and offline; a later host may show `Parsing…` only during adapter work while retaining the prior revision, as specified in the interaction contract. |
-| error | parse status, inline markers, diagnostic panel | ✅ covered | Invalid syntax uses `SQL has errors`, severity text/shape, stable codes, expected syntax class, statement identity, and navigable source spans. |
-| populated | source editor, diagnostic list | ✅ covered | Normal input shows source text with `Valid SQL` or a populated diagnostic list, without changing lossless bytes or trivia. |
-| partial | source editor, parse status | ✅ covered | Incomplete SQL is first-class editor input: `SQL incomplete` plus explicit missing/error/skipped nodes and retained source. |
-| overflow | source editor, diagnostic panel | ✅ covered | Source lines scroll horizontally, diagnostic messages wrap, and many diagnostics use a bounded vertical list; the page itself does not horizontally scroll. |
-| zero-one-many | diagnostic list | ✅ covered | Zero diagnostics shows `No diagnostics`; one or many rows retain source order, visible count, and keyboard previous/next navigation. |
-| long-text | source editor, diagnostic messages | ✅ covered | Long SQL preserves exact bytes with source scrolling; long messages wrap without hiding stable code, severity, or the actionable fix. |
+| empty | source editor | ✅ covered | Show `No SQL to parse`; preserve the empty source revision and direct the host to enter Doris SQL, choose a 2.1/3.x/4.x profile, and use `Parse SQL`. |
+| loading | source editor | ✅ covered | The Phase 1 core is synchronous and offline; a later host adapter may show `Parsing…` while retaining the previous revision until the new result is identified. |
+| error | source editor | ✅ covered | Preserve source text, unknown/error material, and navigable ranges while showing `SQL has errors` and statement-linked diagnostics. |
+| partial | source editor | ✅ covered | Show `SQL incomplete`, retain the partial source, and mark explicit missing/error/skipped nodes rather than replacing the document. |
+| overflow | source editor | ✅ covered | Keep exact source bytes and allow horizontal source scrolling; the host surface must not reflow bytes or horizontally scroll the surrounding page. |
+| long-text | source editor | ✅ covered | Long SQL may scroll horizontally; line wrapping must never imply a source-byte rewrite or hide the current diagnostic range. |
+| empty | diagnostic list | ✅ covered | Show `No diagnostics` only when the selected profile accepted the input syntactically; keep the source and profile visible. |
+| loading | diagnostic list | ✅ covered | Retain the prior revision's list while a host adapter parses; do not fabricate diagnostics or clear the list before the new revision is identified. |
+| error | diagnostic list | ✅ covered | List syntax errors with severity, stable code, expected syntax class, statement identity, and a concrete repair instruction. |
+| populated | diagnostic list | ✅ covered | Render diagnostics in source order with visible severity, code, message, expected class, and half-open byte span; clicking or keyboard activation navigates to the range. |
+| partial | diagnostic list | ✅ covered | A partial parse lists bounded diagnostics for missing/error/skipped nodes and keeps the source revision navigable. |
+| overflow | diagnostic list | ✅ covered | Use a bounded vertically scrollable list with a visible count; long messages wrap while code, severity, and actionable text remain visible. |
+| zero-one-many | diagnostic list | ✅ covered | Zero rows use `No diagnostics`; one and many rows retain source order, visible count, and keyboard previous/next navigation. |
+| empty | profile/mode controls | ✅ covered | Profile and mode controls remain explicit even with empty input; empty-state copy tells the host to choose a profile and enter SQL. |
+| loading | profile/mode controls | ✅ covered | Controls may be disabled during adapter parsing, but the selected profile/mode and previous result remain visible and tied to the source revision. |
+| error | profile/mode controls | ✅ covered | Error status uses `SQL has errors` and identifies the selected profile; it never implies execution, database, or FE failure. |
+| partial | profile/mode controls | ✅ covered | Strict/editor mode remains explicit; editor mode exposes incomplete input without promoting it to `Valid SQL`. |
+| long-text | profile/mode controls | ✅ covered | Labels and status copy wrap at word boundaries without truncating the profile, mode, status, or action name. |
+| loading | source navigation | ✅ covered | Navigation retains the prior revision until the new result is ready, preventing stale span jumps during adapter work. |
+| error | source navigation | ✅ covered | Diagnostic activation moves focus to `[start_byte, end_byte)`; zero-width missing spans place the caret at `start_byte` and announce the expected class. |
+| overflow | source navigation | ✅ covered | Source ranges remain byte-based while the source surface scrolls; navigation must not depend on rendered glyph positions. |
+| long-text | source navigation | ✅ covered | Long diagnostic messages wrap and keep stable code/severity/action visible; range navigation remains keyboard reachable. |
 
 ---
 
@@ -207,11 +222,11 @@ Applicable state considerations resolved: 8 covered, 0 dismissed — no unresolv
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved by gsd-ui-checker on 2026-08-03
