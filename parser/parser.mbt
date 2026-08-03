@@ -645,6 +645,29 @@ fn parse_from(
   valid
 }
 
+fn parse_grouping_arguments(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+  name : String,
+) -> Bool {
+  if !consume_symbol(cursor, b"(") {
+    add_diagnostic(state, "DORIS-PARSE-002", "expected opening " + name + " parenthesis", "grouping", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+    return false
+  }
+  if raw_at(cursor) is Some(b")") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected expression in " + name + "", "grouping", span, statement_id)
+    advance(cursor)
+    false
+  } else {
+    let valid = parse_expression_list(cursor, state, source, statement_id, true)
+    ignore(expect_word(cursor, b")", state, source, statement_id, "expected closing grouping parenthesis"))
+    valid
+  }
+}
+
 fn parse_group_by(
   cursor : Cursor,
   state : RecoveryState,
@@ -655,17 +678,32 @@ fn parse_group_by(
   if consume_word(cursor, b"GROUPING") {
     ignore(expect_word(cursor, b"SETS", state, source, statement_id, "expected SETS after GROUPING"))
     if !consume_symbol(cursor, b"(") { return false }
-    let mut valid = true
-    while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) {
-      if consume_symbol(cursor, b"(") {
-        valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
-        ignore(expect_word(cursor, b")", state, source, statement_id, "expected grouping set parenthesis"))
-      } else { valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid }
-      if !consume_symbol(cursor, b",") { break }
+    if raw_at(cursor) is Some(b")") {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected grouping set in GROUPING SETS", "grouping", span, statement_id)
+      advance(cursor)
+      false
+    } else {
+      let mut valid = true
+      while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) {
+        if consume_symbol(cursor, b"(") {
+          valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+          ignore(expect_word(cursor, b")", state, source, statement_id, "expected grouping set parenthesis"))
+        } else {
+          valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+        }
+        if !consume_symbol(cursor, b",") { break }
+      }
+      ignore(expect_word(cursor, b")", state, source, statement_id, "expected grouping sets parenthesis"))
+      valid
     }
-    ignore(expect_word(cursor, b")", state, source, statement_id, "expected grouping sets parenthesis"))
-    valid
-  } else { parse_expression_list(cursor, state, source, statement_id, true) }
+  } else if consume_word(cursor, b"ROLLUP") {
+    parse_grouping_arguments(cursor, state, source, statement_id, "ROLLUP")
+  } else if consume_word(cursor, b"CUBE") {
+    parse_grouping_arguments(cursor, state, source, statement_id, "CUBE")
+  } else {
+    parse_expression_list(cursor, state, source, statement_id, true)
+  }
 }
 
 fn parse_order_by(
