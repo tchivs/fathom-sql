@@ -83,6 +83,25 @@ test "projection_aliases_support_implicit_explicit_and_quoted_forms" {
   }
 }
 
+test "natural_directional_joins_are_conditionless_and_case_insensitive" {
+  let raws = [
+    b"SELECT a FROM t NATURAL LEFT JOIN u",
+    b"SELECT a FROM t NATURAL RIGHT OUTER JOIN u",
+    b"SeLeCt a FrOm t NaTuRaL rIgHt oUtEr JoIn u",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+    }
+  }
+}
+
 
 
 test "projection_trailing_comma_is_explicitly_missing" {

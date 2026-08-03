@@ -618,14 +618,23 @@ fn parse_from(
     if consume_symbol(cursor, b",") {
       valid = parse_table_ref(cursor, profile, state, source, statement_id) && valid
     } else {
-      let modifier : String? = if consume_word(cursor, b"INNER") { Some("INNER") }
-      else if consume_word(cursor, b"LEFT") { Some("LEFT") }
-      else if consume_word(cursor, b"RIGHT") { Some("RIGHT") }
-      else if consume_word(cursor, b"FULL") { Some("FULL") }
+      let modifier : String? = if consume_word(cursor, b"INNER") { ignore(consume_word(cursor, b"OUTER")); Some("INNER") }
+      else if consume_word(cursor, b"LEFT") { ignore(consume_word(cursor, b"OUTER")); Some("LEFT") }
+      else if consume_word(cursor, b"RIGHT") { ignore(consume_word(cursor, b"OUTER")); Some("RIGHT") }
+      else if consume_word(cursor, b"FULL") { ignore(consume_word(cursor, b"OUTER")); Some("FULL") }
       else if consume_word(cursor, b"CROSS") { Some("CROSS") }
-      else if consume_word(cursor, b"NATURAL") { Some("NATURAL") }
-      else { None }
-      if modifier is Some(_) { ignore(consume_word(cursor, b"OUTER")) }
+      else if consume_word(cursor, b"NATURAL") {
+        if consume_word(cursor, b"LEFT") {
+          ignore(consume_word(cursor, b"OUTER"))
+          Some("NATURAL_LEFT")
+        } else if consume_word(cursor, b"RIGHT") {
+          ignore(consume_word(cursor, b"OUTER"))
+          Some("NATURAL_RIGHT")
+        } else {
+          ignore(consume_word(cursor, b"OUTER"))
+          Some("NATURAL")
+        }
+      } else { None }
       let has_join = consume_word(cursor, b"JOIN")
       if !has_join {
         match modifier {
@@ -639,7 +648,7 @@ fn parse_from(
       } else {
         valid = parse_table_ref(cursor, profile, state, source, statement_id) && valid
         let requires_condition = match modifier {
-          Some(name) => name != "CROSS" && name != "NATURAL"
+          Some(name) => name != "CROSS" && name != "NATURAL" && name != "NATURAL_LEFT" && name != "NATURAL_RIGHT"
           None => true
         }
         if consume_word(cursor, b"ON") {
