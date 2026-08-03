@@ -303,9 +303,22 @@ fn require_node(node : @syntax.SyntaxNode?) -> @syntax.SyntaxNode {
 }
 
 
-fn is_expression_operand(token : @token.Token) -> Bool {
+fn is_identifier_candidate(cursor : Cursor) -> Bool {
+  match token_at(cursor) {
+    Some(token) if token.kind is @token.TokenKind::Quoted => true
+    Some(token) if token.kind is @token.TokenKind::Identifier => {
+      match raw_at(cursor) {
+        Some(raw) => !is_clause_keyword(raw)
+        None => false
+      }
+    }
+    _ => false
+  }
+}
+
+fn is_expression_operand(cursor : Cursor, token : @token.Token) -> Bool {
   match token.kind {
-    @token.TokenKind::Identifier | @token.TokenKind::Quoted |
+    @token.TokenKind::Identifier | @token.TokenKind::Quoted => is_identifier_candidate(cursor)
     @token.TokenKind::StringLiteral | @token.TokenKind::Number => true
     _ => false
   }
@@ -425,7 +438,7 @@ fn parse_expression_postfix(
       ()
     } else if consume_word(cursor, b"OVER") {
       let has_spec = match raw_at(cursor) { Some(raw) => raw == b"("; None => false }
-      let has_name = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
+      let has_name = is_identifier_candidate(cursor)
       if has_spec { valid = parse_window_spec(cursor, state, source, statement_id) && valid }
       else if has_name { advance(cursor) }
       else {
@@ -499,7 +512,7 @@ fn parse_expression(
   }
   let mut prefix_ok = false
   match token_at(cursor) {
-    Some(token) if is_expression_operand(token) => { advance(cursor); prefix_ok = true }
+    Some(token) if is_expression_operand(cursor, token) => { advance(cursor); prefix_ok = true }
     Some(token) if token.kind is @token.TokenKind::Symbol && (raw_at(cursor) is Some(b"(")) => {
       advance(cursor)
       if is_query_start(cursor) { prefix_ok = parse_query(cursor, state, source, statement_id) }
@@ -823,18 +836,16 @@ fn is_projection_boundary(raw : Bytes) -> Bool {
   is_clause_keyword(raw) || raw == b";" || raw == b")"
 }
 fn is_projection_alias_candidate(cursor : Cursor) -> Bool {
-  match token_at(cursor) {
-    Some(token) if is_word_token(token) => {
-      match raw_at(cursor) {
-        Some(raw) if bytes_equal_ci(raw, b"AS") || bytes_equal_ci(raw, b"OVER") || is_projection_boundary(raw) => false
-        Some(_) => match peek_raw(cursor, 1) {
-          None => true
-          Some(next) => next == b"," || is_projection_boundary(next)
-        }
-        None => false
+  if !is_identifier_candidate(cursor) { false }
+  else {
+    match raw_at(cursor) {
+      Some(raw) if bytes_equal_ci(raw, b"AS") || bytes_equal_ci(raw, b"OVER") => false
+      Some(_) => match peek_raw(cursor, 1) {
+        None => true
+        Some(next) => next == b"," || is_projection_boundary(next)
       }
+      None => false
     }
-    _ => false
   }
 }
 
@@ -845,7 +856,7 @@ fn parse_projection_alias(
   statement_id : Int,
 ) -> Bool {
   if consume_word(cursor, b"AS") {
-    let alias_token = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
+    let alias_token = is_identifier_candidate(cursor)
     if alias_token {
       advance(cursor)
       true
@@ -923,7 +934,7 @@ fn parse_query(
     ignore(consume_word(cursor, b"RECURSIVE"))
     let mut cte_done = false
     while !cte_done {
-      let cte_name = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
+      let cte_name = is_identifier_candidate(cursor)
       if !cte_name {
         add_diagnostic(state, "DORIS-PARSE-002", "expected CTE name", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
         valid = false
