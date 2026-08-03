@@ -66,6 +66,7 @@ struct Cursor {
 struct RecoveryState {
   diagnostics : Array[ParserDiagnostic]
   limits : ParserLimits
+  feature_events : Array[FeatureEvent]
   mut recovery_steps : Int
   mut resource_emitted : Bool
 }
@@ -257,18 +258,17 @@ fn expect_word(
   }
 }
 
-fn feature_for_keyword(raw : Bytes) -> @token.DorisFeature? {
-  let features = [@token.DorisFeature::Qualify, @token.DorisFeature::Tablet]
-  for feature in features {
-    if is_keyword(raw, feature.metadata().keyword) {
-      return Some(feature)
-    }
-  }
-  None
-}
 
 fn feature_allowed(profile : @token.DorisProfile, feature : @token.DorisFeature) -> Bool {
   profile.supports(feature)
+}
+
+priv struct FeatureEvent {
+  span : @source.Span
+}
+
+fn record_feature_event(state : RecoveryState, span : @source.Span) -> Unit {
+  state.feature_events.push({ span: span })
 }
 
 fn add_feature_diagnostic(
@@ -277,6 +277,7 @@ fn add_feature_diagnostic(
   span : @source.Span,
   statement_id : Int,
 ) -> Unit {
+  record_feature_event(state, span)
   let metadata = feature.metadata()
   add_diagnostic(
     state,
@@ -1011,15 +1012,30 @@ fn segment_children_for_profile(
   stream : @token.TokenStream,
   start_index : Int,
   end_index : Int,
-  profile : @token.DorisProfile,
+) -> Array[@syntax.SyntaxElement] {
+  segment_children(stream, start_index, end_index)
+}
+
+fn has_feature_event(events : Array[FeatureEvent], span : @source.Span) -> Bool {
+  for event in events {
+    if event.span.start_byte == span.start_byte && event.span.end_byte == span.end_byte {
+      return true
+    }
+  }
+  false
+}
+
+fn segment_children_for_events(
+  stream : @token.TokenStream,
+  start_index : Int,
+  end_index : Int,
+  events : Array[FeatureEvent],
 ) -> Array[@syntax.SyntaxElement] {
   let children : Array[@syntax.SyntaxElement] = []
   let mut index = start_index
   while index < end_index {
     match stream.at(index) {
-      Some(token) if stream.raw(index) is Some(raw) && feature_for_keyword(raw) is Some(feature) && !feature_allowed(profile, feature) => {
-        children.push(version_invalid_node(token))
-      }
+      Some(token) if has_feature_event(events, token.span) => children.push(version_invalid_node(token))
       Some(token) => children.push(leaf_for_token(token))
       None => ()
     }
@@ -1077,7 +1093,6 @@ fn parse_segment(
   state : RecoveryState,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
-  let children = segment_children_for_profile(stream, start_index, end_index, stream.profile)
   let indices = significant_indices(stream, start_index, end_index)
   let selected = match indices.get(0) {
     Some(first_index) => match stream.raw(first_index) {
@@ -1104,10 +1119,12 @@ fn parse_segment(
       }
     }
     if trailing { add_diagnostic(state, "DORIS-PARSE-001", "unexpected tokens after SELECT query", "statement", span, statement_id) }
+    let children = segment_children_for_events(stream, start_index, end_index, state.feature_events)
     if !parsed || trailing { children.push(@syntax.SyntaxElement::ChildNode(require_node(@syntax.SyntaxNode::missing(span.end_byte, stream.source.byte_length())))) }
     let select = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Select, span, children))
     require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(select)]))
   } else {
+    let children = segment_children_for_profile(stream, start_index, end_index)
     let error = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Error, span, children))
     require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
   }
@@ -1189,6 +1206,7 @@ pub fn parse_with_limits(
   let state = RecoveryState::{
     diagnostics: [],
     limits: limits,
+    feature_events: [],
     recovery_steps: 0,
     resource_emitted: false,
   }

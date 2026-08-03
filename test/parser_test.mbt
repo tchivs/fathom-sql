@@ -207,6 +207,44 @@ test "version_invalid_features_share_metadata_gate_and_editor_shape" {
   assert_eq(@printer.print_result(editor), raw)
 }
 
+test "gated_feature_spellings_are_contextual_outside_productions" {
+  let raws = [b"SELECT tablet FROM t", b"SELECT k AS tablet FROM t"]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "2.1", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_true(!has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
+
+test "mixed_case_gated_productions_keep_invalid_events_source_backed" {
+  let raws = [
+    b"SeLeCt k FrOm t TaBlEt (1)",
+    b"SeLeCt k FrOm t QuAlIfY k = 1",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "2.1", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+      assert_true(has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
+
+
 test "projection_clause_boundary_is_case_insensitive" {
   let malformed = match @api.parse_with_ids(b"SELECT a, from", "4.x", "strict") {
     Ok(result) => result
