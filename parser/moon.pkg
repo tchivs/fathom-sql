@@ -1,0 +1,7 @@
+pkgtype(kind: "library")
+import {
+  "fathom/doris-sql/source" @source,
+  "fathom/doris-sql/token" @token,
+  "fathom/doris-sql/lexer" @lexer,
+  "fathom/doris-sql/syntax" @syntax,
+}

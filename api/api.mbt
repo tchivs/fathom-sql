@@ -1,0 +1,238 @@
+/// Versioned primitive parse boundary. Source bytes are owned once by ParseResult.
+pub(all) enum ParseMode {
+  Strict
+  Editor
+}
+
+pub struct ParseOptions {
+  profile : @token.DorisProfile
+  mode : ParseMode
+}
+
+pub enum ParseError {
+  UnknownProfile(profile_id~ : String)
+  UnknownMode(mode_id~ : String)
+  InputTooLarge(requested_bytes~ : Int, max_bytes~ : Int)
+} derive(Eq, @debug.Debug)
+
+pub fn ParseOptions::new(profile_id : String, mode_id : String) -> Result[ParseOptions, ParseError] {
+  let profile = match @token.DorisProfile::from_id(profile_id) {
+    Some(profile) => profile
+    None => return Err(UnknownProfile(profile_id~))
+  }
+  let mode = match mode_id {
+    "strict" => ParseMode::Strict
+    "editor" => ParseMode::Editor
+    _ => return Err(UnknownMode(mode_id~))
+  }
+  Ok({ profile: profile, mode: mode })
+}
+
+pub fn ParseOptions::for_profile(
+  profile : @token.DorisProfile,
+  mode : ParseMode,
+) -> ParseOptions {
+  { profile: profile, mode: mode }
+}
+
+pub fn ParseOptions::profile(self : ParseOptions) -> @token.DorisProfile {
+  self.profile
+}
+
+pub fn ParseOptions::mode(self : ParseOptions) -> ParseMode {
+  self.mode
+}
+
+pub struct PrimitiveNode {
+  pub kind : String
+  pub start_byte : Int
+  pub end_byte : Int
+  pub text_len : Int
+  pub children : Array[PrimitiveNode]
+}
+
+pub struct PrimitiveDiagnostic {
+  pub severity : String
+  pub code : String
+  pub message : String
+  pub expected_class : String
+  pub start_byte : Int
+  pub end_byte : Int
+  pub statement_id : Int
+}
+
+pub struct ParseResult {
+  pub schema_version : String
+  pub source_transport : String
+  pub profile : String
+  pub mode : String
+  pub valid : Bool
+  pub recovered : Bool
+  pub source_bytes : Bytes
+  pub source_byte_length : Int
+  pub root : PrimitiveNode
+  pub diagnostics : Array[PrimitiveDiagnostic]
+}
+
+fn kind_id(kind : @syntax.SyntaxKind) -> String {
+  match kind {
+    @syntax.SyntaxKind::Document => "document"
+    @syntax.SyntaxKind::Statement => "statement"
+    @syntax.SyntaxKind::Select => "select"
+    @syntax.SyntaxKind::Expression => "expression"
+    @syntax.SyntaxKind::Token => "token"
+    @syntax.SyntaxKind::Trivia => "trivia"
+    @syntax.SyntaxKind::Error => "error"
+    @syntax.SyntaxKind::Skipped => "skipped"
+    @syntax.SyntaxKind::Missing => "missing"
+  }
+}
+
+fn primitive_node(node : @syntax.SyntaxNode) -> PrimitiveNode {
+  let children : Array[PrimitiveNode] = []
+  for child in node.children() {
+    match child {
+      @syntax.SyntaxElement::ChildNode(child_node) => children.push(primitive_node(child_node))
+      @syntax.SyntaxElement::Leaf(leaf) => {
+        let kind = match leaf.kind {
+          @syntax.LeafKind::SourceToken => "token"
+          @syntax.LeafKind::SourceTrivia => "trivia"
+          @syntax.LeafKind::SourceError => "error"
+          @syntax.LeafKind::SourceSkipped => "skipped"
+        }
+        children.push({
+          kind: kind,
+          start_byte: leaf.span.start_byte,
+          end_byte: leaf.span.end_byte,
+          text_len: leaf.text_len,
+          children: [],
+        })
+      }
+    }
+  }
+  {
+    kind: kind_id(node.kind()),
+    start_byte: node.span().start_byte,
+    end_byte: node.span().end_byte,
+    text_len: node.text_len(),
+    children: children,
+  }
+}
+
+fn primitive_diagnostic(diagnostic : @parser.ParserDiagnostic) -> PrimitiveDiagnostic {
+  {
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    message: diagnostic.message,
+    expected_class: diagnostic.expected_class,
+    start_byte: diagnostic.span.start_byte,
+    end_byte: diagnostic.span.end_byte,
+    statement_id: diagnostic.statement_id,
+  }
+}
+
+fn mode_id(mode : ParseMode) -> String {
+  match mode {
+    ParseMode::Strict => "strict"
+    ParseMode::Editor => "editor"
+  }
+}
+
+pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseError] {
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+      return Err(InputTooLarge(requested_bytes~, max_bytes~))
+    }
+  }
+  let parser_mode = match options.mode {
+    ParseMode::Strict => @parser.ParseMode::Strict
+    ParseMode::Editor => @parser.ParseMode::Editor
+  }
+  let parsed = @parser.parse(source, options.profile, parser_mode)
+  let diagnostics : Array[PrimitiveDiagnostic] = []
+  for diagnostic in parsed.diagnostics {
+    diagnostics.push(primitive_diagnostic(diagnostic))
+  }
+  Ok({
+    schema_version: "doris.parse.v1",
+    source_transport: "inline-root-v1",
+    profile: options.profile.id(),
+    mode: mode_id(options.mode),
+    valid: parsed.valid,
+    recovered: parsed.recovered,
+    source_bytes: source.bytes(),
+    source_byte_length: source.byte_length(),
+    root: primitive_node(parsed.root),
+    diagnostics: diagnostics,
+  })
+}
+
+pub fn parse_with_ids(
+  raw : Bytes,
+  profile_id : String,
+  mode_id_value : String,
+) -> Result[ParseResult, ParseError] {
+  let options = match ParseOptions::new(profile_id, mode_id_value) {
+    Ok(options) => options
+    Err(error) => return Err(error)
+  }
+  parse(raw, options)
+}
+
+pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
+  self.source_byte_length == self.source_bytes.length()
+}
+
+pub fn ParseResult::all_spans_in_bounds(self : ParseResult) -> Bool {
+  fn check(node : PrimitiveNode, length : Int) -> Bool {
+    if node.start_byte < 0 || node.start_byte > node.end_byte || node.end_byte > length {
+      false
+    } else {
+      let mut result = true
+      for child in node.children {
+        if !check(child, length) {
+          result = false
+        }
+      }
+      result
+    }
+  }
+  check(self.root, self.source_byte_length)
+}
+
+test "api_requires_explicit_profile_and_mode" {
+  assert_true(ParseOptions::new("mysql", "strict") is Err(UnknownProfile(..)))
+  assert_true(ParseOptions::new("4.x", "unknown") is Err(UnknownMode(..)))
+  let options = match ParseOptions::new("2.1", "editor") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  assert_eq(options.profile().id(), "2.1")
+  assert_true(options.mode() is ParseMode::Editor)
+}
+
+test "api_result_owns_source_once_and_has_bounded_descendant_spans" {
+  let result = match parse_with_ids(b"SELECT x\r\n", "3.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(result.source_byte_length, 10)
+  assert_true(result.has_root_only_source())
+  assert_true(result.all_spans_in_bounds())
+  assert_eq(result.diagnostics.length(), 0)
+}
+
+test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
+  let first = match parse_with_ids(b"bad", "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let second = match parse_with_ids(b"bad", "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(first.diagnostics[0].code.starts_with("DORIS-PARSE-"))
+  assert_eq(first.diagnostics[0].statement_id, 0)
+  assert_eq(second.diagnostics[0].statement_id, 0)
+}
