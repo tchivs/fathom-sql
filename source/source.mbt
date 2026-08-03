@@ -167,3 +167,41 @@ test "empty_source_has_stable_zero_width_line" {
   assert_eq(source.line_index().line_starts(), [0])
   assert_eq(source.line_index().line_col(0), Some((0, 0)))
 }
+test "source_limits_and_adjacent_empty_spans" {
+  assert_eq(DEFAULT_MAX_BYTES, 8 * 1024 * 1024)
+  let exact = SourceText::new_with_limit(b"1234", 4)
+  assert_true(exact is Ok(_))
+  let over = SourceText::new_with_limit(b"12345", 4)
+  assert_true(over is Err(InputTooLarge(requested_bytes=5, max_bytes=4)))
+  let source = match exact {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let first = match source.span(0, 2) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let second = match source.span(2, 4) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let empty = match source.span(2, 2) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  assert_eq(source.slice(first), Some(b"12"))
+  assert_eq(source.slice(second), Some(b"34"))
+  assert_eq(empty.length(), 0)
+  assert_eq(source.slice(empty), Some(b""))
+}
+
+test "source_keeps_unicode_and_emoji_bytes" {
+  let raw = b"列\xf0\x9f\x98\x80\n"
+  let source = match SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  assert_true(source.same_bytes(raw))
+  assert_eq(source.line_index().line_starts(), [0, 8])
+  assert_eq(source.line_index().line_col(8), Some((1, 0)))
+}

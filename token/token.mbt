@@ -99,3 +99,11 @@ test "profiles_are_explicit_and_have_no_generic_fallback" {
   assert_eq(V3_X.metadata().release_family, "3.x")
   assert_eq(V4_X.metadata().introduced_features, "4.x-released")
 }
+test "profile_metadata_is_stable_and_complete" {
+  let profiles = [V2_1, V3_X, V4_X]
+  assert_eq(profiles.length(), 3)
+  assert_eq(profiles.map(p => p.id()), ["2.1", "3.x", "4.x"])
+  assert_eq(V2_1.metadata().introduced_features, "baseline")
+  assert_eq(V3_X.metadata().introduced_features, "3.x-released")
+  assert_eq(V4_X.metadata().introduced_features, "4.x-released")
+}

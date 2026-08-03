@@ -285,3 +285,50 @@ test "lexer_terminates_unterminated_material" {
   }
   assert_eq(token.diagnostic_code, Some("LEX_UNTERMINATED_COMMENT"))
 }
+test "lexer_replays_every_source_byte_and_keeps_unicode" {
+  let raw = b"\xef\xbb\xbf列\xf0\x9f\x98\x80 /* c */\r\n42"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let stream = lex(source, @token.DorisProfile::V3_X)
+  let mut replay = b""
+  for token in stream.tokens {
+    let token_bytes = match token.raw(source) {
+      Some(bytes) => bytes
+      None => panic()
+    }
+    replay = replay + token_bytes
+    assert_eq(token.profile, @token.DorisProfile::V3_X)
+  }
+  assert_eq(replay, raw)
+}
+
+test "lexer_retains_unterminated_quote_and_progresses" {
+  let source = match @source.SourceText::new(b"'unterminated") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let stream = lex(source, @token.DorisProfile::V2_1)
+  assert_eq(stream.length(), 1)
+  let token = match stream.at(0) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(token.kind is @token.TokenKind::StringLiteral)
+  assert_eq(token.diagnostic_code, Some("LEX_UNTERMINATED_LITERAL"))
+  assert_eq(token.raw(source), Some(b"'unterminated"))
+}
+
+test "lexer_calls_are_reentrant_without_shared_state" {
+  let source = match @source.SourceText::new(b"SELECT 1") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let first = lex(source, @token.DorisProfile::V2_1)
+  let second = lex(source, @token.DorisProfile::V4_X)
+  assert_eq(first.length(), second.length())
+  assert_eq(first.profile, @token.DorisProfile::V2_1)
+  assert_eq(second.profile, @token.DorisProfile::V4_X)
+  assert_eq(first.raw(0), second.raw(0))
+}
