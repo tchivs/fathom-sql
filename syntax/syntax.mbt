@@ -95,6 +95,27 @@ pub fn SyntaxNode::children(self : SyntaxNode) -> Array[SyntaxElement] {
   self.children.copy()
 }
 
+pub fn SyntaxNode::is_valid(self : SyntaxNode, source_length : Int) -> Bool {
+  if self.text_len < 0 || self.span.start_byte < 0 || self.span.start_byte > self.span.end_byte || self.span.end_byte > source_length || self.text_len != self.span.length() {
+    false
+  } else {
+    let mut previous_end = self.span.start_byte
+    let mut valid = true
+    for child in self.children {
+      let child_span = child.span()
+      if child.text_len() < 0 || child_span.start_byte < self.span.start_byte || child_span.end_byte > self.span.end_byte || child_span.start_byte < previous_end {
+        valid = false
+      }
+      match child {
+        ChildNode(node) => { if !node.is_valid(source_length) { valid = false } }
+        Leaf(leaf) => { if leaf.text_len < 0 || leaf.text_len != leaf.span.length() { valid = false } }
+      }
+      previous_end = child_span.end_byte
+    }
+    valid
+  }
+}
+
 pub fn SyntaxNode::is_missing(self : SyntaxNode) -> Bool {
   self.kind is SyntaxKind::Missing
 }
@@ -191,4 +212,23 @@ test "syntax_source_order_and_touching_leaf_spans_are_preserved" {
   assert_eq(root.children()[1].span().start_byte, 1)
   assert_eq(root.children()[0].span().end_byte, root.children()[1].span().start_byte)
   assert_eq(root.text_len(), 3)
+}
+
+test "syntax_validation_rejects_negative_or_noncontaining_text" {
+  let root_span = match @source.Span::checked(0, 3, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let child_span = match @source.Span::checked(1, 2, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let invalid_text = SyntaxNode::with_text_len(SyntaxKind::Document, root_span, -1, [])
+  assert_true(!invalid_text.is_valid(3))
+  let invalid_order = SyntaxNode::new(
+    SyntaxKind::Document,
+    root_span,
+    [Leaf(SyntaxLeaf::new(LeafKind::SourceToken, child_span)), Leaf(SyntaxLeaf::new(LeafKind::SourceToken, root_span))],
+  )
+  assert_true(!invalid_order.is_valid(3))
 }

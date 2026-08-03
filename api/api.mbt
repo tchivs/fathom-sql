@@ -50,6 +50,7 @@ pub enum ParseError {
   UnknownMode(mode_id~ : String)
   InputTooLarge(requested_bytes~ : Int, max_bytes~ : Int)
   InvalidLimit(limit_name~ : String, value~ : Int)
+  InvalidSyntaxTree
 } derive(Eq, @debug.Debug)
 
 pub fn ParseOptions::new(profile_id : String, mode_id : String) -> Result[ParseOptions, ParseError] {
@@ -222,6 +223,7 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     limits.max_diagnostics,
   )
   let parsed = @parser.parse_with_limits(source, options.profile, parser_mode, parser_limits)
+  if !parsed.root.is_valid(source.byte_length()) { return Err(InvalidSyntaxTree) }
   let diagnostics : Array[PrimitiveDiagnostic] = []
   for diagnostic in parsed.diagnostics {
     diagnostics.push(primitive_diagnostic(diagnostic))
@@ -257,20 +259,22 @@ pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
 }
 
 pub fn ParseResult::all_spans_in_bounds(self : ParseResult) -> Bool {
-  fn check(node : PrimitiveNode, length : Int) -> Bool {
-    if node.start_byte < 0 || node.start_byte > node.end_byte || node.end_byte > length {
+  fn check(node : PrimitiveNode, length : Int, parent_start : Int, parent_end : Int) -> Bool {
+    if node.text_len < 0 || node.text_len != node.end_byte - node.start_byte || node.start_byte < 0 || node.start_byte > node.end_byte || node.end_byte > length || node.start_byte < parent_start || node.end_byte > parent_end {
       false
     } else {
-      let mut result = true
+      let mut valid = true
+      let mut previous_end = node.start_byte
       for child in node.children {
-        if !check(child, length) {
-          result = false
+        if child.start_byte < previous_end || !check(child, length, node.start_byte, node.end_byte) {
+          valid = false
         }
+        previous_end = child.end_byte
       }
-      result
+      valid
     }
   }
-  check(self.root, self.source_byte_length)
+  check(self.root, self.source_byte_length, 0, self.source_byte_length)
 }
 
 test "api_requires_explicit_profile_and_mode" {
