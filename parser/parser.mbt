@@ -393,6 +393,17 @@ fn parse_expression_list(
   statement_id : Int,
   stop_on_close : Bool,
 ) -> Bool {
+  parse_expression_list_context(cursor, state, source, statement_id, stop_on_close, false)
+}
+
+fn parse_expression_list_context(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+  stop_on_close : Bool,
+  allow_wildcard : Bool,
+) -> Bool {
   let mut any = false
   let mut saw_item = false
   let mut valid = true
@@ -411,7 +422,7 @@ fn parse_expression_list(
       Some(_) => {
         saw_item = true
         let before = cursor.position
-        let expression_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+        let expression_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, allow_wildcard)
         any = any || expression_ok
         valid = valid && expression_ok
         if cursor.position == before {
@@ -532,7 +543,7 @@ fn parse_expression_postfix(
       }
     } else if consume_symbol(cursor, b"(") {
       if !consume_symbol(cursor, b")") {
-        valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+        valid = parse_expression_list_context(cursor, state, source, statement_id, true, true) && valid
         valid = expect_word(cursor, b")", state, source, statement_id, "expected closing function parenthesis") && valid
       }
       ()
@@ -602,6 +613,18 @@ fn parse_expression(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
+  parse_expression_context(cursor, minimum_precedence, depth, state, source, statement_id, false)
+}
+
+fn parse_expression_context(
+  cursor : Cursor,
+  minimum_precedence : Int,
+  depth : Int,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+  allow_wildcard : Bool,
+) -> Bool {
   let current_span = match token_at(cursor) {
     Some(token) => token.span
     None => make_span(source, source.byte_length(), source.byte_length())
@@ -616,13 +639,13 @@ fn parse_expression(
     Some(token) if token.kind is @token.TokenKind::Symbol && (raw_at(cursor) is Some(b"(")) => {
       advance(cursor)
       if is_query_start(cursor) { prefix_ok = parse_query(cursor, state, source, statement_id) }
-      else { prefix_ok = parse_expression(cursor, 1, depth + 1, state, source, statement_id) }
+      else { prefix_ok = parse_expression_context(cursor, 1, depth + 1, state, source, statement_id, false) }
       prefix_ok = expect_word(cursor, b")", state, source, statement_id, "expected closing parenthesis") && prefix_ok
     }
-    Some(_) if raw_at(cursor) is Some(b"*") => { advance(cursor); prefix_ok = true }
+    Some(_) if allow_wildcard && raw_at(cursor) is Some(b"*") => { advance(cursor); prefix_ok = true }
     Some(_) if raw_at(cursor) is Some(b"+") || raw_at(cursor) is Some(b"-") || bytes_equal_ci(match raw_at(cursor) { Some(raw) => raw; None => b"" }, b"NOT") => {
       advance(cursor)
-      prefix_ok = parse_expression(cursor, 6, depth + 1, state, source, statement_id)
+      prefix_ok = parse_expression_context(cursor, 6, depth + 1, state, source, statement_id, false)
     }
     Some(token) => add_diagnostic(state, "DORIS-PARSE-002", "expected literal, identifier, or subquery expression", "expression", token.span, statement_id)
     None => add_diagnostic(state, "DORIS-PARSE-002", "expected expression", "expression", current_span, statement_id)
@@ -634,7 +657,7 @@ fn parse_expression(
       match precedence(cursor) {
         Some(operator_precedence) if operator_precedence >= minimum_precedence => {
           advance(cursor)
-          let rhs = parse_expression(cursor, operator_precedence + 1, depth + 1, state, source, statement_id)
+          let rhs = parse_expression_context(cursor, operator_precedence + 1, depth + 1, state, source, statement_id, false)
           valid = rhs && valid
           if !rhs { keep_going = false }
         }
@@ -996,7 +1019,7 @@ fn parse_expression_list_until_clause(
       Some(raw) if is_projection_boundary(raw) => done = true
       Some(_) => {
         let before = cursor.position
-        let item = parse_expression(cursor, 1, 1, state, source, statement_id)
+        let item = parse_expression_context(cursor, 1, 1, state, source, statement_id, true)
         any = any || item
         valid = valid && item
         valid = parse_projection_alias(cursor, state, source, statement_id) && valid

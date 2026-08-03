@@ -468,6 +468,35 @@ test "projection_modifiers_accept_all_except_and_distinctrow" {
   }
 }
 
+test "wildcards_require_projection_or_function_star_context" {
+  let malformed = [b"SELECT 1 + *", b"SELECT a FROM t WHERE *"]
+  for raw in malformed {
+    let strict = parse_strict(raw)
+    let editor = parse_editor_parser(raw)
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
+  }
+  let valid = [b"SELECT * FROM t", b"SELECT COUNT(*) FROM t"]
+  for raw in valid {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
+
 test "released_reserved_words_are_rejected_but_quoted_words_remain_identifiers" {
   let malformed = [
     b"SELECT a AS SELECT",
