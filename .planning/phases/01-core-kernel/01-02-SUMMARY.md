@@ -16,9 +16,9 @@ affects: [01-03-recovery, 01-04-select-corpus]
 
 # Actuals (#2632)
 actuals:
-  tokens: 7197
+  tokens: 7426
   tasks: 2
-  commits: 2
+  commits: 3
 
 # Tech tracking
 tech-stack:
@@ -104,8 +104,8 @@ status: complete
 
 - **Tasks:** 2
 - **Implementation files:** 8
-- **Task commits:** `0220866`, `e8b5e7b`
-- **验证规模:** 26 个 MoonBit inline tests 全部通过
+- **Task commits:** `0220866`, `e8b5e7b`, `fd3c6e3`
+- **验证规模:** 27 个 MoonBit inline tests 全部通过
 
 ## Accomplishments
 
@@ -121,6 +121,7 @@ status: complete
 
 1. **Task 1: Wire CST, SELECT/Pratt parser, primitive API, and replay** — `0220866`
 2. **Task 2: Add inline CST, API, and replay invariants** — `e8b5e7b`
+3. **Rule 2 fix: retain lexical statement identity** — `fd3c6e3`
 
 ## Deviations from Plan
 
@@ -134,18 +135,24 @@ status: complete
 - **Verification:** `printer_replays_the_complete_parser_api_path`、`printer_replays_unicode_crlf_invalid_unknown_and_incomplete_bytes` 通过。
 - **Commit:** `0220866`
 
+**2. [Rule 2 - Critical] 修复跨语句 lexical diagnostic 的 statement identity**
+- **Found during:** Task 2 后续边界验证
+- **Issue:** lexical error diagnostics 初始固定使用 statement_id=0，第二个分号分隔语句的 invalid bytes 无法保持 snapshot-local identity。
+- **Fix:** 按 lexical error span 前的分号边界计算 zero-based statement_id，并加入第二语句 invalid UTF-8 测试。
+- **Files modified:** `parser/parser.mbt`
+- **Verification:** `parser_lexical_diagnostic_keeps_statement_identity`、`moon test` 27/27 通过。
+- **Commit:** `fd3c6e3`
+
+
 ### Scope Notes
 
 - 本计划只实现 01-02 的八个文件和 inline tests；没有加入 01-03 的 bounded recovery corpus/host 功能，也没有扩展 01-04 的工业 SELECT corpus。
 - `strict` 与 `editor` 共用同一 CST 形状；本计划只把 editor 的 `recovered` 标记置为 true，完整 bounded recovery policy 留给 01-03。
 - MoonBit 现有工具链产生的 redundant public modifier/core debug import 等 warning 保留，未运行 formatter/linter，也未安装任何依赖。
 
-## Verification
-
-- `moon check --target native`：通过，0 errors（48–61 个非阻塞 warning，取决于增量构建阶段）。
-- `moon build --target native --release`：通过，0 errors（48–61 个非阻塞 warning）。
-- `moon test`：通过，`Total tests: 26, passed: 26, failed: 0`。
-- 未运行 formatter、linter、项目级 suite、依赖安装或外部服务；未实现后续计划内容。
+- `moon check --target native`：通过，0 errors（61 个非阻塞 warning）。
+- `moon build --target native --release`：通过，0 errors（43 个非阻塞 warning）。
+- `moon test`：通过，`Total tests: 27, passed: 27, failed: 0`。
 
 ## Known Stubs
 
@@ -158,5 +165,5 @@ status: complete
 ## Self-Check: PASSED
 
 - 八个计划文件均存在并已纳入 `0220866`。
-- Task 1 commit `0220866` 和 Task 2 commit `e8b5e7b` 均存在。
+- Task 1 commit `0220866`、Task 2 commit `e8b5e7b`、diagnostic fix `fd3c6e3` 与 SUMMARY commit `1a73a96` 均存在。
 - 预先存在的 `.planning/config.json`、`.planning/.omp-next-action.json`、`.planning/phases/01-core-kernel/01-PATTERNS.md` 与 `_build/` 未被暂存。
