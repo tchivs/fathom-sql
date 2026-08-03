@@ -43,6 +43,27 @@ test "diagnostic_identity_resets_for_each_snapshot" {
   assert_eq(second.diagnostics[1].statement_id, 1)
 }
 
+test "join_modifiers_require_join_and_condition" {
+  let malformed = [b"SELECT a FROM t LEFT", b"SELECT a FROM t LEFT JOIN u", b"SELECT a FROM t INNER JOIN u"]
+  for raw in malformed {
+    let result = match @api.parse_with_ids(raw, "4.x", "strict") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(!result.valid)
+    assert_true(result.diagnostics.length() > 0)
+    assert_eq(@printer.print_result(result), raw)
+  }
+  for raw in [b"SELECT a FROM t CROSS JOIN u", b"SELECT a FROM t NATURAL JOIN u"] {
+    let result = match @api.parse_with_ids(raw, "4.x", "strict") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+  }
+}
+
 
 test "industrial_select_covers_cte_join_window_grouping_and_union" {
   let raw = b"WITH recent AS (SELECT /*+ SET_VAR(exec_mem_limit=1G) */ DISTINCT f.k, SUM(f.v) OVER (PARTITION BY f.k ORDER BY f.ts ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS total FROM fact PARTITION(p0) SAMPLE(10) f LEFT OUTER JOIN dim d ON f.k = d.k WHERE f.v IN (1, 2) AND d.active IS NOT NULL GROUP BY GROUPING SETS ((f.k), (f.k, d.kind)) HAVING SUM(f.v) > 0) SELECT k, total FROM recent ORDER BY total DESC LIMIT 10 UNION ALL SELECT k, total FROM recent"

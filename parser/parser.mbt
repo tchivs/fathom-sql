@@ -606,23 +606,40 @@ fn parse_from(
     if consume_symbol(cursor, b",") {
       valid = parse_table_ref(cursor, profile, state, source, statement_id) && valid
     } else {
-      let mut join_modifier = false
-      if consume_word(cursor, b"INNER") || consume_word(cursor, b"LEFT") || consume_word(cursor, b"RIGHT") || consume_word(cursor, b"FULL") || consume_word(cursor, b"CROSS") || consume_word(cursor, b"NATURAL") {
-        join_modifier = true
-        ignore(consume_word(cursor, b"OUTER"))
-      }
-      if consume_word(cursor, b"JOIN") {
+      let modifier : String? = if consume_word(cursor, b"INNER") { Some("INNER") }
+      else if consume_word(cursor, b"LEFT") { Some("LEFT") }
+      else if consume_word(cursor, b"RIGHT") { Some("RIGHT") }
+      else if consume_word(cursor, b"FULL") { Some("FULL") }
+      else if consume_word(cursor, b"CROSS") { Some("CROSS") }
+      else if consume_word(cursor, b"NATURAL") { Some("NATURAL") }
+      else { None }
+      if modifier is Some(_) { ignore(consume_word(cursor, b"OUTER")) }
+      let has_join = consume_word(cursor, b"JOIN")
+      if !has_join {
+        match modifier {
+          Some(_) => {
+            let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+            add_diagnostic(state, "DORIS-PARSE-002", "expected JOIN after join modifier", "join", make_span(source, at, at), statement_id)
+            valid = false
+          }
+          None => done = true
+        }
+      } else {
         valid = parse_table_ref(cursor, profile, state, source, statement_id) && valid
+        let requires_condition = match modifier {
+          Some(name) => name != "CROSS" && name != "NATURAL"
+          None => true
+        }
         if consume_word(cursor, b"ON") {
           valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
         } else if consume_word(cursor, b"USING") {
           valid = parse_balanced_option(cursor, state, source, statement_id, "USING") && valid
-        } else if !join_modifier {
+        } else if requires_condition {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
           add_diagnostic(state, "DORIS-PARSE-002", "expected ON or USING after JOIN", "join-condition", make_span(source, at, at), statement_id)
           valid = false
         }
-      } else { done = true }
+      }
     }
   }
   valid
@@ -829,6 +846,19 @@ fn leaf_for_token(token : @token.Token) -> @syntax.SyntaxElement {
   @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(kind, token.span))
 }
 
+fn is_clause_keyword(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"FROM") || bytes_equal_ci(raw, b"WHERE") ||
+    bytes_equal_ci(raw, b"GROUP") || bytes_equal_ci(raw, b"HAVING") ||
+    bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"LIMIT") ||
+    bytes_equal_ci(raw, b"JOIN") || bytes_equal_ci(raw, b"UNION") ||
+    bytes_equal_ci(raw, b"QUALIFY") || bytes_equal_ci(raw, b"WINDOW") ||
+    bytes_equal_ci(raw, b"INTO") || bytes_equal_ci(raw, b"INNER") ||
+    bytes_equal_ci(raw, b"LEFT") || bytes_equal_ci(raw, b"RIGHT") ||
+    bytes_equal_ci(raw, b"FULL") || bytes_equal_ci(raw, b"CROSS") ||
+    bytes_equal_ci(raw, b"NATURAL") || bytes_equal_ci(raw, b"OUTER") ||
+    bytes_equal_ci(raw, b"ON") || bytes_equal_ci(raw, b"USING")
+}
+
 fn segment_children(
   stream : @token.TokenStream,
   start_index : Int,
@@ -863,14 +893,6 @@ fn segment_span(
   }
 }
 
-fn is_clause_keyword(raw : Bytes) -> Bool {
-  bytes_equal_ci(raw, b"FROM") || bytes_equal_ci(raw, b"WHERE") ||
-    bytes_equal_ci(raw, b"GROUP") || bytes_equal_ci(raw, b"HAVING") ||
-    bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"LIMIT") ||
-    bytes_equal_ci(raw, b"JOIN") || bytes_equal_ci(raw, b"UNION") ||
-    bytes_equal_ci(raw, b"QUALIFY") || bytes_equal_ci(raw, b"WINDOW") ||
-    bytes_equal_ci(raw, b"INTO")
-}
 
 fn recover_expression(
   cursor : Cursor,
