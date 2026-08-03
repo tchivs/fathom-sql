@@ -590,10 +590,17 @@ fn parse_table_ref(
     valid = expect_word(cursor, b")", state, source, statement_id, "expected closing subquery parenthesis") && valid
   } else {
     let mut name_parts = 0
-    while (match token_at(cursor) { Some(token) => is_word_token(token); None => false }) {
+    while is_identifier_candidate(cursor) {
       advance(cursor)
       name_parts = name_parts + 1
-      if !consume_symbol(cursor, b".") { break }
+      if consume_symbol(cursor, b".") {
+        if !is_identifier_candidate(cursor) {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected table identifier after dot", "identifier", make_span(source, at, at), statement_id)
+          valid = false
+          break
+        }
+      } else { break }
     }
     if name_parts == 0 {
       let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
