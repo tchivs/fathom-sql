@@ -883,3 +883,23 @@ test "with_recursive_is_invalid_but_ordinary_cte_remains_valid" {
     assert_eq(result.diagnostics.length(), 0)
   }
 }
+test "except_requires_all_and_preserves_star_exception" {
+  for raw in [b"SELECT DISTINCT EXCEPT (secret) FROM t", b"SELECT DISTINCTROW EXCEPT (secret) FROM t"] {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+  for raw in [b"SELECT ALL EXCEPT (secret) FROM t", b"SELECT * EXCEPT (secret) FROM t"] {
+    let result = parse_strict(raw)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+  }
+}

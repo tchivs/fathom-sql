@@ -1115,10 +1115,24 @@ fn parse_select_core(
   if !expect_word(cursor, b"SELECT", state, source, statement_id, "expected SELECT statement") { return false }
   let mut valid = true
   let mut has_except = false
-  if consume_word(cursor, b"DISTINCT") || consume_word(cursor, b"DISTINCTROW") || consume_word(cursor, b"ALL") {
-    if consume_word(cursor, b"EXCEPT") {
-      has_except = true
+  let modifier : String? = if consume_word(cursor, b"DISTINCT") {
+    Some("DISTINCT")
+  } else if consume_word(cursor, b"DISTINCTROW") {
+    Some("DISTINCTROW")
+  } else if consume_word(cursor, b"ALL") {
+    Some("ALL")
+  } else {
+    None
+  }
+  let except_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+  if consume_word(cursor, b"EXCEPT") {
+    has_except = true
+    if modifier is Some("ALL") {
       valid = parse_identifier_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
+    } else {
+      add_diagnostic(state, "DORIS-PARSE-002", "EXCEPT requires the ALL projection modifier", "projection", except_span, statement_id)
+      valid = parse_identifier_option(cursor, state, source, statement_id, "EXCEPT") && valid
+      valid = false
     }
   }
   if has_except && raw_at(cursor) is Some(raw) && is_keyword(raw, b"FROM") {
