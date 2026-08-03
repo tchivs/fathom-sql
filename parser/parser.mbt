@@ -620,13 +620,12 @@ fn parse_table_ref(
     if !option_done { valid = parse_balanced_option(cursor, state, source, statement_id, option_name) && valid }
   }
   if consume_word(cursor, b"AS") {
-    let alias = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
-    if !alias { add_diagnostic(state, "DORIS-PARSE-002", "expected table alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
+    let alias_ok = is_identifier_candidate(cursor)
+    if !alias_ok { add_diagnostic(state, "DORIS-PARSE-002", "expected table alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
     else { advance(cursor) }
   } else {
-    let alias = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
-    let raw = match raw_at(cursor) { Some(raw) => raw; None => b"" }
-    if alias && !is_clause_keyword(raw) { advance(cursor) }
+    let alias_ok = is_identifier_candidate(cursor)
+    if alias_ok { advance(cursor) }
   }
   valid
 }
