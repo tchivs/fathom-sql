@@ -140,3 +140,40 @@ test "closed_lexical_material_preserves_invalid_utf8_diagnostic" {
     assert_true(found)
   }
 }
+
+test "lexical_diagnostics_follow_nonempty_statement_segments" {
+  let raw = b"SELECT 1;; -- middle\n; SELECT \xff"
+  for mode in ["strict", "editor"] {
+    let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(!result.valid)
+    assert_eq(@printer.print_result(result), raw)
+    let mut lexical = 0
+    for diagnostic in result.diagnostics {
+      if diagnostic.code == "DORIS-PARSE-003" {
+        lexical = lexical + 1
+        assert_eq(diagnostic.statement_id, 1)
+        assert_true(diagnostic.start_byte < diagnostic.end_byte)
+      }
+    }
+    assert_eq(lexical, 1)
+  }
+}
+
+test "resource_diagnostics_use_nonempty_segment_identity" {
+  let raw = b"SELECT 1;; -- middle\n; SELECT 2"
+  let limits = @api.ParseLimits::new(8 * 1024 * 1024, 9, 128, 100, 8)
+  let result = parse_with_limits(raw, limits)
+  assert_true(!result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  let mut resources = 0
+  for diagnostic in result.diagnostics {
+    if diagnostic.code == "DORIS-PARSE-004" {
+      resources = resources + 1
+      assert_eq(diagnostic.statement_id, 1)
+    }
+  }
+  assert_eq(resources, 1)
+}

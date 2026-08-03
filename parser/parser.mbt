@@ -1072,7 +1072,6 @@ fn leaf_for_token(token : @token.Token) -> @syntax.SyntaxElement {
   @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(kind, token.span))
 }
 
-
 fn segment_children(
   stream : @token.TokenStream,
   start_index : Int,
@@ -1088,6 +1087,30 @@ fn segment_children(
     index = index + 1
   }
   children
+}
+
+fn segment_statement_id_for_span(stream : @token.TokenStream, span : @source.Span) -> Int {
+  let mut statement_id = 0
+  let mut segment_start = 0
+  for index in 0..<stream.length() {
+    match stream.at(index) {
+      Some(token) if token.span.start_byte >= span.start_byte => break
+      Some(token) => {
+        match stream.source.slice(token.span) {
+          Some(raw) if raw == b";" => {
+            let segment_end = index + 1
+            if has_statement_content(stream, segment_start, segment_end) {
+              statement_id = statement_id + 1
+            }
+            segment_start = segment_end
+          }
+          _ => ()
+        }
+      }
+      None => ()
+    }
+  }
+  statement_id
 }
 
 fn segment_children_for_profile(
@@ -1212,14 +1235,6 @@ fn parse_segment(
   }
 }
 
-fn statement_id_for_span(stream : @token.TokenStream, span : @source.Span) -> Int {
-  let mut statement_id = 0
-  for token in stream.tokens {
-    if token.span.start_byte >= span.start_byte { break }
-    match stream.source.slice(token.span) { Some(raw) if raw == b";" => statement_id = statement_id + 1; _ => () }
-  }
-  statement_id
-}
 
 fn append_skipped(
   root_children : Array[@syntax.SyntaxElement],
@@ -1343,7 +1358,7 @@ pub fn parse_with_limits(
   }
   match stream.truncated_at {
     Some(at) => {
-      resource_diagnostic(state, make_span(source, at, source.byte_length()), statement_id_for_span(stream, make_span(source, at, at)))
+      resource_diagnostic(state, make_span(source, at, source.byte_length()), segment_statement_id_for_span(stream, make_span(source, at, at)))
       append_skipped_span(root_children, source, at)
     }
     None => ()
@@ -1358,7 +1373,7 @@ pub fn parse_with_limits(
         "invalid source encoding or unterminated lexical material",
         "lexical material",
         token.span,
-        statement_id_for_span(stream, token.span),
+        segment_statement_id_for_span(stream, token.span),
       )
     }
   }
