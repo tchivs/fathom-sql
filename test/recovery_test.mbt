@@ -238,3 +238,12 @@ test "api_rejects_every_negative_parser_limit_before_parse" {
     assert_true(@api.parse(b"", options) is Err(@api.ParseError::InvalidLimit(..)))
   }
 }
+test "quoted_comment_token_split_cap_emits_resource_diagnostic" {
+  for raw in [b"SELECT 'ok\xfftail'", b"SELECT /*ok\xfe tail*/ 1"] {
+    let result = parse_with_limits(raw, @api.ParseLimits::new(8 * 1024 * 1024, 3, 128, 100, 8))
+    assert_true(!result.valid)
+    assert_true(result.recovered)
+    assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+    assert_eq(@printer.print_result(result), raw)
+  }
+}

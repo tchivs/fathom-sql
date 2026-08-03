@@ -152,7 +152,8 @@ fn push_scanned_with_invalid(
   start_byte : Int,
   end_byte : Int,
   diagnostic_code : String?,
-) -> Unit {
+  max_tokens : Int,
+) -> Int? {
   let mut cursor = start_byte
   let mut segment_start = start_byte
   while cursor < end_byte {
@@ -160,9 +161,11 @@ fn push_scanned_with_invalid(
     let invalid = byte >= 128 && utf8_width(bytes, cursor) is None
     if invalid {
       if segment_start < cursor {
+        if max_tokens >= 0 && tokens.length() >= max_tokens { return Some(segment_start) }
         push_token(tokens, source_length, profile, kind, segment_start, cursor, None)
       }
       let invalid_end = invalid_run_end(bytes, cursor, end_byte)
+      if max_tokens >= 0 && tokens.length() >= max_tokens { return Some(cursor) }
       push_token(tokens, source_length, profile, @token.TokenKind::Error, cursor, invalid_end, Some("LEX_INVALID_UTF8"))
       cursor = invalid_end
       segment_start = cursor
@@ -174,8 +177,10 @@ fn push_scanned_with_invalid(
     }
   }
   if segment_start < end_byte {
+    if max_tokens >= 0 && tokens.length() >= max_tokens { return Some(segment_start) }
     push_token(tokens, source_length, profile, kind, segment_start, end_byte, diagnostic_code)
   }
+  None
 }
 
 
@@ -226,6 +231,7 @@ pub fn lex_with_limit(source : @source.SourceText, profile : @token.DorisProfile
   let source_length = bytes.length()
   let tokens : Array[@token.Token] = []
   let mut index = 0
+  let mut truncated_at : Int? = None
   while index < source_length && (max_tokens < 0 || tokens.length() < max_tokens) {
     let byte = bytes[index].to_int()
     if index + 2 < source_length && byte == 239 && bytes[index + 1].to_int() == 187 &&
@@ -250,21 +256,33 @@ pub fn lex_with_limit(source : @source.SourceText, profile : @token.DorisProfile
     } else if (byte == 45 && index + 1 < source_length && bytes[index + 1].to_int() == 45) || byte == 35 {
       let start = index
       let (end, code) = scan_comment(bytes, if byte == 35 { index } else { index + 1 })
-      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Comment, start, end, code)
+      match push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Comment, start, end, code, max_tokens) {
+        Some(at) => if truncated_at is None { truncated_at = Some(at) }
+        None => ()
+      }
       index = end
     } else if byte == 47 && index + 1 < source_length && bytes[index + 1].to_int() == 42 {
       let (end, code) = scan_comment(bytes, index)
-      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Comment, index, end, code)
+      match push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Comment, index, end, code, max_tokens) {
+        Some(at) => if truncated_at is None { truncated_at = Some(at) }
+        None => ()
+      }
       index = end
     } else if byte == 39 {
       let start = index
       let (end, code) = scan_quoted(bytes, index, byte)
-      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::StringLiteral, start, end, code)
+      match push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::StringLiteral, start, end, code, max_tokens) {
+        Some(at) => if truncated_at is None { truncated_at = Some(at) }
+        None => ()
+      }
       index = end
     } else if byte == 34 || byte == 96 {
       let start = index
       let (end, code) = scan_quoted(bytes, index, byte)
-      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Quoted, start, end, code)
+      match push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Quoted, start, end, code, max_tokens) {
+        Some(at) => if truncated_at is None { truncated_at = Some(at) }
+        None => ()
+      }
       index = end
     } else if byte >= 48 && byte <= 57 {
       let start = index
@@ -323,12 +341,15 @@ pub fn lex_with_limit(source : @source.SourceText, profile : @token.DorisProfile
       }
     }
   }
-  let truncated_at = if index < source_length { Some(index) } else { None }
+  let final_truncated_at = match truncated_at {
+    Some(at) => Some(at)
+    None => if index < source_length { Some(index) } else { None }
+  }
   {
     source: source,
     profile: profile,
     tokens: tokens,
-    truncated_at: truncated_at,
+    truncated_at: final_truncated_at,
   }
 }
 
@@ -471,4 +492,22 @@ test "lexer_accepts_decimal_and_scientific_numbers_but_rejects_repeated_dots" {
   }
   assert_eq(errors, 2)
   assert_eq(replay, raw)
+}
+test "lexer_bounds_invalid_split_tokens_and_reports_source_truncation" {
+  for raw in [b"SELECT 'ok\xfftail'", b"SELECT /*ok\xfe tail*/ 1"] {
+    let source = match @source.SourceText::new(raw) {
+      Ok(source) => source
+      Err(_) => panic()
+    }
+    let stream = lex_with_limit(source, @token.DorisProfile::V4_X, 3)
+    assert_true(stream.length() <= 3)
+    match stream.truncated_at {
+      Some(at) => assert_true(at < raw.length())
+      None => panic()
+    }
+    for token in stream.tokens {
+      assert_true(token.span.end_byte <= raw.length())
+      assert_eq(token.raw(source), source.slice(token.span))
+    }
+  }
 }
