@@ -4,9 +4,45 @@ pub(all) enum ParseMode {
   Editor
 }
 
+pub struct ParseLimits {
+  pub max_bytes : Int
+  pub max_tokens : Int
+  pub max_recursion_depth : Int
+  pub max_recovery_steps : Int
+  pub max_diagnostics : Int
+}
+
+pub fn ParseLimits::default() -> ParseLimits {
+  let limits = @parser.ParserLimits::default()
+  {
+    max_bytes: limits.max_bytes,
+    max_tokens: limits.max_tokens,
+    max_recursion_depth: limits.max_recursion_depth,
+    max_recovery_steps: limits.max_recovery_steps,
+    max_diagnostics: limits.max_diagnostics,
+  }
+}
+
+pub fn ParseLimits::new(
+  max_bytes : Int,
+  max_tokens : Int,
+  max_recursion_depth : Int,
+  max_recovery_steps : Int,
+  max_diagnostics : Int,
+) -> ParseLimits {
+  {
+    max_bytes: max_bytes,
+    max_tokens: max_tokens,
+    max_recursion_depth: max_recursion_depth,
+    max_recovery_steps: max_recovery_steps,
+    max_diagnostics: max_diagnostics,
+  }
+}
+
 pub struct ParseOptions {
   profile : @token.DorisProfile
   mode : ParseMode
+  limits : ParseLimits
 }
 
 pub enum ParseError {
@@ -25,14 +61,21 @@ pub fn ParseOptions::new(profile_id : String, mode_id : String) -> Result[ParseO
     "editor" => ParseMode::Editor
     _ => return Err(UnknownMode(mode_id~))
   }
-  Ok({ profile: profile, mode: mode })
+  Ok({ profile: profile, mode: mode, limits: ParseLimits::default() })
 }
 
 pub fn ParseOptions::for_profile(
   profile : @token.DorisProfile,
   mode : ParseMode,
 ) -> ParseOptions {
-  { profile: profile, mode: mode }
+  { profile: profile, mode: mode, limits: ParseLimits::default() }
+}
+pub fn ParseOptions::for_profile_with_limits(
+  profile : @token.DorisProfile,
+  mode : ParseMode,
+  limits : ParseLimits,
+) -> ParseOptions {
+  { profile: profile, mode: mode, limits: limits }
 }
 
 pub fn ParseOptions::profile(self : ParseOptions) -> @token.DorisProfile {
@@ -43,6 +86,9 @@ pub fn ParseOptions::mode(self : ParseOptions) -> ParseMode {
   self.mode
 }
 
+pub fn ParseOptions::limits(self : ParseOptions) -> ParseLimits {
+  self.limits
+}
 pub struct PrimitiveNode {
   pub kind : String
   pub start_byte : Int
@@ -149,7 +195,15 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     ParseMode::Strict => @parser.ParseMode::Strict
     ParseMode::Editor => @parser.ParseMode::Editor
   }
-  let parsed = @parser.parse(source, options.profile, parser_mode)
+  let limits = options.limits
+  let parser_limits = @parser.ParserLimits::new(
+    limits.max_bytes,
+    limits.max_tokens,
+    limits.max_recursion_depth,
+    limits.max_recovery_steps,
+    limits.max_diagnostics,
+  )
+  let parsed = @parser.parse_with_limits(source, options.profile, parser_mode, parser_limits)
   let diagnostics : Array[PrimitiveDiagnostic] = []
   for diagnostic in parsed.diagnostics {
     diagnostics.push(primitive_diagnostic(diagnostic))

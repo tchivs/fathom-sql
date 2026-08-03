@@ -71,6 +71,13 @@ pub fn SyntaxNode::missing(at : Int) -> SyntaxNode {
   }
   SyntaxNode::new(SyntaxKind::Missing, span, [])
 }
+pub fn SyntaxNode::error(span : @source.Span, children : Array[SyntaxElement]) -> SyntaxNode {
+  SyntaxNode::new(SyntaxKind::Error, span, children)
+}
+
+pub fn SyntaxNode::skipped(span : @source.Span, children : Array[SyntaxElement]) -> SyntaxNode {
+  SyntaxNode::new(SyntaxKind::Skipped, span, children)
+}
 
 pub fn SyntaxNode::kind(self : SyntaxNode) -> SyntaxKind {
   self.kind
@@ -90,6 +97,13 @@ pub fn SyntaxNode::children(self : SyntaxNode) -> Array[SyntaxElement] {
 
 pub fn SyntaxNode::is_missing(self : SyntaxNode) -> Bool {
   self.kind is SyntaxKind::Missing
+}
+pub fn SyntaxNode::is_error(self : SyntaxNode) -> Bool {
+  self.kind is SyntaxKind::Error
+}
+
+pub fn SyntaxNode::is_skipped(self : SyntaxNode) -> Bool {
+  self.kind is SyntaxKind::Skipped
 }
 
 pub fn SyntaxLeaf::new(kind : LeafKind, span : @source.Span) -> SyntaxLeaf {

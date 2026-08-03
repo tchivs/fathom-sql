@@ -31,9 +31,10 @@ pub fn print_lossless(
 ) -> Bytes {
   append_node(root, source, b"")
 }
-// Primitive results already own the immutable source snapshot at the root.
-// Returning that snapshot is the lossless transport operation; print_lossless
-// above remains the CST leaf walker for internal callers.
+// Primitive results own the complete immutable source snapshot at the root,
+// including bytes retained after any parser resource cap. Returning that root
+// snapshot is the exact transport replay operation; print_lossless above
+// remains the CST leaf walker for internal callers.
 pub fn print_result(result : @api.ParseResult) -> Bytes {
   result.source_bytes
 }
