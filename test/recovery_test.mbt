@@ -178,6 +178,49 @@ test "resource_diagnostics_use_nonempty_segment_identity" {
   assert_eq(resources, 1)
 }
 
+test "byte_cap_resource_diagnostics_follow_nonempty_segment_identity" {
+  let raw = b"SELECT 1;; -- middle\n; SELECT 2"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    @token.DorisProfile::V4_X,
+    @parser.ParseMode::Editor,
+    @parser.ParserLimits::new(14, 1000, 128, 100, 8),
+  )
+  let mut found = false
+  for diagnostic in parsed.diagnostics {
+    if diagnostic.code == "DORIS-PARSE-004" {
+      found = true
+      assert_eq(diagnostic.statement_id, 1)
+      assert_true(diagnostic.span.start_byte < diagnostic.span.end_byte)
+    }
+  }
+  assert_true(found)
+  assert_eq(@printer.print_lossless(parsed.root, source), raw)
+  let empty_source = match @source.SourceText::new(b";;") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let empty = @parser.parse_with_limits(
+    empty_source,
+    @token.DorisProfile::V4_X,
+    @parser.ParseMode::Editor,
+    @parser.ParserLimits::new(1, 1000, 128, 100, 8),
+  )
+  let mut empty_found = false
+  for diagnostic in empty.diagnostics {
+    if diagnostic.code == "DORIS-PARSE-004" {
+      empty_found = true
+      assert_eq(diagnostic.statement_id, 0)
+      assert_true(diagnostic.span.start_byte < diagnostic.span.end_byte)
+    }
+  }
+  assert_true(empty_found)
+}
+
 test "api_rejects_every_negative_parser_limit_before_parse" {
   let invalids = [
     @api.ParseLimits::new(-1, 1, 1, 1, 1),

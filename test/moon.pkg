@@ -1,5 +1,7 @@
 import {
   "fathom/doris-sql/api" @api,
+  "fathom/doris-sql/parser" @parser,
   "fathom/doris-sql/printer" @printer,
+  "fathom/doris-sql/source" @source,
   "fathom/doris-sql/token" @token,
 }

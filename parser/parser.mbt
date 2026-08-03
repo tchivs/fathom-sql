@@ -1357,7 +1357,8 @@ pub fn parse_with_limits(
       }
     }
     parse_end = cut_index
-    resource_diagnostic(state, make_span(source, if cut_index < stream.length() { match stream.at(cut_index) { Some(token) => token.span.start_byte; None => limits.max_bytes } } else { limits.max_bytes }, source.byte_length()), 0)
+    let cap_span = make_span(source, if cut_index < stream.length() { match stream.at(cut_index) { Some(token) => token.span.start_byte; None => limits.max_bytes } } else { limits.max_bytes }, source.byte_length())
+    resource_diagnostic(state, cap_span, segment_statement_id_for_span(stream, cap_span))
   }
   let mut segment_start = 0
   let mut statement_id = 0
