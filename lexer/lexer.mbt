@@ -74,6 +74,42 @@ fn is_space(byte : Int) -> Bool {
   byte == 32 || byte == 9 || byte == 11 || byte == 12
 }
 
+fn is_ascii_digit(byte : Int) -> Bool {
+  byte >= 48 && byte <= 57
+}
+
+fn scan_number(bytes : Bytes, start : Int) -> (Int, Bool) {
+  let length = bytes.length()
+  let mut index = start
+  while index < length && is_ascii_digit(bytes[index].to_int()) { index = index + 1 }
+  let mut valid = true
+  if index < length && bytes[index].to_int() == 46 {
+    index = index + 1
+    if index >= length || !is_ascii_digit(bytes[index].to_int()) { valid = false }
+    while index < length && is_ascii_digit(bytes[index].to_int()) { index = index + 1 }
+  }
+  if index < length && (bytes[index].to_int() == 101 || bytes[index].to_int() == 69) {
+    index = index + 1
+    if index < length && (bytes[index].to_int() == 43 || bytes[index].to_int() == 45) { index = index + 1 }
+    if index >= length || !is_ascii_digit(bytes[index].to_int()) { valid = false }
+    while index < length && is_ascii_digit(bytes[index].to_int()) { index = index + 1 }
+  }
+  if index < length && bytes[index].to_int() == 46 {
+    valid = false
+  }
+  if !valid {
+    while index < length {
+      let next = bytes[index].to_int()
+      if is_ascii_digit(next) || next == 46 || next == 101 || next == 69 || next == 43 || next == 45 {
+        index = index + 1
+      } else {
+        break
+      }
+    }
+  }
+  (index, valid)
+}
+
 fn push_token(
   tokens : Array[@token.Token],
   source_length : Int,
@@ -232,16 +268,13 @@ pub fn lex_with_limit(source : @source.SourceText, profile : @token.DorisProfile
       index = end
     } else if byte >= 48 && byte <= 57 {
       let start = index
-      index = index + 1
-      while index < source_length {
-        let next = bytes[index].to_int()
-        if (next >= 48 && next <= 57) || next == 46 {
-          index = index + 1
-        } else {
-          break
-        }
+      let (end, valid) = scan_number(bytes, start)
+      index = end
+      if valid {
+        push_token(tokens, source_length, profile, @token.TokenKind::Number, start, end, None)
+      } else {
+        push_token(tokens, source_length, profile, @token.TokenKind::Error, start, end, Some("LEX_INVALID_NUMBER"))
       }
-      push_token(tokens, source_length, profile, @token.TokenKind::Number, start, index, None)
     } else if starts_identifier(bytes, index) {
       let start = index
       let width = match utf8_width(bytes, index) {
@@ -409,4 +442,33 @@ test "lexer_calls_are_reentrant_without_shared_state" {
   assert_eq(first.profile, @token.DorisProfile::V2_1)
   assert_eq(second.profile, @token.DorisProfile::V4_X)
   assert_eq(first.raw(0), second.raw(0))
+}
+
+test "lexer_accepts_decimal_and_scientific_numbers_but_rejects_repeated_dots" {
+  let raw = b"1 1.2 1e3 1.2E-3 1..2 1.2.3"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let stream = lex(source, @token.DorisProfile::V4_X)
+  assert_eq(stream.raw(0), Some(b"1"))
+  assert_eq(stream.raw(2), Some(b"1.2"))
+  assert_eq(stream.raw(4), Some(b"1e3"))
+  assert_eq(stream.raw(6), Some(b"1.2E-3"))
+  let mut errors = 0
+  let mut replay = b""
+  for token in stream.tokens {
+    let token_bytes = match token.raw(source) {
+      Some(bytes) => bytes
+      None => b""
+    }
+    replay = replay + token_bytes
+    if token.kind is @token.TokenKind::Error {
+      errors = errors + 1
+      assert_eq(token.diagnostic_code, Some("LEX_INVALID_NUMBER"))
+      assert_true(token.span.start_byte < token.span.end_byte)
+    }
+  }
+  assert_eq(errors, 2)
+  assert_eq(replay, raw)
 }

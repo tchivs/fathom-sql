@@ -606,3 +606,26 @@ test "required_expression_and_window_productions_diagnose_and_recover" {
     assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
   }
 }
+
+test "malformed_numeric_literals_are_lexically_diagnosed_and_replayed" {
+  let malformed = [b"SELECT 1..2", b"SELECT 1.2.3"]
+  for raw in malformed {
+    let strict = parse_strict(raw)
+    let editor = parse_editor_parser(raw)
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-003"))
+      assert_true(result.diagnostics.any(d => d.start_byte < d.end_byte))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.root.text_len, editor.root.text_len)
+    assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
+  }
+  for raw in [b"SELECT 1", b"SELECT 1.2", b"SELECT 1e3", b"SELECT 1.2E-3"] {
+    let result = parse_strict(raw)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+  }
+}
