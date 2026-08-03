@@ -723,12 +723,14 @@ fn parse_identifier_option(
   any && valid && closed
 }
 
-fn parse_balanced_option(
+
+fn parse_table_value_option(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : Int,
   option : String,
+  allow_unit : Bool,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
     add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
@@ -736,25 +738,29 @@ fn parse_balanced_option(
   }
   if raw_at(cursor) is Some(b")") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " option", "option", span, statement_id)
+    add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " value", "option", span, statement_id)
     advance(cursor)
     return false
   }
-  let mut depth = 1
-  let mut closed = true
-  while depth > 0 {
-    match raw_at(cursor) {
-      None => {
-        add_diagnostic(state, "DORIS-PARSE-002", "unterminated " + option + " option", "option", make_span(source, source.byte_length(), source.byte_length()), statement_id)
-        closed = false
-        depth = 0
+  let mut valid = true
+  let mut done = false
+  while !done {
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+    if consume_symbol(cursor, b",") {
+      if raw_at(cursor) is Some(b")") {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected value after comma in " + option, "option", span, statement_id)
+        valid = false
+        done = true
       }
-      Some(raw) if raw == b"(" => { depth = depth + 1; advance(cursor) }
-      Some(raw) if raw == b")" => { depth = depth - 1; advance(cursor) }
-      Some(_) => advance(cursor)
+    } else {
+      done = true
     }
   }
-  closed
+  if allow_unit {
+    ignore(consume_word(cursor, b"ROWS") || consume_word(cursor, b"PERCENT"))
+  }
+  expect_symbol(cursor, b")", state, source, statement_id, "expected closing " + option + " parenthesis") && valid
 }
 
 fn parse_table_ref(
@@ -790,8 +796,9 @@ fn parse_table_ref(
   }
   let mut option_done = false
   while !option_done {
-    let option_name = if consume_word(cursor, b"PARTITION") { "PARTITION" }
-    else if raw_at(cursor) is Some(raw) && is_keyword(raw, @token.DorisFeature::Tablet.metadata().keyword) && peek_raw(cursor, 1) is Some(b"(") {
+    if consume_word(cursor, b"PARTITION") {
+      valid = parse_identifier_option(cursor, state, source, statement_id, "PARTITION") && valid
+    } else if raw_at(cursor) is Some(raw) && is_keyword(raw, @token.DorisFeature::Tablet.metadata().keyword) && peek_raw(cursor, 1) is Some(b"(") {
       let feature = @token.DorisFeature::Tablet
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       advance(cursor)
@@ -799,12 +806,30 @@ fn parse_table_ref(
         add_feature_diagnostic(state, feature, span, statement_id)
         valid = false
       }
-      "TABLET"
+      valid = parse_table_value_option(cursor, state, source, statement_id, "TABLET", false) && valid
+    } else if consume_word(cursor, b"SAMPLE") {
+      valid = parse_table_value_option(cursor, state, source, statement_id, "SAMPLE", true) && valid
+      if consume_word(cursor, b"REPEATABLE") {
+        if consume_symbol(cursor, b"(") {
+          valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing REPEATABLE parenthesis") && valid
+        } else {
+          valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+        }
+      }
+    } else if consume_word(cursor, b"TABLESAMPLE") {
+      valid = parse_table_value_option(cursor, state, source, statement_id, "TABLESAMPLE", true) && valid
+      if consume_word(cursor, b"REPEATABLE") {
+        if consume_symbol(cursor, b"(") {
+          valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing REPEATABLE parenthesis") && valid
+        } else {
+          valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+        }
+      }
+    } else {
+      option_done = true
     }
-    else if consume_word(cursor, b"SAMPLE") { "SAMPLE" }
-    else if consume_word(cursor, b"TABLESAMPLE") { "TABLESAMPLE" }
-    else { option_done = true; "" }
-    if !option_done { valid = parse_balanced_option(cursor, state, source, statement_id, option_name) && valid }
   }
   if consume_word(cursor, b"AS") {
     let alias_ok = is_identifier_candidate(cursor)

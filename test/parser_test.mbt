@@ -169,6 +169,33 @@ test "industrial_select_covers_cte_join_window_grouping_and_union" {
   assert_true(result.root.children[0].children.length() > 0)
 }
 
+test "released_tablet_tablesample_repeatable_forms_keep_profile_gate" {
+  let raws = [
+    b"SELECT * FROM t1 TABLET(10001) TABLESAMPLE(1000 ROWS) REPEATABLE 2 LIMIT 1000",
+    b"SELECT * FROM t1 TABLET (10001) TABLESAMPLE (10 PERCENT) REPEATABLE (2) LIMIT 1000",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = match @api.parse_with_ids(raw, profile, mode) {
+          Ok(result) => result
+          Err(_) => panic()
+        }
+        if profile == "2.1" {
+          assert_true(!result.valid)
+          assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+          if mode == "editor" { assert_true(result.recovered) }
+        } else {
+          assert_true(result.valid)
+          assert_eq(result.diagnostics.length(), 0)
+        }
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+      }
+    }
+  }
+}
+
 test "released_profiles_gate_qualify_without_generic_fallback" {
   let raw = b"SELECT row_number() OVER (ORDER BY k) AS rn FROM t QUALIFY rn = 1"
   let old = match @api.parse_with_ids(raw, "2.1", "strict") {
