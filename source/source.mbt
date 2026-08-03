@@ -34,6 +34,7 @@ pub enum SourceError {
 
 pub struct LineIndex {
   starts : Array[Int]
+  source_length : Int
 }
 
 fn build_line_index(bytes : Bytes) -> LineIndex {
@@ -52,7 +53,7 @@ fn build_line_index(bytes : Bytes) -> LineIndex {
     }
     index = index + 1
   }
-  { starts: starts }
+  { starts: starts, source_length: length }
 }
 
 pub fn LineIndex::line_starts(self : LineIndex) -> Array[Int] {
@@ -64,7 +65,7 @@ pub fn LineIndex::line_count(self : LineIndex) -> Int {
 }
 
 pub fn LineIndex::line_col(self : LineIndex, byte_offset : Int) -> (Int, Int)? {
-  if byte_offset < 0 {
+  if byte_offset < 0 || byte_offset > self.source_length {
     None
   } else {
     let count = self.starts.length()
@@ -204,4 +205,14 @@ test "source_keeps_unicode_and_emoji_bytes" {
   assert_true(source.same_bytes(raw))
   assert_eq(source.line_index().line_starts(), [0, 8])
   assert_eq(source.line_index().line_col(8), Some((1, 0)))
+}
+
+test "line_index_rejects_offsets_past_source_eof" {
+  let source = match SourceText::new(b"abc") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  assert_eq(source.line_index().line_col(3), Some((0, 3)))
+  assert_eq(source.line_index().line_col(4), None)
+  assert_eq(source.line_index().line_col(999), None)
 }
