@@ -17,9 +17,9 @@ affects: [CORE-01, CORE-02, CORE-03, CORE-04, CORE-05, CORE-06, CORE-07]
 
 # Actuals (#2632)
 actuals:
-  tokens: 13099
+  tokens: 13300
   tasks: 2
-  commits: 3
+  commits: 4
 
 # Tech tracking
 tech-stack:
@@ -58,13 +58,14 @@ completed: 2026-08-03
 1. **Task 1: Expand profile-gated industrial SELECT and Pratt expressions** — `de9f1e3`
 2. **Task 2: Establish released fixture manifest, goldens, and coverage links** — `6c6cc3b`
 3. **Task 2 correction: keep recovery fixture parser-negative** — `9f8f9ba`
+4. **Task 1 follow-up: accept released projection modifiers** — `fb3666a`
 
 ## Verification
 
 - `moon test` — **40 passed, 0 failed**。
 - `moon check --target native` — 通过，0 errors。
 - `moon build --target native --release` — 通过，0 errors。
-- `moon test test/parser_test.mbt` — 7 passed, 0 failed；包含工业 SELECT、profile gate、manifest metadata、strict/editor、invalid encoding、span 与 replay assertions。
+- `moon test test/parser_test.mbt` — 8 passed, 0 failed；包含工业 SELECT、profile gate、manifest metadata、projection modifiers、strict/editor、invalid encoding、span 与 replay assertions。
 - `moon test test/recovery_test.mbt -i 1` — 1 passed，确认深度/bytes cap 不循环并保留 source-backed replay。
 
 ## Coverage and Known Gaps
@@ -86,7 +87,14 @@ completed: 2026-08-03
 - **Files modified:** `parser/parser.mbt`
 - **Commit:** `de9f1e3`
 
-**Total deviations:** 1 auto-fixed Rule 1 bug；无架构变更，无后续 phase 实现。
+**2. [Rule 1 - Bug] Released ALL EXCEPT projection was rejected as an empty projection**
+- **Found during:** final projection modifier acceptance probe。
+- **Issue:** Official SELECT grammar permits `ALL EXCEPT (...)` without a separate select expression; the generic empty-list diagnostic incorrectly rejected it。
+- **Fix:** Treat a balanced `ALL EXCEPT` modifier as a complete projection and add `DISTINCTROW` handling。
+- **Files modified:** `parser/parser.mbt`, `test/parser_test.mbt`
+- **Commit:** `fb3666a`
+
+**Total deviations:** 2 auto-fixed Rule 1 bugs；无架构变更，无后续 phase 实现。
 
 ## Auth Gates
 
