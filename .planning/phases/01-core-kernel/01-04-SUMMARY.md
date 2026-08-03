@@ -62,7 +62,7 @@ completed: 2026-08-03
 
 ## Verification
 
-- `moon test` — **40 passed, 0 failed**。
+- `moon test` — **41 passed, 0 failed**。
 - `moon check --target native` — 通过，0 errors。
 - `moon build --target native --release` — 通过，0 errors。
 - `moon test test/parser_test.mbt` — 8 passed, 0 failed；包含工业 SELECT、profile gate、manifest metadata、projection modifiers、strict/editor、invalid encoding、span 与 replay assertions。
@@ -114,10 +114,10 @@ No new runtime trust boundary was introduced. Parser remains synchronous/offline
 
 ## Self-Check: PASSED
 
-- `parser/parser.mbt` and `test/parser_test.mbt` exist and are present in `de9f1e3`/`6c6cc3b` history.
+- `parser/parser.mbt` and `test/parser_test.mbt` exist and are present in `de9f1e3`/`fb3666a` history.
 - All six corpus artifacts exist and are present in `6c6cc3b`/`9f8f9ba` history.
-- Task commits `de9f1e3`, `6c6cc3b`, and `9f8f9ba` are present.
-- Final `moon test` reports 40 passed and 0 failed.
+- Task commits `de9f1e3`, `6c6cc3b`, `9f8f9ba`, and `fb3666a` are present.
+- Final `moon test` reports 41 passed and 0 failed.
 - Native check and release build both report 0 errors.
 - Pre-existing `.planning/config.json`, `.planning/.omp-checkpoint.json`, `.planning/.omp-next-action.json`, `.planning/phases/01-core-kernel/01-PATTERNS.md`, and `_build/` were not staged.
 
