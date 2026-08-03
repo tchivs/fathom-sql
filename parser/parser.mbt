@@ -767,7 +767,24 @@ fn parse_expression_list_until_clause(
           else { add_diagnostic(state, "DORIS-PARSE-002", "expected projection alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
         }
         if cursor.position == before { recover_expression(cursor, state, source, statement_id); valid = false }
-        if !consume_symbol(cursor, b",") { done = true }
+        if consume_symbol(cursor, b",") {
+          match raw_at(cursor) {
+            None => {
+              add_diagnostic(state, "DORIS-PARSE-002", "expected expression after projection comma", "expression", make_span(source, source.byte_length(), source.byte_length()), statement_id)
+              valid = false
+              done = true
+            }
+            Some(raw) if raw == b"FROM" || raw == b"WHERE" || raw == b"GROUP" || raw == b"HAVING" || raw == b"WINDOW" || raw == b"QUALIFY" || raw == b"ORDER" || raw == b"LIMIT" || raw == b"INTO" || raw == b"UNION" || raw == b";" || raw == b")" => {
+              let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+              add_diagnostic(state, "DORIS-PARSE-002", "expected expression after projection comma", "expression", make_span(source, at, at), statement_id)
+              valid = false
+              done = true
+            }
+            Some(_) => ()
+          }
+        } else {
+          done = true
+        }
       }
     }
   }
