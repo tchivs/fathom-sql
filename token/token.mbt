@@ -176,6 +176,7 @@ test "released_feature_metadata_and_profile_gates_are_stable" {
   assert_eq(qualify.introduced_profile, "3.x")
   assert_eq(qualify.diagnostic_code, "DORIS-PARSE-006")
   assert_eq(qualify.recovery_kind, "error")
+  assert_eq(qualify.diagnostic_message, "feature QUALIFY is unavailable in the selected released profile")
   assert_eq(tablet.name, "TABLET")
   assert_eq(tablet.keyword, b"TABLET")
   assert_eq(tablet.introduced_profile, "3.x")
