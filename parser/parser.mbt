@@ -661,9 +661,19 @@ fn parse_select_core(
   statement_id : Int,
 ) -> Bool {
   if !expect_word(cursor, b"SELECT", state, source, statement_id, "expected SELECT statement") { return false }
-  ignore(consume_word(cursor, b"DISTINCT"))
-  ignore(consume_word(cursor, b"ALL"))
-  let mut valid = parse_expression_list_until_clause(cursor, state, source, statement_id)
+  let mut valid = true
+  let mut has_except = false
+  if consume_word(cursor, b"DISTINCT") || consume_word(cursor, b"DISTINCTROW") || consume_word(cursor, b"ALL") {
+    if consume_word(cursor, b"EXCEPT") {
+      has_except = true
+      valid = parse_balanced_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
+    }
+  }
+  if has_except && raw_at(cursor) is Some(b"FROM") {
+    valid = true && valid
+  } else {
+    valid = parse_expression_list_until_clause(cursor, state, source, statement_id) && valid
+  }
   if consume_word(cursor, b"FROM") { valid = parse_from(cursor, profile, state, source, statement_id) && valid }
   if consume_word(cursor, b"WHERE") { valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid }
   if consume_word(cursor, b"GROUP") { valid = parse_group_by(cursor, state, source, statement_id) && valid }

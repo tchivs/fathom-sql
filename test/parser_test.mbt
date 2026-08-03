@@ -130,3 +130,16 @@ test "released_manifest_contract_is_complete_and_offline" {
   assert_true(fixture_replay_ok(b"SELECT k +", "4.x", "editor", false))
   assert_true(fixture_replay_ok(b"SELECT \xff", "2.1", "editor", false))
 }
+
+test "projection_modifiers_accept_all_except_and_distinctrow" {
+  let raws = [b"SELECT ALL EXCEPT (secret) FROM fact", b"SELECT DISTINCTROW k FROM fact"]
+  for raw in raws {
+    let result = match @api.parse_with_ids(raw, "2.1", "strict") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+  }
+}
