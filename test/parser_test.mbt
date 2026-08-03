@@ -251,6 +251,47 @@ test "gated_feature_spellings_are_contextual_outside_productions" {
   }
 }
 
+test "tablet_table_alias_is_contextual_without_option_parenthesis" {
+  let aliases = [b"SELECT a FROM t tablet", b"SELECT a FROM t AS TaBlEt"]
+  for raw in aliases {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = match @api.parse_with_ids(raw, profile, mode) {
+          Ok(result) => result
+          Err(_) => panic()
+        }
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_true(!has_kind(result.root, "error"))
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+      }
+    }
+  }
+}
+
+test "tablet_option_parenthesis_retains_profile_gate" {
+  let raw = b"SELECT a FROM t TaBlEt (1)"
+  for profile in ["2.1", "3.x", "4.x"] {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, profile, mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      if profile == "2.1" {
+        assert_true(!result.valid)
+        assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+        if mode == "editor" { assert_true(has_kind(result.root, "error")) }
+      } else {
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+      }
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
+
 
 test "mixed_case_gated_productions_keep_invalid_events_source_backed" {
   let raws = [

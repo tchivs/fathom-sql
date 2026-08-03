@@ -591,7 +591,7 @@ fn parse_table_ref(
   let mut option_done = false
   while !option_done {
     let option_name = if consume_word(cursor, b"PARTITION") { "PARTITION" }
-    else if raw_at(cursor) is Some(raw) && is_keyword(raw, @token.DorisFeature::Tablet.metadata().keyword) {
+    else if raw_at(cursor) is Some(raw) && is_keyword(raw, @token.DorisFeature::Tablet.metadata().keyword) && peek_raw(cursor, 1) is Some(b"(") {
       let feature = @token.DorisFeature::Tablet
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       advance(cursor)
