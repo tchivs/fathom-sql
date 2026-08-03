@@ -31,12 +31,33 @@ pub fn print_lossless(
 ) -> Bytes {
   append_node(root, source, b"")
 }
-// Primitive results own the complete immutable source snapshot at the root,
-// including bytes retained after any parser resource cap. Returning that root
-// snapshot is the exact transport replay operation; print_lossless above
-// remains the CST leaf walker for internal callers.
-pub fn print_result(result : @api.ParseResult) -> Bytes {
+// Primitive results retain the root transport payload independently from
+// structural replay; the printer validates the latter by walking leaf nodes.
+fn append_primitive_node(node : @api.PrimitiveNode, source : @source.SourceText, output : Bytes) -> Bytes {
+  if node.children.length() == 0 {
+    match source.span(node.start_byte, node.end_byte) {
+      Ok(span) => match source.slice(span) { Some(bytes) => output + bytes; None => output }
+      Err(_) => output
+    }
+  } else {
+    let mut result = output
+    for child in node.children {
+      result = append_primitive_node(child, source, result)
+    }
+    result
+  }
+}
+
+pub fn print_transport(result : @api.ParseResult) -> Bytes {
   result.source_bytes
+}
+
+pub fn print_result(result : @api.ParseResult) -> Bytes {
+  let source = match @source.SourceText::new_with_limit(result.source_bytes, result.source_byte_length) {
+    Ok(source) => source
+    Err(_) => return b""
+  }
+  append_primitive_node(result.root, source, b"")
 }
 
 test "printer_replays_the_complete_parser_api_path" {
@@ -49,6 +70,7 @@ test "printer_replays_the_complete_parser_api_path" {
   assert_eq(parsed.root.children[0].children.length(), 1)
   assert_eq(parsed.root.children[0].children[0].children.length(), 9)
   assert_eq(print_result(parsed), raw)
+  assert_eq(print_transport(parsed), raw)
 }
 
 
