@@ -1101,7 +1101,13 @@ fn parse_expression_list_until_clause(
       Some(raw) if is_projection_boundary(raw) => done = true
       Some(_) => {
         let before = cursor.position
-        let item = parse_expression_context(cursor, 1, 1, state, source, statement_id, true)
+        let item = if raw_at(cursor) is Some(b"*") && peek_raw(cursor, 1) is Some(raw) && is_keyword(raw, b"EXCEPT") {
+          advance(cursor)
+          ignore(consume_word(cursor, b"EXCEPT"))
+          parse_identifier_option(cursor, state, source, statement_id, "projection EXCEPT")
+        } else {
+          parse_expression_context(cursor, 1, 1, state, source, statement_id, true)
+        }
         any = any || item
         valid = valid && item
         valid = parse_projection_alias(cursor, state, source, statement_id) && valid

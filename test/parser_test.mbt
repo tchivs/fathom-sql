@@ -223,6 +223,33 @@ test "released_profiles_gate_qualify_without_generic_fallback" {
   assert_eq(@printer.print_result(released), raw)
 }
 
+test "released_projection_star_except_is_explicit_and_lossless" {
+  let raw = b"SELECT * EXCEPT(age) FROM student"
+  for profile in ["2.1", "3.x", "4.x"] {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, profile, mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+  for raw in [b"SELECT * EXCEPT () FROM student", b"SELECT * EXCEPT (age,) FROM student"] {
+    let strict = parse_strict(raw)
+    let editor = parse_editor_parser(raw)
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
+  }
+}
+
 test "version_gate_diagnostic_spans_offending_tablet_keyword" {
   let raw = b"SELECT k FROM t TABLET (1)"
   let result = match @api.parse_with_ids(raw, "2.1", "strict") {
