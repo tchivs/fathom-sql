@@ -177,6 +177,15 @@ test "projection_clause_boundary_is_case_insensitive" {
   assert_true(malformed.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
   assert_true(has_kind(malformed.root, "missing"))
   assert_eq(@printer.print_result(malformed), b"SELECT a, from")
+  let mixed = match @api.parse_with_ids(b"SELECT a, FrOm", "4.x", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!mixed.valid)
+  assert_true(mixed.recovered)
+  assert_true(mixed.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+  assert_true(has_kind(mixed.root, "missing"))
+  assert_eq(@printer.print_result(mixed), b"SELECT a, FrOm")
   let valid = match @api.parse_with_ids(b"select a from t where b = 1", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
