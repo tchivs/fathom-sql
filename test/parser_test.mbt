@@ -587,3 +587,27 @@ test "window_required_nulls_and_frame_tokens_propagate_failure" {
     }
   }
 }
+
+test "required_expression_and_window_productions_diagnose_and_recover" {
+  let malformed = [
+    b"SELECT SUM(x) OVER (ORDER BY)",
+    b"SELECT x IN ()",
+    b"SELECT a FROM t GROUP BY GROUPING SETS",
+    b"SELECT a FROM t WINDOW w AS",
+  ]
+  for raw in malformed {
+    let strict = parse_strict(raw)
+    let editor = parse_editor_parser(raw)
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.root.kind, editor.root.kind)
+    assert_eq(strict.root.text_len, editor.root.text_len)
+    assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
+  }
+}

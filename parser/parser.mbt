@@ -257,6 +257,25 @@ fn expect_word(
     false
   }
 }
+fn expect_symbol(
+  cursor : Cursor,
+  symbol : Bytes,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+  message : String,
+) -> Bool {
+  if consume_symbol(cursor, symbol) {
+    true
+  } else {
+    let at = match token_at(cursor) {
+      Some(token) => token.span.start_byte
+      None => source.byte_length()
+    }
+    add_diagnostic(state, "DORIS-PARSE-002", message, "symbol", make_span(source, at, at), statement_id)
+    false
+  }
+}
 
 
 fn feature_allowed(profile : @token.DorisProfile, feature : @token.DorisFeature) -> Bool {
@@ -332,6 +351,7 @@ fn parse_expression_list(
   stop_on_close : Bool,
 ) -> Bool {
   let mut any = false
+  let mut saw_item = false
   let mut valid = true
   let mut done = false
   while !done {
@@ -339,12 +359,14 @@ fn parse_expression_list(
       None => done = true
       Some(raw) if raw == b")" && stop_on_close => done = true
       Some(raw) if raw == b"," => {
+        saw_item = true
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
         add_diagnostic(state, "DORIS-PARSE-002", "expected expression after comma", "expression", span, statement_id)
         valid = false
         advance(cursor)
       }
       Some(_) => {
+        saw_item = true
         let before = cursor.position
         let expression_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
         any = any || expression_ok
@@ -363,6 +385,11 @@ fn parse_expression_list(
         }
       }
     }
+  }
+  if !saw_item {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected expression", "expression", make_span(source, at, at), statement_id)
+    valid = false
   }
   any && valid
 }
@@ -411,7 +438,9 @@ fn parse_window_spec(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
-  if !consume_symbol(cursor, b"(") { return true }
+  if !consume_symbol(cursor, b"(") {
+    return expect_symbol(cursor, b"(", state, source, statement_id, "expected opening window specification parenthesis")
+  }
   let mut valid = true
   if consume_word(cursor, b"PARTITION") {
     valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION") && valid
@@ -759,7 +788,9 @@ fn parse_group_by(
   if !valid { return false }
   if consume_word(cursor, b"GROUPING") {
     valid = expect_word(cursor, b"SETS", state, source, statement_id, "expected SETS after GROUPING") && valid
-    if !valid || !consume_symbol(cursor, b"(") { return false }
+    if !valid { return false }
+    valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected opening GROUPING SETS parenthesis") && valid
+    if !valid { return false }
     if raw_at(cursor) is Some(b")") {
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       add_diagnostic(state, "DORIS-PARSE-002", "expected grouping set in GROUPING SETS", "grouping", span, statement_id)
