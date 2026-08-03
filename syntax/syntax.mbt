@@ -263,3 +263,16 @@ test "syntax_validation_rejects_negative_or_noncontaining_text" {
   assert_true(SyntaxNode::missing(-1, 3) is None)
   assert_true(SyntaxNode::missing(4, 3) is None)
 }
+test "syntax_error_and_skipped_reject_malformed_child_spans" {
+  let parent = match @source.Span::checked(1, 3, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let malformed = match @source.Span::checked(0, 3, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let child = Leaf(SyntaxLeaf::new(LeafKind::SourceError, malformed))
+  assert_true(SyntaxNode::error(parent, [child]) is None)
+  assert_true(SyntaxNode::skipped(parent, [child]) is None)
+}
