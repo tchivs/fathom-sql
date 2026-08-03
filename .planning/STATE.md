@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: Core Kernel
-status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-08-03T11:23:37.805Z"
+status: verifying
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-08-03T11:48:08.736Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 
 Phase: 01 (Core Kernel) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-03 — Phase 01 execution started
 
-Progress: [████████░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [████████░░] 75%
 | Phase 01 P01 | 14 | 2 tasks | 8 files |
 | Phase 01 P02 | 25 | 2 tasks | 8 files |
 | Phase 01 P03 | 48 | 2 tasks | 8 files |
+| Phase 01 P04 | 5 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [Phase ?]: ParseLimits 通过 API 构造器转换为 parser-owned limits，保持依赖方向与跨包不变性
 - [Phase ?]: DORIS-PARSE-003 用于 encoding/unterminated lexical material，DORIS-PARSE-004 保留给单一 resource diagnostic
 - [Phase ?]: 资源上限后的完整输入保留为 root source snapshot，CST 使用 source-backed SKIPPED remainder
+- [Phase ?]: 工业 SELECT 采用统一递归下降查询路径与集中 Pratt 优先级表，profile 严格限定 2.1/3.x/4.x。
+- [Phase ?]: 官方 revision 无法从离线 GitHub API 核验时保留 unavailable-offline + known-gap，不伪造 commit。
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T11:23:37.786Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-08-03T11:48:08.716Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
