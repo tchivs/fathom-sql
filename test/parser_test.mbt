@@ -64,6 +64,26 @@ test "join_modifiers_require_join_and_condition" {
   }
 }
 
+test "projection_aliases_support_implicit_explicit_and_quoted_forms" {
+  let raws = [
+    b"SELECT k total FROM t",
+    b"SeLeCt k ToTaL, v AS amount FrOm t",
+    b"SELECT k total, v `MiXeD` FROM t",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+    }
+  }
+}
+
+
 
 test "projection_trailing_comma_is_explicitly_missing" {
   for raw in [b"SELECT a, FROM t", b"SELECT a, UNION SELECT b", b"SELECT a,)"] {

@@ -800,6 +800,44 @@ fn parse_select_core(
 fn is_projection_boundary(raw : Bytes) -> Bool {
   is_clause_keyword(raw) || raw == b";" || raw == b")"
 }
+fn is_projection_alias_candidate(cursor : Cursor) -> Bool {
+  match token_at(cursor) {
+    Some(token) if is_word_token(token) => {
+      match raw_at(cursor) {
+        Some(raw) if bytes_equal_ci(raw, b"AS") || bytes_equal_ci(raw, b"OVER") || is_projection_boundary(raw) => false
+        Some(_) => match peek_raw(cursor, 1) {
+          None => true
+          Some(next) => next == b"," || is_projection_boundary(next)
+        }
+        None => false
+      }
+    }
+    _ => false
+  }
+}
+
+fn parse_projection_alias(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+) -> Bool {
+  if consume_word(cursor, b"AS") {
+    let alias_token = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
+    if alias_token {
+      advance(cursor)
+      true
+    } else {
+      add_diagnostic(state, "DORIS-PARSE-002", "expected projection alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+      false
+    }
+  } else if is_projection_alias_candidate(cursor) {
+    advance(cursor)
+    true
+  } else {
+    true
+  }
+}
 
 
 fn parse_expression_list_until_clause(
@@ -820,11 +858,7 @@ fn parse_expression_list_until_clause(
         let item = parse_expression(cursor, 1, 1, state, source, statement_id)
         any = any || item
         valid = valid && item
-        if consume_word(cursor, b"AS") {
-          let alias_token = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
-          if alias_token { advance(cursor) }
-          else { add_diagnostic(state, "DORIS-PARSE-002", "expected projection alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
-        }
+        valid = parse_projection_alias(cursor, state, source, statement_id) && valid
         if cursor.position == before { recover_expression(cursor, state, source, statement_id); valid = false }
         if consume_symbol(cursor, b",") {
           match raw_at(cursor) {
