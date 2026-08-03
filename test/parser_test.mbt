@@ -42,3 +42,48 @@ test "diagnostic_identity_resets_for_each_snapshot" {
   assert_eq(second.diagnostics[0].statement_id, 0)
   assert_eq(second.diagnostics[1].statement_id, 1)
 }
+
+
+test "industrial_select_covers_cte_join_window_grouping_and_union" {
+  let raw = b"WITH recent AS (SELECT /*+ SET_VAR(exec_mem_limit=1G) */ DISTINCT f.k, SUM(f.v) OVER (PARTITION BY f.k ORDER BY f.ts ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS total FROM fact PARTITION(p0) SAMPLE(10) f LEFT OUTER JOIN dim d ON f.k = d.k WHERE f.v IN (1, 2) AND d.active IS NOT NULL GROUP BY GROUPING SETS ((f.k), (f.k, d.kind)) HAVING SUM(f.v) > 0) SELECT k, total FROM recent ORDER BY total DESC LIMIT 10 UNION ALL SELECT k, total FROM recent"
+  let result = match @api.parse_with_ids(raw, "3.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.valid)
+  assert_eq(result.diagnostics.length(), 0)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(result.root.children.length() == 1)
+  assert_true(result.root.children[0].children.length() > 0)
+}
+
+test "released_profiles_gate_qualify_without_generic_fallback" {
+  let raw = b"SELECT row_number() OVER (ORDER BY k) AS rn FROM t QUALIFY rn = 1"
+  let old = match @api.parse_with_ids(raw, "2.1", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let released = match @api.parse_with_ids(raw, "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!old.valid)
+  assert_true(old.diagnostics.length() > 0)
+  assert_eq(old.diagnostics[0].code, "DORIS-PARSE-006")
+  assert_eq(old.diagnostics[0].statement_id, 0)
+  assert_true(released.valid)
+  assert_eq(@printer.print_result(old), raw)
+  assert_eq(@printer.print_result(released), raw)
+}
+
+test "industrial_boundary_set_chains_and_contextual_identifiers" {
+  let raw = b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3; SELECT `group`, `window` FROM `table`"
+  let result = match @api.parse_with_ids(raw, "2.1", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.valid)
+  assert_eq(result.diagnostics.length(), 0)
+  assert_eq(@printer.print_result(result), raw)
+  assert_eq(result.root.children.length(), 2)
+}
