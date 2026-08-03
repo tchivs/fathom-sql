@@ -834,6 +834,7 @@ fn parse_table_value_option(
   statement_id : Int,
   option : String,
   allow_unit : Bool,
+  allow_multiple : Bool,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
     add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
@@ -850,6 +851,11 @@ fn parse_table_value_option(
   while !done {
     valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
     if consume_symbol(cursor, b",") {
+      if !allow_multiple {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", option + " accepts a single value", "option", span, statement_id)
+        valid = false
+      }
       if raw_at(cursor) is Some(b")") {
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
         add_diagnostic(state, "DORIS-PARSE-002", "expected value after comma in " + option, "option", span, statement_id)
@@ -909,9 +915,9 @@ fn parse_table_ref(
         add_feature_diagnostic(state, feature, span, statement_id)
         valid = false
       }
-      valid = parse_table_value_option(cursor, state, source, statement_id, "TABLET", false) && valid
+      valid = parse_table_value_option(cursor, state, source, statement_id, "TABLET", false, true) && valid
     } else if consume_word(cursor, b"SAMPLE") {
-      valid = parse_table_value_option(cursor, state, source, statement_id, "SAMPLE", true) && valid
+      valid = parse_table_value_option(cursor, state, source, statement_id, "SAMPLE", true, false) && valid
       if consume_word(cursor, b"REPEATABLE") {
         if consume_symbol(cursor, b"(") {
           valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
@@ -921,7 +927,7 @@ fn parse_table_ref(
         }
       }
     } else if consume_word(cursor, b"TABLESAMPLE") {
-      valid = parse_table_value_option(cursor, state, source, statement_id, "TABLESAMPLE", true) && valid
+      valid = parse_table_value_option(cursor, state, source, statement_id, "TABLESAMPLE", true, false) && valid
       if consume_word(cursor, b"REPEATABLE") {
         if consume_symbol(cursor, b"(") {
           valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid

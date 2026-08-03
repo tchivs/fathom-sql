@@ -903,3 +903,29 @@ test "except_requires_all_and_preserves_star_exception" {
     assert_eq(@printer.print_result(result), raw)
   }
 }
+test "sample_options_are_single_value_but_tablet_accepts_list" {
+  for raw in [b"SELECT * FROM t TABLET(1, 2)", b"SELECT * FROM t SAMPLE(10 ROWS) REPEATABLE(2)", b"SELECT * FROM t TABLESAMPLE(10 PERCENT) REPEATABLE 2"] {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+  for raw in [b"SELECT * FROM t SAMPLE(10, 20)", b"SELECT * FROM t TABLESAMPLE(10 ROWS, 20 ROWS)"] {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
