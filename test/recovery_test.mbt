@@ -123,3 +123,20 @@ test "malformed_lexical_material_uses_stable_code_and_replays" {
   }
   assert_true(found)
 }
+
+test "closed_lexical_material_preserves_invalid_utf8_diagnostic" {
+  let raws = [b"SELECT '\xff'", b"SELECT `bad\xff`", b"SELECT /*\xff*/ 1"]
+  for raw in raws {
+    let result = parse_with_limits(raw, @api.ParseLimits::default())
+    assert_true(!result.valid)
+    assert_eq(@printer.print_result(result), raw)
+    let mut found = false
+    for diagnostic in result.diagnostics {
+      if diagnostic.code == "DORIS-PARSE-003" {
+        found = true
+        assert_true(diagnostic.start_byte < diagnostic.end_byte)
+      }
+    }
+    assert_true(found)
+  }
+}
