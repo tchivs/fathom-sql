@@ -34,6 +34,33 @@ test "strict_and_editor_share_shape_but_not_validity" {
   assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
 }
 
+test "malformed_expression_and_window_create_explicit_recovery_nodes" {
+  let raws = [b"SELECT 1 +", b"SELECT SUM(x) OVER ("]
+  for raw in raws {
+    let strict = match @api.parse_with_ids(raw, "4.x", "strict") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    let editor = match @api.parse_with_ids(raw, "4.x", "editor") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(result.diagnostics[0].code, "DORIS-PARSE-002")
+      assert_eq(result.diagnostics[0].statement_id, 0)
+      assert_eq(result.diagnostics[0].start_byte, raw.length())
+      assert_eq(result.diagnostics[0].end_byte, raw.length())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.root.kind, editor.root.kind)
+    assert_eq(strict.root.text_len, editor.root.text_len)
+  }
+}
+
 test "diagnostic_identity_resets_for_each_snapshot" {
   let first = parse_strict(b"bad; bad")
   let second = parse_strict(b"bad; bad")
@@ -223,6 +250,7 @@ test "gated_feature_spellings_are_contextual_outside_productions" {
     }
   }
 }
+
 
 test "mixed_case_gated_productions_keep_invalid_events_source_backed" {
   let raws = [

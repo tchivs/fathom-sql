@@ -361,40 +361,40 @@ fn parse_window_spec(
   statement_id : Int,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") { return true }
+  let mut valid = true
   if consume_word(cursor, b"PARTITION") {
-    ignore(expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION"))
-    ignore(parse_expression_list(cursor, state, source, statement_id, true))
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION") && valid
+    valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
   }
   if consume_word(cursor, b"ORDER") {
-    ignore(expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER"))
-    ignore(parse_expression_list(cursor, state, source, statement_id, true))
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER") && valid
+    valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
     while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") || consume_word(cursor, b"NULLS") {
       if raw_at(cursor) is Some(b"FIRST") || raw_at(cursor) is Some(b"LAST") { advance(cursor) }
     }
   }
   if consume_word(cursor, b"ROWS") || consume_word(cursor, b"RANGE") || consume_word(cursor, b"GROUPS") {
     if consume_word(cursor, b"BETWEEN") {
-      ignore(parse_expression(cursor, 4, 1, state, source, statement_id))
+      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
       ignore(consume_word(cursor, b"PRECEDING"))
       ignore(consume_word(cursor, b"FOLLOWING"))
       ignore(consume_word(cursor, b"CURRENT"))
       ignore(consume_word(cursor, b"ROW"))
-      ignore(expect_word(cursor, b"AND", state, source, statement_id, "expected AND in window frame"))
-      ignore(parse_expression(cursor, 4, 1, state, source, statement_id))
+      valid = expect_word(cursor, b"AND", state, source, statement_id, "expected AND in window frame") && valid
+      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
       ignore(consume_word(cursor, b"PRECEDING"))
       ignore(consume_word(cursor, b"FOLLOWING"))
       ignore(consume_word(cursor, b"CURRENT"))
       ignore(consume_word(cursor, b"ROW"))
     } else {
-      ignore(parse_expression(cursor, 4, 1, state, source, statement_id))
+      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
       ignore(consume_word(cursor, b"PRECEDING"))
       ignore(consume_word(cursor, b"FOLLOWING"))
       ignore(consume_word(cursor, b"CURRENT"))
       ignore(consume_word(cursor, b"ROW"))
     }
   }
-  ignore(expect_word(cursor, b")", state, source, statement_id, "expected closing window parenthesis"))
-  true
+  expect_word(cursor, b")", state, source, statement_id, "expected closing window parenthesis") && valid
 }
 
 fn parse_expression_postfix(
@@ -403,60 +403,67 @@ fn parse_expression_postfix(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
-  let mut consumed = false
+  let mut valid = true
   let mut keep_going = true
   while keep_going {
     if consume_symbol(cursor, b".") {
       let word_after_dot = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
       if consume_symbol(cursor, b"*") || word_after_dot {
         if word_after_dot { advance(cursor) }
-        consumed = true
+        ()
       } else {
         let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
         add_diagnostic(state, "DORIS-PARSE-002", "expected qualified identifier", "identifier", make_span(source, at, at), statement_id)
+        valid = false
         keep_going = false
       }
     } else if consume_symbol(cursor, b"(") {
       if !consume_symbol(cursor, b")") {
-        ignore(parse_expression_list(cursor, state, source, statement_id, true))
-        ignore(expect_word(cursor, b")", state, source, statement_id, "expected closing function parenthesis"))
+        valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+        valid = expect_word(cursor, b")", state, source, statement_id, "expected closing function parenthesis") && valid
       }
-      consumed = true
+      ()
     } else if consume_word(cursor, b"OVER") {
       let has_spec = match raw_at(cursor) { Some(raw) => raw == b"("; None => false }
       let has_name = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
-      if has_spec { ignore(parse_window_spec(cursor, state, source, statement_id)) }
+      if has_spec { valid = parse_window_spec(cursor, state, source, statement_id) && valid }
       else if has_name { advance(cursor) }
-      else { add_diagnostic(state, "DORIS-PARSE-002", "expected window name or specification", "window", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id) }
-      consumed = true
+      else {
+        add_diagnostic(state, "DORIS-PARSE-002", "expected window name or specification", "window", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+        valid = false
+      }
+      ()
     } else if consume_word(cursor, b"IS") {
       ignore(consume_word(cursor, b"NOT"))
       if !(consume_word(cursor, b"NULL") || consume_word(cursor, b"TRUE") || consume_word(cursor, b"FALSE") || consume_word(cursor, b"UNKNOWN")) {
         add_diagnostic(state, "DORIS-PARSE-002", "expected NULL or boolean predicate", "predicate", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+        valid = false
       }
-      consumed = true
+      ()
     } else if consume_word(cursor, b"NOT") {
       if consume_word(cursor, b"IN") || consume_word(cursor, b"LIKE") || consume_word(cursor, b"REGEXP") {
-        ignore(parse_predicate_rhs(cursor, state, source, statement_id))
-        consumed = true
+        valid = parse_predicate_rhs(cursor, state, source, statement_id) && valid
+        ()
       } else {
         cursor.position = cursor.position - 1
         keep_going = false
       }
     } else if consume_word(cursor, b"IN") || consume_word(cursor, b"LIKE") || consume_word(cursor, b"REGEXP") {
-      ignore(parse_predicate_rhs(cursor, state, source, statement_id))
-      consumed = true
+      valid = parse_predicate_rhs(cursor, state, source, statement_id) && valid
+      ()
     } else if consume_word(cursor, b"BETWEEN") {
-      ignore(parse_expression(cursor, 4, 1, state, source, statement_id))
-      ignore(expect_word(cursor, b"AND", state, source, statement_id, "expected AND in BETWEEN predicate"))
-      ignore(parse_expression(cursor, 4, 1, state, source, statement_id))
-      consumed = true
+      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
+      valid = expect_word(cursor, b"AND", state, source, statement_id, "expected AND in BETWEEN predicate") && valid
+      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
+      ()
     } else {
       keep_going = false
     }
   }
-  consumed
+  // A diagnosed required child invalidates the enclosing postfix chain.
+  valid
 }
+
 
 
 fn parse_predicate_rhs(
@@ -508,23 +515,23 @@ fn parse_expression(
     None => add_diagnostic(state, "DORIS-PARSE-002", "expected expression", "expression", current_span, statement_id)
   }
   if !prefix_ok { false } else {
-    ignore(parse_expression_postfix(cursor, state, source, statement_id))
+    let mut valid = parse_expression_postfix(cursor, state, source, statement_id)
     let mut keep_going = true
     while keep_going {
       match precedence(cursor) {
         Some(operator_precedence) if operator_precedence >= minimum_precedence => {
           advance(cursor)
           let rhs = parse_expression(cursor, operator_precedence + 1, depth + 1, state, source, statement_id)
+          valid = rhs && valid
           if !rhs { keep_going = false }
         }
         _ => keep_going = false
       }
-      if keep_going { ignore(parse_expression_postfix(cursor, state, source, statement_id)) }
+      if keep_going { valid = parse_expression_postfix(cursor, state, source, statement_id) && valid }
     }
-    true
+    valid
   }
 }
-
 fn is_query_start(cursor : Cursor) -> Bool {
   match raw_at(cursor) { Some(raw) => bytes_equal_ci(raw, b"SELECT") || bytes_equal_ci(raw, b"WITH"); None => false }
 }
@@ -541,15 +548,20 @@ fn parse_balanced_option(
     return false
   }
   let mut depth = 1
+  let mut closed = true
   while depth > 0 {
     match raw_at(cursor) {
-      None => { add_diagnostic(state, "DORIS-PARSE-002", "unterminated " + option + " option", "option", make_span(source, source.byte_length(), source.byte_length()), statement_id); depth = 0 }
+      None => {
+        add_diagnostic(state, "DORIS-PARSE-002", "unterminated " + option + " option", "option", make_span(source, source.byte_length(), source.byte_length()), statement_id)
+        closed = false
+        depth = 0
+      }
       Some(raw) if raw == b"(" => { depth = depth + 1; advance(cursor) }
       Some(raw) if raw == b")" => { depth = depth - 1; advance(cursor) }
       Some(_) => advance(cursor)
     }
   }
-  true
+  closed
 }
 
 fn parse_table_ref(
@@ -685,8 +697,8 @@ fn parse_grouping_arguments(
     false
   } else {
     let valid = parse_expression_list(cursor, state, source, statement_id, true)
-    ignore(expect_word(cursor, b")", state, source, statement_id, "expected closing grouping parenthesis"))
-    valid
+    let closed = expect_word(cursor, b")", state, source, statement_id, "expected closing grouping parenthesis")
+    closed && valid
   }
 }
 
@@ -696,27 +708,27 @@ fn parse_group_by(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
-  ignore(expect_word(cursor, b"BY", state, source, statement_id, "expected BY after GROUP"))
+  let mut valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after GROUP")
+  if !valid { return false }
   if consume_word(cursor, b"GROUPING") {
-    ignore(expect_word(cursor, b"SETS", state, source, statement_id, "expected SETS after GROUPING"))
-    if !consume_symbol(cursor, b"(") { return false }
+    valid = expect_word(cursor, b"SETS", state, source, statement_id, "expected SETS after GROUPING") && valid
+    if !valid || !consume_symbol(cursor, b"(") { return false }
     if raw_at(cursor) is Some(b")") {
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       add_diagnostic(state, "DORIS-PARSE-002", "expected grouping set in GROUPING SETS", "grouping", span, statement_id)
       advance(cursor)
       false
     } else {
-      let mut valid = true
       while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) {
         if consume_symbol(cursor, b"(") {
           valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
-          ignore(expect_word(cursor, b")", state, source, statement_id, "expected grouping set parenthesis"))
+          valid = expect_word(cursor, b")", state, source, statement_id, "expected grouping set parenthesis") && valid
         } else {
           valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
         }
         if !consume_symbol(cursor, b",") { break }
       }
-      ignore(expect_word(cursor, b")", state, source, statement_id, "expected grouping sets parenthesis"))
+      valid = expect_word(cursor, b")", state, source, statement_id, "expected grouping sets parenthesis") && valid
       valid
     }
   } else if consume_word(cursor, b"ROLLUP") {
@@ -734,8 +746,8 @@ fn parse_order_by(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
-  ignore(expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER"))
-  let mut valid = parse_expression(cursor, 1, 1, state, source, statement_id)
+  let mut valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER")
+  valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
   while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") { () }
   while consume_symbol(cursor, b",") {
     valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
@@ -783,8 +795,8 @@ fn parse_select_core(
   if consume_word(cursor, b"WINDOW") {
     while (match token_at(cursor) { Some(token) => is_word_token(token); None => false }) {
       advance(cursor)
-      ignore(expect_word(cursor, b"AS", state, source, statement_id, "expected AS in WINDOW definition"))
-      ignore(parse_window_spec(cursor, state, source, statement_id))
+      valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in WINDOW definition") && valid
+      valid = parse_window_spec(cursor, state, source, statement_id) && valid
       if !consume_symbol(cursor, b",") { break }
     }
   }
@@ -800,7 +812,7 @@ fn parse_select_core(
   if consume_word(cursor, b"ORDER") { valid = parse_order_by(cursor, state, source, statement_id) && valid }
   if consume_word(cursor, b"LIMIT") { valid = parse_limit(cursor, state, source, statement_id) && valid }
   if consume_word(cursor, b"INTO") {
-    ignore(expect_word(cursor, b"OUTFILE", state, source, statement_id, "expected OUTFILE after INTO"))
+    valid = expect_word(cursor, b"OUTFILE", state, source, statement_id, "expected OUTFILE after INTO") && valid
     let is_string = match token_at(cursor) { Some(token) => token.kind is @token.TokenKind::StringLiteral; None => false }
     if !is_string { add_diagnostic(state, "DORIS-PARSE-002", "expected outfile string", "string", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
     else { advance(cursor) }
@@ -921,13 +933,13 @@ fn parse_query(
       if consume_symbol(cursor, b"(") {
         while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) { advance(cursor) }
       }
-      ignore(expect_word(cursor, b"AS", state, source, statement_id, "expected AS in CTE"))
+      valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in CTE") && valid
       if !consume_symbol(cursor, b"(") {
         add_diagnostic(state, "DORIS-PARSE-002", "expected CTE query parenthesis", "subquery", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
         valid = false
       } else {
         valid = parse_query(cursor, state, source, statement_id) && valid
-        ignore(expect_word(cursor, b")", state, source, statement_id, "expected closing CTE parenthesis"))
+        valid = expect_word(cursor, b")", state, source, statement_id, "expected closing CTE parenthesis") && valid
       }
       if !consume_symbol(cursor, b",") { cte_done = true }
     }
