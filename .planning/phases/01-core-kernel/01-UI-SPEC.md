@@ -89,8 +89,9 @@ The palette is a manual accessible default for a later host; a consuming editor 
 | Secondary (30%) | `#F3F4F6` | Profile/mode controls, panel chrome, line-number gutter, diagnostic list rows and separators |
 | Accent (10%) | `#2563EB` | Selected Doris profile, keyboard focus ring, active diagnostic row, and the currently navigated source span only |
 | Destructive | `#B91C1C` | Destructive host actions only; not a substitute for diagnostic semantics |
+| Diagnostic error | `#991B1B` | Syntax-error markers and error severity text only; pair with a stable code and label |
 
-Diagnostic severity is semantic, not decorative: errors use `#B91C1C`, warnings use `#B45309`, and informational status uses `#2563EB`, each paired with a text label, stable code, or shape. A valid result uses neutral text; an incomplete result uses a warning label and missing-node indication. Maintain at least 4.5:1 contrast for normal text and 3:1 for large text and non-text focus/marker boundaries.
+Diagnostic severity is semantic, not decorative: errors use `#991B1B`, warnings use `#B45309`, and informational status uses `#2563EB`, each paired with a text label, stable code, or shape. A valid result uses neutral text; an incomplete result uses a warning label and missing-node indication. Maintain at least 4.5:1 contrast for normal text and 3:1 for large text and non-text focus/marker boundaries.
 
 Accent reserved for: the selected profile value, the visible keyboard focus indicator, the active diagnostic list row, and the source range currently navigated from a diagnostic. Never use accent for every link, button, hover state, or parse result.
 
