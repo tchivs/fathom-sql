@@ -1,0 +1,8 @@
+fixture_id	public_contract	fe_nereids_observation	sqlglot_observation	resolution	advisory_only
+2.1-industrial	released-docs	not-run-offline	not-run-offline	public support is determined only by released-docs manifest	true
+2.1-contextual-keyword	released-docs	not-run-offline	not-run-offline	quoted identifiers remain parser-owned; no generic fallback	true
+3.x-industrial	released-docs	not-run-offline	not-run-offline	window and QUALIFY are accepted only under selected released profile	true
+3.x-unsupported-profile	released-docs	not-run-offline	not-run-offline	DORIS-PARSE-006 wins over any external acceptance	true
+4.x-industrial	released-docs	not-run-offline	not-run-offline	Doris-specific clauses remain syntax-only and offline	true
+4.x-recovery	released-docs	not-run-offline	not-run-offline	expected-error status and replay are checked by parser fixtures	true
+all	released-docs	FE/Nereids differential execution unavailable offline	SQLGlot differential execution unavailable offline	no differential row can widen public acceptance; future runs must pin tool versions and inputs	true

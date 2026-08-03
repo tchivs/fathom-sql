@@ -87,3 +87,46 @@ test "industrial_boundary_set_chains_and_contextual_identifiers" {
   assert_eq(@printer.print_result(result), raw)
   assert_eq(result.root.children.length(), 2)
 }
+fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_valid : Bool) -> Bool {
+  let result = match @api.parse_with_ids(raw, profile, mode) {
+    Ok(result) => result
+    Err(_) => return false
+  }
+  if @printer.print_result(result) != raw || result.valid != expected_valid || !result.all_spans_in_bounds() { return false }
+  for diagnostic in result.diagnostics {
+    if !diagnostic.code.has_prefix("DORIS-PARSE-") || diagnostic.start_byte > diagnostic.end_byte || diagnostic.statement_id < 0 { return false }
+  }
+  true
+}
+
+test "released_manifest_contract_is_complete_and_offline" {
+  // This is the deterministic loader contract used by the test package. The
+  // TSV remains Git data; no filesystem/network service is consulted by the core.
+  let rows : Array[Array[String]] = [
+    ["2.1-industrial", "2.1", "2.1", "2.1 baseline SELECT", "https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
+    ["3.x-industrial", "3.x", "3.x", "2.1 baseline; 3.x window and QUALIFY", "https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
+    ["4.x-industrial", "4.x", "4.x", "2.1 baseline; 4.x released SELECT", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
+    ["2.1-invalid-encoding", "2.1", "2.1", "2.1 baseline SELECT", "https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "invalid-encoding", "expected-error", "editor", "expected-error", "known-gap"],
+    ["3.x-unsupported-profile", "2.1", "2.1", "3.x QUALIFY", "https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "unsupported-version", "expected-error", "strict", "expected-error", "known-gap"],
+  ]
+  assert_eq(rows.length(), 5)
+  for row in rows {
+    assert_eq(row.length(), 14)
+    assert_true(row[1] == "2.1" || row[1] == "3.x" || row[1] == "4.x")
+    assert_true(row[2] == row[1] || row[0] == "3.x-unsupported-profile")
+    assert_true(row[4].has_prefix("https://doris.apache.org/docs/"))
+    assert_eq(row[5], "2026-08-03")
+    assert_true(row[6].length() > 0)
+    assert_eq(row[7], "SELECT")
+    assert_true(row[8].has_prefix("grammar:"))
+    assert_true(row[10] == "supported" || row[10] == "expected-error")
+    assert_true(row[11] == "strict" || row[11] == "editor")
+    assert_true(row[12] == "parse-only" || row[12] == "expected-error")
+    assert_eq(row[13], "known-gap")
+  }
+  assert_true(fixture_replay_ok(b"SELECT 1", "2.1", "strict", true))
+  assert_true(fixture_replay_ok(b"WITH c AS (SELECT k FROM t) SELECT k FROM c UNION ALL SELECT k FROM t2", "3.x", "editor", true))
+  assert_true(fixture_replay_ok(b"SELECT (((1)))", "4.x", "strict", true))
+  assert_true(fixture_replay_ok(b"SELECT k +", "4.x", "editor", false))
+  assert_true(fixture_replay_ok(b"SELECT \xff", "2.1", "editor", false))
+}

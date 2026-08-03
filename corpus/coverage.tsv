@@ -1,0 +1,13 @@
+profile	category	fixture_count	supported_count	expected_error_count	known_gap	coverage_note
+2.1	industrial-select	1	1	0	pinned revision unavailable offline	SELECT hints, projection modifiers, table refs, joins, predicates, grouping, ordering, limit, UNION covered
+2.1	core-04-boundary	3	2	1	pinned revision unavailable offline	empty and single-element clause boundaries plus one set-operation chain
+2.1	contextual-keyword	1	1	0	pinned revision unavailable offline	quoted contextual identifiers covered; unquoted reserved-word matrix remains a known gap
+2.1	malformed-and-encoding	1	0	1	invalid bytes are inline	strict/editor diagnostic and exact replay covered
+3.x	industrial-select	1	1	0	pinned revision unavailable offline	CTE, window frame, QUALIFY, grouping sets, joins, predicates, ORDER/LIMIT covered
+3.x	core-04-boundary	2	2	0	pinned revision unavailable offline	one and many set-operation chains covered; empty grouping-list semantics remain a known gap
+3.x	malformed-and-encoding	1	0	1	pinned revision unavailable offline	bounded editor recovery covered; invalid-byte replay is inline
+3.x	version-gate	1	0	1	no public fallback	3.x QUALIFY selected under 2.1 emits DORIS-PARSE-006
+4.x	industrial-select	1	1	0	pinned revision unavailable offline	Doris hint, subquery, TABLET, CUBE, window, OUTFILE and set chains covered
+4.x	core-04-boundary	1	1	0	pinned revision unavailable offline	two-element set chain covered; empty/single clause probes are inline tests
+4.x	malformed-and-encoding	2	0	2	invalid bytes are inline	missing projection expression and invalid encoding preserve source bytes
+all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed
