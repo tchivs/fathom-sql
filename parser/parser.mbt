@@ -385,6 +385,7 @@ pub fn parse(
       root_children.push(@syntax.SyntaxElement::ChildNode(segment))
     }
   }
+
   // Lexical errors are retained in the CST and become parser diagnostics.
   for token in stream.tokens {
     if token.is_error() {
@@ -394,7 +395,7 @@ pub fn parse(
         "invalid source encoding or unterminated lexical material",
         "lexical material",
         token.span,
-        0,
+        statement_id_for_span(stream, token.span),
       )
     }
   }
@@ -408,6 +409,19 @@ pub fn parse(
     valid: valid,
     recovered: !valid && mode is ParseMode::Editor,
   }
+}
+fn statement_id_for_span(stream : @token.TokenStream, span : @source.Span) -> Int {
+  let mut statement_id = 0
+  for token in stream.tokens {
+    if token.span.start_byte >= span.start_byte {
+      break
+    }
+    match stream.source.slice(token.span) {
+      Some(raw) if raw == b";" => statement_id = statement_id + 1
+      _ => ()
+    }
+  }
+  statement_id
 }
 
 test "parser_select_pratt_and_statement_identity" {
@@ -460,4 +474,21 @@ test "parser_unknown_and_invalid_material_remains_source_backed" {
   assert_true(parsed.root.span().end_byte == raw.length())
   assert_true(parsed.diagnostics.length() >= 1)
   assert_true(parsed.diagnostics[0].span.end_byte <= raw.length())
+}
+
+
+test "parser_lexical_diagnostic_keeps_statement_identity" {
+  let source = match @source.SourceText::new(b"SELECT 1; SELECT \xff") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = parse(source, @token.DorisProfile::V4_X, ParseMode::Editor)
+  let mut found_second_statement = false
+  for diagnostic in parsed.diagnostics {
+    if diagnostic.code == "DORIS-PARSE-003" {
+      assert_eq(diagnostic.statement_id, 1)
+      found_second_statement = true
+    }
+  }
+  assert_true(found_second_statement)
 }
