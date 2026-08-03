@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: Core Kernel
-status: verifying
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-08-03T11:48:08.736Z"
+status: complete
+stopped_at: Phase 01 verification complete; non-blocking boundaries documented
+last_updated: "2026-08-03T17:18:51Z"
 last_activity: 2026-08-03
-last_activity_desc: Phase 01 execution started
+last_activity_desc: Phase 01 verification and security audit completed
 progress:
   total_phases: 1
   completed_phases: 1
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 
 ## Current Position
 
-Phase: 01 (Core Kernel) — EXECUTING
+Phase: 01 (Core Kernel) — COMPLETE
 Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-08-03 — Phase 01 execution started
+Status: Phase complete — goal verified with non-blocking gaps documented
+Last activity: 2026-08-03 — Phase 01 verification and security audit completed
 
 Progress: [██████████] 100%
 
@@ -91,11 +91,13 @@ From `.planning/todos/pending/` — ideas captured during sessions.
 
 None yet.
 
-### Blockers/Concerns
+## Blockers/Concerns
 
-Issues that affect future work.
+Non-blocking boundaries retained in phase artifacts:
 
-None yet.
+- Disk `corpus/manifest.tsv` and three SQL fixtures are static/embedded-contract inputs; runtime tests do not load the files. Broader manifest-driven golden execution is deferred to Phase 2.
+- `moon.mod` records observed `moon 0.1.20260724` while its policy comment names official v0.10.5; the mismatch is disclosed in review/security artifacts.
+- Corpus revisions remain `unavailable-offline`/`known-gap`; no SHA is fabricated.
 
 ## Deferred Items
 
