@@ -117,6 +117,14 @@ test "released_profiles_gate_qualify_without_generic_fallback" {
   assert_true(old.diagnostics.length() > 0)
   assert_eq(old.diagnostics[0].code, "DORIS-PARSE-006")
   assert_eq(old.diagnostics[0].statement_id, 0)
+  assert_eq(old.diagnostics[0].end_byte - old.diagnostics[0].start_byte, 7)
+  let editor = match @api.parse_with_ids(raw, "2.1", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!editor.valid)
+  assert_true(editor.recovered)
+  assert_true(has_kind(editor.root, "error"))
   assert_true(released.valid)
   assert_eq(@printer.print_result(old), raw)
   assert_eq(@printer.print_result(released), raw)

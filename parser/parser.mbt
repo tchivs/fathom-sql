@@ -766,8 +766,12 @@ fn parse_select_core(
       if !consume_symbol(cursor, b",") { break }
     }
   }
+  let qualify_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"QUALIFY") {
-    version_diagnostic(cursor, profile, b"3.x", "QUALIFY", state, source, statement_id)
+    if !feature_allowed(profile, b"3.x") {
+      add_diagnostic(state, "DORIS-PARSE-006", "feature QUALIFY is unavailable in the selected released profile", "released-version", qualify_span, statement_id)
+      valid = false
+    }
     valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
   }
   if consume_word(cursor, b"ORDER") { valid = parse_order_by(cursor, state, source, statement_id) && valid }
@@ -931,6 +935,30 @@ fn segment_children(
   children
 }
 
+fn segment_children_for_profile(
+  stream : @token.TokenStream,
+  start_index : Int,
+  end_index : Int,
+  profile : @token.DorisProfile,
+) -> Array[@syntax.SyntaxElement] {
+  let children : Array[@syntax.SyntaxElement] = []
+  let mut index = start_index
+  while index < end_index {
+    match stream.at(index) {
+      Some(token) if !feature_allowed(profile, b"3.x") && stream.raw(index) is Some(raw) && bytes_equal_ci(raw, b"QUALIFY") => {
+        children.push(@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::error(
+          token.span,
+          [@syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceError, token.span))],
+        )))
+      }
+      Some(token) => children.push(leaf_for_token(token))
+      None => ()
+    }
+    index = index + 1
+  }
+  children
+}
+
 fn segment_span(
   stream : @token.TokenStream,
   start_index : Int,
@@ -980,7 +1008,7 @@ fn parse_segment(
   state : RecoveryState,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
-  let children = segment_children(stream, start_index, end_index)
+  let children = segment_children_for_profile(stream, start_index, end_index, stream.profile)
   let indices = significant_indices(stream, start_index, end_index)
   let selected = match indices.get(0) {
     Some(first_index) => match stream.raw(first_index) {
