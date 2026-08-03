@@ -217,9 +217,15 @@ fn precedence(cursor : Cursor) -> Int? {
   }
 }
 
-fn is_word_token(token : @token.Token) -> Bool {
-  match token.kind {
-    @token.TokenKind::Identifier | @token.TokenKind::Quoted => true
+fn is_word_token(cursor : Cursor) -> Bool {
+  match token_at(cursor) {
+    Some(token) if token.kind is @token.TokenKind::Quoted => true
+    Some(token) if token.kind is @token.TokenKind::Identifier => {
+      match raw_at(cursor) {
+        Some(raw) => @token.is_unquoted_identifier(raw)
+        None => false
+      }
+    }
     _ => false
   }
 }
@@ -327,7 +333,7 @@ fn is_identifier_candidate(cursor : Cursor) -> Bool {
     Some(token) if token.kind is @token.TokenKind::Quoted => true
     Some(token) if token.kind is @token.TokenKind::Identifier => {
       match raw_at(cursor) {
-        Some(raw) => !is_clause_keyword(raw)
+        Some(raw) => @token.is_unquoted_identifier(raw)
         None => false
       }
     }
@@ -477,7 +483,7 @@ fn parse_expression_postfix(
   let mut keep_going = true
   while keep_going {
     if consume_symbol(cursor, b".") {
-      let word_after_dot = match token_at(cursor) { Some(token) => is_word_token(token); None => false }
+      let word_after_dot = is_word_token(cursor)
       if consume_symbol(cursor, b"*") || word_after_dot {
         if word_after_dot { advance(cursor) }
         ()
@@ -871,7 +877,7 @@ fn parse_select_core(
   if consume_word(cursor, b"GROUP") { valid = parse_group_by(cursor, state, source, statement_id) && valid }
   if consume_word(cursor, b"HAVING") { valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid }
   if consume_word(cursor, b"WINDOW") {
-    while (match token_at(cursor) { Some(token) => is_word_token(token); None => false }) {
+    while is_word_token(cursor) {
       advance(cursor)
       valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in WINDOW definition") && valid
       valid = parse_window_spec(cursor, state, source, statement_id) && valid
@@ -898,7 +904,7 @@ fn parse_select_core(
   valid
 }
 fn is_projection_boundary(raw : Bytes) -> Bool {
-  is_clause_keyword(raw) || raw == b";" || raw == b")"
+  @token.is_clause_keyword(raw) || raw == b";" || raw == b")"
 }
 fn is_projection_alias_candidate(cursor : Cursor) -> Bool {
   if !is_identifier_candidate(cursor) { false }
@@ -1066,18 +1072,6 @@ fn leaf_for_token(token : @token.Token) -> @syntax.SyntaxElement {
   @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(kind, token.span))
 }
 
-fn is_clause_keyword(raw : Bytes) -> Bool {
-  bytes_equal_ci(raw, b"FROM") || bytes_equal_ci(raw, b"WHERE") ||
-    bytes_equal_ci(raw, b"GROUP") || bytes_equal_ci(raw, b"HAVING") ||
-    bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"LIMIT") ||
-    bytes_equal_ci(raw, b"JOIN") || bytes_equal_ci(raw, b"UNION") ||
-    bytes_equal_ci(raw, b"QUALIFY") || bytes_equal_ci(raw, b"WINDOW") ||
-    bytes_equal_ci(raw, b"INTO") || bytes_equal_ci(raw, b"INNER") ||
-    bytes_equal_ci(raw, b"LEFT") || bytes_equal_ci(raw, b"RIGHT") ||
-    bytes_equal_ci(raw, b"FULL") || bytes_equal_ci(raw, b"CROSS") ||
-    bytes_equal_ci(raw, b"NATURAL") || bytes_equal_ci(raw, b"OUTER") ||
-    bytes_equal_ci(raw, b"ON") || bytes_equal_ci(raw, b"USING")
-}
 
 fn segment_children(
   stream : @token.TokenStream,
@@ -1161,7 +1155,7 @@ fn recover_expression(
   while !done {
     match raw_at(cursor) {
       None => done = true
-      Some(raw) if raw == b")" || raw == b"," || raw == b";" || is_clause_keyword(raw) => done = true
+      Some(raw) if raw == b")" || raw == b"," || raw == b";" || @token.is_clause_keyword(raw) => done = true
       Some(_) => {
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
         if consume_recovery_step(state, span, statement_id) { advance(cursor); consumed = true } else { done = true }
@@ -1169,7 +1163,7 @@ fn recover_expression(
     }
   }
   if !consumed && raw_at(cursor) is Some(_) {
-    match raw_at(cursor) { Some(raw) if raw == b")" || raw == b"," || raw == b";" || is_clause_keyword(raw) => (); _ => advance(cursor) }
+    match raw_at(cursor) { Some(raw) if raw == b")" || raw == b"," || raw == b";" || @token.is_clause_keyword(raw) => (); _ => advance(cursor) }
   }
 }
 

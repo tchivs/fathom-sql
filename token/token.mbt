@@ -92,6 +92,69 @@ pub fn DorisProfile::from_id(id : String) -> DorisProfile? {
   }
 }
 
+fn token_bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
+  if actual.length() != expected.length() {
+    false
+  } else {
+    let mut index = 0
+    let mut equal = true
+    while index < actual.length() {
+      let left = actual[index].to_int()
+      let right = expected[index].to_int()
+      let folded_left = if left >= 97 && left <= 122 { left - 32 } else { left }
+      let folded_right = if right >= 97 && right <= 122 { right - 32 } else { right }
+      if folded_left != folded_right { equal = false }
+      index = index + 1
+    }
+    equal
+  }
+}
+
+/// Released-profile clause boundaries shared by parser contexts.
+pub fn is_clause_keyword(raw : Bytes) -> Bool {
+  token_bytes_equal_ci(raw, b"SELECT") || token_bytes_equal_ci(raw, b"WITH") ||
+    token_bytes_equal_ci(raw, b"FROM") || token_bytes_equal_ci(raw, b"WHERE") ||
+    token_bytes_equal_ci(raw, b"GROUP") || token_bytes_equal_ci(raw, b"HAVING") ||
+    token_bytes_equal_ci(raw, b"ORDER") || token_bytes_equal_ci(raw, b"LIMIT") ||
+    token_bytes_equal_ci(raw, b"JOIN") || token_bytes_equal_ci(raw, b"UNION") ||
+    token_bytes_equal_ci(raw, b"QUALIFY") || token_bytes_equal_ci(raw, b"WINDOW") ||
+    token_bytes_equal_ci(raw, b"INTO") || token_bytes_equal_ci(raw, b"ON") ||
+    token_bytes_equal_ci(raw, b"USING")
+}
+
+/// Released-profile reserved and operator words. TABLET remains contextual.
+pub fn is_reserved_word(raw : Bytes) -> Bool {
+  is_clause_keyword(raw) ||
+    token_bytes_equal_ci(raw, b"AS") || token_bytes_equal_ci(raw, b"AND") ||
+    token_bytes_equal_ci(raw, b"OR") || token_bytes_equal_ci(raw, b"NOT") ||
+    token_bytes_equal_ci(raw, b"IN") || token_bytes_equal_ci(raw, b"LIKE") ||
+    token_bytes_equal_ci(raw, b"REGEXP") || token_bytes_equal_ci(raw, b"IS") ||
+    token_bytes_equal_ci(raw, b"NULL") || token_bytes_equal_ci(raw, b"TRUE") ||
+    token_bytes_equal_ci(raw, b"FALSE") || token_bytes_equal_ci(raw, b"RECURSIVE") ||
+    token_bytes_equal_ci(raw, b"BY") || token_bytes_equal_ci(raw, b"GROUPING") ||
+    token_bytes_equal_ci(raw, b"SETS") || token_bytes_equal_ci(raw, b"ROLLUP") ||
+    token_bytes_equal_ci(raw, b"CUBE") || token_bytes_equal_ci(raw, b"ALL") ||
+    token_bytes_equal_ci(raw, b"DISTINCT") || token_bytes_equal_ci(raw, b"DISTINCTROW") ||
+    token_bytes_equal_ci(raw, b"EXCEPT") || token_bytes_equal_ci(raw, b"INNER") ||
+    token_bytes_equal_ci(raw, b"LEFT") || token_bytes_equal_ci(raw, b"RIGHT") ||
+    token_bytes_equal_ci(raw, b"FULL") || token_bytes_equal_ci(raw, b"CROSS") ||
+    token_bytes_equal_ci(raw, b"NATURAL") || token_bytes_equal_ci(raw, b"OUTER") ||
+    token_bytes_equal_ci(raw, b"PARTITION") || token_bytes_equal_ci(raw, b"SAMPLE") ||
+    token_bytes_equal_ci(raw, b"TABLESAMPLE") || token_bytes_equal_ci(raw, b"OVER") ||
+    token_bytes_equal_ci(raw, b"ASC") || token_bytes_equal_ci(raw, b"DESC") ||
+    token_bytes_equal_ci(raw, b"NULLS") || token_bytes_equal_ci(raw, b"FIRST") ||
+    token_bytes_equal_ci(raw, b"LAST") || token_bytes_equal_ci(raw, b"ROWS") ||
+    token_bytes_equal_ci(raw, b"RANGE") || token_bytes_equal_ci(raw, b"GROUPS") ||
+    token_bytes_equal_ci(raw, b"BETWEEN") || token_bytes_equal_ci(raw, b"CURRENT") ||
+    token_bytes_equal_ci(raw, b"ROW") || token_bytes_equal_ci(raw, b"UNBOUNDED") ||
+    token_bytes_equal_ci(raw, b"PRECEDING") || token_bytes_equal_ci(raw, b"FOLLOWING") ||
+    token_bytes_equal_ci(raw, b"OFFSET") || token_bytes_equal_ci(raw, b"OUTFILE")
+}
+
+pub fn is_unquoted_identifier(raw : Bytes) -> Bool {
+  !is_reserved_word(raw)
+}
+
 pub(all) enum TokenKind {
   Whitespace
   Newline
@@ -125,6 +188,7 @@ pub fn Token::is_trivia(self : Token) -> Bool {
 }
 
 pub fn Token::is_error(self : Token) -> Bool {
+
   self.kind is Error
 }
 
@@ -187,4 +251,16 @@ test "released_feature_metadata_and_profile_gates_are_stable" {
   assert_true(!V2_1.supports(DorisFeature::Tablet))
   assert_true(V3_X.supports(DorisFeature::Tablet))
   assert_true(V4_X.supports(DorisFeature::Tablet))
+}
+test "released_identifier_classification_is_case_insensitive_and_contextual" {
+  for raw in [b"SELECT", b"with", b"As", b"AND", b"or", b"FROM", b"window"] {
+    assert_true(is_reserved_word(raw))
+    assert_true(!is_unquoted_identifier(raw))
+  }
+  assert_true(is_clause_keyword(b"SeLeCt"))
+  assert_true(is_clause_keyword(b"FrOm"))
+  assert_true(!is_clause_keyword(b"AND"))
+  assert_true(!is_reserved_word(b"tablet"))
+  assert_true(is_unquoted_identifier(b"tablet"))
+  assert_true(is_unquoted_identifier(b"user_name"))
 }

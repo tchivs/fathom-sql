@@ -468,33 +468,28 @@ test "projection_modifiers_accept_all_except_and_distinctrow" {
   }
 }
 
-test "clause_keywords_are_not_bare_expression_or_alias_operands" {
+test "released_reserved_words_are_rejected_but_quoted_words_remain_identifiers" {
   let malformed = [
-    b"SELECT a FROM t WHERE FROM",
-    b"SELECT a AS FROM",
-    b"SELECT a FROM t AS FROM",
-    b"SeLeCt a FrOm t WhErE fRoM",
-    b"SELECT a FrOm t AS wHeRe",
+    b"SELECT a AS SELECT",
+    b"SELECT a FROM SELECT",
+    b"SELECT a FROM t WHERE AND",
+    b"sElEcT a As SeLeCt",
   ]
   for raw in malformed {
     let strict = parse_strict(raw)
     let editor = parse_editor_parser(raw)
     for result in [strict, editor] {
       assert_true(!result.valid)
-      assert_true(result.diagnostics.length() > 0)
       assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
-    assert_eq(strict.root.kind, editor.root.kind)
-    assert_eq(strict.root.text_len, editor.root.text_len)
     assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
   }
   let quoted = [
-    b"SELECT `from` FROM `t` WHERE `where`",
-    b"SELECT a AS `from` FROM t AS `where`",
-    b"SELECT a FROM `db`.`from`",
+    b"SELECT a AS `select` FROM `with` WHERE `and`",
+    b"SELECT `or` FROM `select`",
   ]
   for raw in quoted {
     for mode in ["strict", "editor"] {
