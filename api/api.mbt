@@ -40,7 +40,7 @@ pub fn ParseLimits::new(
 }
 
 pub struct ParseOptions {
-  profile : @token.DorisProfile
+  profile_context : @token.ValidatedProfileContext
   mode : ParseMode
   limits : ParseLimits
 }
@@ -48,6 +48,14 @@ pub struct ParseOptions {
 pub enum ParseError {
   UnknownProfile(profile_id~ : String)
   UnknownMode(mode_id~ : String)
+  ProfileMetadataMismatch(
+    profile_id~ : String,
+    expected_release~ : String,
+    actual_release~ : String,
+    expected_feature_introduction~ : String,
+    actual_feature_introduction~ : String,
+  )
+  UnsupportedFeatureIntroduction(feature_introduction~ : String)
   InputTooLarge(requested_bytes~ : Int, max_bytes~ : Int)
   InvalidLimit(limit_name~ : String, value~ : Int)
   InvalidSyntaxTree
@@ -63,25 +71,67 @@ pub fn ParseOptions::new(profile_id : String, mode_id : String) -> Result[ParseO
     "editor" => ParseMode::Editor
     _ => return Err(UnknownMode(mode_id~))
   }
-  Ok({ profile: profile, mode: mode, limits: ParseLimits::default() })
+  Ok({ profile_context: @token.ValidatedProfileContext::canonical(profile), mode: mode, limits: ParseLimits::default() })
+}
+
+pub fn ParseOptions::for_profile_with_metadata(
+  profile : @token.DorisProfile,
+  metadata : @token.ProfileMetadata,
+  mode : ParseMode,
+) -> Result[ParseOptions, ParseError] {
+  let context = match profile.validate_metadata(metadata) {
+    Ok(context) => context
+    Err(@token.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
+      return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
+    }
+    Err(@token.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+    Err(@token.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
+  }
+  Ok({ profile_context: context, mode: mode, limits: ParseLimits::default() })
+}
+
+pub fn ParseOptions::from_manifest(
+  profile_id : String,
+  exact_release : String,
+  feature_introduction : String,
+  mode_id : String,
+) -> Result[ParseOptions, ParseError] {
+  let mode = match mode_id {
+    "strict" => ParseMode::Strict
+    "editor" => ParseMode::Editor
+    _ => return Err(UnknownMode(mode_id~))
+  }
+  let context = match @token.ProfileMetadata::for_manifest(profile_id, exact_release, feature_introduction) {
+    Ok(context) => context
+    Err(@token.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
+    Err(@token.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
+      return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
+    }
+    Err(@token.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+  }
+  Ok({ profile_context: context, mode: mode, limits: ParseLimits::default() })
 }
 
 pub fn ParseOptions::for_profile(
   profile : @token.DorisProfile,
   mode : ParseMode,
 ) -> ParseOptions {
-  { profile: profile, mode: mode, limits: ParseLimits::default() }
+  { profile_context: @token.ValidatedProfileContext::canonical(profile), mode: mode, limits: ParseLimits::default() }
 }
 pub fn ParseOptions::for_profile_with_limits(
   profile : @token.DorisProfile,
   mode : ParseMode,
   limits : ParseLimits,
 ) -> ParseOptions {
-  { profile: profile, mode: mode, limits: limits }
+  { profile_context: @token.ValidatedProfileContext::canonical(profile), mode: mode, limits: limits }
 }
 
 pub fn ParseOptions::profile(self : ParseOptions) -> @token.DorisProfile {
-  self.profile
+  self.profile_context.profile()
+}
+
+pub fn ParseOptions::profile_metadata(self : ParseOptions) -> @token.ProfileMetadata {
+  self.profile_context.metadata()
 }
 
 pub fn ParseOptions::mode(self : ParseOptions) -> ParseMode {
@@ -131,6 +181,8 @@ pub struct ParseResult {
   pub schema_version : String
   pub source_transport : String
   pub profile : String
+  pub exact_release : String
+  pub feature_introduction : String
   pub mode : String
   pub valid : Bool
   pub recovered : Bool
@@ -209,9 +261,7 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
   match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
   let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
     Ok(source) => source
-    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
-      return Err(InputTooLarge(requested_bytes~, max_bytes~))
-    }
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => return Err(InputTooLarge(requested_bytes~, max_bytes~))
   }
   let parser_mode = match options.mode {
     ParseMode::Strict => @parser.ParseMode::Strict
@@ -224,7 +274,7 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     limits.max_recovery_steps,
     limits.max_diagnostics,
   )
-  let parsed = @parser.parse_with_limits(source, options.profile, parser_mode, parser_limits)
+  let parsed = @parser.parse_with_limits_context(source, options.profile_context, parser_mode, parser_limits)
   if !parsed.root.is_valid(source.byte_length()) { return Err(InvalidSyntaxTree) }
   let diagnostics : Array[PrimitiveDiagnostic] = []
   for diagnostic in parsed.diagnostics {
@@ -233,7 +283,9 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
   Ok({
     schema_version: "doris.parse.v1",
     source_transport: "inline-root-v1",
-    profile: options.profile.id(),
+    profile: options.profile().id(),
+    exact_release: options.profile_metadata().exact_release,
+    feature_introduction: options.profile_metadata().feature_introduction,
     mode: mode_id(options.mode),
     valid: parsed.valid,
     recovered: parsed.recovered,
@@ -242,6 +294,20 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     root: primitive_node(parsed.root),
     diagnostics: diagnostics,
   })
+}
+
+pub fn parse_with_metadata(
+  raw : Bytes,
+  profile_id : String,
+  exact_release : String,
+  feature_introduction : String,
+  mode_id_value : String,
+) -> Result[ParseResult, ParseError] {
+  let options = match ParseOptions::from_manifest(profile_id, exact_release, feature_introduction, mode_id_value) {
+    Ok(options) => options
+    Err(error) => return Err(error)
+  }
+  parse(raw, options)
 }
 
 pub fn parse_with_ids(

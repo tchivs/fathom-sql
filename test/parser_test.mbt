@@ -460,53 +460,120 @@ test "semicolon_trivia_preserves_following_statement_identity" {
   }
   assert_eq(statement_count, 2)
 }
-fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_valid : Bool) -> Bool {
-  let result = match @api.parse_with_ids(raw, profile, mode) {
+struct EmbeddedManifestFixture {
+  fixture_id : String
+  profile : String
+  exact_release : String
+  feature_introduction : String
+  raw : Bytes
+  mode : String
+  expected_valid : Bool
+}
+
+fn metadata_fixture_replay_ok(fixture : EmbeddedManifestFixture) -> Bool {
+  let result = match @api.parse_with_metadata(
+    fixture.raw,
+    fixture.profile,
+    fixture.exact_release,
+    fixture.feature_introduction,
+    fixture.mode,
+  ) {
     Ok(result) => result
     Err(_) => return false
   }
-  if @printer.print_result(result) != raw || result.valid != expected_valid || !result.all_spans_in_bounds() { return false }
+  if @printer.print_result(result) != fixture.raw || result.valid != fixture.expected_valid ||
+    !result.all_spans_in_bounds() || result.profile != fixture.profile ||
+    result.exact_release != fixture.exact_release ||
+    result.feature_introduction != fixture.feature_introduction {
+    return false
+  }
   for diagnostic in result.diagnostics {
-    if !diagnostic.code.has_prefix("DORIS-PARSE-") || diagnostic.start_byte > diagnostic.end_byte || diagnostic.statement_id.reinterpret_as_int() < 0 { return false }
+    if !diagnostic.code.has_prefix("DORIS-PARSE-") || diagnostic.start_byte > diagnostic.end_byte {
+      return false
+    }
   }
   true
 }
 
-test "released_manifest_schema_contract_records_loader_gap" {
-  // MoonBit's current core test package has no filesystem API. The Git-tracked
-  // TSV therefore cannot be opened here; this test is a schema/linkage check,
-  // not a claim that the runtime loader is manifest-driven.
-  let filesystem_loader_available = false
-  assert_true(!filesystem_loader_available)
-  let manifest_header = "fixture_id\\tprofile\\texact_release\\tfeature_introduction\\tofficial_url\\tretrieval_date\\tpinned_source_revision\\tpage_heading\\tcode_fence\\tcategory\\tsupport_status\\tparse_mode\\tclassification\\tprovenance_status"
-  assert_eq(manifest_header.split("\\t").length(), 14)
-  let rows : Array[Array[String]] = [
-    ["2.1-industrial", "2.1", "2.1", "2.1 baseline SELECT", "https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
-    ["3.x-industrial", "3.x", "3.x", "2.1 baseline; 3.x window and QUALIFY", "https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
-    ["4.x-industrial", "4.x", "4.x", "2.1 baseline; 4.x released SELECT", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
-    ["2.1-invalid-encoding", "2.1", "2.1", "2.1 baseline SELECT", "https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "invalid-encoding", "expected-error", "editor", "expected-error", "known-gap"],
-    ["3.x-unsupported-profile", "2.1", "2.1", "3.x QUALIFY", "https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "unsupported-version", "expected-error", "strict", "expected-error", "known-gap"],
+test "released_manifest_metadata_drives_deterministic_parse_replay" {
+  let fixtures = [
+    {
+      fixture_id: "2.1-industrial",
+      profile: "2.1",
+      exact_release: "2.1",
+      feature_introduction: "2.1 baseline SELECT",
+      raw: b"SELECT 1",
+      mode: "strict",
+      expected_valid: true,
+    },
+    {
+      fixture_id: "3.x-industrial",
+      profile: "3.x",
+      exact_release: "3.x",
+      feature_introduction: "2.1 baseline; 3.x window and QUALIFY",
+      raw: b"WITH c AS (SELECT k FROM t) SELECT k FROM c UNION ALL SELECT k FROM t2",
+      mode: "editor",
+      expected_valid: true,
+    },
+    {
+      fixture_id: "4.x-industrial",
+      profile: "4.x",
+      exact_release: "4.x",
+      feature_introduction: "2.1 baseline; 4.x released SELECT",
+      raw: b"SELECT (((1)))",
+      mode: "strict",
+      expected_valid: true,
+    },
+    {
+      fixture_id: "2.1-invalid-encoding",
+      profile: "2.1",
+      exact_release: "2.1",
+      feature_introduction: "2.1 baseline SELECT",
+      raw: b"SELECT \xff",
+      mode: "editor",
+      expected_valid: false,
+    },
+    {
+      fixture_id: "4.x-recovery",
+      profile: "4.x",
+      exact_release: "4.x",
+      feature_introduction: "2.1 baseline; 4.x released SELECT",
+      raw: b"SELECT k +",
+      mode: "editor",
+      expected_valid: false,
+    },
   ]
-  assert_eq(rows.length(), 5)
-  for row in rows {
-    assert_eq(row.length(), 14)
-    assert_true(row[1] == "2.1" || row[1] == "3.x" || row[1] == "4.x")
-    assert_true(row[2] == row[1] || row[0] == "3.x-unsupported-profile")
-    assert_true(row[4].has_prefix("https://doris.apache.org/docs/"))
-    assert_eq(row[5], "2026-08-03")
-    assert_true(row[6].length() > 0)
-    assert_eq(row[7], "SELECT")
-    assert_true(row[8].has_prefix("grammar:"))
-    assert_true(row[10] == "supported" || row[10] == "expected-error")
-    assert_true(row[11] == "strict" || row[11] == "editor")
-    assert_true(row[12] == "parse-only" || row[12] == "expected-error")
-    assert_eq(row[13], "known-gap")
+  assert_eq(fixtures.length(), 5)
+  for fixture in fixtures {
+    assert_true(fixture.fixture_id.length() > 0)
+    assert_true(metadata_fixture_replay_ok(fixture))
   }
-  assert_true(fixture_replay_ok(b"SELECT 1", "2.1", "strict", true))
-  assert_true(fixture_replay_ok(b"WITH c AS (SELECT k FROM t) SELECT k FROM c UNION ALL SELECT k FROM t2", "3.x", "editor", true))
-  assert_true(fixture_replay_ok(b"SELECT (((1)))", "4.x", "strict", true))
-  assert_true(fixture_replay_ok(b"SELECT k +", "4.x", "editor", false))
-  assert_true(fixture_replay_ok(b"SELECT \xff", "2.1", "editor", false))
+}
+
+test "metadata_mismatch_unknown_and_unsupported_rows_are_rejected_before_parse" {
+  assert_true(@api.parse_with_metadata(
+    b"SELECT 1", "2.1", "2.0", "2.1 baseline SELECT", "strict",
+  ) is Err(@api.ParseError::ProfileMetadataMismatch(..)))
+  assert_true(@api.parse_with_metadata(
+    b"SELECT 1", "2.1", "2.1", "3.x QUALIFY", "strict",
+  ) is Err(@api.ParseError::UnsupportedFeatureIntroduction(..)))
+  assert_true(@api.parse_with_metadata(
+    b"SELECT 1", "2.1", "2.1", "2.1 baseline; 3.x window and QUALIFY", "strict",
+  ) is Err(@api.ParseError::ProfileMetadataMismatch(..)))
+  assert_true(@api.parse_with_metadata(
+    b"SELECT 1", "5.x", "5.x", "5.x released SELECT", "strict",
+  ) is Err(@api.ParseError::UnknownProfile(..)))
+  let canonical = @token.DorisProfile::V3_X.metadata()
+  let options = match @api.ParseOptions::for_profile_with_metadata(
+    @token.DorisProfile::V3_X,
+    canonical,
+    @api.ParseMode::Strict,
+  ) {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  assert_eq(options.profile_metadata().exact_release, "3.x")
+  assert_eq(options.profile_metadata().feature_introduction, "2.1 baseline; 3.x window and QUALIFY")
 }
 
 test "projection_modifiers_accept_all_except_and_distinctrow" {

@@ -9,16 +9,126 @@ pub(all) enum DorisProfile {
 pub struct ProfileMetadata {
   pub id : String
   pub release_family : String
+  pub exact_release : String
+  pub feature_introduction : String
+  // Kept as the compact, parser-facing label for existing consumers.
   pub introduced_features : String
 }
 
-pub fn DorisProfile::metadata(self : DorisProfile) -> ProfileMetadata {
-  match self {
-    V2_1 => { id: "2.1", release_family: "2.1", introduced_features: "baseline" }
-    V3_X => { id: "3.x", release_family: "3.x", introduced_features: "3.x-released" }
-    V4_X => { id: "4.x", release_family: "4.x", introduced_features: "4.x-released" }
-  }
+pub enum ProfileMetadataError {
+  UnknownProfile(profile_id~ : String)
+  ProfileMetadataMismatch(
+    profile_id~ : String,
+    expected_release~ : String,
+    actual_release~ : String,
+    expected_feature_introduction~ : String,
+    actual_feature_introduction~ : String,
+  )
+  UnsupportedFeatureIntroduction(feature_introduction~ : String)
+} derive(Eq, @debug.Debug)
+
+pub struct ValidatedProfileContext {
+  profile : DorisProfile
+  metadata : ProfileMetadata
 }
+
+pub fn ValidatedProfileContext::canonical(profile : DorisProfile) -> ValidatedProfileContext {
+  { profile: profile, metadata: profile.metadata() }
+}
+
+pub fn ValidatedProfileContext::profile(self : ValidatedProfileContext) -> DorisProfile {
+  self.profile
+}
+
+pub fn ValidatedProfileContext::metadata(self : ValidatedProfileContext) -> ProfileMetadata {
+  self.metadata
+}
+
+pub fn ValidatedProfileContext::supports(
+  self : ValidatedProfileContext,
+  feature : DorisFeature,
+) -> Bool {
+  self.profile.supports(feature) &&
+    self.metadata.feature_introduction == self.profile.metadata().feature_introduction
+}
+
+pub fn ProfileMetadata::for_manifest(
+  profile_id : String,
+  exact_release : String,
+  feature_introduction : String,
+) -> Result[ValidatedProfileContext, ProfileMetadataError] {
+  let profile = match DorisProfile::from_id(profile_id) {
+    Some(profile) => profile
+    None => return Err(UnknownProfile(profile_id~))
+  }
+  let metadata = profile.metadata()
+  if feature_introduction != "2.1 baseline SELECT" &&
+    feature_introduction != "2.1 baseline; 3.x window and QUALIFY" &&
+    feature_introduction != "2.1 baseline; 4.x released SELECT" {
+    return Err(UnsupportedFeatureIntroduction(feature_introduction=feature_introduction))
+  }
+  if exact_release != metadata.exact_release || feature_introduction != metadata.feature_introduction {
+    return Err(ProfileMetadataMismatch(
+      profile_id=profile_id,
+      expected_release=metadata.exact_release,
+      actual_release=exact_release,
+      expected_feature_introduction=metadata.feature_introduction,
+      actual_feature_introduction=feature_introduction,
+    ))
+  }
+  Ok({ profile: profile, metadata: metadata })
+}
+
+pub fn DorisProfile::validate_metadata(
+  self : DorisProfile,
+  metadata : ProfileMetadata,
+) -> Result[ValidatedProfileContext, ProfileMetadataError] {
+  if metadata.feature_introduction != "2.1 baseline SELECT" &&
+    metadata.feature_introduction != "2.1 baseline; 3.x window and QUALIFY" &&
+    metadata.feature_introduction != "2.1 baseline; 4.x released SELECT" {
+    return Err(UnsupportedFeatureIntroduction(feature_introduction=metadata.feature_introduction))
+  }
+  let expected = self.metadata()
+  if metadata.id != expected.id || metadata.release_family != expected.release_family ||
+    metadata.exact_release != expected.exact_release ||
+    metadata.feature_introduction != expected.feature_introduction ||
+    metadata.introduced_features != expected.introduced_features {
+    return Err(ProfileMetadataMismatch(
+      profile_id=expected.id,
+      expected_release=expected.exact_release,
+      actual_release=metadata.exact_release,
+      expected_feature_introduction=expected.feature_introduction,
+      actual_feature_introduction=metadata.feature_introduction,
+    ))
+  }
+  Ok({ profile: self, metadata: expected })
+}
+ 
+ pub fn DorisProfile::metadata(self : DorisProfile) -> ProfileMetadata {
+   match self {
+    V2_1 => {
+      id: "2.1",
+      release_family: "2.1",
+      exact_release: "2.1",
+      feature_introduction: "2.1 baseline SELECT",
+      introduced_features: "baseline",
+    }
+    V3_X => {
+      id: "3.x",
+      release_family: "3.x",
+      exact_release: "3.x",
+      feature_introduction: "2.1 baseline; 3.x window and QUALIFY",
+      introduced_features: "3.x-released",
+    }
+    V4_X => {
+      id: "4.x",
+      release_family: "4.x",
+      exact_release: "4.x",
+      feature_introduction: "2.1 baseline; 4.x released SELECT",
+      introduced_features: "4.x-released",
+    }
+   }
+ }
 
 pub(all) enum DorisFeature {
   Qualify

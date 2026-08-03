@@ -97,6 +97,7 @@ pub struct ParserDiagnostic {
 pub struct ParsedDocument {
   pub source : @source.SourceText
   pub profile : @token.DorisProfile
+  pub profile_metadata : @token.ProfileMetadata
   pub mode : ParseMode
   pub root : @syntax.SyntaxNode
   pub diagnostics : Array[ParserDiagnostic]
@@ -113,11 +114,11 @@ struct Cursor {
 struct RecoveryState {
   diagnostics : Array[ParserDiagnostic]
   limits : ParserLimits
+  profile_context : @token.ValidatedProfileContext
   feature_events : Array[FeatureEvent]
   mut recovery_steps : Int
   mut resource_emitted : Bool
 }
-
 fn token_at(cursor : Cursor) -> @token.Token? {
   cursor.indices.get(cursor.position).map(index => cursor.stream.at(index)).flatten()
 }
@@ -331,8 +332,8 @@ fn expect_symbol(
 }
 
 
-fn feature_allowed(profile : @token.DorisProfile, feature : @token.DorisFeature) -> Bool {
-  profile.supports(feature)
+fn feature_allowed(state : RecoveryState, feature : @token.DorisFeature) -> Bool {
+  state.profile_context.supports(feature)
 }
 
 priv struct FeatureEvent {
@@ -911,7 +912,7 @@ fn parse_table_ref(
       let feature = @token.DorisFeature::Tablet
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       advance(cursor)
-      if !feature_allowed(profile, feature) {
+      if !feature_allowed(state, feature) {
         add_feature_diagnostic(state, feature, span, statement_id)
         valid = false
       }
@@ -1170,7 +1171,7 @@ fn parse_select_core(
   let qualify_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"QUALIFY") {
     let feature = @token.DorisFeature::Qualify
-    if !feature_allowed(profile, feature) {
+    if !feature_allowed(state, feature) {
       add_feature_diagnostic(state, feature, qualify_span, statement_id)
       valid = false
     }
@@ -1585,18 +1586,20 @@ fn append_trivia_segment(
   }
 }
 
-pub fn parse_with_limits(
+pub fn parse_with_limits_context(
   source : @source.SourceText,
-  profile : @token.DorisProfile,
+  context : @token.ValidatedProfileContext,
   mode : ParseMode,
   limits : ParserLimits,
 ) -> ParsedDocument {
+  let profile = context.profile()
   let limits = limits.normalized()
   let stream = @lexer.lex_with_limit(source, profile, limits.max_tokens)
   let root_span = make_span(source, 0, source.byte_length())
   let state = RecoveryState::{
     diagnostics: [],
     limits: limits,
+    profile_context: context,
     feature_events: [],
     recovery_steps: 0,
     resource_emitted: false,
@@ -1676,6 +1679,7 @@ pub fn parse_with_limits(
   {
     source: source,
     profile: profile,
+    profile_metadata: context.metadata(),
     mode: mode,
     root: require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Document, root_span, root_children)),
     diagnostics: state.diagnostics,
@@ -1683,13 +1687,21 @@ pub fn parse_with_limits(
     recovered: !valid && mode is ParseMode::Editor,
   }
 }
+pub fn parse_with_limits(
+  source : @source.SourceText,
+  profile : @token.DorisProfile,
+  mode : ParseMode,
+  limits : ParserLimits,
+) -> ParsedDocument {
+  parse_with_limits_context(source, @token.ValidatedProfileContext::canonical(profile), mode, limits)
+}
 
 pub fn parse(
   source : @source.SourceText,
   profile : @token.DorisProfile,
   mode : ParseMode,
 ) -> ParsedDocument {
-  parse_with_limits(source, profile, mode, ParserLimits::default())
+  parse_with_limits_context(source, @token.ValidatedProfileContext::canonical(profile), mode, ParserLimits::default())
 }
 
 test "parser_select_pratt_and_statement_identity" {
