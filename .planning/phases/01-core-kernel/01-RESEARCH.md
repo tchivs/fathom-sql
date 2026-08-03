@@ -497,34 +497,29 @@ Required controls:
 | A6 | The repository should use `yourname/doris-sql` and version `0.1.0` as placeholders only. | Code Examples | Actual module identity must be chosen before creating `moon.mod`. |
 | A7 | Exact SELECT clause support can be implemented uniformly across the three released profile families until a fixture demonstrates a version-specific difference. | Summary / Architecture | Version gates may require finer 2.1/3.x/4.x production metadata. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which exact MoonBit compiler revision is the Phase 1 pin?**
-   - What we know: official docs currently identify v0.10.5, while the installed executable reports `0.1.20260724 (5f1406a 2026-07-24)` [VERIFIED: direct docs and environment probe].
-   - What's unclear: whether the installed toolchain supports every new `moon.mod`/`moon.pkg` behavior used by the plan.
-   - Recommendation: make toolchain pinning and a minimal module/check/build smoke test the first plan task; do not infer compiler compatibility from the docs title alone [ASSUMED recommendation].
+1. **Q1 — Which exact MoonBit compiler revision is the Phase 1 pin?**
+   - **RESOLVED:** Pin the official MoonBit v0.10.5 toolchain line. Record the exact `moon version` output in CI and release metadata for every reproducible artifact; never use floating `latest`. If `moon` is absent locally, make the pinned-toolchain prerequisite explicit and use the official installer/setup path without inventing a package dependency.
+   - **Rationale:** The official documentation line is v0.10.5, while the observed local executable is a separate environment fact. Reproducibility requires recording the executable output rather than silently accepting either a moving channel or an unrecorded local binary.
 
-2. **What exact Doris profile granularity is needed inside `3.x` and `4.x`?**
-   - What we know: requirements name 2.1, 3.x, and 4.x profiles, and official docs expose those version trees [VERIFIED: .planning/REQUIREMENTS.md:12; official Doris overview].
-   - What's unclear: whether a production feature must distinguish 3.0/3.1 or 4.0/4.1 in Phase 1.
-   - Recommendation: expose the required family-level profile now, but make keyword/production metadata capable of a minor-release gate; record unresolved differences as fixtures [ASSUMED recommendation].
+2. **Q2 — What exact Doris profile granularity is needed inside `3.x` and `4.x`?**
+   - **RESOLVED:** The public profiles are exactly `2.1`, `3.x`, and `4.x`. Fixtures carry exact source release/minor metadata, and feature-introduction metadata is retained so minor-release distinctions remain auditable. Unsupported or version-invalid syntax is rejected with a version-aware diagnostic rather than silently accepted. Phase 1 implements only its documented SELECT slice; DML/DDL is out of scope.
+   - **Rationale:** This satisfies the public CORE-01 profile contract while preserving enough release/minor provenance to prevent current/dev or family-level assumptions from widening acceptance.
 
-3. **How should invalid UTF-8 be represented at the public boundary?**
-   - What we know: D-01 defines UTF-8 byte offsets over a source snapshot and D-06 requires source-backed leaves [VERIFIED: .planning/phases/01-core-kernel/01-CONTEXT.md:16-26].
-   - What's unclear: whether API input is guaranteed valid UTF-8 text or accepts arbitrary bytes.
-   - Recommendation: choose a documented byte API or a validated-text API before implementing `SourceText`; never silently replace invalid bytes [ASSUMED recommendation].
+3. **Q3 — How should invalid UTF-8 be represented at the public boundary?**
+   - **RESOLVED:** The public core accepts raw UTF-8 bytes. Valid UTF-8 is decoded for lexical classification; invalid byte runs are preserved as source-backed `ERROR`/unknown tokens with a stable encoding diagnostic, and lossless replay emits the original bytes exactly. Text wrappers may reject or diagnose invalid UTF-8, but they must not reinterpret the bytes.
+   - **Rationale:** Byte offsets and exact replay remain well-defined for every input, including malformed encoding, without replacing, normalizing, or losing caller-owned bytes.
 
-4. **Which diagnostic code namespace and statement identity scheme are stable?**
-   - What we know: CORE-05 requires stable code and statement identity [VERIFIED: .planning/REQUIREMENTS.md:15-18].
-   - What's unclear: numeric versus string codes and whether identity is ordinal, span-derived, or stable node ID.
-   - Recommendation: decide before golden fixtures; include schema version and profile in snapshots so later recovery refinements remain auditable [ASSUMED recommendation].
+4. **Q4 — Which diagnostic code namespace and statement identity scheme are stable?**
+   - **RESOLVED:** Diagnostic codes use the stable string namespace `DORIS-PARSE-###`, reserving three decimal digits for the initial catalog. Every parse result carries a zero-based monotonic `statement_id: u32` per parse snapshot. Code, span, and statement identity are stable in serialized output.
+   - **Rationale:** A documented string namespace leaves room for a durable catalog, while snapshot-local monotonic identities are deterministic, compact, and independent of mutable node addresses or parser execution order.
 
-5. **Should the serialized CST include source slices or only spans plus the original source?**
-   - What we know: D-02 requires primitive fields and byte spans; D-06 discourages copying the entire source into each node [VERIFIED: .planning/phases/01-core-kernel/01-CONTEXT.md:16-26].
-   - What's unclear: whether foreign consumers receive the source snapshot alongside the tree.
-   - Recommendation: prefer one source payload plus spans and raw leaf metadata; benchmark serialized size before freezing the schema [ASSUMED recommendation].
-
-## Sources
+5. **Q5 — Should the serialized CST include source slices or only spans plus the original source?**
+   - **RESOLVED:** Serialized parse results carry the original source bytes exactly once at the result root, together with span-based nodes and trivia. Nodes never duplicate the source payload. Host adapters may retain the input and omit the duplicate root payload only through an explicitly versioned transport option; they must never make node spans unusable.
+   - **Rationale:** One root payload preserves standalone replay and makes source-backed spans usable without per-node copies; an explicitly versioned host optimization cannot silently change the core wire contract.
+ 
+ ## Sources
 
 ### Primary (HIGH confidence)
 
