@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 1
 current_phase_name: Core Kernel
 status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-08-03T08:27:00.043Z"
+stopped_at: Phase 1 UI-SPEC approved
+last_updated: "2026-08-03T09:37:09.157Z"
 last_activity: 2026-08-03
 last_activity_desc: Created the MVP roadmap and mapped all 27 v1 requirements.
 progress:
@@ -92,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T08:27:00.011Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-core-kernel/01-CONTEXT.md
+Last session: 2026-08-03T09:37:09.140Z
+Stopped at: Phase 1 UI-SPEC approved
+Resume file: .planning/phases/01-core-kernel/01-UI-SPEC.md
