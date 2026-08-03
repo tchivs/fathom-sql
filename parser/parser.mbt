@@ -367,6 +367,44 @@ fn parse_expression_list(
   any && valid
 }
 
+fn expect_window_nulls_order(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+) -> Bool {
+  if consume_word(cursor, b"FIRST") || consume_word(cursor, b"LAST") {
+    true
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected FIRST or LAST after NULLS", "window-order", make_span(source, at, at), statement_id)
+    false
+  }
+}
+
+fn parse_window_frame_bound(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+) -> Bool {
+  if consume_word(cursor, b"CURRENT") {
+    expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after CURRENT")
+  } else {
+    let value_ok = if consume_word(cursor, b"UNBOUNDED") {
+      true
+    } else {
+      parse_expression(cursor, 4, 1, state, source, statement_id)
+    }
+    let qualifier_ok = consume_word(cursor, b"PRECEDING") || consume_word(cursor, b"FOLLOWING")
+    if !qualifier_ok {
+      let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected PRECEDING or FOLLOWING in window frame", "window-frame", make_span(source, at, at), statement_id)
+    }
+    value_ok && qualifier_ok
+  }
+}
+
 fn parse_window_spec(
   cursor : Cursor,
   state : RecoveryState,
@@ -382,32 +420,22 @@ fn parse_window_spec(
   if consume_word(cursor, b"ORDER") {
     valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER") && valid
     valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
-    while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") || consume_word(cursor, b"NULLS") {
-      if raw_at(cursor) is Some(b"FIRST") || raw_at(cursor) is Some(b"LAST") { advance(cursor) }
+    while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") {}
+    if consume_word(cursor, b"NULLS") {
+      valid = expect_window_nulls_order(cursor, state, source, statement_id) && valid
     }
   }
   if consume_word(cursor, b"ROWS") || consume_word(cursor, b"RANGE") || consume_word(cursor, b"GROUPS") {
     if consume_word(cursor, b"BETWEEN") {
-      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
-      ignore(consume_word(cursor, b"PRECEDING"))
-      ignore(consume_word(cursor, b"FOLLOWING"))
-      ignore(consume_word(cursor, b"CURRENT"))
-      ignore(consume_word(cursor, b"ROW"))
+      valid = parse_window_frame_bound(cursor, state, source, statement_id) && valid
       valid = expect_word(cursor, b"AND", state, source, statement_id, "expected AND in window frame") && valid
-      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
-      ignore(consume_word(cursor, b"PRECEDING"))
-      ignore(consume_word(cursor, b"FOLLOWING"))
-      ignore(consume_word(cursor, b"CURRENT"))
-      ignore(consume_word(cursor, b"ROW"))
+      valid = parse_window_frame_bound(cursor, state, source, statement_id) && valid
     } else {
-      valid = parse_expression(cursor, 4, 1, state, source, statement_id) && valid
-      ignore(consume_word(cursor, b"PRECEDING"))
-      ignore(consume_word(cursor, b"FOLLOWING"))
-      ignore(consume_word(cursor, b"CURRENT"))
-      ignore(consume_word(cursor, b"ROW"))
+      valid = parse_window_frame_bound(cursor, state, source, statement_id) && valid
     }
   }
-  expect_word(cursor, b")", state, source, statement_id, "expected closing window parenthesis") && valid
+  valid = expect_word(cursor, b")", state, source, statement_id, "expected closing window parenthesis") && valid
+  valid
 }
 
 fn parse_expression_postfix(

@@ -544,3 +544,46 @@ test "table_reference_dot_requires_following_identifier" {
     assert_eq(@printer.print_result(result), raw)
   }
 }
+
+test "window_required_nulls_and_frame_tokens_propagate_failure" {
+  let malformed = [
+    b"SELECT SUM(x) OVER (ORDER BY x NULLS)",
+    b"SELECT SUM(x) OVER (ORDER BY x ROWS BETWEEN 1 AND 2)",
+    b"SELECT SUM(x) OVER (ORDER BY x ROWS BETWEEN 1 PRECEDING AND 2)",
+    b"SELECT SUM(x) OVER (ORDER BY x RANGE CURRENT)",
+    b"SELECT SUM(x) OVER (ORDER BY x ROWS 1)",
+  ]
+  for raw in malformed {
+    let strict = parse_strict(raw)
+    let editor = parse_editor_parser(raw)
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.root.kind, editor.root.kind)
+    assert_eq(strict.root.text_len, editor.root.text_len)
+    assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
+  }
+  let valid = [
+    b"SELECT SUM(x) OVER (ORDER BY x NULLS LAST)",
+    b"SELECT SUM(x) OVER (ORDER BY x ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)",
+    b"SELECT SUM(x) OVER (ORDER BY x RANGE UNBOUNDED PRECEDING)",
+    b"SELECT SUM(x) OVER (ORDER BY x ROWS CURRENT ROW)",
+  ]
+  for raw in valid {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
