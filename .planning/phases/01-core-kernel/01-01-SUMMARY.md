@@ -177,3 +177,9 @@ Wave 1 的 source/token/lexer 原始字节契约已可供 01-02 CST/parser 计�
 ---
 *Phase: 01-core-kernel*
 *Completed: 2026-08-03*
+
+
+## Self-Check: PASSED
+
+- SUMMARY 文件存在。
+- 任务提交 `1d81533`、`f10bc07` 与 SUMMARY 提交 `84f5955` 均可在 git 历史中找到。

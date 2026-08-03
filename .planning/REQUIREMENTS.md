@@ -9,13 +9,13 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 
 ### Core Parsing
 
-- [ ] **CORE-01**: Consumer can select an explicit Doris version profile (2.1, 3.x, or 4.x) when parsing SQL, and the parser never silently falls back to a generic MySQL dialect.
-- [ ] **CORE-02**: Consumer can traverse a lossless CST that retains source bytes, token spelling, comments, whitespace, newlines, trivia, and source spans for every parsed fragment.
-- [ ] **CORE-03**: Consumer can replay an unchanged parsed document byte-for-byte, including comments, casing, quoting, whitespace, newline style, unknown text, and error material.
+- [x] **CORE-01**: Consumer can select an explicit Doris version profile (2.1, 3.x, or 4.x) when parsing SQL, and the parser never silently falls back to a generic MySQL dialect.
+- [x] **CORE-02**: Consumer can traverse a lossless CST that retains source bytes, token spelling, comments, whitespace, newlines, trivia, and source spans for every parsed fragment.
+- [x] **CORE-03**: Consumer can replay an unchanged parsed document byte-for-byte, including comments, casing, quoting, whitespace, newline style, unknown text, and error material.
 - [ ] **CORE-04**: User can parse documented Doris SELECT statements and expressions covering joins, subqueries, CTEs, windows, predicates, functions, set operations, grouping sets/ROLLUP/CUBE, hints, and Doris-specific SELECT clauses.
 - [ ] **CORE-05**: Consumer receives machine-readable diagnostics containing severity, stable code, message, expected syntax class, source span, and statement identity.
 - [ ] **CORE-06**: Editor can parse incomplete or malformed SQL into a bounded recoverable CST with explicit missing/error/skipped nodes while retaining diagnostics for invalid syntax.
-- [ ] **CORE-07**: Application can use the parser core offline without starting Doris FE, a database connection, or a runtime-specific parser implementation.
+- [x] **CORE-07**: Application can use the parser core offline without starting Doris FE, a database connection, or a runtime-specific parser implementation.
 
 ### Doris Coverage
 
@@ -82,13 +82,13 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-01 | Phase 1: Core Kernel | Pending |
-| CORE-02 | Phase 1: Core Kernel | Pending |
-| CORE-03 | Phase 1: Core Kernel | Pending |
+| CORE-01 | Phase 1: Core Kernel | Complete |
+| CORE-02 | Phase 1: Core Kernel | Complete |
+| CORE-03 | Phase 1: Core Kernel | Complete |
 | CORE-04 | Phase 1: Core Kernel | Pending |
 | CORE-05 | Phase 1: Core Kernel | Pending |
 | CORE-06 | Phase 1: Core Kernel | Pending |
-| CORE-07 | Phase 1: Core Kernel | Pending |
+| CORE-07 | Phase 1: Core Kernel | Complete |
 | DORIS-01 | Phase 2: Doris Completeness and Corpus | Pending |
 | DORIS-02 | Phase 2: Doris Completeness and Corpus | Pending |
 | DORIS-03 | Phase 2: Doris Completeness and Corpus | Pending |
@@ -111,6 +111,7 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | ECO-07 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 
 **Coverage after roadmap:**
+
 - v1 requirements: 27 total
 - Mapped to phases: 27
 - Unmapped: 0 ✓
@@ -118,4 +119,3 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 ---
 *Requirements defined: 2026-08-03*
 *Last updated: 2026-08-03 after MVP roadmap creation*
-

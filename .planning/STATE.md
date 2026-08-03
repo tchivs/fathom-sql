@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
+current_phase: 01
 current_phase_name: Core Kernel
 status: executing
-stopped_at: Phase 1 UI-SPEC approved
-last_updated: "2026-08-03T10:31:24.422Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-08-03T10:49:45.611Z"
 last_activity: 2026-08-03
-last_activity_desc: Created the MVP roadmap and mapped all 27 v1 requirements.
+last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-03)
 
 **Core value:** 用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
-**Current focus:** Phase 1 — Core Kernel
+**Current focus:** Phase 01 — Core Kernel
 
 ## Current Position
 
-Phase: 1 of 4 (Core Kernel)
-Plan: 0 of TBD in current phase
+Phase: 01 (Core Kernel) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-08-03 — Created the MVP roadmap and mapped all 27 v1 requirements.
+Last activity: 2026-08-03 — Phase 01 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -57,6 +57,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: Stable
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 14 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -69,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 2]: Use released official Doris documentation as the versioned corpus authority and keep the optional analyzer separate from syntax parsing.
 - [Phase 3]: Keep exact replay and configurable canonical formatting as distinct consumer operations.
 - [Phase 4]: Expose one MoonBit core through stable serialized Native, JavaScript, and Wasm contracts.
+- [Phase ?]: 核心采用 raw-byte SourceText、checked half-open Span 与集中式 LineIndex；默认 max_bytes 为 8 MiB。
+- [Phase ?]: Doris profile 强制限定为 2.1、3.x、4.x，未知值不回退 generic MySQL。
 
 ### Pending Todos
 
@@ -92,6 +99,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T09:37:09.140Z
-Stopped at: Phase 1 UI-SPEC approved
-Resume file: .planning/phases/01-core-kernel/01-UI-SPEC.md
+Last session: 2026-08-03T10:49:45.591Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

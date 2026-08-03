@@ -26,11 +26,11 @@ The MVP progresses from a source-faithful, recoverable Doris parsing kernel to v
   3. Editor can submit incomplete or malformed SQL and receive a bounded recoverable CST with explicit missing/error/skipped nodes plus machine-readable, statement-linked diagnostics.
   4. Application can run parsing and diagnostics offline without Doris FE, a database connection, or a runtime-specific parser implementation.
 
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — establish the pinned source, token, and lexer tracer
+- [x] 01-01-PLAN.md — establish the pinned source, token, and lexer tracer
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Kernel | 0/TBD | Not started | - |
+| 1. Core Kernel | 1/4 | In Progress|  |
 | 2. Doris Completeness and Corpus | 0/TBD | Not started | - |
 | 3. Formatting and Safe Edits | 0/TBD | Not started | - |
 | 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
