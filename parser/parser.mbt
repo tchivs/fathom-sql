@@ -1055,7 +1055,16 @@ fn parse_group_by(
         } else {
           valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
         }
-        if !consume_symbol(cursor, b",") { break }
+        if consume_symbol(cursor, b",") {
+          if raw_at(cursor) is Some(b")") {
+            let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+            add_diagnostic(state, "DORIS-PARSE-002", "expected grouping set after comma", "grouping", span, statement_id)
+            valid = false
+            break
+          }
+        } else {
+          break
+        }
       }
       valid = expect_word(cursor, b")", state, source, statement_id, "expected grouping sets parenthesis") && valid
       valid
