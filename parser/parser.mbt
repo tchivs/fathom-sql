@@ -4,6 +4,16 @@ pub(all) enum ParseMode {
   Strict
   Editor
 }
+priv enum ExpressionContext {
+  Ordinary
+  ProjectionItem
+  CountArgument
+}
+
+priv struct ExpressionPostfixResult {
+  valid : Bool
+  wildcard_complete : Bool
+}
 
 pub(all) enum ParserLimitError {
   MaxBytes(Int)
@@ -393,7 +403,7 @@ fn parse_expression_list(
   statement_id : Int,
   stop_on_close : Bool,
 ) -> Bool {
-  parse_expression_list_context(cursor, state, source, statement_id, stop_on_close, false)
+  parse_expression_list_context(cursor, state, source, statement_id, stop_on_close, ExpressionContext::Ordinary)
 }
 
 fn parse_expression_list_context(
@@ -402,7 +412,7 @@ fn parse_expression_list_context(
   source : @source.SourceText,
   statement_id : Int,
   stop_on_close : Bool,
-  allow_wildcard : Bool,
+  context : ExpressionContext,
 ) -> Bool {
   let mut any = false
   let mut saw_item = false
@@ -422,7 +432,11 @@ fn parse_expression_list_context(
       Some(_) => {
         saw_item = true
         let before = cursor.position
-        let expression_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, allow_wildcard)
+        let item_context = match context {
+          ExpressionContext::CountArgument if any => ExpressionContext::Ordinary
+          _ => context
+        }
+        let expression_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, item_context)
         any = any || expression_ok
         valid = valid && expression_ok
         if cursor.position == before {
@@ -530,15 +544,30 @@ fn parse_expression_postfix(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : Int,
-) -> Bool {
+  context : ExpressionContext,
+  function_star_allowed : Bool,
+) -> ExpressionPostfixResult {
   let mut valid = true
+  let mut wildcard_complete = false
   let mut keep_going = true
   while keep_going {
     if consume_symbol(cursor, b".") {
+      let star_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       let word_after_dot = is_word_token(cursor)
-      if consume_symbol(cursor, b"*") || word_after_dot {
-        if word_after_dot { advance(cursor) }
-        ()
+      if consume_symbol(cursor, b"*") {
+        match context {
+          ExpressionContext::ProjectionItem => {
+            wildcard_complete = true
+            keep_going = false
+          }
+          _ => {
+            add_diagnostic(state, "DORIS-PARSE-002", "wildcard is only valid as a projection item or COUNT(*) argument", "expression", star_span, statement_id)
+            valid = false
+            keep_going = false
+          }
+        }
+      } else if word_after_dot {
+        advance(cursor)
       } else {
         let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
         add_diagnostic(state, "DORIS-PARSE-002", "expected qualified identifier", "identifier", make_span(source, at, at), statement_id)
@@ -547,7 +576,8 @@ fn parse_expression_postfix(
       }
     } else if consume_symbol(cursor, b"(") {
       if !consume_symbol(cursor, b")") {
-        valid = parse_expression_list_context(cursor, state, source, statement_id, true, true) && valid
+        let argument_context = if function_star_allowed { ExpressionContext::CountArgument } else { ExpressionContext::Ordinary }
+        valid = parse_expression_list_context(cursor, state, source, statement_id, true, argument_context) && valid
         valid = expect_word(cursor, b")", state, source, statement_id, "expected closing function parenthesis") && valid
       }
       ()
@@ -588,8 +618,7 @@ fn parse_expression_postfix(
       keep_going = false
     }
   }
-  // A diagnosed required child invalidates the enclosing postfix chain.
-  valid
+  { valid: valid, wildcard_complete: wildcard_complete }
 }
 
 
@@ -609,6 +638,16 @@ fn parse_predicate_rhs(
   } else { parse_expression(cursor, 4, 1, state, source, statement_id) }
 }
 
+fn wildcard_has_invalid_continuation(cursor : Cursor) -> Bool {
+  let operator = match precedence(cursor) { Some(_) => true; None => false }
+  let continuation = match raw_at(cursor) {
+    Some(raw) if raw == b"." || raw == b"(" => true
+    Some(raw) if bytes_equal_ci(raw, b"IS") || bytes_equal_ci(raw, b"NOT") || bytes_equal_ci(raw, b"IN") || bytes_equal_ci(raw, b"LIKE") || bytes_equal_ci(raw, b"REGEXP") || bytes_equal_ci(raw, b"BETWEEN") || bytes_equal_ci(raw, b"OVER") => true
+    _ => false
+  }
+  operator || continuation
+}
+
 fn parse_expression(
   cursor : Cursor,
   minimum_precedence : Int,
@@ -617,7 +656,7 @@ fn parse_expression(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
-  parse_expression_context(cursor, minimum_precedence, depth, state, source, statement_id, false)
+  parse_expression_context(cursor, minimum_precedence, depth, state, source, statement_id, ExpressionContext::Ordinary)
 }
 
 fn parse_expression_context(
@@ -627,7 +666,7 @@ fn parse_expression_context(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : Int,
-  allow_wildcard : Bool,
+  context : ExpressionContext,
 ) -> Bool {
   let current_span = match token_at(cursor) {
     Some(token) => token.span
@@ -638,36 +677,76 @@ fn parse_expression_context(
     return false
   }
   let mut prefix_ok = false
+  let mut wildcard_prefix = false
+  let mut function_star_allowed = false
   match token_at(cursor) {
-    Some(token) if is_expression_operand(cursor, token) => { advance(cursor); prefix_ok = true }
+    Some(token) if is_expression_operand(cursor, token) => {
+      function_star_allowed = if token.kind is @token.TokenKind::Identifier {
+        match raw_at(cursor) {
+          Some(raw) => bytes_equal_ci(raw, b"COUNT")
+          None => false
+        }
+      } else {
+        false
+      }
+      advance(cursor)
+      prefix_ok = true
+    }
     Some(token) if token.kind is @token.TokenKind::Symbol && (raw_at(cursor) is Some(b"(")) => {
       advance(cursor)
       if is_query_start(cursor) { prefix_ok = parse_query(cursor, state, source, statement_id) }
-      else { prefix_ok = parse_expression_context(cursor, 1, depth + 1, state, source, statement_id, false) }
+      else { prefix_ok = parse_expression_context(cursor, 1, depth + 1, state, source, statement_id, ExpressionContext::Ordinary) }
       prefix_ok = expect_word(cursor, b")", state, source, statement_id, "expected closing parenthesis") && prefix_ok
     }
-    Some(_) if allow_wildcard && raw_at(cursor) is Some(b"*") => { advance(cursor); prefix_ok = true }
+    Some(_) if raw_at(cursor) is Some(b"*") => {
+      match context {
+        ExpressionContext::ProjectionItem | ExpressionContext::CountArgument => {
+          advance(cursor)
+          wildcard_prefix = true
+          prefix_ok = true
+        }
+        ExpressionContext::Ordinary => {
+          add_diagnostic(state, "DORIS-PARSE-002", "wildcard is only valid as a projection item or COUNT(*) argument", "expression", current_span, statement_id)
+        }
+      }
+    }
     Some(_) if raw_at(cursor) is Some(b"+") || raw_at(cursor) is Some(b"-") || bytes_equal_ci(match raw_at(cursor) { Some(raw) => raw; None => b"" }, b"NOT") => {
       advance(cursor)
-      prefix_ok = parse_expression_context(cursor, 6, depth + 1, state, source, statement_id, false)
+      prefix_ok = parse_expression_context(cursor, 6, depth + 1, state, source, statement_id, ExpressionContext::Ordinary)
     }
     Some(token) => add_diagnostic(state, "DORIS-PARSE-002", "expected literal, identifier, or subquery expression", "expression", token.span, statement_id)
     None => add_diagnostic(state, "DORIS-PARSE-002", "expected expression", "expression", current_span, statement_id)
   }
   if !prefix_ok { false } else {
-    let mut valid = parse_expression_postfix(cursor, state, source, statement_id)
+    let postfix = if wildcard_prefix {
+      { valid: true, wildcard_complete: true }
+    } else {
+      parse_expression_postfix(cursor, state, source, statement_id, context, function_star_allowed)
+    }
+    let mut valid = postfix.valid
+    let mut wildcard_complete = wildcard_prefix || postfix.wildcard_complete
+    if wildcard_complete && wildcard_has_invalid_continuation(cursor) {
+      let span = match token_at(cursor) { Some(token) => token.span; None => current_span }
+      add_diagnostic(state, "DORIS-PARSE-002", "wildcard must be a complete projection item or COUNT(*) argument", "expression", span, statement_id)
+      recover_expression(cursor, state, source, statement_id)
+      valid = false
+      wildcard_complete = false
+    }
     let mut keep_going = true
     while keep_going {
       match precedence(cursor) {
         Some(operator_precedence) if operator_precedence >= minimum_precedence => {
           advance(cursor)
-          let rhs = parse_expression_context(cursor, operator_precedence + 1, depth + 1, state, source, statement_id, false)
+          let rhs = parse_expression_context(cursor, operator_precedence + 1, depth + 1, state, source, statement_id, ExpressionContext::Ordinary)
           valid = rhs && valid
           if !rhs { keep_going = false }
         }
         _ => keep_going = false
       }
-      if keep_going { valid = parse_expression_postfix(cursor, state, source, statement_id) && valid }
+      if keep_going {
+        let next_postfix = parse_expression_postfix(cursor, state, source, statement_id, ExpressionContext::Ordinary, false)
+        valid = next_postfix.valid && valid
+      }
     }
     valid
   }
@@ -1078,7 +1157,7 @@ fn parse_projection_alias(
       false
     }
   } else if is_projection_alias_candidate(cursor) {
-    advance(cursor)
+      advance(cursor)
     true
   } else {
     true
@@ -1106,7 +1185,7 @@ fn parse_expression_list_until_clause(
           ignore(consume_word(cursor, b"EXCEPT"))
           parse_identifier_option(cursor, state, source, statement_id, "projection EXCEPT")
         } else {
-          parse_expression_context(cursor, 1, 1, state, source, statement_id, true)
+          parse_expression_context(cursor, 1, 1, state, source, statement_id, ExpressionContext::ProjectionItem)
         }
         any = any || item
         valid = valid && item
