@@ -81,6 +81,13 @@ pub fn print_bytes(
   print_lossless(root, source)
 }
 
+fn checked_node(node : @syntax.SyntaxNode?) -> @syntax.SyntaxNode {
+  match node {
+    Some(value) => value
+    None => panic()
+  }
+}
+
 test "printer_replays_unicode_crlf_invalid_unknown_and_incomplete_bytes" {
   let raw = b"\xef\xbb\xbfSELECT x\r\n@ \xff SELECT"
   let source = match @source.SourceText::new(raw) {
@@ -101,14 +108,14 @@ test "printer_replays_unicode_crlf_invalid_unknown_and_incomplete_bytes" {
     }
     leaves.push(@syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(kind, token.span)))
   }
-  let root = @syntax.SyntaxNode::new(
+  let root = checked_node(@syntax.SyntaxNode::new(
     @syntax.SyntaxKind::Document,
     match source.span(0, source.byte_length()) {
       Ok(span) => span
       Err(_) => panic()
     },
     leaves,
-  )
+  ))
   assert_eq(print_lossless(root, source), raw)
 }
 
@@ -117,13 +124,13 @@ test "printer_missing_is_zero_width" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let root = @syntax.SyntaxNode::new(
+  let root = checked_node(@syntax.SyntaxNode::new(
     @syntax.SyntaxKind::Document,
     match source.span(0, source.byte_length()) {
       Ok(span) => span
       Err(_) => panic()
     },
-    [@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::missing(source.byte_length()))],
-  )
+    [@syntax.SyntaxElement::ChildNode(checked_node(@syntax.SyntaxNode::missing(source.byte_length(), source.byte_length())))],
+  ))
   assert_eq(print_lossless(root, source), b"")
 }

@@ -257,40 +257,50 @@ fn expect_word(
   }
 }
 
-fn feature_allowed(profile : @token.DorisProfile, introduced : Bytes) -> Bool {
-  if introduced == b"3.x" {
-    profile.supports(@token.DorisFeature::Qualify)
-  } else if introduced == b"4.x" {
-    profile.supports(@token.DorisFeature::Tablet)
-  } else {
-    true
+fn feature_for_keyword(raw : Bytes) -> @token.DorisFeature? {
+  let features = [@token.DorisFeature::Qualify, @token.DorisFeature::Tablet]
+  for feature in features {
+    if is_keyword(raw, feature.metadata().keyword) {
+      return Some(feature)
+    }
+  }
+  None
+}
+
+fn feature_allowed(profile : @token.DorisProfile, feature : @token.DorisFeature) -> Bool {
+  profile.supports(feature)
+}
+
+fn add_feature_diagnostic(
+  state : RecoveryState,
+  feature : @token.DorisFeature,
+  span : @source.Span,
+  statement_id : Int,
+) -> Unit {
+  let metadata = feature.metadata()
+  add_diagnostic(
+    state,
+    metadata.diagnostic_code,
+    metadata.diagnostic_message,
+    "released-version",
+    span,
+    statement_id,
+  )
+}
+
+fn version_invalid_node(token : @token.Token) -> @syntax.SyntaxElement {
+  @syntax.SyntaxElement::ChildNode(require_node(@syntax.SyntaxNode::error(
+    token.span,
+    [@syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceError, token.span))],
+  )))
+}
+fn require_node(node : @syntax.SyntaxNode?) -> @syntax.SyntaxNode {
+  match node {
+    Some(value) => value
+    None => panic()
   }
 }
 
-fn version_diagnostic(
-  cursor : Cursor,
-  profile : @token.DorisProfile,
-  introduced : Bytes,
-  feature : String,
-  state : RecoveryState,
-  source : @source.SourceText,
-  statement_id : Int,
-) -> Unit {
-  if !feature_allowed(profile, introduced) {
-    let span = match token_at(cursor) {
-      Some(token) => token.span
-      None => make_span(source, source.byte_length(), source.byte_length())
-    }
-    add_diagnostic(
-      state,
-      "DORIS-PARSE-006",
-      "feature " + feature + " is unavailable in the selected released profile",
-      "released-version",
-      span,
-      statement_id,
-    )
-  }
-}
 
 fn is_expression_operand(token : @token.Token) -> Bool {
   match token.kind {
@@ -568,11 +578,13 @@ fn parse_table_ref(
   let mut option_done = false
   while !option_done {
     let option_name = if consume_word(cursor, b"PARTITION") { "PARTITION" }
-    else if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"TABLET") {
+    else if raw_at(cursor) is Some(raw) && is_keyword(raw, @token.DorisFeature::Tablet.metadata().keyword) {
+      let feature = @token.DorisFeature::Tablet
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       advance(cursor)
-      if !profile.supports(@token.DorisFeature::Tablet) {
-        add_diagnostic(state, "DORIS-PARSE-006", "feature TABLET is unavailable in the selected released profile", "released-version", span, statement_id)
+      if !feature_allowed(profile, feature) {
+        add_feature_diagnostic(state, feature, span, statement_id)
+        valid = false
       }
       "TABLET"
     }
@@ -749,7 +761,7 @@ fn parse_select_core(
       valid = parse_balanced_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
     }
   }
-  if has_except && raw_at(cursor) is Some(b"FROM") {
+  if has_except && raw_at(cursor) is Some(raw) && is_keyword(raw, b"FROM") {
     valid = true && valid
   } else {
     valid = parse_expression_list_until_clause(cursor, state, source, statement_id) && valid
@@ -768,8 +780,9 @@ fn parse_select_core(
   }
   let qualify_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"QUALIFY") {
-    if !feature_allowed(profile, b"3.x") {
-      add_diagnostic(state, "DORIS-PARSE-006", "feature QUALIFY is unavailable in the selected released profile", "released-version", qualify_span, statement_id)
+    let feature = @token.DorisFeature::Qualify
+    if !feature_allowed(profile, feature) {
+      add_feature_diagnostic(state, feature, qualify_span, statement_id)
       valid = false
     }
     valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
@@ -784,6 +797,10 @@ fn parse_select_core(
   }
   valid
 }
+fn is_projection_boundary(raw : Bytes) -> Bool {
+  is_clause_keyword(raw) || raw == b";" || raw == b")"
+}
+
 
 fn parse_expression_list_until_clause(
   cursor : Cursor,
@@ -797,7 +814,7 @@ fn parse_expression_list_until_clause(
   while !done {
     match raw_at(cursor) {
       None => done = true
-      Some(raw) if raw == b"FROM" || raw == b"WHERE" || raw == b"GROUP" || raw == b"HAVING" || raw == b"WINDOW" || raw == b"QUALIFY" || raw == b"ORDER" || raw == b"LIMIT" || raw == b"INTO" || raw == b"UNION" || raw == b";" || raw == b")" => done = true
+      Some(raw) if is_projection_boundary(raw) => done = true
       Some(_) => {
         let before = cursor.position
         let item = parse_expression(cursor, 1, 1, state, source, statement_id)
@@ -816,7 +833,7 @@ fn parse_expression_list_until_clause(
               valid = false
               done = true
             }
-            Some(raw) if raw == b"FROM" || raw == b"WHERE" || raw == b"GROUP" || raw == b"HAVING" || raw == b"WINDOW" || raw == b"QUALIFY" || raw == b"ORDER" || raw == b"LIMIT" || raw == b"INTO" || raw == b"UNION" || raw == b";" || raw == b")" => {
+            Some(raw) if is_projection_boundary(raw) => {
               let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
               add_diagnostic(state, "DORIS-PARSE-002", "expected expression after projection comma", "expression", make_span(source, at, at), statement_id)
               valid = false
@@ -894,6 +911,18 @@ fn significant_indices(stream : @token.TokenStream, start_index : Int, end_index
   indices
 }
 
+fn has_statement_content(stream : @token.TokenStream, start_index : Int, end_index : Int) -> Bool {
+  let indices = significant_indices(stream, start_index, end_index)
+  for index in indices {
+    match stream.raw(index) {
+      Some(raw) if raw == b";" => ()
+      Some(_) => return true
+      None => ()
+    }
+  }
+  false
+}
+
 fn leaf_for_token(token : @token.Token) -> @syntax.SyntaxElement {
   let kind = match token.kind {
     @token.TokenKind::Whitespace | @token.TokenKind::Newline |
@@ -945,11 +974,8 @@ fn segment_children_for_profile(
   let mut index = start_index
   while index < end_index {
     match stream.at(index) {
-      Some(token) if !feature_allowed(profile, b"3.x") && stream.raw(index) is Some(raw) && bytes_equal_ci(raw, b"QUALIFY") => {
-        children.push(@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::error(
-          token.span,
-          [@syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceError, token.span))],
-        )))
+      Some(token) if stream.raw(index) is Some(raw) && feature_for_keyword(raw) is Some(feature) && !feature_allowed(profile, feature) => {
+        children.push(version_invalid_node(token))
       }
       Some(token) => children.push(leaf_for_token(token))
       None => ()
@@ -1035,11 +1061,12 @@ fn parse_segment(
       }
     }
     if trailing { add_diagnostic(state, "DORIS-PARSE-001", "unexpected tokens after SELECT query", "statement", span, statement_id) }
-    if !parsed || trailing { children.push(@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::missing(span.end_byte))) }
-    @syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Select, span, children))])
+    if !parsed || trailing { children.push(@syntax.SyntaxElement::ChildNode(require_node(@syntax.SyntaxNode::missing(span.end_byte, stream.source.byte_length())))) }
+    let select = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Select, span, children))
+    require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(select)]))
   } else {
-    let error = @syntax.SyntaxNode::new(@syntax.SyntaxKind::Error, span, children)
-    @syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)])
+    let error = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Error, span, children))
+    require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
   }
 }
 
@@ -1060,19 +1087,20 @@ fn append_skipped(
 ) -> Unit {
   if start_index < end_index {
     let span = segment_span(stream, start_index, end_index)
-    let node = @syntax.SyntaxNode::new(
+    let node = require_node(@syntax.SyntaxNode::new(
       @syntax.SyntaxKind::Skipped,
       span,
       segment_children(stream, start_index, end_index),
-    )
+    ))
     root_children.push(@syntax.SyntaxElement::ChildNode(node))
   } else if start_index == 0 && stream.source.byte_length() > 0 {
     let span = make_span(stream.source, 0, stream.source.byte_length())
-    root_children.push(@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::new(
+    let node = require_node(@syntax.SyntaxNode::new(
       @syntax.SyntaxKind::Skipped,
       span,
       segment_children(stream, 0, end_index),
-    )))
+    ))
+    root_children.push(@syntax.SyntaxElement::ChildNode(node))
   }
 }
 
@@ -1083,10 +1111,11 @@ fn append_skipped_span(
 ) -> Unit {
   if start_byte < source.byte_length() {
     let span = make_span(source, start_byte, source.byte_length())
-    root_children.push(@syntax.SyntaxElement::ChildNode(@syntax.SyntaxNode::skipped(
+    let node = require_node(@syntax.SyntaxNode::skipped(
       span,
       [@syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceSkipped, span))],
-    )))
+    ))
+    root_children.push(@syntax.SyntaxElement::ChildNode(node))
   }
 }
 
@@ -1141,10 +1170,14 @@ pub fn parse_with_limits(
     let is_semicolon = match stream.raw(index) { Some(raw) => raw == b";"; None => false }
     if is_semicolon {
       let segment_end = index + 1
-      let segment = parse_segment(stream, segment_start, segment_end, statement_id, state)
-      if segment.span().length() > 0 {
-        root_children.push(@syntax.SyntaxElement::ChildNode(segment))
-        statement_id = statement_id + 1
+      if has_statement_content(stream, segment_start, segment_end) {
+        let segment = parse_segment(stream, segment_start, segment_end, statement_id, state)
+        if segment.span().length() > 0 {
+          root_children.push(@syntax.SyntaxElement::ChildNode(segment))
+          statement_id = statement_id + 1
+        }
+      } else {
+        append_trivia_segment(root_children, stream, segment_start, segment_end)
       }
       segment_start = segment_end
     }
@@ -1191,7 +1224,7 @@ pub fn parse_with_limits(
     source: source,
     profile: profile,
     mode: mode,
-    root: @syntax.SyntaxNode::new(@syntax.SyntaxKind::Document, root_span, root_children),
+    root: require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Document, root_span, root_children)),
     diagnostics: state.diagnostics,
     valid: valid,
     recovered: !valid && mode is ParseMode::Editor,

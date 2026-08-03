@@ -27,21 +27,55 @@ pub(all) enum DorisFeature {
 
 pub struct FeatureMetadata {
   pub name : String
+  pub keyword : Bytes
   pub introduced_profile : String
+  pub diagnostic_code : String
+  pub recovery_kind : String
+  pub diagnostic_message : String
 }
 
 pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
   match self {
-    Qualify => { name: "QUALIFY", introduced_profile: "3.x" }
-    Tablet => { name: "TABLET", introduced_profile: "3.x" }
+    Qualify => {
+      name: "QUALIFY",
+      keyword: b"QUALIFY",
+      introduced_profile: "3.x",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature QUALIFY is unavailable in the selected released profile",
+    }
+    Tablet => {
+      name: "TABLET",
+      keyword: b"TABLET",
+      introduced_profile: "3.x",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature TABLET is unavailable in the selected released profile",
+    }
+  }
+}
+
+fn profile_rank(profile : DorisProfile) -> Int {
+  match profile {
+    V2_1 => 0
+    V3_X => 1
+    V4_X => 2
+  }
+}
+
+fn introduced_rank(profile_id : String) -> Int? {
+  match profile_id {
+    "2.1" => Some(0)
+    "3.x" => Some(1)
+    "4.x" => Some(2)
+    _ => None
   }
 }
 
 pub fn DorisProfile::supports(self : DorisProfile, feature : DorisFeature) -> Bool {
-  match self {
-    V2_1 => match feature { Qualify => false; Tablet => false }
-    V3_X => true
-    V4_X => true
+  match introduced_rank(feature.metadata().introduced_profile) {
+    Some(required) => profile_rank(self) >= required
+    None => false
   }
 }
 
@@ -134,11 +168,22 @@ test "profile_metadata_is_stable_and_complete" {
   assert_eq(V4_X.metadata().introduced_features, "4.x-released")
 }
 
-
 test "released_feature_metadata_and_profile_gates_are_stable" {
-  assert_eq(DorisFeature::Qualify.metadata().name, "QUALIFY")
-  assert_eq(DorisFeature::Tablet.metadata().introduced_profile, "3.x")
+  let qualify = DorisFeature::Qualify.metadata()
+  let tablet = DorisFeature::Tablet.metadata()
+  assert_eq(qualify.name, "QUALIFY")
+  assert_eq(qualify.keyword, b"QUALIFY")
+  assert_eq(qualify.introduced_profile, "3.x")
+  assert_eq(qualify.diagnostic_code, "DORIS-PARSE-006")
+  assert_eq(qualify.recovery_kind, "error")
+  assert_eq(tablet.name, "TABLET")
+  assert_eq(tablet.keyword, b"TABLET")
+  assert_eq(tablet.introduced_profile, "3.x")
+  assert_eq(tablet.diagnostic_code, "DORIS-PARSE-006")
+  assert_eq(tablet.recovery_kind, "error")
   assert_true(!V2_1.supports(DorisFeature::Qualify))
   assert_true(V3_X.supports(DorisFeature::Qualify))
+  assert_true(!V2_1.supports(DorisFeature::Tablet))
+  assert_true(V3_X.supports(DorisFeature::Tablet))
   assert_true(V4_X.supports(DorisFeature::Tablet))
 }

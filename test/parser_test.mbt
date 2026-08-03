@@ -146,6 +146,45 @@ test "version_gate_diagnostic_spans_offending_tablet_keyword" {
   }
   assert_true(found)
 }
+test "version_invalid_features_share_metadata_gate_and_editor_shape" {
+  let raw = b"SELECT k FROM t TABLET (1)"
+  let strict = match @api.parse_with_ids(raw, "2.1", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let editor = match @api.parse_with_ids(raw, "2.1", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!strict.valid)
+  assert_true(!editor.valid)
+  assert_true(editor.recovered)
+  assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
+  assert_eq(strict.diagnostics[0].code, @token.DorisFeature::Tablet.metadata().diagnostic_code)
+  assert_eq(strict.diagnostics[0].start_byte, editor.diagnostics[0].start_byte)
+  assert_eq(strict.diagnostics[0].end_byte, editor.diagnostics[0].end_byte)
+  assert_eq(strict.diagnostics[0].statement_id, editor.diagnostics[0].statement_id)
+  assert_true(has_kind(editor.root, "error"))
+  assert_eq(@printer.print_result(editor), raw)
+}
+
+test "projection_clause_boundary_is_case_insensitive" {
+  let malformed = match @api.parse_with_ids(b"SELECT a, from", "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!malformed.valid)
+  assert_true(malformed.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+  assert_true(has_kind(malformed.root, "missing"))
+  assert_eq(@printer.print_result(malformed), b"SELECT a, from")
+  let valid = match @api.parse_with_ids(b"select a from t where b = 1", "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(valid.valid)
+  assert_eq(valid.diagnostics.length(), 0)
+  assert_eq(@printer.print_result(valid), b"select a from t where b = 1")
+}
 
 test "industrial_boundary_set_chains_and_contextual_identifiers" {
   let raw = b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3; SELECT `group`, `window` FROM `table`"
@@ -173,6 +212,28 @@ test "trailing_trivia_after_semicolon_is_not_a_statement" {
   assert_eq(statement_count, 1)
   assert_true(result.valid)
   assert_eq(@printer.print_result(result), raw)
+}
+test "semicolon_trivia_segments_do_not_create_error_statements" {
+  let raws = [
+    b"SELECT 1; -- trailing\n; SELECT 2",
+    b"SELECT 1;; SELECT 2",
+    b"SELECT 1; /* middle */\n; SELECT 2",
+  ]
+  for raw in raws {
+    let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    let mut statement_count = 0
+    for child in result.root.children {
+      if child.kind == "statement" { statement_count = statement_count + 1 }
+      assert_true(child.kind != "error")
+    }
+    assert_eq(statement_count, 2)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+  }
 }
 fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_valid : Bool) -> Bool {
   let result = match @api.parse_with_ids(raw, profile, mode) {

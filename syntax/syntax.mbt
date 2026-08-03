@@ -37,16 +37,41 @@ pub struct SyntaxNode {
   children : Array[SyntaxElement]
 }
 
+fn node_invariants_hold(
+  span : @source.Span,
+  text_len : Int,
+  children : Array[SyntaxElement],
+) -> Bool {
+  if span.start_byte < 0 || span.start_byte > span.end_byte || text_len < 0 || text_len != span.length() {
+    return false
+  }
+  let mut previous_end = span.start_byte
+  for child in children {
+    let child_span = child.span()
+    if child.text_len() < 0 || child.text_len() != child_span.length() ||
+      child_span.start_byte < span.start_byte || child_span.end_byte > span.end_byte ||
+      child_span.start_byte < previous_end {
+      return false
+    }
+    match child {
+      ChildNode(node) => if !node.is_valid(span.end_byte) { return false }
+      Leaf(leaf) => if leaf.text_len < 0 || leaf.text_len != leaf.span.length() { return false }
+    }
+    previous_end = child_span.end_byte
+  }
+  true
+}
+
 pub fn SyntaxNode::new(
   kind : SyntaxKind,
   span : @source.Span,
   children : Array[SyntaxElement],
-) -> SyntaxNode {
-  {
-    kind: kind,
-    span: span,
-    text_len: span.length(),
-    children: children.copy(),
+) -> SyntaxNode? {
+  let text_len = span.length()
+  if node_invariants_hold(span, text_len, children) {
+    Some({ kind: kind, span: span, text_len: text_len, children: children.copy() })
+  } else {
+    None
   }
 }
 
@@ -55,27 +80,26 @@ pub fn SyntaxNode::with_text_len(
   span : @source.Span,
   text_len : Int,
   children : Array[SyntaxElement],
-) -> SyntaxNode {
-  {
-    kind: kind,
-    span: span,
-    text_len: text_len,
-    children: children.copy(),
+) -> SyntaxNode? {
+  if node_invariants_hold(span, text_len, children) {
+    Some({ kind: kind, span: span, text_len: text_len, children: children.copy() })
+  } else {
+    None
   }
 }
 
-pub fn SyntaxNode::missing(at : Int) -> SyntaxNode {
-  let span = match @source.Span::checked(at, at, at) {
-    Ok(span) => span
-    Err(_) => panic()
+pub fn SyntaxNode::missing(at : Int, source_length : Int) -> SyntaxNode? {
+  match @source.Span::checked(at, at, source_length) {
+    Ok(span) => SyntaxNode::new(SyntaxKind::Missing, span, [])
+    Err(_) => None
   }
-  SyntaxNode::new(SyntaxKind::Missing, span, [])
 }
-pub fn SyntaxNode::error(span : @source.Span, children : Array[SyntaxElement]) -> SyntaxNode {
+
+pub fn SyntaxNode::error(span : @source.Span, children : Array[SyntaxElement]) -> SyntaxNode? {
   SyntaxNode::new(SyntaxKind::Error, span, children)
 }
 
-pub fn SyntaxNode::skipped(span : @source.Span, children : Array[SyntaxElement]) -> SyntaxNode {
+pub fn SyntaxNode::skipped(span : @source.Span, children : Array[SyntaxElement]) -> SyntaxNode? {
   SyntaxNode::new(SyntaxKind::Skipped, span, children)
 }
 
@@ -161,6 +185,13 @@ pub fn SyntaxNode::leaf_count(self : SyntaxNode) -> Int {
   count
 }
 
+fn checked_node(node : SyntaxNode?) -> SyntaxNode {
+  match node {
+    Some(value) => value
+    None => panic()
+  }
+}
+
 test "syntax_nodes_keep_touching_spans_and_zero_width_missing" {
   let first = match @source.Span::checked(0, 2, 2) {
     Ok(span) => span
@@ -170,7 +201,7 @@ test "syntax_nodes_keep_touching_spans_and_zero_width_missing" {
     Ok(span) => span
     Err(_) => panic()
   }
-  let node = SyntaxNode::new(
+  let node = checked_node(SyntaxNode::new(
     SyntaxKind::Document,
     match @source.Span::checked(0, 2, 2) {
       Ok(span) => span
@@ -178,10 +209,10 @@ test "syntax_nodes_keep_touching_spans_and_zero_width_missing" {
     },
     [
       Leaf(SyntaxLeaf::new(LeafKind::SourceToken, first)),
-      ChildNode(SyntaxNode::missing(2)),
+      ChildNode(checked_node(SyntaxNode::missing(2, 2))),
       Leaf(SyntaxLeaf::new(LeafKind::SourceTrivia, second)),
     ],
-  )
+  ))
   assert_eq(node.text_len(), 2)
   assert_eq(node.leaf_count(), 2)
   assert_eq(node.children()[1].text_len(), 0)
@@ -200,14 +231,14 @@ test "syntax_source_order_and_touching_leaf_spans_are_preserved" {
     Ok(span) => span
     Err(_) => panic()
   }
-  let root = SyntaxNode::new(
+  let root = checked_node(SyntaxNode::new(
     SyntaxKind::Document,
     root_span,
     [
       Leaf(SyntaxLeaf::new(LeafKind::SourceToken, left_span)),
       Leaf(SyntaxLeaf::new(LeafKind::SourceTrivia, right_span)),
     ],
-  )
+  ))
   assert_eq(root.children()[0].span().start_byte, 0)
   assert_eq(root.children()[1].span().start_byte, 1)
   assert_eq(root.children()[0].span().end_byte, root.children()[1].span().start_byte)
@@ -223,12 +254,12 @@ test "syntax_validation_rejects_negative_or_noncontaining_text" {
     Ok(span) => span
     Err(_) => panic()
   }
-  let invalid_text = SyntaxNode::with_text_len(SyntaxKind::Document, root_span, -1, [])
-  assert_true(!invalid_text.is_valid(3))
-  let invalid_order = SyntaxNode::new(
+  assert_true(SyntaxNode::with_text_len(SyntaxKind::Document, root_span, -1, []) is None)
+  assert_true(SyntaxNode::new(
     SyntaxKind::Document,
     root_span,
     [Leaf(SyntaxLeaf::new(LeafKind::SourceToken, child_span)), Leaf(SyntaxLeaf::new(LeafKind::SourceToken, root_span))],
-  )
-  assert_true(!invalid_order.is_valid(3))
+  ) is None)
+  assert_true(SyntaxNode::missing(-1, 3) is None)
+  assert_true(SyntaxNode::missing(4, 3) is None)
 }
