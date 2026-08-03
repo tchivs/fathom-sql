@@ -78,17 +78,44 @@ Explicit exclusions for the initial project scope.
 
 ## Traceability
 
-Traceability is populated during roadmap creation. Each v1 requirement must map to exactly one phase.
+Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| _To be mapped by roadmap creation_ | — | Pending |
+| CORE-01 | Phase 1: Core Kernel | Pending |
+| CORE-02 | Phase 1: Core Kernel | Pending |
+| CORE-03 | Phase 1: Core Kernel | Pending |
+| CORE-04 | Phase 1: Core Kernel | Pending |
+| CORE-05 | Phase 1: Core Kernel | Pending |
+| CORE-06 | Phase 1: Core Kernel | Pending |
+| CORE-07 | Phase 1: Core Kernel | Pending |
+| DORIS-01 | Phase 2: Doris Completeness and Corpus | Pending |
+| DORIS-02 | Phase 2: Doris Completeness and Corpus | Pending |
+| DORIS-03 | Phase 2: Doris Completeness and Corpus | Pending |
+| DORIS-04 | Phase 2: Doris Completeness and Corpus | Pending |
+| CORP-01 | Phase 2: Doris Completeness and Corpus | Pending |
+| CORP-02 | Phase 2: Doris Completeness and Corpus | Pending |
+| CORP-03 | Phase 2: Doris Completeness and Corpus | Pending |
+| CORP-04 | Phase 2: Doris Completeness and Corpus | Pending |
+| ANLY-01 | Phase 2: Doris Completeness and Corpus | Pending |
+| FMT-01 | Phase 3: Formatting and Safe Edits | Pending |
+| FMT-02 | Phase 3: Formatting and Safe Edits | Pending |
+| FMT-03 | Phase 3: Formatting and Safe Edits | Pending |
+| FMT-04 | Phase 3: Formatting and Safe Edits | Pending |
+| ECO-01 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-02 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-03 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-04 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-05 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-06 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-07 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 
-**Coverage before roadmap:**
+**Coverage after roadmap:**
 - v1 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27 ⚠️ (expected before roadmap creation)
+- Mapped to phases: 27
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-08-03*
-*Last updated: 2026-08-03 after initial definition*
+*Last updated: 2026-08-03 after MVP roadmap creation*
+
