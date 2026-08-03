@@ -497,6 +497,47 @@ test "wildcards_require_projection_or_function_star_context" {
   }
 }
 
+
+test "balanced_options_require_nonempty_payloads" {
+  let malformed = [
+    b"SELECT ALL EXCEPT () FROM t",
+    b"SELECT * FROM t PARTITION ()",
+    b"SELECT * FROM t TABLET ()",
+    b"SELECT * FROM t SAMPLE ()",
+    b"SELECT * FROM t TABLESAMPLE ()",
+    b"SELECT a FROM t JOIN u USING ()",
+    b"SELECT ALL EXCEPT (a,) FROM t",
+    b"SELECT a FROM t JOIN u USING (k,)",
+  ]
+  for raw in malformed {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+  let valid = [
+    b"SELECT ALL EXCEPT (secret) FROM t",
+    b"SELECT * FROM t PARTITION (p0, p1)",
+    b"SELECT * FROM t TABLET (1001)",
+    b"SELECT * FROM t TABLESAMPLE (10)",
+    b"SELECT a FROM t JOIN u USING (k, v)",
+  ]
+  for raw in valid {
+    let result = match @api.parse_with_ids(raw, "4.x", "strict") {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+  }
+}
 test "released_reserved_words_are_rejected_but_quoted_words_remain_identifiers" {
   let malformed = [
     b"SELECT a AS SELECT",

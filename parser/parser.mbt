@@ -672,6 +672,53 @@ fn is_query_start(cursor : Cursor) -> Bool {
   match raw_at(cursor) { Some(raw) => bytes_equal_ci(raw, b"SELECT") || bytes_equal_ci(raw, b"WITH"); None => false }
 }
 
+fn parse_identifier_option(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : Int,
+  option : String,
+) -> Bool {
+  if !consume_symbol(cursor, b"(") {
+    add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+    return false
+  }
+  if raw_at(cursor) is Some(b")") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " list", "option", span, statement_id)
+    advance(cursor)
+    return false
+  }
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    if is_identifier_candidate(cursor) {
+      any = true
+      advance(cursor)
+    } else {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected identifier in " + option + " list", "identifier", span, statement_id)
+      valid = false
+      if raw_at(cursor) is Some(b")") { done = true } else { advance(cursor) }
+    }
+    if !done {
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") {
+          let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected identifier after comma in " + option + " list", "identifier", span, statement_id)
+          valid = false
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing " + option + " parenthesis")
+  any && valid && closed
+}
+
 fn parse_balanced_option(
   cursor : Cursor,
   state : RecoveryState,
@@ -681,6 +728,12 @@ fn parse_balanced_option(
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
     add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+    return false
+  }
+  if raw_at(cursor) is Some(b")") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " option", "option", span, statement_id)
+    advance(cursor)
     return false
   }
   let mut depth = 1
@@ -809,7 +862,7 @@ fn parse_from(
         if consume_word(cursor, b"ON") {
           valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
         } else if consume_word(cursor, b"USING") {
-          valid = parse_balanced_option(cursor, state, source, statement_id, "USING") && valid
+          valid = parse_identifier_option(cursor, state, source, statement_id, "USING") && valid
         } else if requires_condition {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
           add_diagnostic(state, "DORIS-PARSE-002", "expected ON or USING after JOIN", "join-condition", make_span(source, at, at), statement_id)
@@ -924,7 +977,7 @@ fn parse_select_core(
   if consume_word(cursor, b"DISTINCT") || consume_word(cursor, b"DISTINCTROW") || consume_word(cursor, b"ALL") {
     if consume_word(cursor, b"EXCEPT") {
       has_except = true
-      valid = parse_balanced_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
+      valid = parse_identifier_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
     }
   }
   if has_except && raw_at(cursor) is Some(raw) && is_keyword(raw, b"FROM") {
