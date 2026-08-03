@@ -93,18 +93,20 @@ pub fn ParseOptions::limits(self : ParseOptions) -> ParseLimits {
 }
 
 fn validate_limits(limits : ParseLimits) -> Result[Unit, ParseError] {
-  if limits.max_bytes < 0 {
-    Err(InvalidLimit(limit_name="max_bytes", value=limits.max_bytes))
-  } else if limits.max_tokens < 0 {
-    Err(InvalidLimit(limit_name="max_tokens", value=limits.max_tokens))
-  } else if limits.max_recursion_depth < 0 {
-    Err(InvalidLimit(limit_name="max_recursion_depth", value=limits.max_recursion_depth))
-  } else if limits.max_recovery_steps < 0 {
-    Err(InvalidLimit(limit_name="max_recovery_steps", value=limits.max_recovery_steps))
-  } else if limits.max_diagnostics < 0 {
-    Err(InvalidLimit(limit_name="max_diagnostics", value=limits.max_diagnostics))
-  } else {
-    Ok(())
+  let parser_limits = @parser.ParserLimits::new(
+    limits.max_bytes,
+    limits.max_tokens,
+    limits.max_recursion_depth,
+    limits.max_recovery_steps,
+    limits.max_diagnostics,
+  )
+  match parser_limits.validate() {
+    Ok(_) => Ok(())
+    Err(@parser.ParserLimitError::MaxBytes(value)) => Err(InvalidLimit(limit_name="max_bytes", value=value))
+    Err(@parser.ParserLimitError::MaxTokens(value)) => Err(InvalidLimit(limit_name="max_tokens", value=value))
+    Err(@parser.ParserLimitError::MaxRecursionDepth(value)) => Err(InvalidLimit(limit_name="max_recursion_depth", value=value))
+    Err(@parser.ParserLimitError::MaxRecoverySteps(value)) => Err(InvalidLimit(limit_name="max_recovery_steps", value=value))
+    Err(@parser.ParserLimitError::MaxDiagnostics(value)) => Err(InvalidLimit(limit_name="max_diagnostics", value=value))
   }
 }
 pub struct PrimitiveNode {

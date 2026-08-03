@@ -5,6 +5,18 @@ pub(all) enum ParseMode {
   Editor
 }
 
+pub(all) enum ParserLimitError {
+  MaxBytes(Int)
+  MaxTokens(Int)
+  MaxRecursionDepth(Int)
+  MaxRecoverySteps(Int)
+  MaxDiagnostics(Int)
+}
+
+fn nonnegative_limit(value : Int) -> Int {
+  if value < 0 { 0 } else { value }
+}
+
 pub struct ParserLimits {
   pub max_bytes : Int
   pub max_tokens : Int
@@ -35,6 +47,31 @@ pub fn ParserLimits::new(
     max_recursion_depth: max_recursion_depth,
     max_recovery_steps: max_recovery_steps,
     max_diagnostics: max_diagnostics,
+  }
+}
+pub fn ParserLimits::validate(self : ParserLimits) -> Result[Unit, ParserLimitError] {
+  if self.max_bytes < 0 {
+    Err(ParserLimitError::MaxBytes(self.max_bytes))
+  } else if self.max_tokens < 0 {
+    Err(ParserLimitError::MaxTokens(self.max_tokens))
+  } else if self.max_recursion_depth < 0 {
+    Err(ParserLimitError::MaxRecursionDepth(self.max_recursion_depth))
+  } else if self.max_recovery_steps < 0 {
+    Err(ParserLimitError::MaxRecoverySteps(self.max_recovery_steps))
+  } else if self.max_diagnostics < 0 {
+    Err(ParserLimitError::MaxDiagnostics(self.max_diagnostics))
+  } else {
+    Ok(())
+  }
+}
+
+pub fn ParserLimits::normalized(self : ParserLimits) -> ParserLimits {
+  {
+    max_bytes: nonnegative_limit(self.max_bytes),
+    max_tokens: nonnegative_limit(self.max_tokens),
+    max_recursion_depth: nonnegative_limit(self.max_recursion_depth),
+    max_recovery_steps: nonnegative_limit(self.max_recovery_steps),
+    max_diagnostics: nonnegative_limit(self.max_diagnostics),
   }
 }
 
@@ -1298,6 +1335,7 @@ pub fn parse_with_limits(
   mode : ParseMode,
   limits : ParserLimits,
 ) -> ParsedDocument {
+  let limits = limits.normalized()
   let stream = @lexer.lex_with_limit(source, profile, limits.max_tokens)
   let root_span = make_span(source, 0, source.byte_length())
   let state = RecoveryState::{
@@ -1483,4 +1521,42 @@ test "parser_limits_retain_a_source_backed_skipped_remainder" {
   assert_true(parsed.recovered)
   assert_true(parsed.diagnostics.length() > 0)
   assert_true(parsed.root.children().length() > 0)
+}
+
+test "parser_low_level_negative_limits_normalize_without_panic" {
+  let empty_source = match @source.SourceText::new(b"") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let empty = parse_with_limits(
+    empty_source,
+    @token.DorisProfile::V4_X,
+    ParseMode::Strict,
+    ParserLimits::new(-1, -1, -1, -1, -1),
+  )
+  assert_true(empty.root.is_valid(0))
+  assert_true(empty.valid)
+
+  let nonempty_source = match @source.SourceText::new(b"SELECT 1") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let nonempty = parse_with_limits(
+    nonempty_source,
+    @token.DorisProfile::V4_X,
+    ParseMode::Editor,
+    ParserLimits::new(-1, -1, -1, -1, -1),
+  )
+  assert_true(!nonempty.valid)
+  assert_true(nonempty.diagnostics.any(d => d.expected_class == "resource"))
+  assert_true(nonempty.root.is_valid(nonempty_source.byte_length()))
+  assert_true(nonempty.diagnostics.all(d => d.span.start_byte >= 0 && d.span.end_byte <= nonempty_source.byte_length()))
+}
+
+test "parser_limit_validation_reports_each_negative_boundary" {
+  assert_true(ParserLimits::new(-1, 1, 1, 1, 1).validate() is Err(ParserLimitError::MaxBytes(-1)))
+  assert_true(ParserLimits::new(1, -1, 1, 1, 1).validate() is Err(ParserLimitError::MaxTokens(-1)))
+  assert_true(ParserLimits::new(1, 1, -1, 1, 1).validate() is Err(ParserLimitError::MaxRecursionDepth(-1)))
+  assert_true(ParserLimits::new(1, 1, 1, -1, 1).validate() is Err(ParserLimitError::MaxRecoverySteps(-1)))
+  assert_true(ParserLimits::new(1, 1, 1, 1, -1).validate() is Err(ParserLimitError::MaxDiagnostics(-1)))
 }

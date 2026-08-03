@@ -177,3 +177,21 @@ test "resource_diagnostics_use_nonempty_segment_identity" {
   }
   assert_eq(resources, 1)
 }
+
+test "api_rejects_every_negative_parser_limit_before_parse" {
+  let invalids = [
+    @api.ParseLimits::new(-1, 1, 1, 1, 1),
+    @api.ParseLimits::new(1, -1, 1, 1, 1),
+    @api.ParseLimits::new(1, 1, -1, 1, 1),
+    @api.ParseLimits::new(1, 1, 1, -1, 1),
+    @api.ParseLimits::new(1, 1, 1, 1, -1),
+  ]
+  for limits in invalids {
+    let options = @api.ParseOptions::for_profile_with_limits(
+      @token.DorisProfile::V4_X,
+      @api.ParseMode::Strict,
+      limits,
+    )
+    assert_true(@api.parse(b"", options) is Err(@api.ParseError::InvalidLimit(..)))
+  }
+}
