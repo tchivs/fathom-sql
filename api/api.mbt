@@ -236,3 +236,38 @@ test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
   assert_eq(first.diagnostics[0].statement_id, 0)
   assert_eq(second.diagnostics[0].statement_id, 0)
 }
+
+test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
+  let empty = match parse_with_ids(b"", "2.1", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(empty.source_byte_length, 0)
+  assert_eq(empty.root.start_byte, 0)
+  assert_eq(empty.root.end_byte, 0)
+  assert_eq(empty.diagnostics.length(), 0)
+  let strict = match parse_with_ids(b"SELECT", "3.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let editor = match parse_with_ids(b"SELECT", "3.x", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(strict.root.kind, editor.root.kind)
+  assert_eq(strict.root.text_len, editor.root.text_len)
+  assert_true(!strict.recovered)
+  assert_true(editor.recovered)
+}
+
+test "api_diagnostic_statement_ids_are_monotonic_per_snapshot" {
+  let result = match parse_with_ids(b"bad; bad", "4.x", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(result.diagnostics.length(), 2)
+  assert_eq(result.diagnostics[0].statement_id, 0)
+  assert_eq(result.diagnostics[1].statement_id, 1)
+  assert_true(result.diagnostics[0].code.has_prefix("DORIS-PARSE-"))
+  assert_true(result.diagnostics[1].code.has_prefix("DORIS-PARSE-"))
+}

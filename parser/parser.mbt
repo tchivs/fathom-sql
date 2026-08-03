@@ -434,3 +434,30 @@ test "parser_reports_incomplete_without_losing_source" {
   assert_eq(parsed.diagnostics[0].statement_id, 0)
   assert_true(parsed.root.leaf_count() > 0)
 }
+
+test "parser_statement_and_select_spans_are_source_ordered" {
+  let source = match @source.SourceText::new(b"SELECT 1; SELECT x") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = parse(source, @token.DorisProfile::V3_X, ParseMode::Strict)
+  let statements = parsed.root.children()
+  assert_eq(statements.length(), 2)
+  assert_true(statements[0].span().end_byte <= statements[1].span().start_byte)
+  assert_true(statements[0].text_len() > 0)
+  assert_true(statements[1].text_len() > 0)
+}
+
+test "parser_unknown_and_invalid_material_remains_source_backed" {
+  let raw = b"SELECT @ \xff"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = parse(source, @token.DorisProfile::V4_X, ParseMode::Editor)
+  assert_true(!parsed.valid)
+  assert_true(parsed.recovered)
+  assert_true(parsed.root.span().end_byte == raw.length())
+  assert_true(parsed.diagnostics.length() >= 1)
+  assert_true(parsed.diagnostics[0].span.end_byte <= raw.length())
+}

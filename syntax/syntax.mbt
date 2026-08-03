@@ -151,3 +151,30 @@ test "syntax_nodes_keep_touching_spans_and_zero_width_missing" {
   assert_eq(node.leaf_count(), 2)
   assert_eq(node.children()[1].text_len(), 0)
 }
+
+test "syntax_source_order_and_touching_leaf_spans_are_preserved" {
+  let left_span = match @source.Span::checked(0, 1, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let right_span = match @source.Span::checked(1, 3, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let root_span = match @source.Span::checked(0, 3, 3) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  let root = SyntaxNode::new(
+    SyntaxKind::Document,
+    root_span,
+    [
+      Leaf(SyntaxLeaf::new(LeafKind::SourceToken, left_span)),
+      Leaf(SyntaxLeaf::new(LeafKind::SourceTrivia, right_span)),
+    ],
+  )
+  assert_eq(root.children()[0].span().start_byte, 0)
+  assert_eq(root.children()[1].span().start_byte, 1)
+  assert_eq(root.children()[0].span().end_byte, root.children()[1].span().start_byte)
+  assert_eq(root.text_len(), 3)
+}
