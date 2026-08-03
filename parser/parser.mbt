@@ -1081,6 +1081,22 @@ fn append_skipped_span(
   }
 }
 
+fn append_trivia_segment(
+  root_children : Array[@syntax.SyntaxElement],
+  stream : @token.TokenStream,
+  start_index : Int,
+  end_index : Int,
+) -> Unit {
+  let mut index = start_index
+  while index < end_index {
+    match stream.at(index) {
+      Some(token) => root_children.push(leaf_for_token(token))
+      None => ()
+    }
+    index = index + 1
+  }
+}
+
 pub fn parse_with_limits(
   source : @source.SourceText,
   profile : @token.DorisProfile,
@@ -1126,10 +1142,15 @@ pub fn parse_with_limits(
     index = index + 1
   }
   if segment_start < parse_end {
-    let segment = parse_segment(stream, segment_start, parse_end, statement_id, state)
-    if segment.span().length() > 0 {
-      root_children.push(@syntax.SyntaxElement::ChildNode(segment))
-      statement_id = statement_id + 1
+    let indices = significant_indices(stream, segment_start, parse_end)
+    if indices.length() == 0 {
+      append_trivia_segment(root_children, stream, segment_start, parse_end)
+    } else {
+      let segment = parse_segment(stream, segment_start, parse_end, statement_id, state)
+      if segment.span().length() > 0 {
+        root_children.push(@syntax.SyntaxElement::ChildNode(segment))
+        statement_id = statement_id + 1
+      }
     }
   }
   if cut_index < stream.length() {

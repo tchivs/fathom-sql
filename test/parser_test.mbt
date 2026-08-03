@@ -133,6 +133,7 @@ test "released_profiles_gate_qualify_without_generic_fallback" {
 test "industrial_boundary_set_chains_and_contextual_identifiers" {
   let raw = b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3; SELECT `group`, `window` FROM `table`"
   let result = match @api.parse_with_ids(raw, "2.1", "editor") {
+
     Ok(result) => result
     Err(_) => panic()
   }
@@ -140,6 +141,21 @@ test "industrial_boundary_set_chains_and_contextual_identifiers" {
   assert_eq(result.diagnostics.length(), 0)
   assert_eq(@printer.print_result(result), raw)
   assert_eq(result.root.children.length(), 2)
+}
+test "trailing_trivia_after_semicolon_is_not_a_statement" {
+  let raw = b"SELECT 1; -- trailing\n  "
+  let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.root.children.length() > 1)
+  let mut statement_count = 0
+  for child in result.root.children {
+    if child.kind == "statement" { statement_count = statement_count + 1 }
+  }
+  assert_eq(statement_count, 1)
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
 }
 fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_valid : Bool) -> Bool {
   let result = match @api.parse_with_ids(raw, profile, mode) {
