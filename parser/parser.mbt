@@ -416,6 +416,7 @@ fn parse_expression_list_context(
 ) -> Bool {
   let mut any = false
   let mut saw_item = false
+  let mut count_star = false
   let mut valid = true
   let mut done = false
   while !done {
@@ -432,18 +433,35 @@ fn parse_expression_list_context(
       Some(_) => {
         saw_item = true
         let before = cursor.position
+        let item_is_count_star = match context {
+          ExpressionContext::CountArgument if !any => raw_at(cursor) is Some(b"*")
+          _ => false
+        }
         let item_context = match context {
           ExpressionContext::CountArgument if any => ExpressionContext::Ordinary
           _ => context
         }
         let expression_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, item_context)
         any = any || expression_ok
+        if item_is_count_star { count_star = true }
         valid = valid && expression_ok
         if cursor.position == before {
           recover_expression(cursor, state, source, statement_id)
           valid = false
         }
+        let comma_span = match token_at(cursor) {
+          Some(token) => token.span
+          None => make_span(source, source.byte_length(), source.byte_length())
+        }
         if !consume_symbol(cursor, b",") {
+          done = true
+        } else if count_star {
+          add_diagnostic(state, "DORIS-PARSE-002", "COUNT(*) accepts exactly one argument", "expression", comma_span, statement_id)
+          valid = false
+          recover_expression(cursor, state, source, statement_id)
+          while consume_symbol(cursor, b",") {
+            recover_expression(cursor, state, source, statement_id)
+          }
           done = true
         } else if raw_at(cursor) is None || raw_at(cursor) is Some(b")") {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }

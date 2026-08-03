@@ -532,6 +532,8 @@ test "wildcards_are_scoped_to_projection_and_count_argument_contexts" {
     b"SELECT SUM(*) FROM t",
     b"SELECT COALESCE(*) FROM t",
     b"SELECT COUNT(t.*) FROM t",
+    b"SELECT COUNT(*, x) FROM t",
+    b"SELECT COUNT(*, x, y) FROM t",
   ]
   for raw in malformed {
     let strict = parse_strict(raw)
@@ -551,6 +553,8 @@ test "wildcards_are_scoped_to_projection_and_count_argument_contexts" {
     b"SELECT * FROM t",
     b"SELECT t.* FROM t",
     b"SELECT COUNT(*) FROM t",
+    b"SELECT COUNT(x) FROM t",
+    b"SELECT COUNT(x, y) FROM t",
     b"SELECT SUM(x, y), COALESCE(x, y) FROM t",
     b"SELECT * AS all_cols, t.* qualified FROM t",
   ]
