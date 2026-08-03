@@ -1,0 +1,287 @@
+/// A synchronous, source-backed lexer. Every branch either consumes bytes or terminates.
+
+fn is_ascii_letter(byte : Int) -> Bool {
+  (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95
+}
+
+fn is_ascii_identifier_continue(byte : Int) -> Bool {
+  is_ascii_letter(byte) || (byte >= 48 && byte <= 57) || byte == 36
+}
+
+fn is_continuation(byte : Int) -> Bool {
+  byte >= 128 && byte <= 191
+}
+
+fn utf8_width(bytes : Bytes, index : Int) -> Int? {
+  let length = bytes.length()
+  let first = bytes[index].to_int()
+  if first < 128 {
+    Some(1)
+  } else if first >= 194 && first <= 223 {
+    if index + 1 < length && is_continuation(bytes[index + 1].to_int()) {
+      Some(2)
+    } else {
+      None
+    }
+  } else if first >= 224 && first <= 239 {
+    if index + 2 < length {
+      let second = bytes[index + 1].to_int()
+      let third = bytes[index + 2].to_int()
+      if is_continuation(third) && is_continuation(second) &&
+        (first != 224 || second >= 160) && (first != 237 || second <= 159) {
+        Some(3)
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  } else if first >= 240 && first <= 244 {
+    if index + 3 < length {
+      let second = bytes[index + 1].to_int()
+      let third = bytes[index + 2].to_int()
+      let fourth = bytes[index + 3].to_int()
+      if is_continuation(third) && is_continuation(fourth) &&
+        is_continuation(second) && (first != 240 || second >= 144) &&
+        (first != 244 || second <= 143) {
+        Some(4)
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  } else {
+    None
+  }
+}
+
+fn starts_identifier(bytes : Bytes, index : Int) -> Bool {
+  let byte = bytes[index].to_int()
+  if is_ascii_letter(byte) {
+    true
+  } else if byte >= 128 {
+    match utf8_width(bytes, index) {
+      Some(_) => true
+      None => false
+    }
+  } else {
+    false
+  }
+}
+
+fn is_space(byte : Int) -> Bool {
+  byte == 32 || byte == 9 || byte == 11 || byte == 12
+}
+
+fn push_token(
+  tokens : Array[@token.Token],
+  source_length : Int,
+  profile : @token.DorisProfile,
+  kind : @token.TokenKind,
+  start_byte : Int,
+  end_byte : Int,
+  diagnostic_code : String?,
+) -> Unit {
+  let span = match @source.Span::checked(start_byte, end_byte, source_length) {
+    Ok(span) => span
+    Err(_) => panic()
+  }
+  tokens.push({
+    kind: kind,
+    span: span,
+    profile: profile,
+    diagnostic_code: diagnostic_code,
+  })
+}
+
+fn scan_comment(bytes : Bytes, start : Int) -> (Int, String?) {
+  let length = bytes.length()
+  if start + 1 < length && bytes[start].to_int() == 47 && bytes[start + 1].to_int() == 42 {
+    let mut index = start + 2
+    while index + 1 < length &&
+      !(bytes[index].to_int() == 42 && bytes[index + 1].to_int() == 47) {
+      index = index + 1
+    }
+    if index + 1 < length {
+      (index + 2, None)
+    } else {
+      (length, Some("LEX_UNTERMINATED_COMMENT"))
+    }
+  } else {
+    let mut index = start
+    while index < length && bytes[index].to_int() != 10 && bytes[index].to_int() != 13 {
+      index = index + 1
+    }
+    (index, None)
+  }
+}
+
+fn scan_quoted(bytes : Bytes, start : Int, quote : Int) -> (Int, String?) {
+  let length = bytes.length()
+  let mut index = start + 1
+  while index < length {
+    let byte = bytes[index].to_int()
+    if byte == 92 {
+      index = if index + 1 < length { index + 2 } else { length }
+    } else if byte == quote {
+      if index + 1 < length && bytes[index + 1].to_int() == quote {
+        index = index + 2
+      } else {
+        return (index + 1, None)
+      }
+    } else {
+      index = index + 1
+    }
+  }
+  (length, Some("LEX_UNTERMINATED_LITERAL"))
+}
+
+pub fn lex(source : @source.SourceText, profile : @token.DorisProfile) -> @token.TokenStream {
+  let bytes = source.bytes()
+  let source_length = bytes.length()
+  let tokens : Array[@token.Token] = []
+  let mut index = 0
+  while index < source_length {
+    let byte = bytes[index].to_int()
+    if index + 2 < source_length && byte == 239 && bytes[index + 1].to_int() == 187 &&
+      bytes[index + 2].to_int() == 191 {
+      push_token(tokens, source_length, profile, @token.TokenKind::Bom, index, index + 3, None)
+      index = index + 3
+    } else if byte == 10 || byte == 13 {
+      let end = if byte == 13 && index + 1 < source_length && bytes[index + 1].to_int() == 10 {
+        index + 2
+      } else {
+        index + 1
+      }
+      push_token(tokens, source_length, profile, @token.TokenKind::Newline, index, end, None)
+      index = end
+    } else if is_space(byte) {
+      let start = index
+      index = index + 1
+      while index < source_length && is_space(bytes[index].to_int()) {
+        index = index + 1
+      }
+      push_token(tokens, source_length, profile, @token.TokenKind::Whitespace, start, index, None)
+    } else if (byte == 45 && index + 1 < source_length && bytes[index + 1].to_int() == 45) || byte == 35 {
+      let start = index
+      let (end, code) = scan_comment(bytes, if byte == 35 { index } else { index + 1 })
+      push_token(tokens, source_length, profile, @token.TokenKind::Comment, start, end, code)
+      index = end
+    } else if byte == 47 && index + 1 < source_length && bytes[index + 1].to_int() == 42 {
+      let (end, code) = scan_comment(bytes, index)
+      push_token(tokens, source_length, profile, @token.TokenKind::Comment, index, end, code)
+      index = end
+    } else if byte == 39 {
+      let start = index
+      let (end, code) = scan_quoted(bytes, index, byte)
+      push_token(tokens, source_length, profile, @token.TokenKind::StringLiteral, start, end, code)
+      index = end
+    } else if byte == 34 || byte == 96 {
+      let start = index
+      let (end, code) = scan_quoted(bytes, index, byte)
+      push_token(tokens, source_length, profile, @token.TokenKind::Quoted, start, end, code)
+      index = end
+    } else if byte >= 48 && byte <= 57 {
+      let start = index
+      index = index + 1
+      while index < source_length {
+        let next = bytes[index].to_int()
+        if (next >= 48 && next <= 57) || next == 46 {
+          index = index + 1
+        } else {
+          break
+        }
+      }
+      push_token(tokens, source_length, profile, @token.TokenKind::Number, start, index, None)
+    } else if starts_identifier(bytes, index) {
+      let start = index
+      let width = match utf8_width(bytes, index) {
+        Some(width) => width
+        None => 1
+      }
+      index = index + width
+      while index < source_length {
+        let next = bytes[index].to_int()
+        if is_ascii_identifier_continue(next) {
+          index = index + 1
+        } else {
+          match utf8_width(bytes, index) {
+            Some(width) if next >= 128 => index = index + width
+            _ => break
+          }
+        }
+      }
+      push_token(tokens, source_length, profile, @token.TokenKind::Identifier, start, index, None)
+    } else {
+      match utf8_width(bytes, index) {
+        Some(width) if byte >= 128 => {
+          push_token(tokens, source_length, profile, @token.TokenKind::Unknown, index, index + width, None)
+          index = index + width
+        }
+        None if byte >= 128 => {
+          let start = index
+          index = index + 1
+          while index < source_length && bytes[index].to_int() >= 128 && utf8_width(bytes, index) is None {
+            index = index + 1
+          }
+          push_token(
+            tokens,
+            source_length,
+            profile,
+            @token.TokenKind::Error,
+            start,
+            index,
+            Some("LEX_INVALID_UTF8"),
+          )
+        }
+        _ => {
+          push_token(tokens, source_length, profile, @token.TokenKind::Symbol, index, index + 1, None)
+          index = index + 1
+        }
+      }
+    }
+  }
+  {
+    source: source,
+    profile: profile,
+    tokens: tokens,
+  }
+}
+
+test "lexer_preserves_trivia_literals_and_invalid_bytes" {
+  let source = match @source.SourceText::new(b"\xef\xbb\xbfSELECT /*x*/ 'a''b' -- c\r\n\xff\xfe") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let stream = lex(source, @token.DorisProfile::V4_X)
+  assert_true(stream.length() > 6)
+  assert_eq(stream.raw(0), Some(b"\xef\xbb\xbf"))
+  assert_eq(stream.raw(stream.length() - 1), Some(b"\xff\xfe"))
+  let last = match stream.at(stream.length() - 1) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(last.kind is @token.TokenKind::Error)
+  assert_eq(last.diagnostic_code, Some("LEX_INVALID_UTF8"))
+  for token in stream.tokens {
+    assert_true(token.span.start_byte <= token.span.end_byte)
+    assert_true(token.span.end_byte <= source.byte_length())
+    assert_eq(token.raw(source), source.slice(token.span))
+  }
+}
+
+test "lexer_terminates_unterminated_material" {
+  let source = match @source.SourceText::new(b"/* never closes 'also never closes") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let stream = lex(source, @token.DorisProfile::V2_1)
+  assert_eq(stream.length(), 1)
+  assert_eq(stream.raw(0), Some(source.bytes()))
+  let token = match stream.at(0) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_eq(token.diagnostic_code, Some("LEX_UNTERMINATED_COMMENT"))
+}
