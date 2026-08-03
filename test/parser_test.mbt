@@ -615,6 +615,7 @@ test "window_required_nulls_and_frame_tokens_propagate_failure" {
     b"SELECT SUM(x) OVER (ORDER BY x NULLS)",
     b"SELECT SUM(x) OVER (ORDER BY x ROWS BETWEEN 1 AND 2)",
     b"SELECT SUM(x) OVER (ORDER BY x ROWS BETWEEN 1 PRECEDING AND 2)",
+
     b"SELECT SUM(x) OVER (ORDER BY x RANGE CURRENT)",
     b"SELECT SUM(x) OVER (ORDER BY x ROWS 1)",
   ]
@@ -650,6 +651,35 @@ test "window_required_nulls_and_frame_tokens_propagate_failure" {
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
+  }
+}
+test "window_order_items_consume_direction_and_nulls_per_item" {
+  let valid = [
+    b"SELECT SUM(v) OVER (ORDER BY a ASC, b DESC) FROM t",
+    b"SELECT SUM(v) OVER (ORDER BY a ASC NULLS FIRST, b DESC NULLS LAST) FROM t",
+  ]
+  for raw in valid {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+  for raw in [b"SELECT SUM(v) OVER (ORDER BY a ASC,)", b"SELECT SUM(v) OVER (ORDER BY a NULLS, b)"] {
+    let strict = parse_strict(raw)
+    let editor = parse_editor_parser(raw)
+    for result in [strict, editor] {
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+    assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
   }
 }
 

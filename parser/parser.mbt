@@ -502,10 +502,14 @@ fn parse_window_spec(
   }
   if consume_word(cursor, b"ORDER") {
     valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER") && valid
-    valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
-    while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") {}
-    if consume_word(cursor, b"NULLS") {
-      valid = expect_window_nulls_order(cursor, state, source, statement_id) && valid
+    let mut done = false
+    while !done {
+      valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+      ignore(consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC"))
+      if consume_word(cursor, b"NULLS") {
+        valid = expect_window_nulls_order(cursor, state, source, statement_id) && valid
+      }
+      if !consume_symbol(cursor, b",") { done = true }
     }
   }
   if consume_word(cursor, b"ROWS") || consume_word(cursor, b"RANGE") || consume_word(cursor, b"GROUPS") {
