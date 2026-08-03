@@ -13,4 +13,4 @@ INTO OUTFILE 'result.csv';
 
 SELECT k FROM t1 UNION SELECT k FROM t2 UNION ALL SELECT k FROM t3;
 -- Recovery fixture: the missing expression is intentional and remains source-backed.
-SELECT k, FROM malformed_projection;
+SELECT k +
