@@ -94,6 +94,54 @@ fn push_token(
     diagnostic_code: diagnostic_code,
   })
 }
+fn invalid_run_end(bytes : Bytes, start : Int, end : Int) -> Int {
+  let mut index = start + 1
+  while index < end {
+    let byte = bytes[index].to_int()
+    if byte < 128 || utf8_width(bytes, index) is Some(_) {
+      break
+    }
+    index = index + 1
+  }
+  index
+}
+
+
+fn push_scanned_with_invalid(
+  tokens : Array[@token.Token],
+  bytes : Bytes,
+  source_length : Int,
+  profile : @token.DorisProfile,
+  kind : @token.TokenKind,
+  start_byte : Int,
+  end_byte : Int,
+  diagnostic_code : String?,
+) -> Unit {
+  let mut cursor = start_byte
+  let mut segment_start = start_byte
+  while cursor < end_byte {
+    let byte = bytes[cursor].to_int()
+    let invalid = byte >= 128 && utf8_width(bytes, cursor) is None
+    if invalid {
+      if segment_start < cursor {
+        push_token(tokens, source_length, profile, kind, segment_start, cursor, None)
+      }
+      let invalid_end = invalid_run_end(bytes, cursor, end_byte)
+      push_token(tokens, source_length, profile, @token.TokenKind::Error, cursor, invalid_end, Some("LEX_INVALID_UTF8"))
+      cursor = invalid_end
+      segment_start = cursor
+    } else {
+      let width = if byte < 128 { 1 } else {
+        match utf8_width(bytes, cursor) { Some(width) => width; None => 1 }
+      }
+      cursor = cursor + width
+    }
+  }
+  if segment_start < end_byte {
+    push_token(tokens, source_length, profile, kind, segment_start, end_byte, diagnostic_code)
+  }
+}
+
 
 fn scan_comment(bytes : Bytes, start : Int) -> (Int, String?) {
   let length = bytes.length()
@@ -166,21 +214,21 @@ pub fn lex(source : @source.SourceText, profile : @token.DorisProfile) -> @token
     } else if (byte == 45 && index + 1 < source_length && bytes[index + 1].to_int() == 45) || byte == 35 {
       let start = index
       let (end, code) = scan_comment(bytes, if byte == 35 { index } else { index + 1 })
-      push_token(tokens, source_length, profile, @token.TokenKind::Comment, start, end, code)
+      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Comment, start, end, code)
       index = end
     } else if byte == 47 && index + 1 < source_length && bytes[index + 1].to_int() == 42 {
       let (end, code) = scan_comment(bytes, index)
-      push_token(tokens, source_length, profile, @token.TokenKind::Comment, index, end, code)
+      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Comment, index, end, code)
       index = end
     } else if byte == 39 {
       let start = index
       let (end, code) = scan_quoted(bytes, index, byte)
-      push_token(tokens, source_length, profile, @token.TokenKind::StringLiteral, start, end, code)
+      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::StringLiteral, start, end, code)
       index = end
     } else if byte == 34 || byte == 96 {
       let start = index
       let (end, code) = scan_quoted(bytes, index, byte)
-      push_token(tokens, source_length, profile, @token.TokenKind::Quoted, start, end, code)
+      push_scanned_with_invalid(tokens, bytes, source_length, profile, @token.TokenKind::Quoted, start, end, code)
       index = end
     } else if byte >= 48 && byte <= 57 {
       let start = index
@@ -269,6 +317,30 @@ test "lexer_preserves_trivia_literals_and_invalid_bytes" {
     assert_true(token.span.end_byte <= source.byte_length())
     assert_eq(token.raw(source), source.slice(token.span))
   }
+}
+
+test "lexer_splits_invalid_utf8_inside_closed_literals_identifiers_and_comments" {
+  let raw = b"SELECT '\xff' `bad\xfe` /*\xfd*/ 1"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let stream = lex(source, @token.DorisProfile::V4_X)
+  let mut invalid_count = 0
+  let mut replay = b""
+  for token in stream.tokens {
+    let token_bytes = match token.raw(source) {
+      Some(bytes) => bytes
+      None => b""
+    }
+    replay = replay + token_bytes
+    if token.kind is @token.TokenKind::Error {
+      assert_eq(token.diagnostic_code, Some("LEX_INVALID_UTF8"))
+      invalid_count = invalid_count + 1
+    }
+  }
+  assert_eq(invalid_count, 3)
+  assert_eq(replay, raw)
 }
 
 test "lexer_terminates_unterminated_material" {
