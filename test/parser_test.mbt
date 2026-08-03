@@ -804,3 +804,25 @@ test "malformed_numeric_literals_are_lexically_diagnosed_and_replayed" {
     assert_eq(@printer.print_result(result), raw)
   }
 }
+test "reserved_boolean_and_null_literals_are_expression_operands" {
+  let raws = [
+    b"SELECT NULL",
+    b"SELECT TRUE WHERE TRUE",
+    b"SELECT NULL FROM t WHERE x = TRUE",
+    b"SELECT NULL FROM t WHERE x IN (NULL)",
+    b"SELECT NULL FROM t ORDER BY NULL",
+    b"SELECT SUM(NULL) FROM t",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}

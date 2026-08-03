@@ -390,7 +390,13 @@ fn is_identifier_candidate(cursor : Cursor) -> Bool {
 
 fn is_expression_operand(cursor : Cursor, token : @token.Token) -> Bool {
   match token.kind {
-    @token.TokenKind::Identifier | @token.TokenKind::Quoted => is_identifier_candidate(cursor)
+    @token.TokenKind::Identifier => {
+      match raw_at(cursor) {
+        Some(raw) if bytes_equal_ci(raw, b"NULL") || bytes_equal_ci(raw, b"TRUE") || bytes_equal_ci(raw, b"FALSE") => true
+        _ => is_identifier_candidate(cursor)
+      }
+    }
+    @token.TokenKind::Quoted => true
     @token.TokenKind::StringLiteral | @token.TokenKind::Number => true
     _ => false
   }
