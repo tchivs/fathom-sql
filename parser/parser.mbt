@@ -1271,7 +1271,11 @@ fn parse_query(
   let profile = cursor.stream.profile
   let mut valid = true
   if consume_word(cursor, b"WITH") {
-    ignore(consume_word(cursor, b"RECURSIVE"))
+    let recursive_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    if consume_word(cursor, b"RECURSIVE") {
+      add_diagnostic(state, "DORIS-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
+      valid = false
+    }
     let mut cte_done = false
     while !cte_done {
       let cte_name = is_identifier_candidate(cursor)

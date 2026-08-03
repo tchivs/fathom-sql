@@ -862,3 +862,24 @@ test "grouping_sets_trailing_comma_is_recovered_and_invalid" {
     }
   }
 }
+test "with_recursive_is_invalid_but_ordinary_cte_remains_valid" {
+  let recursive_raw = b"WITH RECURSIVE cte AS (SELECT 1) SELECT 1"
+  for mode in ["strict", "editor"] {
+    let result = match @api.parse_with_ids(recursive_raw, "4.x", mode) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(!result.valid)
+    assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+    assert_eq(@printer.print_result(result), recursive_raw)
+    assert_true(result.all_spans_in_bounds())
+  }
+  for mode in ["strict", "editor"] {
+    let result = match @api.parse_with_ids(b"WITH cte AS (SELECT 1) SELECT 1", "4.x", mode) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+  }
+}
