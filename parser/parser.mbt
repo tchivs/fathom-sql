@@ -91,7 +91,7 @@ pub struct ParserDiagnostic {
   pub message : String
   pub expected_class : String
   pub span : @source.Span
-  pub statement_id : Int
+  pub statement_id : UInt
 }
 
 pub struct ParsedDocument {
@@ -163,7 +163,7 @@ fn make_span(source : @source.SourceText, start_byte : Int, end_byte : Int) -> @
   }
 }
 
-fn resource_diagnostic(state : RecoveryState, span : @source.Span, statement_id : Int) -> Unit {
+fn resource_diagnostic(state : RecoveryState, span : @source.Span, statement_id : UInt) -> Unit {
   if !state.resource_emitted {
     state.resource_emitted = true
     let limit = if state.limits.max_diagnostics <= 0 { 1 } else { state.limits.max_diagnostics }
@@ -189,7 +189,7 @@ fn add_diagnostic(
   message : String,
   expected_class : String,
   span : @source.Span,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Unit {
   let limit = if state.limits.max_diagnostics <= 0 { 1 } else { state.limits.max_diagnostics }
   if state.resource_emitted {
@@ -211,7 +211,7 @@ fn add_diagnostic(
 fn consume_recovery_step(
   state : RecoveryState,
   span : @source.Span,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if state.recovery_steps >= state.limits.max_recovery_steps {
     resource_diagnostic(state, span, statement_id)
@@ -240,7 +240,7 @@ fn parenthesis_depth(cursor : Cursor) -> Int {
   depth
 }
 
-fn depth_allowed(cursor : Cursor, state : RecoveryState, source : @source.SourceText, statement_id : Int) -> Bool {
+fn depth_allowed(cursor : Cursor, state : RecoveryState, source : @source.SourceText, statement_id : UInt) -> Bool {
   let depth = parenthesis_depth(cursor)
   if depth > state.limits.max_recursion_depth {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
@@ -296,7 +296,7 @@ fn expect_word(
   word : Bytes,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   message : String,
 ) -> Bool {
   if consume_word(cursor, word) {
@@ -315,7 +315,7 @@ fn expect_symbol(
   symbol : Bytes,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   message : String,
 ) -> Bool {
   if consume_symbol(cursor, symbol) {
@@ -347,7 +347,7 @@ fn add_feature_diagnostic(
   state : RecoveryState,
   feature : @token.DorisFeature,
   span : @source.Span,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Unit {
   record_feature_event(state, span)
   let metadata = feature.metadata()
@@ -406,7 +406,7 @@ fn parse_expression_list(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   stop_on_close : Bool,
 ) -> Bool {
   parse_expression_list_context(cursor, state, source, statement_id, stop_on_close, ExpressionContext::Ordinary)
@@ -416,7 +416,7 @@ fn parse_expression_list_context(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   stop_on_close : Bool,
   context : ExpressionContext,
 ) -> Bool {
@@ -490,7 +490,7 @@ fn expect_window_nulls_order(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if consume_word(cursor, b"FIRST") || consume_word(cursor, b"LAST") {
     true
@@ -505,7 +505,7 @@ fn parse_window_frame_bound(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if consume_word(cursor, b"CURRENT") {
     expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after CURRENT")
@@ -528,7 +528,7 @@ fn parse_window_spec(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
     return expect_symbol(cursor, b"(", state, source, statement_id, "expected opening window specification parenthesis")
@@ -567,7 +567,7 @@ fn parse_expression_postfix(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   context : ExpressionContext,
   function_star_allowed : Bool,
 ) -> ExpressionPostfixResult {
@@ -651,7 +651,7 @@ fn parse_predicate_rhs(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if consume_symbol(cursor, b"(") {
     let mut valid = true
@@ -678,7 +678,7 @@ fn parse_expression(
   depth : Int,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   parse_expression_context(cursor, minimum_precedence, depth, state, source, statement_id, ExpressionContext::Ordinary)
 }
@@ -689,7 +689,7 @@ fn parse_expression_context(
   depth : Int,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   context : ExpressionContext,
 ) -> Bool {
   let current_span = match token_at(cursor) {
@@ -783,7 +783,7 @@ fn parse_identifier_option(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   option : String,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
@@ -831,7 +831,7 @@ fn parse_table_value_option(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   option : String,
   allow_unit : Bool,
   allow_multiple : Bool,
@@ -877,7 +877,7 @@ fn parse_table_ref(
   profile : @token.DorisProfile,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   let mut valid = true
   if consume_symbol(cursor, b"(") {
@@ -956,7 +956,7 @@ fn parse_from(
   profile : @token.DorisProfile,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   let mut valid = parse_table_ref(cursor, profile, state, source, statement_id)
   let mut done = false
@@ -1016,7 +1016,7 @@ fn parse_grouping_arguments(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
   name : String,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
@@ -1039,7 +1039,7 @@ fn parse_group_by(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   let mut valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after GROUP")
   if !valid { return false }
@@ -1088,7 +1088,7 @@ fn parse_order_by(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   let mut valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER")
   valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
@@ -1104,7 +1104,7 @@ fn parse_limit(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   let mut valid = parse_expression(cursor, 1, 1, state, source, statement_id)
   if consume_symbol(cursor, b",") || consume_word(cursor, b"OFFSET") { valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid }
@@ -1116,7 +1116,7 @@ fn parse_select_core(
   profile : @token.DorisProfile,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if !expect_word(cursor, b"SELECT", state, source, statement_id, "expected SELECT statement") { return false }
   let mut valid = true
@@ -1207,7 +1207,7 @@ fn parse_projection_alias(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if consume_word(cursor, b"AS") {
     let alias_token = is_identifier_candidate(cursor)
@@ -1231,7 +1231,7 @@ fn parse_expression_list_until_clause(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   let mut any = false
   let mut valid = true
@@ -1285,7 +1285,7 @@ fn parse_query(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Bool {
   if !depth_allowed(cursor, state, source, statement_id) { return false }
   let profile = cursor.stream.profile
@@ -1382,8 +1382,8 @@ fn segment_children(
   children
 }
 
-fn segment_statement_id_for_span(stream : @token.TokenStream, span : @source.Span) -> Int {
-  let mut statement_id = 0
+fn segment_statement_id_for_span(stream : @token.TokenStream, span : @source.Span) -> UInt {
+  let mut statement_id : UInt = 0U
   let mut segment_start = 0
   for index in 0..<stream.length() {
     match stream.at(index) {
@@ -1393,7 +1393,7 @@ fn segment_statement_id_for_span(stream : @token.TokenStream, span : @source.Spa
           Some(raw) if raw == b";" => {
             let segment_end = index + 1
             if has_statement_content(stream, segment_start, segment_end) {
-              statement_id = statement_id + 1
+              statement_id = statement_id + 1U
             }
             segment_start = segment_end
           }
@@ -1464,7 +1464,7 @@ fn recover_expression(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
-  statement_id : Int,
+  statement_id : UInt,
 ) -> Unit {
   let mut consumed = false
   let mut done = false
@@ -1487,7 +1487,7 @@ fn parse_segment(
   stream : @token.TokenStream,
   start_index : Int,
   end_index : Int,
-  statement_id : Int,
+  statement_id : UInt,
   state : RecoveryState,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
@@ -1617,7 +1617,7 @@ pub fn parse_with_limits(
     resource_diagnostic(state, cap_span, segment_statement_id_for_span(stream, cap_span))
   }
   let mut segment_start = 0
-  let mut statement_id = 0
+  let mut statement_id : UInt = 0U
   let mut index = 0
   while index < parse_end {
     let is_semicolon = match stream.raw(index) { Some(raw) => raw == b";"; None => false }
@@ -1627,7 +1627,7 @@ pub fn parse_with_limits(
         let segment = parse_segment(stream, segment_start, segment_end, statement_id, state)
         if segment.span().length() > 0 {
           root_children.push(@syntax.SyntaxElement::ChildNode(segment))
-          statement_id = statement_id + 1
+          statement_id = statement_id + 1U
         }
       } else {
         append_trivia_segment(root_children, stream, segment_start, segment_end)
@@ -1644,7 +1644,7 @@ pub fn parse_with_limits(
       let segment = parse_segment(stream, segment_start, parse_end, statement_id, state)
       if segment.span().length() > 0 {
         root_children.push(@syntax.SyntaxElement::ChildNode(segment))
-        statement_id = statement_id + 1
+        statement_id = statement_id + 1U
       }
     }
   }
@@ -1713,7 +1713,7 @@ test "parser_reports_incomplete_without_losing_source" {
   assert_true(!parsed.valid)
   assert_true(parsed.recovered)
   assert_eq(parsed.diagnostics[0].code, "DORIS-PARSE-002")
-  assert_eq(parsed.diagnostics[0].statement_id, 0)
+  assert_eq(parsed.diagnostics[0].statement_id, 0U)
   assert_true(parsed.root.leaf_count() > 0)
 }
 

@@ -124,7 +124,7 @@ pub struct PrimitiveDiagnostic {
   pub expected_class : String
   pub start_byte : Int
   pub end_byte : Int
-  pub statement_id : Int
+  pub statement_id : UInt
 }
 
 pub struct ParseResult {
@@ -311,8 +311,8 @@ test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
     Err(_) => panic()
   }
   assert_true(first.diagnostics[0].code.starts_with("DORIS-PARSE-"))
-  assert_eq(first.diagnostics[0].statement_id, 0)
-  assert_eq(second.diagnostics[0].statement_id, 0)
+  assert_eq(first.diagnostics[0].statement_id, 0U)
+  assert_eq(second.diagnostics[0].statement_id, 0U)
 }
 
 test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
@@ -344,8 +344,8 @@ test "api_diagnostic_statement_ids_are_monotonic_per_snapshot" {
     Err(_) => panic()
   }
   assert_eq(result.diagnostics.length(), 2)
-  assert_eq(result.diagnostics[0].statement_id, 0)
-  assert_eq(result.diagnostics[1].statement_id, 1)
+  assert_eq(result.diagnostics[0].statement_id, 0U)
+  assert_eq(result.diagnostics[1].statement_id, 1U)
   assert_true(result.diagnostics[0].code.has_prefix("DORIS-PARSE-"))
   assert_true(result.diagnostics[1].code.has_prefix("DORIS-PARSE-"))
 }

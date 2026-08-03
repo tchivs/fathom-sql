@@ -20,7 +20,7 @@ test "select_and_later_statement_keep_source_order_and_ids" {
   assert_true(result.diagnostics.length() >= 1)
   let bad = result.diagnostics[0]
   assert_true(bad.start_byte <= bad.end_byte)
-  assert_eq(bad.statement_id, 1)
+  assert_eq(bad.statement_id, 1U)
 }
 
 test "strict_and_editor_share_shape_but_not_validity" {
@@ -49,7 +49,7 @@ test "malformed_expression_and_window_create_explicit_recovery_nodes" {
       assert_true(!result.valid)
       assert_true(result.diagnostics.length() > 0)
       assert_eq(result.diagnostics[0].code, "DORIS-PARSE-002")
-      assert_eq(result.diagnostics[0].statement_id, 0)
+      assert_eq(result.diagnostics[0].statement_id, 0U)
       assert_eq(result.diagnostics[0].start_byte, raw.length())
       assert_eq(result.diagnostics[0].end_byte, raw.length())
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
@@ -64,10 +64,10 @@ test "malformed_expression_and_window_create_explicit_recovery_nodes" {
 test "diagnostic_identity_resets_for_each_snapshot" {
   let first = parse_strict(b"bad; bad")
   let second = parse_strict(b"bad; bad")
-  assert_eq(first.diagnostics[0].statement_id, 0)
-  assert_eq(first.diagnostics[1].statement_id, 1)
-  assert_eq(second.diagnostics[0].statement_id, 0)
-  assert_eq(second.diagnostics[1].statement_id, 1)
+  assert_eq(first.diagnostics[0].statement_id, 0U)
+  assert_eq(first.diagnostics[1].statement_id, 1U)
+  assert_eq(second.diagnostics[0].statement_id, 0U)
+  assert_eq(second.diagnostics[1].statement_id, 1U)
 }
 
 test "join_modifiers_require_join_and_condition" {
@@ -209,7 +209,7 @@ test "released_profiles_gate_qualify_without_generic_fallback" {
   assert_true(!old.valid)
   assert_true(old.diagnostics.length() > 0)
   assert_eq(old.diagnostics[0].code, "DORIS-PARSE-006")
-  assert_eq(old.diagnostics[0].statement_id, 0)
+  assert_eq(old.diagnostics[0].statement_id, 0U)
   assert_eq(old.diagnostics[0].end_byte - old.diagnostics[0].start_byte, 7)
   let editor = match @api.parse_with_ids(raw, "2.1", "editor") {
     Ok(result) => result
@@ -452,7 +452,7 @@ test "semicolon_trivia_preserves_following_statement_identity" {
   }
   assert_true(!result.valid)
   assert_eq(@printer.print_result(result), raw)
-  assert_true(result.diagnostics.any(d => d.statement_id == 1))
+  assert_true(result.diagnostics.any(d => d.statement_id == 1U))
   let mut statement_count = 0
   for child in result.root.children {
     if child.kind == "statement" { statement_count = statement_count + 1 }
@@ -467,7 +467,7 @@ fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_vali
   }
   if @printer.print_result(result) != raw || result.valid != expected_valid || !result.all_spans_in_bounds() { return false }
   for diagnostic in result.diagnostics {
-    if !diagnostic.code.has_prefix("DORIS-PARSE-") || diagnostic.start_byte > diagnostic.end_byte || diagnostic.statement_id < 0 { return false }
+    if !diagnostic.code.has_prefix("DORIS-PARSE-") || diagnostic.start_byte > diagnostic.end_byte || diagnostic.statement_id.reinterpret_as_int() < 0 { return false }
   }
   true
 }

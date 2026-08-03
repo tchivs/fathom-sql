@@ -154,7 +154,7 @@ test "lexical_diagnostics_follow_nonempty_statement_segments" {
     for diagnostic in result.diagnostics {
       if diagnostic.code == "DORIS-PARSE-003" {
         lexical = lexical + 1
-        assert_eq(diagnostic.statement_id, 1)
+        assert_eq(diagnostic.statement_id, 1U)
         assert_true(diagnostic.start_byte < diagnostic.end_byte)
       }
     }
@@ -172,7 +172,7 @@ test "resource_diagnostics_use_nonempty_segment_identity" {
   for diagnostic in result.diagnostics {
     if diagnostic.code == "DORIS-PARSE-004" {
       resources = resources + 1
-      assert_eq(diagnostic.statement_id, 1)
+      assert_eq(diagnostic.statement_id, 1U)
     }
   }
   assert_eq(resources, 1)
@@ -194,7 +194,7 @@ test "byte_cap_resource_diagnostics_follow_nonempty_segment_identity" {
   for diagnostic in parsed.diagnostics {
     if diagnostic.code == "DORIS-PARSE-004" {
       found = true
-      assert_eq(diagnostic.statement_id, 1)
+      assert_eq(diagnostic.statement_id, 1U)
       assert_true(diagnostic.span.start_byte < diagnostic.span.end_byte)
     }
   }
@@ -214,7 +214,7 @@ test "byte_cap_resource_diagnostics_follow_nonempty_segment_identity" {
   for diagnostic in empty.diagnostics {
     if diagnostic.code == "DORIS-PARSE-004" {
       empty_found = true
-      assert_eq(diagnostic.statement_id, 0)
+      assert_eq(diagnostic.statement_id, 0U)
       assert_true(diagnostic.span.start_byte < diagnostic.span.end_byte)
     }
   }
