@@ -1126,7 +1126,16 @@ fn parse_select_core(
       advance(cursor)
       valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in WINDOW definition") && valid
       valid = parse_window_spec(cursor, state, source, statement_id) && valid
-      if !consume_symbol(cursor, b",") { break }
+      if consume_symbol(cursor, b",") {
+        if !is_word_token(cursor) {
+          let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected window name after comma", "identifier", span, statement_id)
+          valid = false
+          break
+        }
+      } else {
+        break
+      }
     }
   }
   let qualify_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }

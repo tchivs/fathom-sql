@@ -826,3 +826,21 @@ test "reserved_boolean_and_null_literals_are_expression_operands" {
     }
   }
 }
+test "window_definition_trailing_comma_is_recovered_and_invalid" {
+  let raws = [
+    b"SELECT x FROM t WINDOW w AS (ORDER BY x),",
+    b"SELECT x FROM t WINDOW w AS (ORDER BY x), ORDER BY x",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+        Ok(result) => result
+        Err(_) => panic()
+      }
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
