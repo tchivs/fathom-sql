@@ -169,9 +169,14 @@ fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_vali
   true
 }
 
-test "released_manifest_contract_is_complete_and_offline" {
-  // This is the deterministic loader contract used by the test package. The
-  // TSV remains Git data; no filesystem/network service is consulted by the core.
+test "released_manifest_schema_contract_records_loader_gap" {
+  // MoonBit's current core test package has no filesystem API. The Git-tracked
+  // TSV therefore cannot be opened here; this test is a schema/linkage check,
+  // not a claim that the runtime loader is manifest-driven.
+  let filesystem_loader_available = false
+  assert_true(!filesystem_loader_available)
+  let manifest_header = "fixture_id\\tprofile\\texact_release\\tfeature_introduction\\tofficial_url\\tretrieval_date\\tpinned_source_revision\\tpage_heading\\tcode_fence\\tcategory\\tsupport_status\\tparse_mode\\tclassification\\tprovenance_status"
+  assert_eq(manifest_header.split("\\t").length(), 14)
   let rows : Array[Array[String]] = [
     ["2.1-industrial", "2.1", "2.1", "2.1 baseline SELECT", "https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
     ["3.x-industrial", "3.x", "3.x", "2.1 baseline; 3.x window and QUALIFY", "https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-query/SELECT/", "2026-08-03", "unavailable-offline", "SELECT", "grammar:sql", "industrial-select", "supported", "strict", "parse-only", "known-gap"],
