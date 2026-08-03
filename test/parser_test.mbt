@@ -244,6 +244,22 @@ test "semicolon_trivia_segments_do_not_create_error_statements" {
     assert_eq(@printer.print_result(result), raw)
   }
 }
+test "semicolon_trivia_preserves_following_statement_identity" {
+  let raw = b"SELECT 1;; -- middle\n; bad"
+  let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(result.diagnostics.any(d => d.statement_id == 1))
+  let mut statement_count = 0
+  for child in result.root.children {
+    if child.kind == "statement" { statement_count = statement_count + 1 }
+    assert_true(child.kind != "error" || child.start_byte > 0)
+  }
+  assert_eq(statement_count, 2)
+}
 fn fixture_replay_ok(raw : Bytes, profile : String, mode : String, expected_valid : Bool) -> Bool {
   let result = match @api.parse_with_ids(raw, profile, mode) {
     Ok(result) => result
