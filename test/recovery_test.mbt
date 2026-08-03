@@ -79,6 +79,17 @@ test "max_recursion_depth_remains_bounded" {
   assert_true(!deep.valid)
   assert_true(deep.diagnostics.length() > 0)
   assert_eq(@printer.print_result(deep), b"SELECT (((((((((((((((1)))))))))))))))")
+
+  let nested = parse_with_limits(
+    b"SELECT f(f(f(f(1)))) FROM t WHERE x IN (SELECT y FROM u WHERE z IN (SELECT q FROM v))",
+    @api.ParseLimits::new(8 * 1024 * 1024, 1000, 2, 64, 8),
+  )
+  assert_true(!nested.valid)
+  let mut resource = false
+  for diagnostic in nested.diagnostics {
+    if diagnostic.code == "DORIS-PARSE-004" { resource = true }
+  }
+  assert_true(resource)
 }
 
 test "malformed_lexical_material_uses_stable_code_and_replays" {

@@ -187,6 +187,31 @@ fn peek_raw(cursor : Cursor, offset : Int) -> Bytes? {
   cursor.indices.get(cursor.position + offset).map(index => cursor.stream.raw(index)).flatten()
 }
 
+fn parenthesis_depth(cursor : Cursor) -> Int {
+  let mut depth = 0
+  let mut index = 0
+  while index < cursor.position {
+    match cursor.indices.get(index).map(i => cursor.stream.raw(i)).flatten() {
+      Some(raw) if raw == b"(" => depth = depth + 1
+      Some(raw) if raw == b")" && depth > 0 => depth = depth - 1
+      _ => ()
+    }
+    index = index + 1
+  }
+  depth
+}
+
+fn depth_allowed(cursor : Cursor, state : RecoveryState, source : @source.SourceText, statement_id : Int) -> Bool {
+  let depth = parenthesis_depth(cursor)
+  if depth > state.limits.max_recursion_depth {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    resource_diagnostic(state, at, statement_id)
+    false
+  } else {
+    true
+  }
+}
+
 fn precedence(cursor : Cursor) -> Int? {
   match raw_at(cursor) {
     Some(raw) if bytes_equal_ci(raw, b"OR") => Some(1)
@@ -457,7 +482,7 @@ fn parse_expression(
     Some(token) => token.span
     None => make_span(source, source.byte_length(), source.byte_length())
   }
-  if depth > state.limits.max_recursion_depth {
+  if depth > state.limits.max_recursion_depth || !depth_allowed(cursor, state, source, statement_id) {
     resource_diagnostic(state, current_span, statement_id)
     return false
   }
@@ -742,6 +767,7 @@ fn parse_query(
   source : @source.SourceText,
   statement_id : Int,
 ) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
   let profile = cursor.stream.profile
   let mut valid = true
   if consume_word(cursor, b"WITH") {
@@ -757,7 +783,6 @@ fn parse_query(
       advance(cursor)
       if consume_symbol(cursor, b"(") {
         while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) { advance(cursor) }
-        ignore(expect_word(cursor, b")", state, source, statement_id, "expected CTE column list"))
       }
       ignore(expect_word(cursor, b"AS", state, source, statement_id, "expected AS in CTE"))
       if !consume_symbol(cursor, b"(") {
