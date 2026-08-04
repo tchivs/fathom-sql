@@ -731,3 +731,194 @@ test "formatter_03_02_script_layout_and_comment_attachment" {
   assert_eq(result.statement_offsets[0], 0)
   assert_eq(result.statement_offsets[1], b"SELECT 1;".length())
 }
+
+/// 03-03 Task 1: every one of the six FormatOptions dimensions drives real
+/// layout behavior (FMT-02, D-26) — keyword case (Upper/Lower), indent width,
+/// line width, comma style, newline style (FollowInput/Lf/Crlf), and the
+/// trailing-newline policy. Lower rewrites only classification-table words to
+/// their ASCII case-fold; identifiers, quoted names, strings, comments, and
+/// hints stay byte-identical (D-28/D-36). All fixtures run the full oracle
+/// (golden + byte-exact idempotence D-34 + zero-diagnostic reparse D-35).
+test "formatter_03_03_all_six_dimensions_functional" {
+  let lower = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Lower,
+    2,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let indent4 = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    4,
+    20,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let width20 = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    20,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let leading = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    100,
+    @formatter.CommaStyle::Leading,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let lf_override = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::Lf,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let crlf_override = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::Crlf,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let no_trailing = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    false,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let fixtures = [
+    // (a) Lower keyword case: SELECT/FROM/AS rewrite to lowercase; the quoted
+    // "SELECT" string literal, the `view` identifier (already lowercase), the
+    // 'TEXT' literal, the inline block comment, and the -- line comment stay
+    // byte-identical (D-28: only classification-table words are rewritten).
+    {
+      fixture_id: "4.x-lower-keyword-case",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"SELECT \"SELECT\" AS label, view, 'TEXT', /* keep */ 42 FROM t -- note",
+      expected_valid: true,
+      options: Some(lower),
+      expected_golden: b"select \"SELECT\" as label, view, 'TEXT', /* keep */ 42\nfrom t -- note\n",
+    },
+    // (b) indent 4: a broken select list indents items with 4 spaces
+    // (options.indent() drives break_line indents — no fixed 2 remains).
+    {
+      fixture_id: "4.x-indent-4",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a, b, c, d, e, f, g, h, i, j, k from t where id = 1",
+      expected_valid: true,
+      options: Some(indent4),
+      expected_golden: b"SELECT\n    a,\n    b,\n    c,\n    d,\n    e,\n    f,\n    g,\n    h,\n    i,\n    j,\n    k\nFROM t\nWHERE id = 1\n",
+    },
+    // (c) line_width observable: the same list fits inline at width 100 and
+    // breaks one-item-per-line at width 20 (measure-then-break reads
+    // options.line_width(), not a fixed 100).
+    {
+      fixture_id: "4.x-line-width-100-fits",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select alpha, beta, gamma, delta, epsilon from t where id = 1",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT alpha, beta, gamma, delta, epsilon\nFROM t\nWHERE id = 1\n",
+    },
+    {
+      fixture_id: "4.x-line-width-20-breaks",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select alpha, beta, gamma, delta, epsilon from t where id = 1",
+      expected_valid: true,
+      options: Some(width20),
+      expected_golden: b"SELECT\n  alpha,\n  beta,\n  gamma,\n  delta,\n  epsilon\nFROM t\nWHERE id = 1\n",
+    },
+    // (d) Leading comma style at the DEFAULT width: a long select list breaks
+    // at width 100 and the comma opens each following item's line.
+    {
+      fixture_id: "4.x-leading-comma-default-width",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select user_id, user_name, user_email, user_phone, user_address, user_status, user_created_at, user_updated_at, user_region, user_org, user_active from user_profile where user_status = 'active' group by user_id order by user_created_at",
+      expected_valid: true,
+      options: Some(leading),
+      expected_golden: b"SELECT\n  user_id\n  , user_name\n  , user_email\n  , user_phone\n  , user_address\n  , user_status\n  , user_created_at\n  , user_updated_at\n  , user_region\n  , user_org\n  , user_active\nFROM user_profile\nWHERE user_status = 'active'\nGROUP BY user_id\nORDER BY user_created_at\n",
+    },
+    // (e) newline_style Lf override: a CRLF input emits \n only (override
+    // beats FollowInput).
+    {
+      fixture_id: "4.x-newline-lf-override-crlf-input",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a\r\nfrom t",
+      expected_valid: true,
+      options: Some(lf_override),
+      expected_golden: b"SELECT a\nFROM t\n",
+    },
+    // (f) newline_style Crlf override: an LF input emits \r\n only.
+    {
+      fixture_id: "4.x-newline-crlf-override-lf-input",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a\nfrom t",
+      expected_valid: true,
+      options: Some(crlf_override),
+      expected_golden: b"SELECT a\r\nFROM t\r\n",
+    },
+    // (g) trailing_newline false: no trailing newline in the output, and the
+    // output stays idempotent (format(format(x)) == format(x)).
+    {
+      fixture_id: "4.x-trailing-newline-off",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select 1",
+      expected_valid: true,
+      options: Some(no_trailing),
+      expected_golden: b"SELECT 1",
+    },
+    // (h) trailing_newline true (default): three trailing newlines collapse to
+    // exactly one (normalize-to-exactly-one policy, D-32 / assumption A3).
+    {
+      fixture_id: "4.x-trailing-newline-normalize-on",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select 1\n\n\n",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT 1\n",
+    },
+  ]
+  for fixture in fixtures {
+    assert_true(formatter_fixture_ok(fixture))
+  }
+}

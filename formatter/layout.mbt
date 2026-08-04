@@ -70,12 +70,14 @@ fn Layout::emit(self : Layout, text : Bytes, zero_space_before : Bool) -> Unit {
 }
 
 /// Emit a SourceToken leaf: keyword spelling canonicalized via the
-/// classification table (D-28), punctuation zero-space rules applied, and the
-/// canonical ", " separator promised after every comma (so flat emission and
-/// the measure-then-break measure agree even when the input omits the space).
+/// classification table with the configured case (D-26/D-28 —
+/// options.keyword_case() picks Upper canonical or Lower ASCII fold),
+/// punctuation zero-space rules applied, and the canonical ", " separator
+/// promised after every comma (so flat emission and the measure-then-break
+/// measure agree even when the input omits the space).
 fn Layout::emit_token(self : Layout, raw : Bytes) -> Unit {
   let zero_space_before = raw == b"," || raw == b";" || raw == b")" || raw == b"("
-  self.emit(rewrite_keyword(raw), zero_space_before)
+  self.emit(rewrite_keyword_case(raw, self.options.keyword_case()), zero_space_before)
   if raw == b"(" {
     self.no_space_next = true
   }

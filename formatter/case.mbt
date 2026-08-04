@@ -9,3 +9,37 @@ pub fn rewrite_keyword(raw : Bytes) -> Bytes {
     None => raw
   }
 }
+
+/// Case-selected keyword rewrite (D-26 keyword_case dimension): Upper renders
+/// the canonical classification word (D-29), Lower renders its ASCII case-fold
+/// (SQL keywords are ASCII; every classification word is uppercase by
+/// construction). None is not a KeywordCase value, so every word is rewritten
+/// to one of the two canonical spellings. Identifiers, quoted names, strings,
+/// comments, and hints are never rewritten: classification_of only matches a
+/// bare unquoted word, so any token whose raw bytes are not a plain word
+/// (quoted `SELECT`, string literals, punctuation) passes through unchanged.
+pub fn rewrite_keyword_case(raw : Bytes, case : KeywordCase) -> Bytes {
+  match case {
+    KeywordCase::Upper => rewrite_keyword(raw)
+    KeywordCase::Lower => {
+      match @token.classification_of(raw) {
+        Some(entry) => ascii_case_fold(entry.word)
+        None => raw
+      }
+    }
+  }
+}
+
+/// ASCII A-Z -> a-z byte-wise fold (the same helper shape as
+/// keyword_test.mbt:38-47). Classification words are ASCII by construction.
+fn ascii_case_fold(raw : Bytes) -> Bytes {
+  let out : Array[Byte] = []
+  let mut index = 0
+  while index < raw.length() {
+    let byte = raw[index].to_int()
+    let folded = if byte >= 65 && byte <= 90 { byte + 32 } else { byte }
+    out.push(folded.to_byte())
+    index = index + 1
+  }
+  Bytes::from_array(out)
+}
