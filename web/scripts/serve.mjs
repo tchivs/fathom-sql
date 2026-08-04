@@ -26,7 +26,16 @@ const server = createServer(async (request, response) => {
   try {
     const info = await fs.stat(candidate);
     const file = info.isDirectory() ? join(candidate, 'index.html') : candidate;
-    response.writeHead(200, { 'Content-Type': contentTypes[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    const extension = extname(file);
+    const isCssModule = extension === '.css' && request.headers['sec-fetch-dest'] === 'script';
+    if (isCssModule) {
+      const css = await fs.readFile(file, 'utf8');
+      const module = `const css = ${JSON.stringify(css)};\nconst style = document.createElement('style');\nstyle.textContent = css;\ndocument.head.append(style);\n`;
+      response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(module);
+      return;
+    }
+    response.writeHead(200, { 'Content-Type': contentTypes[extension] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     createReadStream(file).pipe(response);
   } catch {
     response.writeHead(404); response.end('Not found');
