@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: Doris Completeness and Corpus
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-08-04T04:01:56.320Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-08-04T04:25:05.457Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 10
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 ## Current Position
 
 Phase: 02 (Doris Completeness and Corpus) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-04 — Phase 02 execution started
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01 P03 | 48 | 2 tasks | 8 files |
 | Phase 01 P04 | 5 | 2 tasks | 9 files |
 | Phase 02 P02-01 | 9 | 3 tasks | 7 files |
+| Phase 02 P02-02 | 9 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Unknown statement starters emit DORIS-PARSE-007 unsupported-statement diagnostics; DORIS-PARSE-001 stays reserved for trailing tokens inside recognized statements
 - [Phase ?]: DML sync words live in per-family predicates only; the shared is_clause_keyword set is untouched (research Pitfall 3)
 - [Phase ?]: Multi-char comparison operators (<=, >=, <>, !=, <=>) scan as single lexer symbols so DELETE form-1 op lists and SELECT comparisons parse
+- [Phase ?]: DDL order per D-10 shipped: CREATE TABLE full body (keys/aggregation/distribution/buckets/partitions/dynamic AUTO partitions/properties) then VIEW/CTAS/LIKE then INDEX/sync-MV; ORDER BY gated at 4.x (docs since 4.1.0), BUCKETS AUTO assumed 3.x and AUTO PARTITION BY assumed 2.1 (FLAGGED for 02-04)
+- [Phase ?]: Non-reserved DDL grammar words (BUCKETS/PROPERTIES/COMMENT/AGGREGATE/ENGINE) stay unquoted-usable identifiers; shared clause/reserved sets untouched; ORDER/ROLLUP remain reserved (official list + Phase 1 SELECT contract)
+- [Phase ?]: CREATE ASYNC MATERIALIZED VIEW is an explicit DORIS-PARSE-007 unsupported statement with a source-backed error node (FLAGGED-A2); sync MV body rejects JOIN/HAVING/LIMIT/LATERAL VIEW/subquery with localized expected_class sync materialized view body
 
 ### Pending Todos
 
@@ -113,6 +117,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T04:01:56.300Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-08-04T04:25:00.064Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
