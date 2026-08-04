@@ -40,8 +40,15 @@ pub extern "c" fn close_file(handle : Int64) -> Int = "fclose"
 /// Read a whole file into bytes; None when fopen fails (missing/unreadable).
 /// Bounded chunked reads (4096 bytes), stops at EOF. fopen returns 0L on
 /// failure — that maps to None -> CLI exit 2 (T-03-19 mitigation).
+///
+/// CR-01 (memory safety): fopen scans the path for a NUL terminator, so the
+/// buffer must be NUL-terminated. @utf8.encode allocates exactly the encoded
+/// length with no terminator (core/encoding/utf8/encode_nonjs.mbt:116-134),
+/// so an unterminated buffer would make fopen read past the heap allocation
+/// — undefined behavior. The explicit b"\x00" makes the over-read impossible.
 pub fn read_file(path : String) -> Bytes? {
-  let handle = open_file(@utf8.encode(path), b"rb")
+  let path_bytes = @utf8.encode(path) + b"\x00"
+  let handle = open_file(path_bytes, b"rb")
   if handle == 0L { return None }
   let out = @buffer.Buffer::Buffer(size_hint=4096)
   let chunk = Bytes::new(4096)

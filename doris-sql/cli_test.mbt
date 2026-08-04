@@ -34,7 +34,7 @@ test "cli_stdin_happy_path_exit_0" {
 test "cli_file_input_exit_0" {
   // Write a fixture through the FFI helpers (fopen "wb" + fwrite + fclose).
   let path = "/tmp/doris-sql-cli-fixture-file-input.sql"
-  let handle = open_file(@utf8.encode(path), b"wb")
+  let handle = open_file(@utf8.encode(path) + b"\x00", b"wb")
   assert_true(handle != 0L)
   let content = b"select 1"
   ignore(write_file_chunk(content, 1, content.length(), handle))
