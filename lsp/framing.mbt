@@ -45,7 +45,7 @@ fn content_length(header : Bytes) -> Result[Int, FrameError] {
   let length = header.length()
   while line_start < length {
     let mut line_end = line_start
-    while line_end + 1 < length && !(header[line_end].to_int() == 13 && header[line_end + 1].to_int() == 10) {
+    while line_end < length && !(line_end + 1 < length && header[line_end].to_int() == 13 && header[line_end + 1].to_int() == 10) {
       line_end = line_end + 1
     }
     let prefix = b"Content-Length: "

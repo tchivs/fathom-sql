@@ -259,3 +259,13 @@ The shared serialized schema and coordinate policy are ready for later JS/Wasm w
 - **Files modified:** `lsp/protocol.mbt`
 - **Verification:** Validation commands intentionally skipped per parent instruction; sibling-package search found no additional qualified JSON pattern forms under `lsp/`.
 - **Commit:** This atomic follow-up correction commit (hash reported to parent executor).
+
+### Wave 1 framing parser correction
+
+**5. [Rule 1 - Bug] Include the final Content-Length digit when the header slice has no CRLF terminator**
+- **Found during:** Wave 1 framed smoke validation
+- **Issue:** `content_length` stopped scanning at `header.length() - 1`, so `decimal` excluded the final digit from a header slice ending immediately after the length value.
+- **Fix:** Treat `line_end` as an exclusive end, scan through `header.length()` unless a strict CRLF pair is found, and pass the exclusive end to `decimal`.
+- **Files modified:** `lsp/framing.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction.
+- **Commit:** Atomic follow-up correction commit containing this summary update.
