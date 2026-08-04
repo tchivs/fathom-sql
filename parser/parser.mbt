@@ -1106,9 +1106,15 @@ fn parse_order_by(
   let mut valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER")
   valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
   while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") { () }
+  if consume_word(cursor, b"NULLS") {
+    valid = expect_window_nulls_order(cursor, state, source, statement_id) && valid
+  }
   while consume_symbol(cursor, b",") {
     valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
     while consume_word(cursor, b"ASC") || consume_word(cursor, b"DESC") { () }
+    if consume_word(cursor, b"NULLS") {
+      valid = expect_window_nulls_order(cursor, state, source, statement_id) && valid
+    }
   }
   valid
 }
@@ -1294,6 +1300,45 @@ fn parse_expression_list_until_clause(
   any && valid
 }
 
+// Consumes a WITH CTE prefix shared by SELECT, UPDATE, DELETE, and MERGE.
+fn parse_cte_prefix(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !consume_word(cursor, b"WITH") { return false }
+  let mut valid = true
+  let recursive_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+  if consume_word(cursor, b"RECURSIVE") {
+    add_diagnostic(state, "DORIS-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
+    valid = false
+  }
+  let mut cte_done = false
+  while !cte_done {
+    let cte_name = is_identifier_candidate(cursor)
+    if !cte_name {
+      add_diagnostic(state, "DORIS-PARSE-002", "expected CTE name", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+      valid = false
+      break
+    }
+    advance(cursor)
+    if consume_symbol(cursor, b"(") {
+      while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) { advance(cursor) }
+    }
+    valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in CTE") && valid
+    if !consume_symbol(cursor, b"(") {
+      add_diagnostic(state, "DORIS-PARSE-002", "expected CTE query parenthesis", "subquery", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+      valid = false
+    } else {
+      valid = parse_query(cursor, state, source, statement_id) && valid
+      valid = expect_word(cursor, b")", state, source, statement_id, "expected closing CTE parenthesis") && valid
+    }
+    if !consume_symbol(cursor, b",") { cte_done = true }
+  }
+  valid
+}
+
 fn parse_query(
   cursor : Cursor,
   state : RecoveryState,
@@ -1303,34 +1348,8 @@ fn parse_query(
   if !depth_allowed(cursor, state, source, statement_id) { return false }
   let profile = cursor.stream.profile
   let mut valid = true
-  if consume_word(cursor, b"WITH") {
-    let recursive_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    if consume_word(cursor, b"RECURSIVE") {
-      add_diagnostic(state, "DORIS-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
-      valid = false
-    }
-    let mut cte_done = false
-    while !cte_done {
-      let cte_name = is_identifier_candidate(cursor)
-      if !cte_name {
-        add_diagnostic(state, "DORIS-PARSE-002", "expected CTE name", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
-        valid = false
-        break
-      }
-      advance(cursor)
-      if consume_symbol(cursor, b"(") {
-        while raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b")")) { advance(cursor) }
-      }
-      valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in CTE") && valid
-      if !consume_symbol(cursor, b"(") {
-        add_diagnostic(state, "DORIS-PARSE-002", "expected CTE query parenthesis", "subquery", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
-        valid = false
-      } else {
-        valid = parse_query(cursor, state, source, statement_id) && valid
-        valid = expect_word(cursor, b")", state, source, statement_id, "expected closing CTE parenthesis") && valid
-      }
-      if !consume_symbol(cursor, b",") { cte_done = true }
-    }
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WITH") {
+    valid = parse_cte_prefix(cursor, state, source, statement_id) && valid
   }
   valid = parse_select_core(cursor, profile, state, source, statement_id) && valid
   while consume_word(cursor, b"UNION") {
@@ -1512,6 +1531,178 @@ fn parse_insert(
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
     add_diagnostic(state, "DORIS-PARSE-002", "expected VALUES or query after INSERT", "insert-source", at, statement_id)
     valid = false
+  }
+  valid
+}
+
+// Per-family clause sync predicates (research Pattern 2, Pitfall 3): the
+// shared is_clause_keyword set is never extended with DML words.
+fn is_update_clause_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"SET") || bytes_equal_ci(raw, b"FROM") ||
+    bytes_equal_ci(raw, b"WHERE") || bytes_equal_ci(raw, b"ORDER") ||
+    bytes_equal_ci(raw, b"LIMIT")
+}
+
+fn is_delete_clause_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"PARTITION") || bytes_equal_ci(raw, b"PARTITIONS") ||
+    bytes_equal_ci(raw, b"USING") || bytes_equal_ci(raw, b"WHERE") ||
+    bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"LIMIT")
+}
+
+// Bounded best-effort recovery to the next per-family clause keyword; the
+// statement-level ';' panic-mode and recovery-step cap are unchanged.
+fn recover_to_clause_boundary(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  boundary : (Bytes) -> Bool,
+) -> Unit {
+  let mut consumed = false
+  let mut done = false
+  while !done {
+    match raw_at(cursor) {
+      None => done = true
+      Some(raw) if raw == b";" || boundary(raw) => done = true
+      Some(_) => {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        if consume_recovery_step(state, span, statement_id) { advance(cursor); consumed = true } else { done = true }
+      }
+    }
+  }
+  if !consumed && raw_at(cursor) is Some(_) {
+    match raw_at(cursor) {
+      Some(raw) if raw == b";" || boundary(raw) => ()
+      _ => advance(cursor)
+    }
+  }
+}
+
+fn parse_assignment_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut done = false
+  while !done {
+    valid = parse_qualified_name(cursor, state, source, statement_id, "column name") && valid
+    valid = expect_symbol(cursor, b"=", state, source, statement_id, "expected = in SET assignment") && valid
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+    if !consume_symbol(cursor, b",") { done = true }
+  }
+  valid
+}
+
+fn parse_update(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = true
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WITH") {
+    valid = parse_cte_prefix(cursor, state, source, statement_id) && valid
+  }
+  valid = expect_word(cursor, b"UPDATE", state, source, statement_id, "expected UPDATE statement") && valid
+  valid = parse_qualified_name(cursor, state, source, statement_id, "target table") && valid
+  // Optional table alias; a family clause keyword is never consumed as an alias.
+  if is_identifier_candidate(cursor) {
+    match raw_at(cursor) {
+      Some(raw) if is_update_clause_boundary(raw) => ()
+      _ => advance(cursor)
+    }
+  }
+  if consume_word(cursor, b"SET") {
+    let set_ok = parse_assignment_list(cursor, state, source, statement_id)
+    if !set_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary) }
+    valid = set_ok && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected SET clause in UPDATE", "clause", at, statement_id)
+    valid = false
+    recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary)
+  }
+  if consume_word(cursor, b"FROM") {
+    let from_ok = parse_from(cursor, cursor.stream.profile, state, source, statement_id)
+    if !from_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary) }
+    valid = from_ok && valid
+  }
+  if consume_word(cursor, b"WHERE") {
+    let where_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+    if !where_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary) }
+    valid = where_ok && valid
+  }
+  if consume_word(cursor, b"ORDER") {
+    let order_ok = parse_order_by(cursor, state, source, statement_id)
+    if !order_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary) }
+    valid = order_ok && valid
+  }
+  if consume_word(cursor, b"LIMIT") {
+    let limit_ok = parse_limit(cursor, state, source, statement_id)
+    if !limit_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary) }
+    valid = limit_ok && valid
+  }
+  valid
+}
+
+fn parse_delete(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = true
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WITH") {
+    valid = parse_cte_prefix(cursor, state, source, statement_id) && valid
+  }
+  valid = expect_word(cursor, b"DELETE", state, source, statement_id, "expected DELETE statement") && valid
+  valid = expect_word(cursor, b"FROM", state, source, statement_id, "expected FROM after DELETE") && valid
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  let has_partition = match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"PARTITION") || bytes_equal_ci(raw, b"PARTITIONS")
+    None => false
+  }
+  if has_partition {
+    let is_partitions = match raw_at(cursor) {
+      Some(raw) => bytes_equal_ci(raw, b"PARTITIONS")
+      None => false
+    }
+    advance(cursor)
+    if is_partitions {
+      let partitions_ok = parse_identifier_option(cursor, state, source, statement_id, "PARTITIONS")
+      if !partitions_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
+      valid = partitions_ok && valid
+    } else if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected partition name after PARTITION", "identifier", make_span(source, at, at), statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"USING") {
+    let using_ok = parse_from(cursor, cursor.stream.profile, state, source, statement_id)
+    if !using_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
+    valid = using_ok && valid
+  }
+  if consume_word(cursor, b"WHERE") {
+    let where_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+    if !where_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
+    valid = where_ok && valid
+  }
+  if consume_word(cursor, b"ORDER") {
+    let order_ok = parse_order_by(cursor, state, source, statement_id)
+    if !order_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
+    valid = order_ok && valid
+  }
+  if consume_word(cursor, b"LIMIT") {
+    let limit_ok = parse_limit(cursor, state, source, statement_id)
+    if !limit_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
+    valid = limit_ok && valid
   }
   valid
 }
@@ -1742,11 +1933,19 @@ fn parse_segment(
       match with_prefix_verb(stream, indices, 0) {
         Some(next) if bytes_equal_ci(next, b"SELECT") =>
           finish_statement(stream, cursor, start_index, end_index, span, parse_query(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Select, "unexpected tokens after SELECT query")
+        Some(next) if bytes_equal_ci(next, b"UPDATE") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_update(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Update, "unexpected tokens after UPDATE statement")
+        Some(next) if bytes_equal_ci(next, b"DELETE") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
         _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
       }
     }
     Some(raw) if bytes_equal_ci(raw, b"INSERT") =>
       finish_statement(stream, cursor, start_index, end_index, span, parse_insert(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Insert, "unexpected tokens after INSERT statement")
+    Some(raw) if bytes_equal_ci(raw, b"UPDATE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_update(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Update, "unexpected tokens after UPDATE statement")
+    Some(raw) if bytes_equal_ci(raw, b"DELETE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
 }

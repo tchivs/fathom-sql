@@ -78,8 +78,29 @@ fn is_ascii_digit(byte : Int) -> Bool {
   byte >= 48 && byte <= 57
 }
 
-fn scan_number(bytes : Bytes, start : Int) -> (Int, Bool) {
+// Multi-character comparison operators are single symbols: <=, >=, <>, !=,
+// and the three-character <=>. Other symbols remain single-byte tokens.
+fn symbol_width(bytes : Bytes, index : Int) -> Int {
   let length = bytes.length()
+  if index + 1 < length {
+    let first = bytes[index].to_int()
+    let second = bytes[index + 1].to_int()
+    if (first == 60 && second == 61) || (first == 62 && second == 61) ||
+      (first == 60 && second == 62) || (first == 33 && second == 61) {
+      if first == 60 && second == 61 && index + 2 < length && bytes[index + 2].to_int() == 62 {
+        3
+      } else {
+        2
+      }
+    } else {
+      1
+    }
+  } else {
+    1
+  }
+}
+
+fn scan_number(bytes : Bytes, start : Int) -> (Int, Bool) {  let length = bytes.length()
   let mut index = start
   while index < length && is_ascii_digit(bytes[index].to_int()) { index = index + 1 }
   let mut valid = true
@@ -335,8 +356,9 @@ pub fn lex_with_limit(source : @source.SourceText, profile : @token.DorisProfile
           )
         }
         _ => {
-          push_token(tokens, source_length, profile, @token.TokenKind::Symbol, index, index + 1, None)
-          index = index + 1
+          let width = symbol_width(bytes, index)
+          push_token(tokens, source_length, profile, @token.TokenKind::Symbol, index, index + width, None)
+          index = index + width
         }
       }
     }

@@ -134,12 +134,137 @@ test "unknown_statement_starters_are_explicit_unsupported_nodes" {
   }
 }
 
-test "with_prefixed_update_routes_to_unsupported_until_update_lands" {
-  let raw = b"WITH c AS (SELECT 1) UPDATE t SET x = 1"
+test "with_prefixed_dml_statements_route_to_family_parsers" {
+  let raws = [
+    b"WITH c AS (SELECT 1) UPDATE t SET x = 1",
+    b"WITH c AS (SELECT 1) DELETE FROM t WHERE id = 1",
+  ]
+  for raw in raws {
+    let result = parse_dml(raw, "4.x", "strict")
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(result.all_spans_in_bounds())
+  }
+}
+
+test "update_parses_cte_alias_set_from_where_order_limit" {
+  let raws = [
+    b"UPDATE t1 SET c1 = 1",
+    b"UPDATE t1 SET c1 = 1, c2 = DEFAULT WHERE id = 1",
+    b"UPDATE t1 SET t1.c1 = t2.c1 FROM t2 INNER JOIN t3 ON t2.id = t3.id WHERE t1.id = t2.id",
+    b"UPDATE t1 SET c1 = c1 + 1 ORDER BY c1 DESC NULLS LAST LIMIT 10",
+    b"UPDATE t1 SET c1 = 1 ORDER BY c1 ASC, c2 DESC LIMIT 5, 10",
+    b"WITH cte AS (SELECT id FROM t2) UPDATE t1 SET c1 = 1 WHERE id IN (SELECT id FROM cte)",
+    b"UPDATE t1 alias SET c1 = 1",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_dml(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "update"))
+      }
+    }
+  }
+}
+
+test "update_malformed_recovers_at_clause_boundaries" {
+  let raws = [
+    b"UPDATE t SET",
+    b"UPDATE t SET x =",
+    b"UPDATE t WHERE id = 1",
+    b"UPDATE t SET @^% WHERE id = 1",
+    b"UPDATE t SET x = 1 WHERE",
+    b"UPDATE t SET x = 1 LIMIT",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_dml(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+}
+
+test "delete_parses_both_documented_forms" {
+  let raws = [
+    b"DELETE FROM t WHERE id = 1",
+    b"DELETE FROM t PARTITION p1 WHERE id = 1 AND name = 'a'",
+    b"DELETE FROM t PARTITIONS (p1, p2) WHERE id IN (1, 2, 3)",
+    b"DELETE FROM t WHERE c1 > 1 AND c2 < 2 AND c3 >= 3 AND c4 != 4",
+    b"WITH cte AS (SELECT id FROM t2) DELETE FROM t USING t2 WHERE t.id = t2.id",
+    b"DELETE FROM t WHERE id = 1 ORDER BY id LIMIT 10",
+    b"DELETE FROM t WHERE id = 1 ORDER BY id ASC NULLS FIRST, name DESC NULLS LAST LIMIT 5, 10",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_dml(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "delete"))
+      }
+    }
+  }
+}
+
+test "delete_malformed_recovers_losslessly" {
+  let raws = [
+    b"DELETE t WHERE id = 1",
+    b"DELETE FROM t PARTITION WHERE id = 1",
+    b"DELETE FROM t WHERE",
+    b"DELETE FROM t USING t2 WHERE t.id =",
+    b"DELETE FROM t WHERE id = 1 ORDER BY",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_dml(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+}
+
+test "doris03_dml_script_localizes_bad_statement" {
+  let raw = b"UPDATE t SET x = 1; bad; SELECT b"
   let result = parse_dml(raw, "4.x", "strict")
-  assert_true(!result.valid)
-  assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007")
   assert_eq(@printer.print_result(result), raw)
+  assert_eq(result.root.children.length(), 3)
+  assert_true(!result.valid)
+  let bad = result.diagnostics[0]
+  assert_eq(bad.statement_id, 1U)
+  assert_eq(bad.code, "DORIS-PARSE-007")
+  assert_true(result.all_spans_in_bounds())
+}
+
+test "dml_recovery_never_swallows_later_statements" {
+  let raws = [
+    b"UPDATE t SET @^% WHERE id = 1; SELECT b",
+    b"DELETE FROM t WHERE; SELECT b",
+  ]
+  for raw in raws {
+    let result = parse_dml(raw, "4.x", "editor")
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(result.all_spans_in_bounds())
+    let mut statement_count = 0
+    for child in result.root.children {
+      if child.kind == "statement" { statement_count = statement_count + 1 }
+    }
+    assert_eq(statement_count, 2)
+    assert_true(!result.valid)
+  }
 }
 
 test "malformed_insert_recovers_losslessly" {
