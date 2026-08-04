@@ -1833,7 +1833,8 @@ fn create_form_kind(
   let length = indices.length()
   if i >= length { return @syntax.SyntaxKind::CreateTable }
   let modifier = match stream.raw(indices[i]) {
-    Some(raw) => bytes_equal_ci(raw, b"TEMPORARY") || bytes_equal_ci(raw, b"EXTERNAL")
+    Some(raw) => bytes_equal_ci(raw, b"TEMPORARY") || bytes_equal_ci(raw, b"EXTERNAL") ||
+      bytes_equal_ci(raw, b"ASYNC")
     None => false
   }
   if modifier { i = i + 1 }
@@ -1857,6 +1858,17 @@ fn parse_create(
   let mut valid = expect_word(cursor, b"CREATE", state, source, statement_id, "expected CREATE statement")
   ignore(consume_word(cursor, b"TEMPORARY"))
   ignore(consume_word(cursor, b"EXTERNAL"))
+  // FLAGGED-A2: CREATE ASYNC MATERIALIZED VIEW (BUILD/REFRESH clauses) is
+  // outside this plan's verified scope — explicit DORIS-PARSE-007 with a
+  // source-backed error node, never silent acceptance (D-12); the decision
+  // closes in 02-04 Task 2.
+  let async_token = token_at(cursor)
+  if consume_word(cursor, b"ASYNC") {
+    let span = match async_token { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    record_feature_event(state, span)
+    add_diagnostic(state, "DORIS-PARSE-007", "async materialized views are not supported (only the sync form is verified)", "statement", span, statement_id)
+    valid = false
+  }
   match raw_at(cursor) {
     Some(raw) if bytes_equal_ci(raw, b"TABLE") => {
       valid = parse_create_table(cursor, state, source, statement_id) && valid

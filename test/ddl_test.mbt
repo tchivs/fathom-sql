@@ -404,6 +404,20 @@ test "malformed_create_index_recovers_losslessly" {
   }
 }
 
+test "async_materialized_view_is_an_explicit_unsupported_statement" {
+  let raw = b"CREATE ASYNC MATERIALIZED VIEW mv AS SELECT a FROM t"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(!result.valid)
+    assert_eq(result.diagnostics.length(), 1)
+    assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007")
+    assert_eq(result.diagnostics[0].statement_id, 0U)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(result.all_spans_in_bounds())
+    assert_true(has_kind(result.root, "error"))
+  }
+}
+
 test "doris03_mixed_ddl_dml_select_script_keeps_statement_ids" {
   let raws = [
     b"CREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t",
