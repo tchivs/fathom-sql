@@ -134,6 +134,7 @@ pub(all) enum DorisFeature {
   Qualify
   Tablet
   PartitionStar
+  MergeInto
 } derive(Eq, @debug.Debug)
 
 pub struct FeatureMetadata {
@@ -170,6 +171,14 @@ pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
       diagnostic_code: "DORIS-PARSE-006",
       recovery_kind: "error",
       diagnostic_message: "feature PARTITION (*) is unavailable in the selected released profile",
+    }
+    MergeInto => {
+      name: "MERGE",
+      keyword: b"MERGE",
+      introduced_profile: "4.x",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature MERGE is unavailable in the selected released profile",
     }
   }
 }

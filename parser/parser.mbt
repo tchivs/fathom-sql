@@ -1549,6 +1549,14 @@ fn is_delete_clause_boundary(raw : Bytes) -> Bool {
     bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"LIMIT")
 }
 
+fn is_merge_clause_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"USING") || bytes_equal_ci(raw, b"ON") ||
+    bytes_equal_ci(raw, b"WHEN") || bytes_equal_ci(raw, b"MATCHED") ||
+    bytes_equal_ci(raw, b"AND") || bytes_equal_ci(raw, b"THEN") ||
+    bytes_equal_ci(raw, b"UPDATE") || bytes_equal_ci(raw, b"DELETE") ||
+    bytes_equal_ci(raw, b"INSERT")
+}
+
 // Bounded best-effort recovery to the next per-family clause keyword; the
 // statement-level ';' panic-mode and recovery-step cap are unchanged.
 fn recover_to_clause_boundary(
@@ -1703,6 +1711,106 @@ fn parse_delete(
     let limit_ok = parse_limit(cursor, state, source, statement_id)
     if !limit_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
     valid = limit_ok && valid
+  }
+  valid
+}
+
+fn parse_merge(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = true
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WITH") {
+    valid = parse_cte_prefix(cursor, state, source, statement_id) && valid
+  }
+  let merge_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+  if !consume_word(cursor, b"MERGE") {
+    return valid
+  }
+  let feature = @token.DorisFeature::MergeInto
+  if !feature_allowed(state, feature) {
+    add_feature_diagnostic(state, feature, merge_span, statement_id)
+    // Consume the remainder losslessly; the version_invalid_node leaf
+    // substitution (segment_children_for_events) keeps the source intact.
+    let mut gate_done = false
+    while !gate_done {
+      match raw_at(cursor) {
+        None => gate_done = true
+        Some(raw) if raw == b";" => gate_done = true
+        Some(_) => {
+          let at_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          if consume_recovery_step(state, at_span, statement_id) { advance(cursor) } else { gate_done = true }
+        }
+      }
+    }
+    return false
+  }
+  valid = expect_word(cursor, b"INTO", state, source, statement_id, "expected INTO after MERGE") && valid
+  valid = parse_qualified_name(cursor, state, source, statement_id, "target table") && valid
+  if consume_word(cursor, b"USING") {
+    let using_ok = parse_table_ref(cursor, cursor.stream.profile, state, source, statement_id)
+    if !using_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary) }
+    valid = using_ok && valid
+  } else {
+    valid = expect_word(cursor, b"USING", state, source, statement_id, "expected USING in MERGE") && valid
+  }
+  if consume_word(cursor, b"ON") {
+    let on_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+    if !on_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary) }
+    valid = on_ok && valid
+  } else {
+    valid = expect_word(cursor, b"ON", state, source, statement_id, "expected ON in MERGE") && valid
+  }
+  let mut when_count = 0
+  let mut when_done = false
+  while !when_done {
+    if !consume_word(cursor, b"WHEN") { when_done = true }
+    else {
+      when_count = when_count + 1
+      if consume_word(cursor, b"NOT") {
+        valid = expect_word(cursor, b"MATCHED", state, source, statement_id, "expected MATCHED after WHEN NOT") && valid
+      } else {
+        valid = expect_word(cursor, b"MATCHED", state, source, statement_id, "expected MATCHED after WHEN") && valid
+      }
+      if consume_word(cursor, b"AND") {
+        let case_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+        if !case_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary) }
+        valid = case_ok && valid
+      }
+      valid = expect_word(cursor, b"THEN", state, source, statement_id, "expected THEN in MERGE clause") && valid
+      if consume_word(cursor, b"UPDATE") {
+        valid = expect_word(cursor, b"SET", state, source, statement_id, "expected SET after THEN UPDATE") && valid
+        let set_ok = parse_assignment_list(cursor, state, source, statement_id)
+        if !set_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary) }
+        valid = set_ok && valid
+      } else if consume_word(cursor, b"DELETE") {
+        ()
+      } else if consume_word(cursor, b"INSERT") {
+        if raw_at(cursor) is Some(b"(") {
+          valid = parse_identifier_option(cursor, state, source, statement_id, "column") && valid
+        }
+        valid = expect_word(cursor, b"VALUES", state, source, statement_id, "expected VALUES after THEN INSERT") && valid
+        if !consume_symbol(cursor, b"(") {
+          valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected VALUES row parenthesis") && valid
+        } else {
+          valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES row parenthesis") && valid
+        }
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected UPDATE, DELETE, or INSERT after THEN", "merge-action", make_span(source, at, at), statement_id)
+        valid = false
+        recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary)
+      }
+    }
+  }
+  if when_count == 0 {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected WHEN MATCHED or WHEN NOT MATCHED clause in MERGE", "merge-clause", make_span(source, at, at), statement_id)
+    valid = false
   }
   valid
 }
@@ -1937,6 +2045,8 @@ fn parse_segment(
           finish_statement(stream, cursor, start_index, end_index, span, parse_update(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Update, "unexpected tokens after UPDATE statement")
         Some(next) if bytes_equal_ci(next, b"DELETE") =>
           finish_statement(stream, cursor, start_index, end_index, span, parse_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
+        Some(next) if bytes_equal_ci(next, b"MERGE") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_merge(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Merge, "unexpected tokens after MERGE statement")
         _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
       }
     }
@@ -1946,6 +2056,8 @@ fn parse_segment(
       finish_statement(stream, cursor, start_index, end_index, span, parse_update(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Update, "unexpected tokens after UPDATE statement")
     Some(raw) if bytes_equal_ci(raw, b"DELETE") =>
       finish_statement(stream, cursor, start_index, end_index, span, parse_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
+    Some(raw) if bytes_equal_ci(raw, b"MERGE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_merge(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Merge, "unexpected tokens after MERGE statement")
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
 }

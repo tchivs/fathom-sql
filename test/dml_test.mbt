@@ -326,3 +326,122 @@ test "dml_keywords_do_not_leak_into_shared_clause_set" {
     assert_true(!@token.is_clause_keyword(raw))
   }
 }
+
+test "merge_feature_metadata_marks_4x_introduction" {
+  let metadata = @token.DorisFeature::MergeInto.metadata()
+  assert_eq(metadata.name, "MERGE")
+  assert_eq(metadata.keyword, b"MERGE")
+  assert_eq(metadata.introduced_profile, "4.x")
+  assert_eq(metadata.diagnostic_code, "DORIS-PARSE-006")
+  assert_true(!@token.DorisProfile::V2_1.supports(@token.DorisFeature::MergeInto))
+  assert_true(!@token.DorisProfile::V3_X.supports(@token.DorisFeature::MergeInto))
+  assert_true(@token.DorisProfile::V4_X.supports(@token.DorisFeature::MergeInto))
+}
+
+test "merge_into_parses_under_4x_with_all_clause_forms" {
+  let raws = [
+    b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN NOT MATCHED THEN INSERT VALUES (s.id, s.v)",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN NOT MATCHED THEN INSERT (id, v) VALUES (s.id, s.v)",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED AND t.v < s.v THEN UPDATE SET t.v = s.v WHEN NOT MATCHED THEN INSERT VALUES (s.id, s.v)",
+    b"WITH tmp AS (SELECT * FROM s) MERGE INTO t USING tmp ON t.id = tmp.id WHEN MATCHED THEN UPDATE SET t.v = tmp.v",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_dml(raw, "4.x", mode)
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "merge"))
+    }
+  }
+}
+
+test "merge_is_gated_to_4x_released_profiles" {
+  let raw = b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v"
+  for profile in ["2.1", "3.x"] {
+    for mode in ["strict", "editor"] {
+      let result = parse_dml(raw, profile, mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+      assert_true(has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      if mode == "editor" { assert_true(result.recovered) }
+    }
+  }
+}
+
+test "merge_malformed_recovers_losslessly" {
+  let raws = [
+    b"MERGE INTO t USING s WHEN MATCHED THEN UPDATE SET t.v = s.v",
+    b"MERGE INTO t USING s ON t.id = s.id",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN NOT MATCHED THEN INSERT VALUES",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_dml(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+}
+
+test "unsupported_statement_starters_emit_one_007_each" {
+  let raws = [
+    b"ALTER TABLE t ADD COLUMN c INT",
+    b"DROP TABLE t",
+    b"GRANT SELECT ON db.t TO user",
+    b"SHOW TABLES",
+    b"EXPLAIN SELECT 1",
+    b"LOAD DATA INPATH 'x' INTO TABLE t",
+    b"TRUNCATE TABLE t",
+    b"CREATE TABLE t (a INT)",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_dml(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_eq(result.diagnostics.length(), 1)
+      assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007")
+      assert_eq(result.diagnostics[0].statement_id, 0U)
+      assert_true(has_kind(result.root, "error"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
+
+test "doris03_merge_and_unsupported_keep_later_statements" {
+  let merge_raw = b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v; SELECT b"
+  let merge_result = parse_dml(merge_raw, "4.x", "strict")
+  assert_eq(@printer.print_result(merge_result), merge_raw)
+  assert_eq(merge_result.root.children.length(), 2)
+  assert_true(merge_result.valid)
+  assert_true(merge_result.all_spans_in_bounds())
+
+  let alter_raw = b"ALTER TABLE t ADD COLUMN c INT; INSERT INTO t VALUES (1); SELECT b"
+  let alter_result = parse_dml(alter_raw, "4.x", "strict")
+  assert_eq(@printer.print_result(alter_result), alter_raw)
+  assert_eq(alter_result.root.children.length(), 3)
+  assert_true(!alter_result.valid)
+  assert_eq(alter_result.diagnostics[0].code, "DORIS-PARSE-007")
+  assert_eq(alter_result.diagnostics[0].statement_id, 0U)
+  assert_true(alter_result.all_spans_in_bounds())
+
+  let script_raw = b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE; bad; SELECT b"
+  let script_result = parse_dml(script_raw, "4.x", "strict")
+  assert_eq(@printer.print_result(script_result), script_raw)
+  assert_eq(script_result.root.children.length(), 3)
+  assert_true(!script_result.valid)
+  assert_eq(script_result.diagnostics[0].statement_id, 1U)
+  assert_eq(script_result.diagnostics[0].code, "DORIS-PARSE-007")
+  assert_true(script_result.all_spans_in_bounds())
+}

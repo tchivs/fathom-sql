@@ -4,6 +4,9 @@ pub(all) enum SyntaxKind {
   Statement
   Select
   Insert
+  Update
+  Delete
+  Merge
   ValueList
   Expression
   Token
