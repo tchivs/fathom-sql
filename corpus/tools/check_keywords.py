@@ -35,6 +35,9 @@ PRODUCTION_WORDS = {
     "UNIQUE", "AGGREGATE", "DISTRIBUTED", "HASH", "RANDOM", "BUCKETS",
     "PARTITION", "PARTITIONS", "AUTO", "RANGE", "LIST", "LESS", "THAN",
     "ROLLUP", "PROPERTIES", "COMMENT", "LIKE", "AS", "ORDER", "BY",
+    # Async materialized view clause words (02-04 A2 closure).
+    "ASYNC", "BUILD", "REFRESH", "IMMEDIATE", "DEFERRED", "COMPLETE",
+    "MANUAL", "SCHEDULE", "EVERY", "STARTS", "COMMIT",
 }
 
 

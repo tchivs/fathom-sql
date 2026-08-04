@@ -37,4 +37,5 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 4.x	dml-merge	1	1	0	pinned revision unavailable offline	MERGE INTO matched/not-matched clauses per the 4.x-only grammar
 4.x	ddl-create-table-ctas	1	1	0	pinned revision unavailable offline	CTAS variant per the 4.x CREATE TABLE page (variant syntax also appears on 2.1/3.x pages; row registered at 4.x)
 4.x	ddl-create-table-like	1	1	0	pinned revision unavailable offline	LIKE variant incl. WITH ROLLUP per the 4.x CREATE TABLE page (variant syntax also appears on 2.1/3.x pages; row registered at 4.x)
+4.x	ddl-create-materialized-view	1	1	0	pinned revision unavailable offline	A2 closed: sync restricted body plus the async BUILD/REFRESH family (documented identically in 2.1/3.x/4.x async-MV pages; rows registered at 4.x)
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed

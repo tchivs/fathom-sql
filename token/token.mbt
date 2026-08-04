@@ -292,6 +292,7 @@ let merge_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statement
 let create_table_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/"
 let create_view_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/"
 let create_mv_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/sync-materialized-view/CREATE-MATERIALIZED-VIEW/"
+let async_mv_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/"
 
 /// The word-level classification gate and the DorisFeature production gate are
 /// distinct layers (D-14/D-15): classification_of / is_reserved_word gate
@@ -427,6 +428,22 @@ let classification_rows : Array[ClassificationEntry] = [
   { word: b"CURRENT_TIMESTAMP", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (DEFAULT/ON UPDATE value; absent from the official reserved list)" },
   { word: b"GENERATED", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (generated-column word; absent from the official reserved list)" },
   { word: b"ALWAYS", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (generated-column word; absent from the official reserved list)" },
+  // Async materialized view clause words (02-04 A2 closure): the released
+  // 2.1/3.x/4.x "CREATE ASYNC MATERIALIZED VIEW" pages document CREATE
+  // MATERIALIZED VIEW with BUILD/REFRESH clauses; these words are absent from
+  // the official reserved list and are clause-only (Contextual), so they stay
+  // usable as unquoted identifiers (Pitfall 2).
+  { word: b"ASYNC", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (async materialized view prefix; absent from the official reserved list)" },
+  { word: b"BUILD", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (BUILD IMMEDIATE/DEFERRED clause; absent from the official reserved list)" },
+  { word: b"REFRESH", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (REFRESH COMPLETE/AUTO clause; absent from the official reserved list)" },
+  { word: b"IMMEDIATE", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (BUILD IMMEDIATE mode; absent from the official reserved list)" },
+  { word: b"DEFERRED", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (BUILD DEFERRED mode; absent from the official reserved list)" },
+  { word: b"COMPLETE", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (REFRESH COMPLETE method; absent from the official reserved list)" },
+  { word: b"MANUAL", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (ON MANUAL trigger; absent from the official reserved list)" },
+  { word: b"SCHEDULE", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (ON SCHEDULE trigger; absent from the official reserved list)" },
+  { word: b"EVERY", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (ON SCHEDULE EVERY interval; absent from the official reserved list)" },
+  { word: b"STARTS", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (STARTS start-time clause; absent from the official reserved list)" },
+  { word: b"COMMIT", classification: Contextual, introduced_profile: "2.1", source: async_mv_docs_url + " (ON COMMIT trigger; absent from the official reserved list)" },
 ]
 
 /// Case-insensitive lookup of a word's classification row (D-13/D-14).

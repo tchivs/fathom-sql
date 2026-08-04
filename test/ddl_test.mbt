@@ -402,17 +402,52 @@ test "malformed_create_index_recovers_losslessly" {
   }
 }
 
-test "async_materialized_view_is_an_explicit_unsupported_statement" {
-  let raw = b"CREATE ASYNC MATERIALIZED VIEW mv AS SELECT a FROM t"
-  for mode in ["strict", "editor"] {
-    let result = parse_ddl(raw, "4.x", mode)
-    assert_true(!result.valid)
-    assert_eq(result.diagnostics.length(), 1)
-    assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007")
-    assert_eq(result.diagnostics[0].statement_id, 0U)
-    assert_eq(@printer.print_result(result), raw)
-    assert_true(result.all_spans_in_bounds())
-    assert_true(has_kind(result.root, "error"))
+test "async_materialized_view_parses_with_build_refresh_and_query_clauses" {
+  // A2 decision (02-04 Task 2): the released 2.1/3.x/4.x docs pages titled
+  // "CREATE ASYNC MATERIALIZED VIEW" document the family with the syntax
+  // CREATE MATERIALIZED VIEW plus BUILD/REFRESH/KEY/COMMENT/PARTITION BY/
+  // DISTRIBUTED BY/PROPERTIES clauses and an unrestricted query, so the
+  // family is supported under every released profile (identical grammar
+  // across the three docs trees).
+  let raws = [
+    b"CREATE ASYNC MATERIALIZED VIEW mv AS SELECT a FROM t",
+    b"CREATE MATERIALIZED VIEW mv BUILD IMMEDIATE REFRESH AUTO ON SCHEDULE EVERY 1 DAY STARTS '2099-01-01 20:30:00' AS SELECT a FROM t",
+    b"CREATE MATERIALIZED VIEW complete_mv (orderkey COMMENT 'Order key') BUILD IMMEDIATE REFRESH AUTO ON COMMIT DISTRIBUTED BY HASH (orderkey) BUCKETS 2 PROPERTIES (\"replication_num\" = \"1\") AS SELECT o_orderkey, l_orderkey FROM orders LEFT JOIN lineitem ON l_orderkey = o_orderkey",
+    b"CREATE MATERIALIZED VIEW IF NOT EXISTS mv2 BUILD DEFERRED REFRESH COMPLETE ON MANUAL AS SELECT 1",
+    b"CREATE MATERIALIZED VIEW partition_mv PARTITION BY (DATE_TRUNC(o_orderdate, 'MONTH')) AS SELECT o_orderdate, l_orderkey FROM orders GROUP BY o_orderdate, l_orderkey",
+    b"CREATE MATERIALIZED VIEW mv3 DUPLICATE KEY (k) COMMENT 'mv' AS SELECT k, SUM(v) FROM t GROUP BY k",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_ddl(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "create_materialized_view"))
+      }
+    }
+  }
+}
+
+test "malformed_async_materialized_view_recovers_losslessly" {
+  let raws = [
+    b"CREATE MATERIALIZED VIEW mv BUILD",
+    b"CREATE MATERIALIZED VIEW mv REFRESH",
+    b"CREATE MATERIALIZED VIEW mv BUILD IMMEDIATE AS",
+    b"CREATE MATERIALIZED VIEW mv REFRESH AUTO ON SCHEDULE EVERY 1",
+    b"CREATE MATERIALIZED VIEW mv (orderkey",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
   }
 }
 

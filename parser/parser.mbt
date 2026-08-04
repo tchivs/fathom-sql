@@ -1864,16 +1864,22 @@ fn parse_create(
   let mut valid = expect_word(cursor, b"CREATE", state, source, statement_id, "expected CREATE statement")
   ignore(consume_word(cursor, b"TEMPORARY"))
   ignore(consume_word(cursor, b"EXTERNAL"))
-  // FLAGGED-A2: CREATE ASYNC MATERIALIZED VIEW (BUILD/REFRESH clauses) is
-  // outside this plan's verified scope — explicit DORIS-PARSE-007 with a
-  // source-backed error node, never silent acceptance (D-12); the decision
-  // closes in 02-04 Task 2.
-  let async_token = token_at(cursor)
-  if consume_word(cursor, b"ASYNC") {
-    let span = match async_token { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    record_feature_event(state, span)
-    add_diagnostic(state, "DORIS-PARSE-007", "async materialized views are not supported (only the sync form is verified)", "statement", span, statement_id)
-    valid = false
+  // A2 decision (02-04 Task 2): the released 2.1/3.x/4.x docs document the
+  // async materialized view family (page title "CREATE ASYNC MATERIALIZED
+  // VIEW"; syntax CREATE MATERIALIZED VIEW with BUILD/REFRESH clauses), so
+  // the ASYNC prefix selects the async form instead of DORIS-PARSE-007.
+  let mut async_mv = false
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"ASYNC") => {
+      match peek_raw(cursor, 1) {
+        Some(next) if bytes_equal_ci(next, b"MATERIALIZED") => {
+          advance(cursor)
+          async_mv = true
+        }
+        _ => ()
+      }
+    }
+    _ => ()
   }
   match raw_at(cursor) {
     Some(raw) if bytes_equal_ci(raw, b"TABLE") => {
@@ -1886,7 +1892,7 @@ fn parse_create(
       valid = parse_create_index(cursor, state, source, statement_id) && valid
     }
     Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") => {
-      valid = parse_create_materialized_view(cursor, state, source, statement_id) && valid
+      valid = parse_create_materialized_view(cursor, state, source, statement_id, async_mv) && valid
     }
     Some(_) => {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
@@ -1959,20 +1965,196 @@ fn is_mv_clause_boundary(raw : Bytes) -> Bool {
     bytes_equal_ci(raw, b"LATERAL")
 }
 
-// CREATE MATERIALIZED VIEW mv_name [ AS ] query — the restricted sync-MV body:
-//   SELECT expr [, ...] FROM base_table [ WHERE cond ] [ GROUP BY cols ] [ ORDER BY cols ]
+// CREATE MATERIALIZED VIEW (sync or async form).
+//
+// Sync form (02-02): CREATE MATERIALIZED VIEW <name> [ AS ] <restricted
+//   query> — single base table, no JOIN/HAVING/LIMIT/LATERAL VIEW (docs sync
+//   page, research section 9).
+//
+// Async form (02-04 A2 closure): the docs pages titled "CREATE ASYNC
+//   MATERIALIZED VIEW" (2.1/3.x/4.x trees, identical syntax) document
+//   CREATE MATERIALIZED VIEW [ IF NOT EXISTS ] <name>
+//     [ (<col> [COMMENT '...'] [, ...]) ]
+//     [ BUILD IMMEDIATE | DEFERRED ]
+//     [ REFRESH COMPLETE | AUTO [ ON MANUAL | ON SCHEDULE EVERY <int> <unit>
+//         [ STARTS '<start_time>'] | ON COMMIT ] ]
+//     [ [DUPLICATE] KEY (<cols>) ]
+//     [ COMMENT '<comment>' ]
+//     [ PARTITION BY ( <col> | DATE_TRUNC(<col>, '<unit>') ) ]
+//     [ DISTRIBUTED BY { HASH (<cols>) | RANDOM } [ BUCKETS { n | AUTO } ] ]
+//     [ PROPERTIES (...) ]
+//     AS <query>
+// with an unrestricted query body. The bare `CREATE MATERIALIZED VIEW
+// <name> [ AS ] query` spelling keeps the sync page's restricted body; the
+// async form is selected by the ASYNC prefix, IF NOT EXISTS, or any async
+// clause (column list, BUILD, REFRESH, KEY, COMMENT, PARTITION, DISTRIBUTED,
+// PROPERTIES) before the query.
 fn parse_create_materialized_view(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  async_mv : Bool,
 ) -> Bool {
   if !depth_allowed(cursor, state, source, statement_id) { return false }
   let mut valid = expect_word(cursor, b"MATERIALIZED", state, source, statement_id, "expected MATERIALIZED after CREATE")
   valid = expect_word(cursor, b"VIEW", state, source, statement_id, "expected VIEW after MATERIALIZED") && valid
+  let mut async_form = async_mv
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+    async_form = true
+  }
   valid = parse_qualified_name(cursor, state, source, statement_id, "materialized view name") && valid
-  ignore(consume_word(cursor, b"AS"))
-  valid = parse_mv_query(cursor, state, source, statement_id) && valid
+  if !async_form {
+    async_form = match raw_at(cursor) {
+      Some(raw) => bytes_equal_ci(raw, b"(") || bytes_equal_ci(raw, b"BUILD") ||
+        bytes_equal_ci(raw, b"REFRESH") || bytes_equal_ci(raw, b"KEY") ||
+        bytes_equal_ci(raw, b"DUPLICATE") || bytes_equal_ci(raw, b"COMMENT") ||
+        bytes_equal_ci(raw, b"PARTITION") || bytes_equal_ci(raw, b"DISTRIBUTED") ||
+        bytes_equal_ci(raw, b"PROPERTIES")
+      None => false
+    }
+  }
+  if async_form {
+    valid = parse_async_mv_clauses(cursor, state, source, statement_id) && valid
+  } else {
+    ignore(consume_word(cursor, b"AS"))
+    valid = parse_mv_query(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+// The async materialized view clause stack, in documented order, ending with
+// the mandatory AS <query> (any SELECT, including joins/subqueries/CTEs).
+fn parse_async_mv_clauses(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if raw_at(cursor) is Some(b"(") {
+    // columns_definition: <col_name> [ COMMENT '<comment>' ] [ , ... ]
+    advance(cursor)
+    valid = parse_view_columns(cursor, state, source, statement_id) && valid
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing materialized view column parenthesis") && valid
+  }
+  if consume_word(cursor, b"BUILD") {
+    // BUILD IMMEDIATE | DEFERRED
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected IMMEDIATE or DEFERRED after BUILD", "build-mode", at, statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"REFRESH") {
+    // REFRESH COMPLETE | AUTO [ refresh_trigger ] — AUTO is a reserved word
+    // (official reserved list), so match the method spellings explicitly.
+    let is_method = match raw_at(cursor) {
+      Some(raw) => bytes_equal_ci(raw, b"COMPLETE") || bytes_equal_ci(raw, b"AUTO")
+      None => false
+    }
+    if is_method {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected COMPLETE or AUTO after REFRESH", "refresh-method", at, statement_id)
+      valid = false
+    }
+    if consume_word(cursor, b"ON") {
+      if consume_word(cursor, b"MANUAL") {
+        ()
+      } else if consume_word(cursor, b"SCHEDULE") {
+        // ON SCHEDULE EVERY <int_value> <refresh_unit> [ STARTS '<start_time>' ]
+        valid = expect_word(cursor, b"EVERY", state, source, statement_id, "expected EVERY after ON SCHEDULE") && valid
+        let is_number = match token_at(cursor) {
+          Some(token) => token.kind is @token.TokenKind::Number
+          None => false
+        }
+        if !is_number {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected refresh interval number after EVERY", "number", at, statement_id)
+          valid = false
+        } else {
+          advance(cursor)
+        }
+        if !is_identifier_candidate(cursor) {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected refresh unit (MINUTE/HOUR/DAY/WEEK) after interval", "refresh-unit", at, statement_id)
+          valid = false
+        } else {
+          advance(cursor)
+        }
+        if consume_word(cursor, b"STARTS") {
+          let is_stringish = match token_at(cursor) {
+            Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+            None => false
+          }
+          if !is_stringish {
+            let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+            add_diagnostic(state, "DORIS-PARSE-002", "expected start time string after STARTS", "string", at, statement_id)
+            valid = false
+          } else {
+            advance(cursor)
+          }
+        }
+      } else if consume_word(cursor, b"COMMIT") {
+        ()
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected MANUAL, SCHEDULE, or COMMIT after ON", "refresh-trigger", at, statement_id)
+        valid = false
+      }
+    }
+  }
+  if consume_word(cursor, b"DUPLICATE") {
+    valid = expect_word(cursor, b"KEY", state, source, statement_id, "expected KEY after DUPLICATE") && valid
+    valid = parse_identifier_option(cursor, state, source, statement_id, "KEY") && valid
+  } else if consume_word(cursor, b"KEY") {
+    valid = parse_identifier_option(cursor, state, source, statement_id, "KEY") && valid
+  }
+  if consume_word(cursor, b"COMMENT") {
+    let is_stringish = match token_at(cursor) {
+      Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+      None => false
+    }
+    if !is_stringish {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected materialized view comment string after COMMENT", "string", at, statement_id)
+      valid = false
+    } else {
+      advance(cursor)
+    }
+  }
+  if consume_word(cursor, b"PARTITION") {
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION") && valid
+    valid = parse_parenthesized_expression(cursor, state, source, statement_id, "materialized view PARTITION BY") && valid
+  }
+  if consume_word(cursor, b"DISTRIBUTED") {
+    valid = parse_distribution_clause(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"PROPERTIES") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "PROPERTIES") && valid
+  }
+  if consume_word(cursor, b"AS") {
+    if !is_query_start(cursor) {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected query after AS in materialized view", "query", at, statement_id)
+      valid = false
+    } else {
+      valid = parse_query(cursor, state, source, statement_id) && valid
+    }
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected AS query in materialized view", "query", at, statement_id)
+    valid = false
+    if is_query_start(cursor) {
+      valid = parse_query(cursor, state, source, statement_id) && valid
+    }
+  }
   valid
 }
 

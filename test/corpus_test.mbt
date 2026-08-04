@@ -274,6 +274,18 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // ddl-create-materialized-view: sync restricted body plus the async
+  // BUILD/REFRESH family (A2 decision closed; the grammar is documented
+  // identically in the 2.1/3.x/4.x async-materialized-view pages).
+  {
+    fixture_id: "4.x-create-materialized-view",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"CREATE MATERIALIZED VIEW mv AS SELECT k, SUM(v) FROM t GROUP BY k;\nCREATE MATERIALIZED VIEW complete_mv (orderkey COMMENT 'Order key') BUILD IMMEDIATE REFRESH AUTO ON SCHEDULE EVERY 1 DAY STARTS '2099-01-01 20:30:00' DISTRIBUTED BY HASH (orderkey) BUCKETS 2 PROPERTIES (\"replication_num\" = \"1\") AS SELECT o_orderkey, l_orderkey FROM orders LEFT JOIN lineitem ON l_orderkey = o_orderkey;\nCREATE MATERIALIZED VIEW IF NOT EXISTS mv2 BUILD DEFERRED REFRESH COMPLETE ON MANUAL AS SELECT 1;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {

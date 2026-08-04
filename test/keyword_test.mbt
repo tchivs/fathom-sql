@@ -157,6 +157,17 @@ fn tsv_rows() -> Array[(Bytes, String, String, String)] {
     (b"CURRENT_TIMESTAMP", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DEFAULT/ON UPDATE value; absent from the official reserved list)"),
     (b"GENERATED", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (generated-column word; absent from the official reserved list)"),
     (b"ALWAYS", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (generated-column word; absent from the official reserved list)"),
+    (b"ASYNC", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (async materialized view prefix; absent from the official reserved list)"),
+    (b"BUILD", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (BUILD IMMEDIATE/DEFERRED clause; absent from the official reserved list)"),
+    (b"REFRESH", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (REFRESH COMPLETE/AUTO clause; absent from the official reserved list)"),
+    (b"IMMEDIATE", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (BUILD IMMEDIATE mode; absent from the official reserved list)"),
+    (b"DEFERRED", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (BUILD DEFERRED mode; absent from the official reserved list)"),
+    (b"COMPLETE", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (REFRESH COMPLETE method; absent from the official reserved list)"),
+    (b"MANUAL", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON MANUAL trigger; absent from the official reserved list)"),
+    (b"SCHEDULE", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON SCHEDULE trigger; absent from the official reserved list)"),
+    (b"EVERY", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON SCHEDULE EVERY interval; absent from the official reserved list)"),
+    (b"STARTS", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (STARTS start-time clause; absent from the official reserved list)"),
+    (b"COMMIT", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON COMMIT trigger; absent from the official reserved list)"),
   ]
 }
 
