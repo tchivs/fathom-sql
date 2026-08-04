@@ -23,14 +23,14 @@ test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
     Ok(result) => result
     Err(_) => panic()
   }
-  let encoded = parse_result_json(result)
+  let encoded = @binding.parse_result_json(result)
   assert_true(encoded.contains("doris.parse.v1"))
   assert_true(encoded.contains("inline-root-v1"))
   assert_true(encoded.contains("source_bytes"))
   assert_true(encoded.contains("trivia"))
-  assert_true(validate_schema_version("doris.parse.v1") is Ok(_))
-  assert_true(validate_schema_version("doris.parse.v9") is Err(UnsupportedSchemaVersion(..)))
-  assert_true(validate_profile("mysql") is Err(UnsupportedProfile(..)))
+  assert_true(@binding.validate_schema_version("doris.parse.v1") is Ok(_))
+  assert_true(@binding.validate_schema_version("doris.parse.v9") is Err(@binding.SchemaError::UnsupportedSchemaVersion(..)))
+  assert_true(@binding.validate_profile("mysql") is Err(@binding.SchemaError::UnsupportedProfile(..)))
 }
 
 test "schema_fixture_requires_leaf_kinds_and_half_open_spans" {

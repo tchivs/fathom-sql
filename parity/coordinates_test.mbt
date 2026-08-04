@@ -24,15 +24,15 @@ test "utf8_byte_offsets_convert_nontrivially_to_utf16_units" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let first = match byte_to_position(source, 1) {
+  let first = match @binding.byte_to_position(source, 1) {
     Ok(position) => position
     Err(_) => panic()
   }
-  let after_emoji = match byte_to_position(source, 5) {
+  let after_emoji = match @binding.byte_to_position(source, 5) {
     Ok(position) => position
     Err(_) => panic()
   }
-  let eof = match byte_to_position(source, 6) {
+  let eof = match @binding.byte_to_position(source, 6) {
     Ok(position) => position
     Err(_) => panic()
   }
@@ -48,11 +48,11 @@ test "utf16_conversion_treats_crlf_as_one_line" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let line_start = match byte_to_position(source, 4) {
+  let line_start = match @binding.byte_to_position(source, 4) {
     Ok(position) => position
     Err(_) => panic()
   }
-  let line_end = match byte_to_position(source, 11) {
+  let line_end = match @binding.byte_to_position(source, 11) {
     Ok(position) => position
     Err(_) => panic()
   }
@@ -62,19 +62,18 @@ test "utf16_conversion_treats_crlf_as_one_line" {
   assert_eq(line_end.character, 3)
 }
 
-
 test "utf16_positions_round_trip_to_source_bytes" {
   let raw = b"a\xf0\x9f\x98\x80b\r\nSELECT"
   let source = match @source.SourceText::new(raw) {
     Ok(source) => source
     Err(_) => panic()
   }
-  let emoji_end = match position_to_byte(source, { line: 0, character: 3 }) {
+  let emoji_end = match @binding.position_to_byte(source, { line: 0, character: 3 }) {
     Ok(offset) => offset
     Err(_) => panic()
   }
   assert_eq(emoji_end, 5)
-  let second_line = match position_to_byte(source, { line: 1, character: 6 }) {
+  let second_line = match @binding.position_to_byte(source, { line: 1, character: 6 }) {
     Ok(offset) => offset
     Err(_) => panic()
   }

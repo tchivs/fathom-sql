@@ -72,13 +72,13 @@ actuals:
 
 ## Target/Build Evidence Expected by Parent
 
-The parent-target validation exposed a MoonBit toolchain limitation: a `foreign_library` package cannot be converted into a test main because its `#export_name` declarations are rejected in that harness. The executor therefore did not run validation commands. The parent should run:
+The parent-target validation exposed a MoonBit toolchain limitation: a `foreign_library` package cannot be converted into a test main because its `#export_name` declarations are rejected in that harness. All binding schema and coordinate tests now live in the non-foreign executable `parity` package, using `@binding.` prefixes and `@source` imports; the foreign package contains production sources only. The executor therefore did not run validation commands. The parent should run:
 
 - `moon check --target js binding`
 - `moon check --target native binding`
 - `moon test --target native --package binding --package parity`
 
-The export smoke assertions now live in the executable `parity` package and call `@binding.doris_*` functions, checking serialized bytes and non-internal values. `parity/run_fixture` uses `-> Unit raise` so its assertions compile. The checked-in runners and `target-matrix.json` provide the target-specific entrypoints and expected compatibility metadata. No Wasm GC build or compatibility claim is included.
+The export smoke assertions and relocated schema/coordinate assertions call the real `@binding` functions from `parity`, preserving observable test names and coverage without weakening export/parity coverage. Production `binding/moon.pkg` and export symbols remain unchanged. The checked-in runners and `target-matrix.json` provide the target-specific entrypoints and expected compatibility metadata. No Wasm GC build or compatibility claim is included.
 
 ## Task Commits
 
