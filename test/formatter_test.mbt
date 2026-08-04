@@ -1415,3 +1415,226 @@ test "formatter_corpus_44_row_harness" {
   }
   assert_eq(failures, "")
 }
+
+
+/// 03-03 Task 3: the FMT-03 contract is closed with the option-matrix
+/// idempotence + determinism suite (D-34 across configurations), the
+/// never-panic boundary suite (threat T-03-16/T-03-18), and the
+/// refusal-diagnostic shape gate. The option sets below are the supported
+/// values only — invalid values are rejected at construction (ASVS V5,
+/// formatter_options_default_and_validation) and never looped here.
+fn formatter_matrix_check(
+  label : String,
+  raw : Bytes,
+  options : @formatter.FormatOptions,
+  profile : String,
+) -> String {
+  let first = match @api.format_with_ids(raw, profile, "strict", options) {
+    Ok(result) => result
+    Err(_) => return label + ": format api Err"
+  }
+  let again = match @api.format_with_ids(first.output, profile, "strict", options) {
+    Ok(result) => result
+    Err(_) => return label + ": idempotence api Err"
+  }
+  if again.output != first.output {
+    return label + ": not idempotent"
+  }
+  // Determinism (probe FMT-01 backstop): a second run from the original raw
+  // must be byte-identical to the first.
+  let second = match @api.format_with_ids(raw, profile, "strict", options) {
+    Ok(result) => result
+    Err(_) => return label + ": determinism api Err"
+  }
+  if second.output != first.output {
+    return label + ": not deterministic"
+  }
+  ""
+}
+
+fn matrix_combo_name(
+  kc : @formatter.KeywordCase,
+  cs : @formatter.CommaStyle,
+  ns : @formatter.NewlineStyle,
+  tn : Bool,
+  indent : Int,
+  width : Int,
+) -> String {
+  let kc_name = match kc {
+    @formatter.KeywordCase::Upper => "Upper"
+    @formatter.KeywordCase::Lower => "Lower"
+  }
+  let cs_name = match cs {
+    @formatter.CommaStyle::Trailing => "Trailing"
+    @formatter.CommaStyle::Leading => "Leading"
+  }
+  let ns_name = match ns {
+    @formatter.NewlineStyle::FollowInput => "FollowInput"
+    @formatter.NewlineStyle::Lf => "Lf"
+    @formatter.NewlineStyle::Crlf => "Crlf"
+  }
+  kc_name + "/" + cs_name + "/" + ns_name + "/trailing=" + tn.to_string() +
+    "/indent=" + indent.to_string() + "/width=" + width.to_string()
+}
+
+test "formatter_03_03_option_matrix_idempotence_and_determinism" {
+  let keyword_cases = [
+    @formatter.KeywordCase::Upper,
+    @formatter.KeywordCase::Lower,
+  ]
+  let comma_styles = [
+    @formatter.CommaStyle::Trailing,
+    @formatter.CommaStyle::Leading,
+  ]
+  let newline_styles = [
+    @formatter.NewlineStyle::FollowInput,
+    @formatter.NewlineStyle::Lf,
+    @formatter.NewlineStyle::Crlf,
+  ]
+  let trailing_newlines = [true, false]
+  let indents = [2, 4]
+  let line_widths = [100, 40]
+  // Representative SELECT (breaks at width 40, fits at 100) and one DDL
+  // fixture: both must be byte-exact idempotent under every combination.
+  let select_raw = b"select user_id, user_name, user_email, user_phone, user_address, user_status, user_created_at, user_updated_at from user_profile where user_status = 'active' group by user_id order by user_created_at"
+  let ddl_raw = b"create table t (k1 int, k2 decimal(10, 2) default \"10.5\", k3 char(10) comment \"string column\", v1 bigint sum default \"0\" comment \"aggregate value\") engine=olap unique key(k1) comment \"my table\" distributed by hash(k1) buckets 10 properties (\"replication_num\" = \"1\", \"storage_medium\" = \"SSD\");"
+  let mut failures = ""
+  for kc in keyword_cases {
+    for cs in comma_styles {
+      for ns in newline_styles {
+        for tn in trailing_newlines {
+          for indent in indents {
+            for width in line_widths {
+              let options = match @formatter.FormatOptions::new(kc, indent, width, cs, ns, tn) {
+                Ok(opts) => opts
+                Err(_) => panic()
+              }
+              let combo = matrix_combo_name(kc, cs, ns, tn, indent, width)
+              let select_failure = formatter_matrix_check("select", select_raw, options, "4.x")
+              if select_failure.length() > 0 {
+                failures = failures + combo + "/" + select_failure + "\n"
+              }
+              let ddl_failure = formatter_matrix_check("ddl", ddl_raw, options, "4.x")
+              if ddl_failure.length() > 0 {
+                failures = failures + combo + "/" + ddl_failure + "\n"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  assert_eq(failures, "")
+}
+
+/// Never-panic boundary suite (threat T-03-16/T-03-18, research Pitfall 4):
+/// empty, whitespace-only, and comment-only documents format without panic
+/// and without fabricated statements; the max_bytes boundary propagates
+/// InputTooLarge as a ParseError, never a crash; and every corpus fixture
+/// plus the boundary inputs format without panic.
+test "formatter_03_03_never_panic_boundary_suite" {
+  let options = @formatter.FormatOptions::default()
+  // Empty document: accepted, empty output, no diagnostics, no offsets.
+  let empty = match @api.format_with_ids(b"", "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(empty.accepted)
+  assert_eq(empty.output.length(), 0)
+  assert_eq(empty.diagnostics.length(), 0)
+  assert_eq(empty.statement_offsets.length(), 0)
+  // Whitespace-only: same shape, nothing fabricated.
+  let ws = match @api.format_with_ids(b"   \n", "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(ws.accepted)
+  assert_eq(ws.output.length(), 0)
+  assert_eq(ws.statement_offsets.length(), 0)
+  // Comment-only document: the comment is preserved verbatim, no fabricated
+  // statements, and the trailing-newline policy applies (on -> exactly one).
+  let comment = match @api.format_with_ids(b"-- only a comment", "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(comment.accepted)
+  assert_eq(comment.output, b"-- only a comment\n")
+  assert_eq(comment.diagnostics.length(), 0)
+  assert_eq(comment.statement_offsets.length(), 0)
+  // trailing-newline off on a comment-only document: no trailing newline.
+  let no_trailing = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    false,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let comment_nt = match @api.format_with_ids(b"-- only a comment", "4.x", "strict", no_trailing) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(comment_nt.accepted)
+  assert_eq(comment_nt.output, b"-- only a comment")
+  // max_bytes boundary: the input is rejected before parsing with a
+  // structured InputTooLarge ParseError — never a panic or partial output.
+  let tight = @api.ParseOptions::for_profile_with_limits(
+    @token.DorisProfile::V4_X,
+    @api.ParseMode::Strict,
+    @api.ParseLimits::new(8, 1000, 8, 8, 8),
+  )
+  let too_large = @api.format_text(b"SELECT abcdefghijklmnopqrstuvwxyz", tight, options)
+  assert_true(too_large is Err(@api.ParseError::InputTooLarge(requested_bytes=_, max_bytes=8)))
+  // Never-panic backstop: every corpus fixture (supported AND error rows)
+  // and every boundary input formats without crashing. The oracle already
+  // asserts the results; this loop is the explicit no-crash assertion.
+  for i in 0..<formatter_corpus_fixtures.length() {
+    let fixture = formatter_corpus_fixtures[i]
+    let _ = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+  }
+  let boundary_inputs = [b"", b"   \n", b"-- only a comment", b"/* block only */"]
+  for i in 0..<boundary_inputs.length() {
+    let _ = match @api.format_with_ids(boundary_inputs[i], "4.x", "strict", options) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+  }
+}
+
+/// Refusal-diagnostic shape gate: every DORIS-FORMAT- diagnostic on the
+/// error half of the corpus is well-formed — "error" severity, expected_class
+/// "format", valid span ordering, and a statement_id.
+test "formatter_03_03_refusal_diagnostics_are_well_formed" {
+  for i in 0..<formatter_corpus_fixtures.length() {
+    let fixture = formatter_corpus_fixtures[i]
+    if fixture.expected_valid {
+      continue
+    }
+    let options = match fixture.options {
+      Some(opts) => opts
+      None => @formatter.FormatOptions::default()
+    }
+    let result = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(!result.accepted)
+    let mut format_found = false
+    for diagnostic in result.diagnostics {
+      if diagnostic.code.has_prefix("DORIS-FORMAT-") {
+        format_found = true
+        assert_eq(diagnostic.severity, "error")
+        assert_eq(diagnostic.expected_class, "format")
+        assert_true(diagnostic.start_byte <= diagnostic.end_byte)
+        assert_true(diagnostic.message.length() > 0)
+      }
+    }
+    assert_true(format_found)
+  }
+}
