@@ -1,0 +1,8 @@
+pkgtype(kind: "library")
+import {
+  "fathom/doris-sql/api" @api,
+  "fathom/doris-sql/lexer" @lexer,
+  "fathom/doris-sql/source" @source,
+  "fathom/doris-sql/token" @token,
+  "moonbitlang/core/encoding/utf8" @utf8,
+}
