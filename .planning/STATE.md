@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: Formatting and Safe Edits
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-08-04T10:22:24.245Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-08-04T10:57:24.671Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 ## Current Position
 
 Phase: 03 (Formatting and Safe Edits) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-08-04 — Phase 03 execution started
 
-Progress: [████████░░] 79%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -73,6 +73,7 @@ Progress: [████████░░] 79%
 | Phase 02 P02-04 | 90 | 3 tasks | 40 files |
 | Phase 02 P06 | 35 | 2 tasks | 5 files |
 | Phase 03 P01 | 41 | 2 tasks | 11 files |
+| Phase 03 P03-02 | 29 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,11 @@ Recent decisions affecting current work:
 - [Phase ?]: api.format_text is the shared Phase 4 LSP core entry (D-38); formatter types re-exported via MoonBit type aliases
 - [Phase ?]: statement_offsets records the buffer length before each statement layout; the inter-statement separator newline is part of the following statement's layout, so the offset points at the separator byte
 - [Phase ?]: Select-list measure-then-break measures non-trivia lengths + one space per trivia run + ', ' per comma - invariant to input whitespace, idempotent across passes
+- [Phase ?]: Literal Pattern-1 clause-break rule: a table keyword breaks whenever it is not the statement's first token (INSERT\nINTO t, DELETE\nFROM t, CREATE\nTABLE t); goldens lock the terse documented forms
+- [Phase ?]: Zero-space-before-paren canonical convention: FROM(, WHERE(, VALUES(, KEY( attach the paren directly (inherited from 03-01 emit_token)
+- [Phase ?]: Empirical trailing-comma gate (A1/Open Q1): 4.x strict probe accepts a last-item comma only in PROPERTIES and partition-definition lists; those two contexts emit it (D-35-asserted), all others emit none; probe record committed in a test comment
+- [Phase ?]: List flat measure simulates the exact emission rules (pending space / zero-space / no-space-after-'(') so fit decisions are a pure function of the token sequence - idempotence by construction; an input trailing comma at split depth is read as trailing (not an item separator, not measured)
+- [Phase ?]: Comment attachment breaks to the current LINE indent (line_indent), and document-leading comments never force a leading space/break when they are the first output bytes
 
 ### Pending Todos
 
@@ -145,6 +151,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T10:21:48.183Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-08-04T10:57:07.761Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
