@@ -127,14 +127,14 @@ Plans:
   3. Native, JavaScript, and linear-Wasm targets expose the same versioned serialized CST/trivia/span/diagnostic/profile schema and pass shared parity fixtures, including documented byte-to-line/UTF-16 coordinates.
   4. Project provides a working offline Web/Monaco demonstration and a VS Code extension that surfaces Doris diagnostics and formatting through the standard LSP client protocol.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans executed
 Plans:
 
 - [x] 04-00-PLAN.md — create shared schema, parity, LSP, Web, and VS Code harnesses
 - [x] 04-01-PLAN.md — freeze serialized schema/coordinates and deliver Native LSP diagnostics/formatting tracer
 - [x] 04-02-PLAN.md — add syntax-aware completion and protocol/version hardening
 - [x] 04-03-PLAN.md — expose JS/linear-Wasm facades and prove Native/JS/Wasm parity
-- [ ] 04-04-PLAN.md — deliver offline Web/Monaco and VS Code hosts with accessibility checkpoints
+- [x] 04-04-PLAN.md — deliver offline Web/Monaco and VS Code hosts with accessibility checkpoints
 
 ## Dependency and Ordering Rationale
 
@@ -153,6 +153,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
 | 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
 | 3. Formatting and Safe Edits | 4/4 | Complete    | 2026-08-04 |
-| 4. Ecosystem and Multi-Target Delivery | 4/5 | In Progress|  |
+| 4. Ecosystem and Multi-Target Delivery | 5/5 | In Progress|  |
 
 **Coverage:** 27/27 v1 requirements mapped; 0 unmapped; each requirement assigned to exactly one phase.

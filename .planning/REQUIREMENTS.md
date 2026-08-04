@@ -49,8 +49,8 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 - [ ] **ECO-03**: LSP client can receive syntax-aware completion suggestions for Doris keywords, clauses, and parser-known contexts while the SQL document is incomplete.
 - [x] **ECO-04**: Web application can use a Wasm/JavaScript SDK to parse the same Doris profiles and obtain the stable CST/diagnostic results without exposing internal MoonBit ADT or backend-specific types.
 - [x] **ECO-05**: Native, JavaScript, and linear-Wasm targets expose a versioned serialized schema for CST nodes, trivia, spans, diagnostics, and profile selection with parity fixtures across targets.
-- [ ] **ECO-06**: Project provides a working Web/Monaco demonstration that uses the Wasm/JavaScript SDK for Doris diagnostics and formatting without a database connection.
-- [ ] **ECO-07**: Project provides a VS Code extension that connects to the Native LSP using the standard client protocol and exposes Doris diagnostics and formatting.
+- [x] **ECO-06**: Project provides a working Web/Monaco demonstration that uses the Wasm/JavaScript SDK for Doris diagnostics and formatting without a database connection.
+- [x] **ECO-07**: Project provides a VS Code extension that connects to the Native LSP using the standard client protocol and exposes Doris diagnostics and formatting.
 
 ## v2 Requirements
 
@@ -107,8 +107,8 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | ECO-03 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 | ECO-04 | Phase 4: Ecosystem and Multi-Target Delivery | Complete |
 | ECO-05 | Phase 4: Ecosystem and Multi-Target Delivery | Complete |
-| ECO-06 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
-| ECO-07 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-06 | Phase 4: Ecosystem and Multi-Target Delivery | Complete |
+| ECO-07 | Phase 4: Ecosystem and Multi-Target Delivery | Complete |
 
 **Coverage after roadmap:**
 

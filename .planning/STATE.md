@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Ecosystem and Multi-Target Delivery
 status: planning
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-08-04T15:45:19.031Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-08-04T16:26:23.257Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 03 complete, transitioned to Phase 04
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -32,7 +32,7 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-08-04 — Phase 03 complete, transitioned to Phase 04
 
-Progress: [█████████░] 90%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [█████████░] 90%
 | Phase 03-formatting-and-safe-edits P03 | 63min | 3 tasks | 3 files |
 | Phase 03 P03-04 | 58 | 2 tasks | 6 files |
 | Phase 04 P03 | implementation session | 3 tasks | 10 files |
+| Phase 04 P04 | implementation session | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,7 @@ Recent decisions affecting current work:
 - [Phase ?]: CLI toolchain adaptations on moon 0.1.20260724: Result[Command, UsageError] instead of union types; black-box _test.mbt modules require pub(all) structs and pub FFI externs; hand-rolled int parsing keeps the CLI dependency surface at api/env/buffer/utf8/debug
 - [Phase ?]: Expose doris_parse_v1, doris_format_v1, doris_profile_v1, and doris_capabilities_v1 as primitive UTF-8 JSON Bytes exports.
 - [Phase ?]: Use inline-root-v1 JSON byte arrays for exact source transport and advertise only linear Wasm, not Wasm GC.
+- [Phase ?]: User approved pinned host dependencies: monaco-editor@0.56.0, vscode-languageclient@10.1.0, and @vscode/vsce@3.9.2 release-only.
 
 ### Pending Todos
 
@@ -162,6 +164,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T15:27:54.666Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-08-04T16:26:23.231Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
