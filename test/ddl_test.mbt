@@ -170,6 +170,41 @@ test "bare_create_forms_report_incomplete_statement" {
   }
 }
 
+test "malformed_type_params_report_trailing_garbage" {
+  // WR-02 regression: the STRUCT-style field-type heuristic consumed an
+  // arbitrary second identifier after any type parameter, so
+  // ARRAY<INT FOO> and MAP<STRING, INT EXTRA> parsed as valid with zero
+  // diagnostics. Field-name consumption is now gated on STRUCT params;
+  // trailing garbage in other generic types must produce a diagnostic.
+  for raw in [
+    b"CREATE TABLE t (c ARRAY<INT FOO>)",
+    b"CREATE TABLE t (c MAP<STRING, INT EXTRA>)",
+  ] {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+  // STRUCT field lists stay legal, including nested inside other generics.
+  for raw in [
+    b"CREATE TABLE t (c STRUCT<a INT, b STRING>)",
+    b"CREATE TABLE t (c MAP<STRING, STRUCT<a INT, b STRING>>)",
+    b"CREATE TABLE t (c ARRAY<STRUCT<a INT>>)",
+  ] {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, "4.x", mode)
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
+  }
+}
+
 test "doris03_unclosed_create_table_keeps_later_statements" {
   let raw = b"CREATE TABLE t (a INT; INSERT INTO t VALUES (1); SELECT * FROM t"
   let result = parse_ddl(raw, "4.x", "strict")

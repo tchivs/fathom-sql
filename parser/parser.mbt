@@ -2649,15 +2649,22 @@ fn parse_column_type(
     add_diagnostic(state, "DORIS-PARSE-002", "expected column type", "type", at, statement_id)
     return false
   }
+  // Capture the enclosing type name before advancing so < ... > params can
+  // decide whether STRUCT-style field types are allowed (WR-02).
+  let type_name = raw_at(cursor)
   advance(cursor)
+  let struct_style = match type_name {
+    Some(raw) => bytes_equal_ci(raw, b"STRUCT")
+    None => false
+  }
   let mut valid = true
   if consume_symbol(cursor, b"(") {
-    valid = parse_type_params(cursor, state, source, statement_id, 0) && valid
+    valid = parse_type_params(cursor, state, source, statement_id, 0, false) && valid
     valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing type parameter parenthesis") && valid
   }
   if raw_at(cursor) is Some(b"<") {
     advance(cursor)
-    valid = parse_type_params(cursor, state, source, statement_id, 0) && valid
+    valid = parse_type_params(cursor, state, source, statement_id, 0, struct_style) && valid
     valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing type generic bracket") && valid
   }
   valid
@@ -2669,6 +2676,7 @@ fn parse_type_params(
   source : @source.SourceText,
   statement_id : UInt,
   depth : Int,
+  struct_style : Bool,
 ) -> Bool {
   // CR-01: generic < > brackets never register in parenthesis_depth, so
   // nested type-param recursion is bounded here with an explicit depth
@@ -2696,18 +2704,28 @@ fn parse_type_params(
       }
       Some(_) if is_identifier_candidate(cursor) => {
         any = true
+        // Capture the just-consumed name so a nested < ... > can decide
+        // whether STRUCT-style field types are allowed inside it (WR-02).
+        let nested_name = raw_at(cursor)
         advance(cursor)
         if consume_symbol(cursor, b"(") {
-          valid = parse_type_params(cursor, state, source, statement_id, depth + 1) && valid
+          valid = parse_type_params(cursor, state, source, statement_id, depth + 1, false) && valid
           valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing nested type parenthesis") && valid
         }
         if raw_at(cursor) is Some(b"<") {
           advance(cursor)
-          valid = parse_type_params(cursor, state, source, statement_id, depth + 1) && valid
+          let nested_struct = match nested_name {
+            Some(raw) => bytes_equal_ci(raw, b"STRUCT")
+            None => false
+          }
+          valid = parse_type_params(cursor, state, source, statement_id, depth + 1, nested_struct) && valid
           valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing nested type generic bracket") && valid
         }
-        // STRUCT-style field type: name followed by an optional type word.
-        if is_identifier_candidate(cursor) && !(raw_at(cursor) is Some(b"(")) && !(raw_at(cursor) is Some(b"<")) {
+        // STRUCT-style field type: a name followed by an optional type word
+        // is consumed only inside STRUCT params (WR-02); anywhere else a
+        // second identifier is trailing garbage and must not be silently
+        // accepted as a valid type.
+        if struct_style && is_identifier_candidate(cursor) && !(raw_at(cursor) is Some(b"(")) && !(raw_at(cursor) is Some(b"<")) {
           advance(cursor)
         }
       }
