@@ -1,7 +1,29 @@
-pkgtype(kind: "library")
+pkgtype(kind: "foreign_library")
 import {
   "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/source" @source,
   "moonbitlang/core/debug" @debug,
   "moonbitlang/core/json" @json,
+  "moonbitlang/core/encoding/utf8" @utf8,
 }
+
+options(
+  link: {
+    "js": {
+      "format": "esm",
+      "exports": [
+        "doris_parse_v1",
+        "doris_format_v1",
+        "doris_profile_v1",
+        "doris_capabilities_v1",
+      ],
+    },
+    "wasm": {
+      "exports": [
+        "doris_parse_v1",
+        "doris_format_v1",
+        "doris_profile_v1",
+        "doris_capabilities_v1",
+      ],
+    },
+  },
+)

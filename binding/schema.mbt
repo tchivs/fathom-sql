@@ -96,3 +96,89 @@ pub fn format_result_json(source : Bytes, result : @api.FormatResult, profile : 
     "statement_offsets": offsets_json(result.statement_offsets),
   })
 }
+pub fn error_json(code : String, message : String) -> String {
+  stringify({
+    "schema_version": Json::string("doris.error.v1"),
+    "code": Json::string(code),
+    "message": Json::string(message),
+  })
+}
+
+pub fn parse_error_json(error : @api.ParseError) -> String {
+  let code = match error {
+    @api.ParseError::UnknownProfile(_) => "DORIS-SCHEMA-003"
+    @api.ParseError::UnknownMode(_) => "DORIS-SCHEMA-004"
+    @api.ParseError::ProfileMetadataMismatch(..) => "DORIS-SCHEMA-005"
+    @api.ParseError::UnsupportedFeatureIntroduction(_) => "DORIS-SCHEMA-006"
+    @api.ParseError::InputTooLarge(..) => "DORIS-PARSE-001"
+    @api.ParseError::InvalidLimit(..) => "DORIS-PARSE-002"
+    @api.ParseError::InvalidSyntaxTree => "DORIS-PARSE-003"
+  }
+  let message = match error {
+    @api.ParseError::UnknownProfile(profile_id~) => "unsupported Doris profile: \{profile_id}"
+    @api.ParseError::UnknownMode(mode_id~) => "unsupported parse mode: \{mode_id}"
+    @api.ParseError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~) => {
+      "profile metadata mismatch for \{profile_id}: expected release \{expected_release}/\{expected_feature_introduction}, got \{actual_release}/\{actual_feature_introduction}"
+    }
+    @api.ParseError::UnsupportedFeatureIntroduction(feature_introduction~) => "unsupported feature introduction: \{feature_introduction}"
+    @api.ParseError::InputTooLarge(requested_bytes~, max_bytes~) => "input too large: \{requested_bytes} bytes (limit \{max_bytes})"
+    @api.ParseError::InvalidLimit(limit_name~, value~) => "invalid parser limit \{limit_name}: \{value}"
+    @api.ParseError::InvalidSyntaxTree => "parser produced an invalid syntax tree"
+  }
+  error_json(code, message)
+}
+
+pub fn format_error_json(error : @api.FormatError) -> String {
+  let message = match error {
+    @api.FormatError::UnknownKeywordCase(value~) => "unsupported keyword case: \{value}"
+    @api.FormatError::UnknownCommaStyle(value~) => "unsupported comma style: \{value}"
+    @api.FormatError::UnknownNewlineStyle(value~) => "unsupported newline style: \{value}"
+    @api.FormatError::InvalidIndent(value~) => "invalid indent: \{value}"
+    @api.FormatError::InvalidLineWidth(value~) => "invalid line width: \{value}"
+    @api.FormatError::InvalidSyntaxTree => "formatter received an invalid syntax tree"
+  }
+  let code = match error {
+    @api.FormatError::UnknownKeywordCase(_) => "DORIS-FORMAT-002"
+    @api.FormatError::UnknownCommaStyle(_) => "DORIS-FORMAT-003"
+    @api.FormatError::UnknownNewlineStyle(_) => "DORIS-FORMAT-004"
+    @api.FormatError::InvalidIndent(_) => "DORIS-FORMAT-005"
+    @api.FormatError::InvalidLineWidth(_) => "DORIS-FORMAT-006"
+    @api.FormatError::InvalidSyntaxTree => "DORIS-FORMAT-007"
+  }
+  error_json(code, message)
+}
+
+pub fn profile_json(profile : String) -> String {
+  match @api.parse_with_ids(b"", profile, "strict") {
+    Ok(result) => stringify({
+      "schema_version": Json::string("doris.profile.v1"),
+      "profile": Json::string(result.profile),
+      "exact_release": Json::string(result.exact_release),
+      "feature_introduction": Json::string(result.feature_introduction),
+      "source_transport": Json::string(SOURCE_TRANSPORT),
+      "modes": Json::array([Json::string("strict"), Json::string("editor")]),
+    })
+    Err(error) => parse_error_json(error)
+  }
+}
+
+pub fn capabilities_json() -> String {
+  stringify({
+    "schema_version": Json::string("doris.capabilities.v1"),
+    "parse_schema": Json::string(PARSE_SCHEMA_VERSION),
+    "format_schema": Json::string(FORMAT_SCHEMA_VERSION),
+    "source_transport": Json::string(SOURCE_TRANSPORT),
+    "profiles": Json::array([
+      Json::string("2.1"),
+      Json::string("3.x"),
+      Json::string("4.x"),
+    ]),
+    "modes": Json::array([Json::string("strict"), Json::string("editor")]),
+    "targets": Json::array([
+      Json::string("native"),
+      Json::string("js-esm"),
+      Json::string("wasm-linear"),
+    ]),
+    "wasm_gc": Json::boolean(false),
+  })
+}
