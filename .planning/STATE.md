@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: Formatting and Safe Edits
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-08-04T10:57:24.671Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-08-04T11:23:30.291Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 ## Current Position
 
 Phase: 03 (Formatting and Safe Edits) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-08-04 — Phase 03 execution started
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -74,6 +74,7 @@ Progress: [█████████░] 86%
 | Phase 02 P06 | 35 | 2 tasks | 5 files |
 | Phase 03 P01 | 41 | 2 tasks | 11 files |
 | Phase 03 P03-02 | 29 | 3 tasks | 3 files |
+| Phase 03-formatting-and-safe-edits P03 | 63min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Empirical trailing-comma gate (A1/Open Q1): 4.x strict probe accepts a last-item comma only in PROPERTIES and partition-definition lists; those two contexts emit it (D-35-asserted), all others emit none; probe record committed in a test comment
 - [Phase ?]: List flat measure simulates the exact emission rules (pending space / zero-space / no-space-after-'(') so fit decisions are a pure function of the token sequence - idempotence by construction; an input trailing comma at split depth is read as trailing (not an item separator, not measured)
 - [Phase ?]: Comment attachment breaks to the current LINE indent (line_indent), and document-leading comments never force a leading space/break when they are the first output bytes
+- [Phase ?]: Lower keyword case is the ASCII case-fold of the classification-table canonical word; quoted names, strings, comments, and hints pass through unchanged (D-28/D-36)
+- [Phase ?]: The 4.x-industrial corpus row drops the TABLET (1001) clause (parser gap: TABLET only on unaliased table refs, probe-verified) so the manifest's supported status and the D-35 reparse gate hold
+- [Phase ?]: A run-newline comment opening a broken-list item keeps the pending item break (item indent) instead of clobbering it with the stale line_indent - fixes hint placement flip-flop between format passes
 
 ### Pending Todos
 
@@ -151,6 +155,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T10:57:07.761Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-08-04T11:23:30.266Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
