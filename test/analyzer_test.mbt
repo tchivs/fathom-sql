@@ -144,3 +144,82 @@ test "analyzer_statement_diagnostics_stay_ordered_by_source_position" {
   assert_true(stmt0[1].start_byte < stmt1[0].start_byte)
   assert_true(stmt1[0].start_byte < stmt2[0].start_byte)
 }
+
+// ---------------------------------------------------------------------------
+// resolve_table_references over syntax read views with an injected catalog
+// ---------------------------------------------------------------------------
+
+test "analyzer_resolve_table_references_against_injected_catalog" {
+  // All five DML/DDL kinds shipped by 02-01/02-02: Insert, Update, Delete,
+  // Merge (4.x), CreateTable. Catalog holds t, t4, t5; t2 and t3 are absent.
+  let raw = b"INSERT INTO t VALUES (1); UPDATE t2 SET a = 1; DELETE FROM t4 WHERE a = 1; MERGE INTO t5 USING src ON t5.id = src.id WHEN MATCHED THEN UPDATE SET t5.v = src.v; CREATE TABLE t3 (a INT)"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    @token.DorisProfile::V4_X,
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "id", data_type: "INT" }] },
+    { name: "t4", columns: [{ name: "a", data_type: "INT" }] },
+    { name: "t5", columns: [{ name: "id", data_type: "INT" }, { name: "v", data_type: "INT" }] },
+  ])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  assert_eq(resolved, ["t", "t4", "t5"])
+  // t2/t3 are absent: missing tables are simply absent from the result.
+  assert_true(!resolved.contains("t2"))
+  assert_true(!resolved.contains("t3"))
+  // Parsing the same bytes without any catalog yields identical syntax
+  // results — the analyzer consumes, never modifies, and is never required.
+  let parsed_again = @parser.parse_with_limits(
+    source,
+    @token.DorisProfile::V4_X,
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_eq(parsed_again.valid, parsed.valid)
+  assert_eq(parsed_again.diagnostics.length(), parsed.diagnostics.length())
+  assert_eq(parsed_again.root.kind(), parsed.root.kind())
+  assert_eq(parsed_again.root.text_len(), parsed.root.text_len())
+}
+
+test "analyzer_resolve_table_references_empty_catalog_and_no_statements" {
+  // A catalog with no entries resolves nothing.
+  let raw = b"INSERT INTO t VALUES (1); SELECT * FROM t"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    @token.DorisProfile::V4_X,
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  let empty_catalog = @analyzer.StaticCatalog::new([])
+  assert_eq(
+    @analyzer.resolve_table_references(parsed.root, source.bytes(), empty_catalog),
+    [],
+  )
+  // An empty document has no Statement children to resolve.
+  let empty_source = match @source.SourceText::new_with_limit(b"", 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let empty_parsed = @parser.parse_with_limits(
+    empty_source,
+    @token.DorisProfile::V4_X,
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_eq(
+    @analyzer.resolve_table_references(empty_parsed.root, empty_source.bytes(), empty_catalog),
+    [],
+  )
+}
