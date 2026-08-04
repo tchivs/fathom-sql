@@ -1,16 +1,15 @@
 test "framing_requires_content_length_and_crlf" {
-  let header = "Content-Length: 2\r\n\r\n{}"
-  assert_eq(header, "Content-Length: 2\r\n\r\n{}")
-  assert_true(header.contains("Content-Length: "))
-  assert_true(header.contains("\r\n\r\n"))
-  assert_true(header.contains("{}"))
-  assert_eq(header.length(), 23)
+  let header = frame(b"{}")
+  assert_true(header.contains(b"Content-Length: 2\r\n\r\n"))
+  let decoded = match decode_frame(header) {
+    Ok(body) => body
+    Err(_) => panic()
+  }
+  assert_eq(decoded, b"{}")
 }
 
 test "malformed_frame_is_rejected_not_crashed" {
-  let malformed = "Content-Length: nope\r\n\r\n{}"
-  assert_eq(malformed, "Content-Length: nope\r\n\r\n{}")
-  assert_true(malformed.contains("Content-Length: nope"))
-  assert_true(!malformed.contains("Content-Length: 2"))
-  assert_true(malformed.contains("\r\n\r\n"))
+  let malformed = b"Content-Length: nope\r\n\r\n{}"
+  assert_true(decode_frame(malformed) is Err(_))
+  assert_true(decode_frame(b"Content-Length: 999999999\r\n\r\n") is Err(_))
 }
