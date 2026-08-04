@@ -99,9 +99,19 @@ fn context_accepts(context : String, word : Bytes) -> Bool {
   }
 }
 
+fn context_preferred(context : String, word : Bytes) -> Bool {
+  match context {
+    "select" => word_is(word, b"FROM")
+    "from" => word_is(word, b"JOIN")
+    "where" => word_is(word, b"AND")
+    _ => false
+  }
+}
+
 fn prefix_matches(word : Bytes, prefix : Bytes) -> Bool {
   bytes_equal_ci(prefix, word)
 }
+// Candidate ordering is a stable two-pass preference over classification rows.
 
 fn cursor_replacement(source : @source.SourceText, stream : @token.TokenStream, cursor : Int) -> (Int, Bytes) {
   for token in stream.tokens {
@@ -137,24 +147,30 @@ pub fn complete(raw : Bytes, profile_id : String, cursor_byte : Int) -> Result[C
   let (replacement_start, prefix) = cursor_replacement(source, stream, cursor_byte)
   let context = completion_context(source, stream, replacement_start)
   let items : Array[CompletionItem] = []
-  let mut index = 0
-  while index < @token.classification_entry_count() && items.length() < MAX_CANDIDATES {
-    let entry = match @token.classification_entry_at(index) {
-      Some(entry) => entry
-      None => break
+  let mut priority = 0
+  while priority < 2 && items.length() < MAX_CANDIDATES {
+    let mut index = 0
+    while index < @token.classification_entry_count() && items.length() < MAX_CANDIDATES {
+      let entry = match @token.classification_entry_at(index) {
+        Some(entry) => entry
+        None => break
+      }
+      let preferred = context_preferred(context, entry.word)
+      let in_priority = (priority == 0 && preferred) || (priority == 1 && !preferred)
+      if in_priority && profile_allows(profile, entry.introduced_profile) && context_accepts(context, entry.word) &&
+        prefix_matches(entry.word, prefix) {
+        let label = @utf8.decode_lossy(entry.word)
+        items.push({
+          label: label,
+          detail: "Doris syntax keyword",
+          start_byte: replacement_start,
+          end_byte: cursor_byte,
+          new_text: label,
+        })
+      }
+      index = index + 1
     }
-    if profile_allows(profile, entry.introduced_profile) && context_accepts(context, entry.word) &&
-      prefix_matches(entry.word, prefix) {
-      let label = @utf8.decode_lossy(entry.word)
-      items.push({
-        label: label,
-        detail: "Doris syntax keyword",
-        start_byte: replacement_start,
-        end_byte: cursor_byte,
-        new_text: label,
-      })
-    }
-    index = index + 1
+    priority = priority + 1
   }
   Ok({ is_incomplete: false, items: items })
 }
