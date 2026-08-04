@@ -269,3 +269,13 @@ The shared serialized schema and coordinate policy are ready for later JS/Wasm w
 - **Files modified:** `lsp/framing.mbt`
 - **Verification:** Validation commands intentionally skipped per parent instruction.
 - **Commit:** Atomic follow-up correction commit containing this summary update.
+
+### Wave 1 malformed-frame protocol correction
+
+**6. [Rule 1 - Bug] Removed double-framing from malformed LSP responses**
+- **Found during:** Wave 1 framed LSP smoke review
+- **Issue:** `main.mbt` passed `frame(error_response(...))` to `write_frame`, which frames bodies again and made the outer frame body invalid JSON-RPC.
+- **Fix:** Passed `error_response(...)` directly to `write_frame` in both malformed JSON and malformed `Content-Length` branches; added a regression assertion that the resulting outer frame decodes to one JSON-RPC error body.
+- **Files modified:** `lsp/main.mbt`, `lsp/framing_test.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction.
+- **Commit:** `87a3a50` (atomic malformed-frame correction)
