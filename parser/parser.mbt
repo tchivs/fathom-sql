@@ -1899,7 +1899,15 @@ fn parse_create(
       add_diagnostic(state, "DORIS-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
       valid = false
     }
-    None => ()
+    // WR-01: a bare CREATE / CREATE TEMPORARY / CREATE EXTERNAL at EOF must
+    // not pass the valid gate silently — every other statement family reports
+    // the incomplete-statement diagnostic (DORIS-PARSE-002) and finish_statement
+    // pushes the Missing node because valid is false.
+    None => {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
+      valid = false
+    }
   }
   valid
 }
