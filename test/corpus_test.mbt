@@ -96,6 +96,35 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // dml-delete: 2.1/3.x record the predicate form; the 4.x fixture carries
+  // both documented forms (PARTITION/PARTITIONS, ORDER BY, LIMIT).
+  {
+    fixture_id: "2.1-delete",
+    profile: "2.1",
+    exact_release: "2.1",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released",
+    raw: b"DELETE FROM t WHERE id = 1;\nDELETE FROM t WHERE id IN (1, 2, 3) AND name = 'a';\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "3.x-delete",
+    profile: "3.x",
+    exact_release: "3.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
+    raw: b"DELETE FROM t WHERE id = 1;\nDELETE FROM t WHERE id IN (1, 2, 3) AND name = 'a';\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "4.x-delete",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"DELETE FROM t WHERE id = 1;\nDELETE FROM t PARTITION p1 WHERE id = 1 AND name = 'a';\nDELETE FROM t PARTITIONS (p1, p2) WHERE id IN (1, 2, 3);\nDELETE FROM t WHERE id = 1 ORDER BY id LIMIT 10;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {

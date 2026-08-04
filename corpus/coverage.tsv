@@ -19,4 +19,7 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 2.1	dml-update	1	1	0	pinned revision unavailable offline	core UPDATE SET/FROM/WHERE forms recorded; ORDER BY/LIMIT is a 4.x-verified clause and stays out of the 2.1 fixture
 3.x	dml-update	1	1	0	pinned revision unavailable offline	core UPDATE SET/FROM/WHERE forms recorded; ORDER BY/LIMIT stays out of the 3.x fixture
 4.x	dml-update	1	1	0	pinned revision unavailable offline	UPDATE with DEFAULT assignments, FROM join, ORDER BY NULLS, and LIMIT per the 4.x grammar
+2.1	dml-delete	1	1	0	pinned revision unavailable offline	core predicate-form DELETE recorded; PARTITION/ORDER BY/LIMIT variants stay out of the 2.1 fixture
+3.x	dml-delete	1	1	0	pinned revision unavailable offline	core predicate-form DELETE recorded; PARTITION/ORDER BY/LIMIT variants stay out of the 3.x fixture
+4.x	dml-delete	1	1	0	pinned revision unavailable offline	DELETE both documented forms incl. PARTITION/PARTITIONS and ORDER BY/LIMIT per the 4.x grammar
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed
