@@ -1,15 +1,15 @@
 profile	category	fixture_count	supported_count	expected_error_count	known_gap	coverage_note
 2.1	industrial-select	1	1	0	pinned revision unavailable offline	SELECT hints, projection modifiers, table refs, joins, predicates, grouping, ordering, limit, UNION covered
-2.1	core-04-boundary	3	2	1	pinned revision unavailable offline	empty and single-element clause boundaries plus one set-operation chain
+2.1	core-04-boundary	2	1	1	pinned revision unavailable offline	empty and single-element clause boundaries (count corrected to match manifest rows during the 02-04 generator invariant pass)
 2.1	contextual-keyword	1	1	0	pinned revision unavailable offline	quoted contextual identifiers covered; unquoted reserved-word matrix remains a known gap
 2.1	malformed-and-encoding	1	0	1	invalid bytes are inline	strict/editor diagnostic and exact replay covered
 3.x	industrial-select	1	1	0	pinned revision unavailable offline	CTE, window frame, QUALIFY, grouping sets, joins, predicates, ORDER/LIMIT covered
 3.x	core-04-boundary	2	2	0	pinned revision unavailable offline	one and many set-operation chains covered; empty grouping-list semantics remain a known gap
 3.x	malformed-and-encoding	1	0	1	pinned revision unavailable offline	bounded editor recovery covered; invalid-byte replay is inline
-3.x	version-gate	1	0	1	no public fallback	3.x QUALIFY selected under 2.1 emits DORIS-PARSE-006
+2.1	version-gate	1	0	1	no public fallback	3.x QUALIFY selected under 2.1 emits DORIS-PARSE-006 (row migrated from 3.x to match the manifest row's selected profile; generator one-fixture-one-row invariant)
 4.x	industrial-select	1	1	0	pinned revision unavailable offline	Doris hint, subquery, TABLET, CUBE, window, OUTFILE and set chains covered
 4.x	core-04-boundary	1	1	0	pinned revision unavailable offline	two-element set chain covered; empty/single clause probes are inline tests
-4.x	malformed-and-encoding	2	0	2	invalid bytes are inline	missing projection expression and invalid encoding preserve source bytes
+4.x	malformed-and-encoding	3	0	3	invalid bytes are inline	missing projection expression and invalid encoding preserve source bytes; DML/DDL malformed-recovery fixture (02-04) aggregates into this row
 2.1	dml-insert-values	1	1	0	pinned revision unavailable offline	INSERT INTO ... VALUES core, column list, DEFAULT, and multi-row forms verified from the 2.1 INSERT page examples (prompts/output blocks excluded)
 3.x	dml-insert-values	1	1	0	pinned revision unavailable offline	INSERT VALUES forms verified in the 3.x released docs tree
 4.x	dml-insert-values	1	1	0	pinned revision unavailable offline	INSERT VALUES forms plus the STREAMING hint variant per the 4.x INSERT grammar
@@ -39,5 +39,4 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 4.x	ddl-create-table-like	1	1	0	pinned revision unavailable offline	LIKE variant incl. WITH ROLLUP per the 4.x CREATE TABLE page (variant syntax also appears on 2.1/3.x pages; row registered at 4.x)
 4.x	ddl-create-materialized-view	1	1	0	pinned revision unavailable offline	A2 closed: sync restricted body plus the async BUILD/REFRESH family (documented identically in 2.1/3.x/4.x async-MV pages; rows registered at 4.x)
 4.x	script-multi-statement	1	1	0	pinned revision unavailable offline	multi-statement document parses each statement with monotonic ids (DORIS-03); invalid-statement variant asserted by corpus_test
-4.x	malformed-recovery	1	0	1	pinned revision unavailable offline	editor-mode recovery goldens: bounded recovery, byte-exact replay, DORIS-PARSE diagnostics
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed
