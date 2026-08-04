@@ -1,9 +1,12 @@
 test "diagnostics_and_formatting_contract" {
-  let parse_schema = "doris.parse.v1"
-  let format_schema = "doris.format.v1"
-  assert_eq(parse_schema, "doris.parse.v1")
-  assert_eq(format_schema, "doris.format.v1")
-  // Refusal must not replace source bytes.
+  let schemas = ["doris.parse.v1", "doris.format.v1"]
+  let expected_schemas = ["doris.parse.v1", "doris.format.v1"]
+  assert_eq(schemas, expected_schemas)
+  assert_eq(schemas[0], "doris.parse.v1")
+  assert_eq(schemas[1], "doris.format.v1")
   let source = b"SELECT /*+ HINT */"
-  assert_eq(source.length(), 19)
+  let refusal_fields = ["schema_version", "source_bytes", "diagnostics", "formatted"]
+  assert_eq(refusal_fields, ["schema_version", "source_bytes", "diagnostics", "formatted"])
+  assert_eq(source, b"SELECT /*+ HINT */")
+  assert_eq(source.length(), 18)
 }

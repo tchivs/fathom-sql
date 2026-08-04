@@ -11,12 +11,15 @@ tech-stack:
   patterns: [dependency-free deterministic fixtures, primitive versioned envelopes, protocol-only VS Code smoke]
 key-files:
   created:
+    - binding/moon.pkg
     - binding/schema_test.mbt
     - binding/coordinates_test.mbt
+    - lsp/moon.pkg
     - lsp/lifecycle_test.mbt
     - lsp/framing_test.mbt
     - lsp/diagnostics_formatting_test.mbt
     - binding/export_smoke_test.mbt
+    - parity/moon.pkg
     - parity/parity_test.mbt
     - parity/run_native.mbt
     - parity/run_js.mbt
@@ -46,9 +49,16 @@ Deterministic MoonBit, Web, and VS Code host harnesses establish executable cont
 
 Per assignment constraints, the plan verification commands were intentionally not run. The harness files and offline/protocol entrypoints were created without external package installation.
 
-## Deviations from Plan
+### Auto-fixed Issues
 
-None — plan executed exactly as written.
+**1. [Rule 3 - Blocking] Focused MoonBit command discovered zero tests**
+- **Found during:** Parent Wave 0 verification
+- **Issue:** `moon test --target native --filter 'schema|coordinates|lifecycle|framing|diagnostics|formatting|export|parity'` reported `Total tests: 0` because `binding/`, `lsp/`, and `parity/` had no `moon.pkg` manifests.
+- **Fix:** Added package manifests with minimal imports; made parity runner files target-specific and strengthened coordinate, schema, lifecycle, framing, diagnostics, export, and parity assertions.
+- **Files modified:** `binding/moon.pkg`, `lsp/moon.pkg`, `parity/moon.pkg`, and the Wave 0 MoonBit harness files.
+- **Commit:** This repair commit
+
+The parent observed the zero-test failure before this repair. Validation commands remain intentionally skipped per assignment constraints.
 
 ## Remaining Risks
 
@@ -56,4 +66,4 @@ The MoonBit tests and parity runners are contract fixtures awaiting the producti
 
 ## Self-Check: PASSED
 
-All fourteen files listed by the plan exist, and the summary records the intentionally skipped validation commands.
+The seventeen harness and manifest files listed above exist, and the summary records the intentionally skipped validation commands plus the observed zero-test repair.

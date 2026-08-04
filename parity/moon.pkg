@@ -1,0 +1,9 @@
+pkgtype(kind: "executable")
+
+options(
+  targets: {
+    "run_native.mbt": ["native"],
+    "run_js.mbt": ["js"],
+    "run_wasm.mbt": ["wasm"],
+  },
+)
