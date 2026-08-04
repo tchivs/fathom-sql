@@ -67,6 +67,35 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // dml-update: 2.1/3.x record the core SET/alias/WHERE forms; the 4.x
+  // fixture carries the full grammar (DEFAULT, FROM join, ORDER BY, LIMIT).
+  {
+    fixture_id: "2.1-update",
+    profile: "2.1",
+    exact_release: "2.1",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released",
+    raw: b"UPDATE t1 SET c1 = 1 WHERE id = 1;\nUPDATE t1 SET c1 = 1, c2 = 2 WHERE id = 1 AND name = 'a';\nUPDATE t1 alias SET c1 = 1;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "3.x-update",
+    profile: "3.x",
+    exact_release: "3.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
+    raw: b"UPDATE t1 SET c1 = 1 WHERE id = 1;\nUPDATE t1 SET c1 = 1, c2 = 2 WHERE id = 1 AND name = 'a';\nUPDATE t1 alias SET c1 = 1;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "4.x-update",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"UPDATE t1 SET c1 = 1 WHERE id = 1;\nUPDATE t1 SET c1 = 1, c2 = DEFAULT WHERE id = 1;\nUPDATE t1 SET t1.c1 = t2.c1 FROM t2 INNER JOIN t3 ON t2.id = t3.id WHERE t1.id = t2.id;\nUPDATE t1 SET c1 = c1 + 1 ORDER BY c1 DESC NULLS LAST LIMIT 10;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {

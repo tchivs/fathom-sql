@@ -16,4 +16,7 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 2.1	dml-insert-select	1	1	0	pinned revision unavailable offline	INSERT ... SELECT, column list, and PARTITION/WITH LABEL query forms per the 2.1 INSERT page examples 3-4
 3.x	dml-insert-select	1	1	0	pinned revision unavailable offline	INSERT ... SELECT forms verified in the 3.x released docs tree
 4.x	dml-insert-select	1	1	0	pinned revision unavailable offline	INSERT ... SELECT incl. qualified db.table target per the 4.x INSERT grammar
+2.1	dml-update	1	1	0	pinned revision unavailable offline	core UPDATE SET/FROM/WHERE forms recorded; ORDER BY/LIMIT is a 4.x-verified clause and stays out of the 2.1 fixture
+3.x	dml-update	1	1	0	pinned revision unavailable offline	core UPDATE SET/FROM/WHERE forms recorded; ORDER BY/LIMIT stays out of the 3.x fixture
+4.x	dml-update	1	1	0	pinned revision unavailable offline	UPDATE with DEFAULT assignments, FROM join, ORDER BY NULLS, and LIMIT per the 4.x grammar
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed
