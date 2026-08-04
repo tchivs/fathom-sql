@@ -18,9 +18,16 @@ pub(all) enum NewlineStyle {
   Crlf
 } derive(Eq, @debug.Debug)
 
+/// Maximum accepted indent width (WR-02). A sane cap so a typo like
+/// `--indent 5000000` fails construction (InvalidIndent) instead of
+/// materializing `indent * break_indent` leading spaces per broken line —
+/// multi-gigabyte output / OOM. Realistic indents (2-8) are far below it.
+pub const MAX_INDENT : Int = 64
+
 /// Six locked fields (D-26). Construction validates (ASVS V5) mirroring
-/// ParseError::InvalidLimit (api.mbt:57-58): negative indent and non-positive
-/// line width fail construction and never reach layout.
+/// ParseError::InvalidLimit (api.mbt:57-58): negative or over-cap (above
+/// MAX_INDENT) indent and non-positive line width fail construction and
+/// never reach layout.
 pub struct FormatOptions {
   keyword_case : KeywordCase
   indent : Int
@@ -51,7 +58,7 @@ pub fn FormatOptions::new(
   newline_style : NewlineStyle,
   trailing_newline : Bool,
 ) -> Result[FormatOptions, FormatError] {
-  if indent < 0 {
+  if indent < 0 || indent > MAX_INDENT {
     return Err(InvalidIndent(value=indent))
   }
   if line_width <= 0 {

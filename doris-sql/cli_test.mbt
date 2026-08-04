@@ -141,6 +141,23 @@ test "cli_bad_option_values_exit_2_via_run_format" {
   let indent_outcome = run_format(bad_indent, b"select 1")
   assert_eq(indent_outcome.exit_code, 2)
   assert_true(indent_outcome.stderr.to_string().contains("--indent"))
+
+  // WR-02: over-cap indent (above the 0..64 documented range) also fails
+  // construction -> exit 2. Pre-fix, --indent 5000000 was accepted and
+  // materialized ~131 MB for a 10-item broken select list (OOM class).
+  let huge_indent : Command = {
+    profile: "4.x",
+    keyword_case: None,
+    indent: Some(5000000),
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+  }
+  let huge_outcome = run_format(huge_indent, b"select 1")
+  assert_eq(huge_outcome.exit_code, 2)
+  assert_true(huge_outcome.stderr.to_string().contains("--indent"))
 }
 
 test "cli_crlf_preserved_byte_for_byte" {

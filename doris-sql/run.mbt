@@ -61,7 +61,8 @@ pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   ) {
     Ok(options) => options
     Err(@api.FormatError::InvalidIndent(value~)) => {
-      return usage_error("invalid --indent value: \{value} (expected a non-negative integer)")
+      // Cap mirrors @formatter.MAX_INDENT (formatter/options.mbt) — WR-02.
+      return usage_error("invalid --indent value: \{value} (expected 0..64)")
     }
     Err(@api.FormatError::InvalidLineWidth(value~)) => {
       return usage_error("invalid --line-width value: \{value} (expected a positive integer)")
@@ -140,7 +141,7 @@ pub fn render_diagnostics(diagnostics : Array[@api.FormatDiagnostic]) -> Bytes {
 
 /// --help text (printed to stdout, exit 0).
 pub fn usage_text() -> String {
-  "usage: doris-sql format --profile <2.1|3.x|4.x> [--keyword-case upper|lower] [--indent N] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline] [--help] [file|-]\n"
+  "usage: doris-sql format --profile <2.1|3.x|4.x> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline] [--help] [file|-]\n"
 }
 
 /// Usage-error message for exit 2 (stderr only, no SQL output).

@@ -159,6 +159,28 @@ test "formatter_options_default_and_validation" {
     true,
   )
   assert_true(bad_indent is Err(@formatter.FormatError::InvalidIndent(value=-1)))
+  // WR-02: indent is capped (MAX_INDENT = 64) so a typo like --indent
+  // 5000000 fails construction instead of materializing gigabytes of
+  // leading spaces per broken line.
+  let over_cap_indent = @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    65,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  )
+  assert_true(over_cap_indent is Err(@formatter.FormatError::InvalidIndent(value=65)))
+  // The cap itself remains a valid indent.
+  let cap_indent = @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    64,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  )
+  assert_true(cap_indent is Ok(_))
   let bad_width = @formatter.FormatOptions::new(
     @formatter.KeywordCase::Upper,
     2,
