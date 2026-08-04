@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: Doris Completeness and Corpus
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-08-04T04:48:17.781Z"
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-08-04T05:13:47.389Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 ## Current Position
 
 Phase: 02 (Doris Completeness and Corpus) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-08-04 — Phase 02 execution started
 
-Progress: [███████░░░] 70%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Progress: [███████░░░] 70%
 | Phase 02 P02-01 | 9 | 3 tasks | 7 files |
 | Phase 02 P02-02 | 9 | 3 tasks | 6 files |
 | Phase 02 P03 | 11 | 3 tasks | 5 files |
+| Phase 02 P02-05 | 15 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,10 @@ Recent decisions affecting current work:
 - [Phase ?]: DISTRIBUTED/OVERWRITE classified Reserved per official-list authority (D-13) despite the plan text's loose non-reserved parenthetical
 - [Phase ?]: MERGE is Reserved with introduced_profile 4.x per D-09; word-level introduced_profile is audit metadata - only DorisFeature gates reject version-invalid syntax
 - [Phase ?]: VIEW classified NonReserved (absent from the official reserved list per D-13 authority)
+- [Phase ?]: D-21 add-alongside: analyzer/ is an independent library importing only fathom/doris-sql/syntax; parser core import list unchanged and enforced by a negative gate
+- [Phase ?]: D-22 minimal catalog: ColumnInfo/TableInfo records, open Catalog trait, StaticCatalog with case-sensitive keys (documented), last-wins on duplicates
+- [Phase ?]: D-23 statement entry: ParseResult::statement(statement_id) returns the id-th Statement node; statement_diagnostics filters by statement_id preserving source order
+- [Phase ?]: D-24 scope: analyzer ships interface + docs + minimal implementation; full ANAL-01 name resolution and type diagnostics are v2
 
 ### Pending Todos
 
@@ -124,6 +129,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T04:48:17.760Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-08-04T05:13:47.363Z
+Stopped at: Completed 02-05-PLAN.md
 Resume file: None

@@ -33,7 +33,7 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 
 ### Analysis Boundary
 
-- [ ] **ANLY-01**: Consumer can perform syntax parsing and diagnostics without catalog metadata, while an optional analyzer interface can accept catalog table/column metadata without coupling the parser to FE execution semantics.
+- [x] **ANLY-01**: Consumer can perform syntax parsing and diagnostics without catalog metadata, while an optional analyzer interface can accept catalog table/column metadata without coupling the parser to FE execution semantics.
 
 ### Formatting and Safe Edits
 
@@ -97,7 +97,7 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | CORP-02 | Phase 2: Doris Completeness and Corpus | Pending |
 | CORP-03 | Phase 2: Doris Completeness and Corpus | Pending |
 | CORP-04 | Phase 2: Doris Completeness and Corpus | Pending |
-| ANLY-01 | Phase 2: Doris Completeness and Corpus | Pending |
+| ANLY-01 | Phase 2: Doris Completeness and Corpus | Complete |
 | FMT-01 | Phase 3: Formatting and Safe Edits | Pending |
 | FMT-02 | Phase 3: Formatting and Safe Edits | Pending |
 | FMT-03 | Phase 3: Formatting and Safe Edits | Pending |
