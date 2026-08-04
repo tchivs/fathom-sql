@@ -1,74 +1,75 @@
 <!-- GSD:generated -->
-# 开发指南
+English | [简体中文](zh-CN/DEVELOPMENT.md)
+# Development Guide
 
-本指南说明如何在本地开发 Fathom、运行 MoonBit 检查和测试，以及维护按 Doris 版本组织的 SQL 语料。Fathom 由 MoonBit library packages 和 `doris-sql/` native CLI 适配器组成；仓库没有部署服务，Python 工具只用于语料校验和可选的差异分析。
+This guide explains how to develop Fathom locally, run MoonBit checks and tests, and maintain SQL corpus data organized by Doris version. Fathom consists of MoonBit library packages and the `doris-sql/` native CLI adapter; the repository has no deployment service, and the Python tools are used only for corpus validation and optional differential analysis.
 
-## 本地开发设置
+## Local Development Setup
 
-### 前置条件
+### Prerequisites
 
-- MoonBit CLI。`moon.mod` 将默认目标设为 `native`，并记录当前项目使用的 CLI 输出为 `moon 0.1.20260724 (5f1406a 2026-07-24)`。项目注释按官方 MoonBit v0.10.5 文档线维护，但实际使用时应以本机 `moon version` 输出和项目维护者指定的版本为准。
-- Python 3。仅在运行 `corpus/tools/` 下的 Python 校验器或差异工具时需要；当前开发环境验证为 Python 3.9.23。
-- 可选：Python 虚拟环境。只有运行 SQLGlot 差异工具时才需要安装 `corpus/requirements.txt` 中锁定的开发依赖；SQLGlot 不进入 MoonBit 运行时依赖图。
-- Git。用于获取源码和提交变更。
+- MoonBit CLI. `moon.mod` sets the default target to `native` and records the CLI output currently used by the project as `moon 0.1.20260724 (5f1406a 2026-07-24)`. Project comments follow the official MoonBit v0.10.5 documentation line, but in practice use the output of the local `moon version` and the version specified by the project maintainers.
+- Python 3. Required only when running the Python validators or differential tools under `corpus/tools/`; the current development environment has been verified as Python 3.9.23.
+- Optional: Python virtual environment. The locked development dependencies in `corpus/requirements.txt` need to be installed only when running the SQLGlot differential tool; SQLGlot is not part of the MoonBit runtime dependency graph.
+- Git. Used to obtain the source code and commit changes.
 
-### 获取源码
+### Obtaining the Source
 
-仓库当前没有记录 Git remote，因此无法从仓库内容确认 canonical clone URL。<!-- VERIFY: 请从项目托管页面取得实际远程 URL。 -->
+The repository currently has no recorded Git remote, so its canonical clone URL cannot be confirmed from repository contents. <!-- VERIFY: Obtain the actual remote URL from the project hosting page. -->
 
 ```bash
 git clone <repository-url>
 cd Fathom
 ```
 
-如果已经在工作区中，直接进入项目根目录即可：
+If you are already in the workspace, go directly to the project root:
 
 ```bash
 cd /opt/source/Fathom
 ```
 
-### 安装与首次检查
+### Installation and First Check
 
-MoonBit 依赖由 `moon.mod` 和各包目录的 `moon.pkg` 声明；当前清单没有需要额外安装的 MoonBit 包。安装与开发检查步骤如下：
+MoonBit dependencies are declared by `moon.mod` and the `moon.pkg` files in the package directories; the current manifest has no additional MoonBit packages that need to be installed. The installation and development check steps are:
 
 ```bash
 moon version
 moon check
 ```
 
-`moon check` 会检查根模块及其库包，但不生成对象文件。构建产物写入 `_build/`，该目录已被 `.gitignore` 忽略。
+`moon check` checks the root module and its library packages but does not generate object files. Build artifacts are written to `_build/`, which is ignored by `.gitignore`.
 
-### 开发环境配置
+### Development Environment Configuration
 
-项目没有 `.env` 文件、环境变量读取或按环境的配置加载器。解析配置在调用点通过 `api.ParseOptions`、`api.ParseLimits` 和 `formatter.FormatOptions` 显式传入；无需复制 `.env.example` 或设置服务端口。需要修改模块身份、版本或默认目标时编辑 `moon.mod`；需要调整包依赖时编辑对应目录的 `moon.pkg`。
+The project has no `.env` file, environment-variable reads, or environment-specific configuration loader. Parser configuration is passed explicitly at call sites through `api.ParseOptions`, `api.ParseLimits`, and `formatter.FormatOptions`; there is no need to copy `.env.example` or set a service port. Edit `moon.mod` to change the module identity, version, or default target; edit the `moon.pkg` in the corresponding directory to adjust package dependencies.
 
-公共库开发通常从 `api/` 门面开始；底层实现按 `source → token → lexer → parser → syntax` 的依赖方向组织。格式化功能位于 `formatter/`，原样重放位于 `printer/`，可选的 catalog 名字解析位于 `analyzer/`。新增语法时，应同时考虑相应的 profile、CST 节点、诊断、恢复行为和 `test/` 中的回归用例。
+Public-library development normally starts at the `api/` facade; the lower-level implementation is organized along the `source → token → lexer → parser → syntax` dependency direction. Formatting is located in `formatter/`, lossless replay in `printer/`, and optional catalog name resolution in `analyzer/`. When adding syntax, consider the corresponding profile, CST nodes, diagnostics, recovery behavior, and regression cases in `test/` together.
 
-## 构建与开发命令
+## Build and Development Commands
 
-仓库没有 `package.json` 的 `scripts` 字段，也没有 Makefile；下面的命令是由当前 MoonBit 工具链和仓库中的 Python 工具直接提供的命令。
+The repository has no `scripts` field in `package.json` and no Makefile; the commands below are provided directly by the current MoonBit toolchain and the Python tools in the repository.
 
-| 命令 | 说明 |
+| Command | Description |
 |---|---|
-| `moon version` | 输出当前 MoonBit CLI 版本；提交或排查构建差异时先记录该输出。 |
-| `moon check` | 检查当前模块，不生成对象文件。用于快速反馈类型、导入和包清单问题。 |
-| `moon check --fmt` | 在检查模块的同时验证 MoonBit 源文件格式。 |
-| `moon build` | 按 `moon.mod` 的默认 `native` 目标构建当前模块。 |
-| `moon build --target native --release` | 以 Native release 模式构建库包和 `doris-sql` executable package。 |
-| `moon build --target js` | 显式检查 JavaScript 后端兼容性。 |
-| `moon build --target wasm` | 显式检查线性 WebAssembly 后端兼容性。 |
-| `moon build --target wasm-gc` | 在工具链支持时检查 Wasm GC 后端；它不是当前默认目标。 |
-| `moon test` | 运行 `test/` 中的 MoonBit 行为测试以及各库包测试。 |
-| `moon test --filter '名称模式'` | 只运行匹配名称的测试；适合定位单个回归行为。 |
-| `moon test --package <package>` | 只运行指定 MoonBit 包的测试。 |
-| `moon test --update` | 按 MoonBit 的快照测试机制更新快照；更新前必须确认变更是预期的。 |
-| `moon fmt` | 使用 MoonBit 内置 formatter 格式化源文件。 |
-| `moon fmt --check` | 只检查格式，不修改文件。 |
-| `moon clean` | 清理本地 `_build/` 构建输出；不会修改源码或语料。 |
-| `python3 corpus/tools/generate_corpus_report.py --check` | 检查 `manifest.tsv`、`coverage.tsv`、`keywords.tsv` 与提交的 `CORPUS-REPORT.md` 是否一致。 |
-| `python3 corpus/tools/check_keywords.py corpus/keywords.tsv` | 校验关键词 TSV 的表头、分类、profile、来源 URL、重复项和生产关键词覆盖。 |
+| `moon version` | Prints the current MoonBit CLI version; record this output first when committing or investigating build differences. |
+| `moon check` | Checks the current module without generating object files. Provides quick feedback on type, import, and package-manifest issues. |
+| `moon check --fmt` | Checks MoonBit source formatting while checking the module. |
+| `moon build` | Builds the current module using the default `native` target from `moon.mod`. |
+| `moon build --target native --release` | Builds the library packages and the `doris-sql` executable package in Native release mode. |
+| `moon build --target js` | Explicitly checks compatibility with the JavaScript backend. |
+| `moon build --target wasm` | Explicitly checks compatibility with the linear WebAssembly backend. |
+| `moon build --target wasm-gc` | Checks the Wasm GC backend when supported by the toolchain; it is not the current default target. |
+| `moon test` | Runs MoonBit behavior tests in `test/` and tests for each library package. |
+| `moon test --filter 'name-pattern'` | Runs only tests whose names match the pattern; useful for isolating a single regression behavior. |
+| `moon test --package <package>` | Runs tests only for the specified MoonBit package. |
+| `moon test --update` | Updates snapshots using MoonBit's snapshot-testing mechanism; confirm that the changes are expected before updating. |
+| `moon fmt` | Formats source files with MoonBit's built-in formatter. |
+| `moon fmt --check` | Checks formatting only; does not modify files. |
+| `moon clean` | Removes local `_build/` build output; does not modify source code or corpus data. |
+| `python3 corpus/tools/generate_corpus_report.py --check` | Checks that `manifest.tsv`, `coverage.tsv`, and `keywords.tsv` are consistent with the committed `CORPUS-REPORT.md`. |
+| `python3 corpus/tools/check_keywords.py corpus/keywords.tsv` | Validates the keyword TSV header, categories, profiles, source URLs, duplicates, and production-keyword coverage. |
 
-完成语法或格式化改动后，建议至少依次运行：
+After completing a syntax or formatting change, it is recommended to run at least the following in order:
 
 ```bash
 moon fmt --check
@@ -78,11 +79,11 @@ python3 corpus/tools/generate_corpus_report.py --check
 python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 ```
 
-如果改动只涉及 MoonBit 包，语料 Python 校验仍可作为提交前的完整一致性检查；如果改动涉及 `corpus/manifest.tsv`、`corpus/coverage.tsv` 或 `corpus/keywords.tsv`，则必须运行对应的校验命令。
+If the change affects only MoonBit packages, the corpus Python checks can still serve as a complete pre-commit consistency check; if the change affects `corpus/manifest.tsv`, `corpus/coverage.tsv`, or `corpus/keywords.tsv`, the corresponding validation command must be run.
 
-### 可选 SQLGlot 差异工具
+### Optional SQLGlot Differential Tool
 
-差异工具是开发辅助，不是 Fathom 的运行时依赖。首次使用时在项目根目录创建虚拟环境并安装锁定版本：
+The differential tool is a development aid, not an Fathom runtime dependency. On first use, create a virtual environment in the project root and install the locked version:
 
 ```bash
 python3 -m venv .venv
@@ -91,62 +92,62 @@ pip install -r corpus/requirements.txt
 python3 corpus/tools/sqlglot_diff.py
 ```
 
-脚本读取 `corpus/manifest.tsv`，使用 Doris 方言解析可落盘的 fixture，并更新 `corpus/differential.tsv`。SQLGlot 或某个 fixture 不可用时，工具记录 `not-run-offline`，不会伪造观察结果；差异结果也不能改变 released-docs manifest 定义的公开支持范围。
+The script reads `corpus/manifest.tsv`, parses fixtures that can be persisted using the Doris dialect, and updates `corpus/differential.tsv`. If SQLGlot or a fixture is unavailable, the tool records `not-run-offline` rather than fabricating an observation; differential results also cannot change the public support scope defined by the released-docs manifest.
 
-## 代码风格
+## Code Style
 
 ### MoonBit
 
-- 使用 MoonBit 内置 formatter；仓库没有发现 `.editorconfig`、ESLint、Prettier、Biome 或其他独立格式配置。
-- 提交前运行 `moon fmt --check`；需要自动修复时运行 `moon fmt`，然后检查生成的差异。
-- 以现有包边界为准：公共跨包 API 放在 `api/`，源码坐标放在 `source/`，词法和 profile 事实放在 `token/`，语法产生式和恢复放在 `parser/`。不要在 formatter 中复制第二套关键字分类表，应复用 `token` 的分类。
-- 保持源码保真不变量：节点引用 `Span` 而不是复制源文本；`printer` 的无损输出必须保持原始字节；格式化器遇到 `error`、`missing` 或 `skipped` 材料时必须遵守拒绝输出契约。
-- 新增公共类型或函数时，遵循现有的 `pub(all)`、构造器和访问器风格，并补充稳定的 profile、诊断、字节范围和错误恢复测试。
+- Use MoonBit's built-in formatter; no `.editorconfig`, ESLint, Prettier, Biome, or other independent formatting configuration was found in the repository.
+- Run `moon fmt --check` before committing; when automatic fixes are needed, run `moon fmt` and then inspect the generated diff.
+- Follow the existing package boundaries: public cross-package APIs belong in `api/`, source coordinates in `source/`, lexical and profile facts in `token/`, and grammar productions and recovery in `parser/`. Do not copy a second keyword-classification table into `formatter`; reuse the classification from `token`.
+- Preserve the source-fidelity invariant: nodes reference `Span` rather than copying source text; lossless output from `printer` must preserve the original bytes; when the formatter encounters `error`, `missing`, or `skipped` material, it must follow the reject-output contract.
+- When adding public types or functions, follow the existing `pub(all)`, constructor, and accessor style, and add stable profile, diagnostic, byte-range, and error-recovery tests.
 
-### Python 工具
+### Python Tools
 
-`corpus/tools/` 下的脚本使用 Python 标准库（差异工具另依赖锁定的 SQLGlot），仓库没有 Python formatter 或 lint 配置。保持现有脚本的模块级常量、`main(argv)` 返回退出码、`if __name__ == "__main__"` 入口和面向错误的 stderr 输出风格；修改后至少直接运行受影响的脚本。
+Scripts under `corpus/tools/` use the Python standard library (the differential tool additionally depends on the locked SQLGlot version); the repository has no Python formatter or lint configuration. Preserve the existing style of module-level constants, `main(argv)` returning an exit code, the `if __name__ == "__main__"` entry point, and error-oriented stderr output; after changes, run each affected script directly at a minimum.
 
-### 测试风格
+### Test Style
 
-测试位于 `test/`，使用 MoonBit 的 `test "..." { ... }` 形式。文件按行为领域划分，包括 `parser_test.mbt`、`recovery_test.mbt`、`formatter_test.mbt`、`ddl_test.mbt`、`dml_test.mbt`、`analyzer_test.mbt`、`source_test.mbt`、`keyword_test.mbt` 和 `corpus_test.mbt`。测试应断言可观察契约，例如：
+Tests are located in `test/` and use MoonBit's `test "..." { ... }` form. Files are organized by behavior domain, including `parser_test.mbt`, `recovery_test.mbt`, `formatter_test.mbt`, `ddl_test.mbt`, `dml_test.mbt`, `analyzer_test.mbt`, `source_test.mbt`, `keyword_test.mbt`, and `corpus_test.mbt`. Tests should assert observable contracts such as:
 
-- `printer.print_result(result)` 与输入字节完全相等；
-- `valid`、`recovered`、诊断 code、statement id 和 span 边界符合 profile/mode；
-- 格式化输出可重复（`format(format(x)) == format(x)`）且能重新解析；
-- `corpus` manifest 与覆盖报告保持一对一和版本分类一致。
+- `printer.print_result(result)` is exactly equal to the input bytes;
+- `valid`, `recovered`, diagnostic code, statement ID, and span boundaries match the profile/mode;
+- formatted output is repeatable (`format(format(x)) == format(x)`) and can be parsed again;
+- the `corpus` manifest and coverage report remain one-to-one and consistent in their version classification.
 
-不要依赖 `_build/` 中生成的文件，也不要让运行时测试从磁盘 fixture 隐式读取；现有测试将关键 fixture 和 golden 嵌入 MoonBit 源码中。
+Do not depend on generated files in `_build/`, and do not have runtime tests implicitly read fixtures from disk; existing tests embed key fixtures and goldens in MoonBit source code.
 
-## 分支约定
+## Branch Conventions
 
-仓库没有 `CONTRIBUTING.md`、Pull Request 模板或 CI 配置，因此没有已文档化的分支命名规范。当前检出的分支为 `master`，最近提交标题采用了 `feat(...)` 和 `docs(...)` 等 Conventional Commits 风格前缀；这些是当前仓库观察到的实践，不是强制规范。
+The repository has no `CONTRIBUTING.md`, pull request template, or CI configuration, so no branch-naming convention is documented. The currently checked-out branch is `master`, and recent commit titles use Conventional Commits-style prefixes such as `feat(...)` and `docs(...)`; these are practices observed in the current repository, not mandatory conventions.
 
-建议新工作从最新 `master` 创建短生命周期分支，并使用能表达目的的前缀，例如：
+It is recommended to start new work from the latest `master` in a short-lived branch using a purpose-expressing prefix, for example:
 
-- `feat/<scope>`：新增 parser、formatter 或 API 行为；
-- `fix/<scope>`：修复解析、恢复或输出回归；
-- `docs/<scope>`：只修改文档；
-- `test/<scope>`：补充回归测试或 corpus 校验。
+- `feat/<scope>`: add parser, formatter, or API behavior;
+- `fix/<scope>`: fix a parsing, recovery, or output regression;
+- `docs/<scope>`: modify documentation only;
+- `test/<scope>`: add regression tests or corpus validation.
 
-若项目托管平台或维护者另有要求，以其要求为准。
+If the project hosting platform or maintainers specify otherwise, follow their requirements.
 
-## Pull Request 流程
+## Pull Request Process
 
-仓库当前没有项目专用的 PR 模板或 CI 门禁。提交 PR 前，建议按以下清单准备：
+The repository currently has no project-specific PR template or CI gate. Before submitting a PR, prepare it using the following checklist:
 
-1. 从最新 `master` 创建分支，保持每个提交聚焦于一个行为或文档主题；提交标题可沿用现有的 `feat(scope): ...`、`fix(scope): ...` 或 `docs(scope): ...` 格式。
-2. 在 PR 描述中说明变更的 Doris profile（`2.1`、`3.x`、`4.x`）、解析模式（`strict` 或 `editor`）和受影响的包；若变更语法覆盖，注明对应的 corpus fixture 或 released-docs 来源。
-3. 运行 `moon fmt --check`、`moon check` 和受影响的 `moon test`；涉及完整解析行为时运行 `moon test`，涉及 corpus 清单或关键词表时同时运行相应的 Python `--check` 命令。
-4. 对格式化器变更确认无损打印、错误树拒绝、输出幂等性和重新解析行为；对 parser 变更确认诊断字节范围、statement id、profile gate 和 editor 恢复行为。
-5. 在 PR 中列出实际运行的命令及结果，并说明任何未运行的后端、外部差异工具或已知 corpus provenance gap；不要把 SQLGlot/FE 的 advisory 结果写成公开兼容性承诺。
+1. Create a branch from the latest `master`, keep each commit focused on one behavior or documentation topic, and optionally follow the existing `feat(scope): ...`, `fix(scope): ...`, or `docs(scope): ...` title format.
+2. In the PR description, state the affected Doris profile (`2.1`, `3.x`, or `4.x`), parsing mode (`strict` or `editor`), and packages; when syntax coverage changes, identify the corresponding corpus fixture or released-docs source.
+3. Run `moon fmt --check`, `moon check`, and the affected `moon test`; for changes to complete parsing behavior, run `moon test`, and for changes to corpus manifests or keyword tables, also run the corresponding Python `--check` command.
+4. For formatter changes, verify lossless printing, error-tree rejection, output idempotence, and reparsing behavior; for parser changes, verify diagnostic byte ranges, statement IDs, profile gates, and editor recovery behavior.
+5. List the commands actually run and their results in the PR, and disclose any backends, external differential tools, or known corpus provenance gaps that were not run; do not present SQLGlot/FE advisory results as public compatibility commitments.
 
-审查时应重点看跨包依赖方向、源码字节是否被复制或丢失、错误恢复是否突破资源上限、诊断是否稳定，以及测试是否保护真实用户可观察的 API 契约。
+During review, focus especially on cross-package dependency direction, whether source bytes are copied or lost, whether error recovery exceeds resource limits, diagnostic stability, and whether tests protect real user-observable API contracts.
 
-## 相关文档
+## Related Documentation
 
-- [README.md](../README.md)：项目定位、公共 API 示例、包结构和当前验证入口。
-- [ARCHITECTURE.md](ARCHITECTURE.md)：组件关系、数据流、关键抽象和目录职责。
-- [CONFIGURATION.md](CONFIGURATION.md)：`ParseOptions`、资源限制和 `FormatOptions` 的完整配置说明。
-- `corpus/CORPUS-REPORT.md`：按 Doris profile 和类别组织的语料覆盖与已知缺口。
-- `corpus/tools/README.md`：SQLGlot 与 Doris FE/Nereids 差异工具的开发说明。
+- [README.md](../README.md): project positioning, public API examples, package structure, and current verification entry points.
+- [ARCHITECTURE.md](ARCHITECTURE.md): component relationships, data flow, key abstractions, and directory responsibilities.
+- [CONFIGURATION.md](CONFIGURATION.md): complete configuration reference for `ParseOptions`, resource limits, and `FormatOptions`.
+- `corpus/CORPUS-REPORT.md`: corpus coverage and known gaps organized by Doris profile and category.
+- `corpus/tools/README.md`: development notes for the SQLGlot and Doris FE/Nereids differential tools.

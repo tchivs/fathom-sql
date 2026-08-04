@@ -1,11 +1,12 @@
 <!-- GSD:generated -->
-# API 参考
+English | [简体中文](zh-CN/API.md)
+# API Reference
 
-Fathom 是一个 MoonBit 库，不是 HTTP 服务。这里的 `api/` 目录是 `fathom/doris-sql/api` library package，提供 Doris SQL 的解析与格式化 facade；调用方通过函数参数传入源字节、Doris profile、模式和限制，不需要启动服务器、连接 Doris FE 或配置认证凭据。
+Fathom is a MoonBit library, not an HTTP service. The `api/` directory is the `fathom/doris-sql/api` library package, providing a facade for parsing and formatting Doris SQL; callers pass source bytes, a Doris profile, mode, and limits through function parameters, so no server, Doris FE connection, or authentication credentials are required.
 
-## 认证
+## Authentication
 
-不适用。当前仓库没有 HTTP 服务、中间件、API key、JWT、OAuth、session 或 `Authorization` header 处理。所有 API 都是进程内同步函数；调用方只需导入 MoonBit 包并直接传参。
+Not applicable. This repository has no HTTP service, middleware, API key, JWT, OAuth, session, or `Authorization` header handling. All APIs are synchronous in-process functions; callers only need to import the MoonBit package and pass arguments directly.
 
 ```moonbit
 import {
@@ -13,32 +14,32 @@ import {
 }
 ```
 
-解析器也不访问数据库或外部 catalog。名字解析是独立的 `analyzer` 包能力，catalog 由调用方注入，且不会改变 `ParseResult.valid` 或语法诊断。
+The parser also does not access a database or external catalog. Name resolution is provided independently by the `analyzer` package; the caller injects the catalog, and it does not change `ParseResult.valid` or syntax diagnostics.
 
-## Endpoint 概览
+## Endpoints Overview
 
-本项目没有 HTTP endpoint，也没有 HTTP base URL、请求路由或部署服务。下表中的“入口”是库函数，而不是网络 endpoint。
+This project has no HTTP endpoints, HTTP base URL, request routes, or deployment service. The “entry points” in the table below are library functions, not network endpoints.
 
-| 入口 | 所属包 | 用途 | 认证 |
+| Entry point | Package | Purpose | Authentication |
 |---|---|---|---|
-| `parse` | `fathom/doris-sql/api` | 使用已构造的 `ParseOptions` 解析原始 SQL 字节 | 不需要 |
-| `parse_with_ids` | `fathom/doris-sql/api` | 用 profile/mode 字符串快捷构造选项并解析 | 不需要 |
-| `parse_with_metadata` | `fathom/doris-sql/api` | 校验 profile 的 release 与 feature metadata 后解析 | 不需要 |
-| `format_text` | `fathom/doris-sql/api` | 解析并按 `FormatOptions` 格式化 SQL | 不需要 |
-| `format_with_ids` | `fathom/doris-sql/api` | 用 profile/mode 字符串快捷格式化 | 不需要 |
-| `format_with_metadata` | `fathom/doris-sql/api` | 校验 profile metadata 后格式化 | 不需要 |
-| `resolve_table_references` | `fathom/doris-sql/analyzer` | 使用调用方 catalog 解析已支持 DML/DDL 的目标表名 | 不需要 |
+| `parse` | `fathom/doris-sql/api` | Parse raw SQL bytes using an already constructed `ParseOptions` | Not required |
+| `parse_with_ids` | `fathom/doris-sql/api` | Construct options from profile/mode strings and parse | Not required |
+| `parse_with_metadata` | `fathom/doris-sql/api` | Validate the profile’s release and feature metadata, then parse | Not required |
+| `format_text` | `fathom/doris-sql/api` | Parse and format SQL according to `FormatOptions` | Not required |
+| `format_with_ids` | `fathom/doris-sql/api` | Format using profile/mode strings as a shortcut | Not required |
+| `format_with_metadata` | `fathom/doris-sql/api` | Validate profile metadata, then format | Not required |
+| `resolve_table_references` | `fathom/doris-sql/analyzer` | Resolve target table names for supported DML/DDL using the caller’s catalog | Not required |
 
-## 请求与响应格式
+## Request and Response Formats
 
-### 通用输入约定
+### General Input Conventions
 
-- SQL 输入类型是 `Bytes`，不是 `String`。源字节只在结果根部保存一次，节点和诊断通过字节 offset 引用它。
-- `start_byte` 和 `end_byte` 是半开区间 `[start_byte, end_byte)` 的字节偏移，不是 Unicode 字符索引；所有 span 都应落在输入长度内。
-- `profile` 必须明确选择 `"2.1"`、`"3.x"` 或 `"4.x"`；不会静默回退到通用 MySQL 方言。
-- `mode` 必须是 `"strict"` 或 `"editor"`。两种模式共享 CST 与诊断形状；`editor` 可以生成 `missing`、`error`、`skipped` 节点来保留半成品输入。
+- SQL input is `Bytes`, not `String`. Source bytes are stored once at the result root; nodes and diagnostics refer to them through byte offsets.
+- `start_byte` and `end_byte` are byte offsets in the half-open interval `[start_byte, end_byte)`, not Unicode character indexes; every span must fall within the input length.
+- `profile` must explicitly select `"2.1"`, `"3.x"`, or `"4.x"`; there is no silent fallback to a generic MySQL dialect.
+- `mode` must be `"strict"` or `"editor"`. Both modes share the CST and diagnostic shapes; `editor` can generate `missing`, `error`, and `skipped` nodes to preserve incomplete input.
 
-### 解析选项
+### Parse Options
 
 ```moonbit
 pub(all) enum ParseMode {
@@ -55,31 +56,31 @@ pub struct ParseLimits {
 }
 
 pub struct ParseOptions {
-  // profile/mode/limits 通过构造器和 accessor 使用
+  // profile/mode/limits are used through constructors and accessors
 }
 ```
 
-构造方式：
+Constructors:
 
-| 构造器 | 说明 |
+| Constructor | Description |
 |---|---|
-| `ParseOptions::new(profile_id, mode_id)` | 接收 `"2.1"`/`"3.x"`/`"4.x"` 和 `"strict"`/`"editor"`，使用默认限制。 |
-| `ParseOptions::for_profile(profile, mode)` | 使用 `@token.DorisProfile` 和 `ParseMode`，使用默认限制。 |
-| `ParseOptions::for_profile_with_limits(profile, mode, limits)` | 使用枚举 profile/mode 和调用方提供的 `ParseLimits`。 |
-| `ParseOptions::for_profile_with_metadata(profile, metadata, mode)` | 校验完整 `ProfileMetadata` 后创建选项。 |
-| `ParseOptions::from_manifest(profile_id, exact_release, feature_introduction, mode_id)` | 用 manifest 字符串校验 profile 元数据后创建选项。 |
+| `ParseOptions::new(profile_id, mode_id)` | Accepts `"2.1"`/`"3.x"`/`"4.x"` and `"strict"`/`"editor"`, using default limits. |
+| `ParseOptions::for_profile(profile, mode)` | Uses `@token.DorisProfile` and `ParseMode`, with default limits. |
+| `ParseOptions::for_profile_with_limits(profile, mode, limits)` | Uses enum profile/mode values and caller-provided `ParseLimits`. |
+| `ParseOptions::for_profile_with_metadata(profile, metadata, mode)` | Creates options after validating complete `ProfileMetadata`. |
+| `ParseOptions::from_manifest(profile_id, exact_release, feature_introduction, mode_id)` | Creates options after validating profile metadata from manifest strings. |
 
-`ParseLimits::default()` 的当前值如下：
+Current values for `ParseLimits::default()`:
 
-| 字段 | 默认值 | 约束 |
+| Field | Default | Constraint |
 |---|---:|---|
-| `max_bytes` | `8 * 1024 * 1024`（8 MiB） | 非负；输入超过它返回 `InputTooLarge`。 |
-| `max_tokens` | `1_000_000` | 非负；限制单次词法/解析处理的 token 数。 |
-| `max_recursion_depth` | `128` | 非负；限制递归下降和表达式递归深度。 |
-| `max_recovery_steps` | `10_000` | 非负；限制 editor 模式恢复步数。 |
-| `max_diagnostics` | `100` | 非负；限制结果保留的诊断数量。 |
+| `max_bytes` | `8 * 1024 * 1024` (8 MiB) | Non-negative; input exceeding it returns `InputTooLarge`. |
+| `max_tokens` | `1_000_000` | Non-negative; limits tokens processed by one lex/parse operation. |
+| `max_recursion_depth` | `128` | Non-negative; limits recursive-descent and expression recursion depth. |
+| `max_recovery_steps` | `10_000` | Non-negative; limits recovery steps in editor mode. |
+| `max_diagnostics` | `100` | Non-negative; limits the number of diagnostics retained in the result. |
 
-### 解析入口
+### Parse Entry Points
 
 #### `parse`
 
@@ -90,7 +91,7 @@ pub fn parse(
 ) -> Result[ParseResult, ParseError]
 ```
 
-这是完整入口：先校验 limits 和源输入大小，再执行 lexer/parser，最后检查 CST span 不变量并返回 primitive 结果。
+This is the complete entry point: it validates limits and source size, runs the lexer/parser, checks CST span invariants, and returns the primitive result.
 
 #### `parse_with_ids`
 
@@ -102,7 +103,7 @@ pub fn parse_with_ids(
 ) -> Result[ParseResult, ParseError]
 ```
 
-适合 profile 和模式来自配置或 CLI 参数的场景。它等价于先调用 `ParseOptions::new(profile_id, mode_id_value)`，再调用 `parse`。
+Use this when the profile and mode come from configuration or CLI arguments. It is equivalent to calling `ParseOptions::new(profile_id, mode_id_value)` first and then calling `parse`.
 
 #### `parse_with_metadata`
 
@@ -116,7 +117,7 @@ pub fn parse_with_metadata(
 ) -> Result[ParseResult, ParseError]
 ```
 
-该入口先调用 `ParseOptions::from_manifest`。`exact_release` 和 `feature_introduction` 必须与 profile 内置 metadata 完全匹配，否则在解析前返回错误。
+This entry point first calls `ParseOptions::from_manifest`. `exact_release` and `feature_introduction` must exactly match the metadata built into the profile; otherwise an error is returned before parsing.
 
 ### `ParseResult`
 
@@ -137,25 +138,25 @@ pub struct ParseResult {
 }
 ```
 
-当前结果协议字段为：
+Current result protocol fields:
 
-- `schema_version`：当前为 `"doris.parse.v1"`。
-- `source_transport`：当前为 `"inline-root-v1"`，表示源字节内嵌在结果根部。
-- `profile`、`exact_release`、`feature_introduction`、`mode`：本次调用实际使用的 profile metadata 和模式。
-- `valid`：语法结果是否有效。存在语法、词法、资源或 profile feature 诊断时通常为 `false`；editor 恢复不会把错误结果提升为有效。
-- `recovered`：是否使用 editor 恢复路径生成了可继续消费的树。
-- `source_bytes`、`source_byte_length`：原始源字节及其长度；注释、空白、换行、BOM、Unicode 和非法字节都按原始字节保留。
-- `root`：`document` 根 `PrimitiveNode`。
-- `diagnostics`：按源顺序排列的结构化诊断数组。
+- `schema_version`: currently `"doris.parse.v1"`.
+- `source_transport`: currently `"inline-root-v1"`, meaning source bytes are embedded in the result root.
+- `profile`, `exact_release`, `feature_introduction`, `mode`: the profile metadata and mode actually used for this call.
+- `valid`: whether the syntax result is valid. It is usually `false` when syntax, lexical, resource, or profile-feature diagnostics exist; editor recovery does not promote an erroneous result to valid.
+- `recovered`: whether the editor recovery path generated a tree that can continue to be consumed.
+- `source_bytes`, `source_byte_length`: the original source bytes and their length; comments, whitespace, line breaks, BOM, Unicode, and invalid bytes are retained as raw bytes.
+- `root`: the `document` root `PrimitiveNode`.
+- `diagnostics`: a structured diagnostic array ordered by source position.
 
-结果方法：
+Result methods:
 
-| 方法 | 返回值 | 说明 |
+| Method | Return value | Description |
 |---|---|---|
-| `has_root_only_source()` | `Bool` | 检查源字节是否只由根结果保存一次，即 `source_byte_length == source_bytes.length()`。 |
-| `statement(statement_id)` | `PrimitiveNode?` | 按从零开始的 statement id 取对应 statement；不存在时返回 `None`。 |
-| `statement_diagnostics(statement_id)` | `Array[PrimitiveDiagnostic]` | 只返回指定 statement 的诊断。 |
-| `all_spans_in_bounds()` | `Bool` | 递归验证节点 span、text length 和子节点顺序。 |
+| `has_root_only_source()` | `Bool` | Checks that source bytes are stored only once by the root result: `source_byte_length == source_bytes.length()`. |
+| `statement(statement_id)` | `PrimitiveNode?` | Gets the statement for a zero-based statement ID; returns `None` when it does not exist. |
+| `statement_diagnostics(statement_id)` | `Array[PrimitiveDiagnostic]` | Returns diagnostics for only the specified statement. |
+| `all_spans_in_bounds()` | `Bool` | Recursively validates node spans, text lengths, and child ordering. |
 
 ### `PrimitiveNode`
 
@@ -169,9 +170,9 @@ pub struct PrimitiveNode {
 }
 ```
 
-`kind` 是稳定的字符串节点标识。当前实现包含：`document`、`statement`、`select`、`insert`、`update`、`delete`、`merge`、`value_list`、`create_table`、`create_view`、`create_index`、`create_materialized_view`、`column_definition`、`key_clause`、`distribution_clause`、`partition_clause`、`property_list`、`expression`、`token`、`trivia`、`error`、`skipped` 和 `missing`。
+`kind` is a stable string node identifier. The current implementation includes: `document`, `statement`, `select`, `insert`, `update`, `delete`, `merge`, `value_list`, `create_table`, `create_view`, `create_index`, `create_materialized_view`, `column_definition`, `key_clause`, `distribution_clause`, `partition_clause`, `property_list`, `expression`, `token`, `trivia`, `error`, `skipped`, and `missing`.
 
-`missing` 节点可以是零宽 span，因此不会向无损打印结果中伪造字节；`error` 与 `skipped` 节点保留无法正常解析但属于输入的材料。
+A `missing` node may have a zero-width span, so it does not fabricate bytes in lossless output; `error` and `skipped` nodes retain material that could not be parsed normally but belongs to the input.
 
 ### `PrimitiveDiagnostic`
 
@@ -187,11 +188,11 @@ pub struct PrimitiveDiagnostic {
 }
 ```
 
-`statement_id` 是当前输入快照内从 `0U` 开始、按源顺序递增的 statement 标识。它不是跨调用稳定的数据库 ID；每次 parse 都从零重新编号。
+`statement_id` is a statement identifier starting at `0U` and increasing in source order within the current input snapshot. It is not a database ID stable across calls; every parse renumbers statements from zero.
 
-### 格式化入口
+### Formatting Entry Points
 
-`api` facade 重新导出 formatter 的类型别名，因此可以从 `@api` 使用 `FormatOptions`、`FormatResult`、`FormatDiagnostic`、`FormatError`、`KeywordCase`、`CommaStyle` 和 `NewlineStyle`。
+The `api` facade re-exports formatter type aliases, so `FormatOptions`, `FormatResult`, `FormatDiagnostic`, `FormatError`, `KeywordCase`, `CommaStyle`, and `NewlineStyle` can be used from `@api`.
 
 ```moonbit
 pub fn format_text(
@@ -217,11 +218,11 @@ pub fn format_with_metadata(
 ) -> Result[FormatResult, ParseError]
 ```
 
-格式化入口会先走同一套解析流程，因此 parse 级 `ParseError` 会直接返回。解析诊断会被带入 `FormatResult.diagnostics`；如果 CST 包含 `error`、`missing` 或 `skipped` 材料，formatter 拒绝输出部分结果，返回 `accepted = false` 和空 `output`。
+Formatting entry points use the same parsing flow first, so parse-level `ParseError` is returned directly. Parse diagnostics are carried into `FormatResult.diagnostics`; if the CST contains `error`, `missing`, or `skipped` material, the formatter refuses partial output and returns `accepted = false` with an empty `output`.
 
-`FormatOptions::default()`：
+`FormatOptions::default()`:
 
-| 字段 | 默认值 |
+| Field | Default |
 |---|---|
 | `keyword_case` | `KeywordCase::Upper` |
 | `indent` | `2` |
@@ -230,7 +231,7 @@ pub fn format_with_metadata(
 | `newline_style` | `NewlineStyle::FollowInput` |
 | `trailing_newline` | `true` |
 
-`FormatOptions::new` 拒绝负 `indent` 和非正 `line_width`。字符串枚举转换器接受：`KeywordCase::from_id("upper"/"lower")`、`CommaStyle::from_id("trailing"/"leading")` 和 `NewlineStyle::from_id("follow"/"lf"/"crlf")`；未知 ID 返回 `None`。
+`FormatOptions::new` rejects negative `indent` and non-positive `line_width`. String enum converters accept `KeywordCase::from_id("upper"/"lower")`, `CommaStyle::from_id("trailing"/"leading")`, and `NewlineStyle::from_id("follow"/"lf"/"crlf")`; unknown IDs return `None`.
 
 ```moonbit
 pub(all) struct FormatResult {
@@ -241,11 +242,11 @@ pub(all) struct FormatResult {
 }
 ```
 
-`statement_offsets` 记录每个 statement 在最终格式化输出中的字节起点，顺序与 statement 顺序一致。拒绝格式化时输出为空且 offsets 为空。
+`statement_offsets` records the byte start of each statement in the final formatted output, in statement order. When formatting is refused, both output and offsets are empty.
 
-### 无损打印
+### Lossless Printing
 
-需要精确重放输入时，使用 `fathom/doris-sql/printer`：
+For exact input replay, use `fathom/doris-sql/printer`:
 
 ```moonbit
 import {
@@ -257,17 +258,17 @@ let parsed = @api.parse_with_ids(b"-- note\r\nselect 1", "4.x", "editor")
 match parsed {
   Ok(result) => {
     let raw_again = @printer.print_result(result)
-    // raw_again 与输入字节完全相同
+    // raw_again is exactly the same as the input bytes
   }
   Err(error) => println(error.to_string())
 }
 ```
 
-打印器还提供 `print_transport(ParseResult)`（直接取根部 `source_bytes`）、`print_lossless(SyntaxNode, SourceText)` 和 `print_bytes(SyntaxNode, SourceText)`。打印不会执行格式化，也不会修改 CST。
+The printer also provides `print_transport(ParseResult)` (directly reads `source_bytes` from the root), `print_lossless(SyntaxNode, SourceText)`, and `print_bytes(SyntaxNode, SourceText)`. Printing does not format or modify the CST.
 
-### 可选名字解析 API
+### Optional Name-Resolution API
 
-`fathom/doris-sql/analyzer` 不属于解析语法有效性通道。它只消费 `syntax.SyntaxNode`、调用方提供的源字节和 catalog：
+`fathom/doris-sql/analyzer` is not part of the syntax-validity path. It consumes only `syntax.SyntaxNode`, caller-provided source bytes, and a catalog:
 
 ```moonbit
 pub(all) struct ColumnInfo {
@@ -293,42 +294,42 @@ pub fn[T : Catalog] resolve_table_references(
 ) -> Array[String]
 ```
 
-当前 `resolve_table_references` 只返回 catalog 中存在的、已支持 DML/DDL statement 的目标表名；缺少的表名被省略，不生成 parser 诊断，不做类型推断或 Doris FE 执行语义分析。`StaticCatalog` 的表名 key 当前区分大小写，重复表名采用最后一项覆盖前一项。
+Currently, `resolve_table_references` returns only target table names that exist in the catalog and belong to supported DML/DDL statements; missing table names are omitted, no parser diagnostics are generated, and no type inference or Doris FE execution-semantics analysis is performed. `StaticCatalog` table-name keys are currently case-sensitive, and duplicate table names are overwritten by the last entry.
 
-## 错误码与错误响应
+## Error Codes and Error Responses
 
-### 调用级 `ParseError`
+### Call-Level `ParseError`
 
-调用级失败通过 `Result` 的 `Err(ParseError)` 返回，通常表示输入尚未进入可消费的 parse result：
+Call-level failures are returned as `Err(ParseError)` in the `Result`, and usually mean that the input has not entered a consumable parse result:
 
-| 错误构造 | 触发条件 |
+| Error constructor | Trigger condition |
 |---|---|
-| `UnknownProfile(profile_id~)` | profile 不是 `2.1`、`3.x` 或 `4.x`。 |
-| `UnknownMode(mode_id~)` | mode 不是 `strict` 或 `editor`。 |
-| `ProfileMetadataMismatch(...)` | manifest 或 metadata 的 release、profile identity 或 feature introduction 与内置 profile 不一致。 |
-| `UnsupportedFeatureIntroduction(feature_introduction~)` | feature introduction 字符串不在当前支持的 metadata 集合中。 |
-| `InputTooLarge(requested_bytes~, max_bytes~)` | 输入字节数超过 `ParseLimits.max_bytes`。 |
-| `InvalidLimit(limit_name~, value~)` | 任一 parse limit 为负数。 |
-| `InvalidSyntaxTree` | parser 生成的 CST 未通过 span、text length 或子节点顺序不变量检查。 |
+| `UnknownProfile(profile_id~)` | The profile is not `2.1`, `3.x`, or `4.x`. |
+| `UnknownMode(mode_id~)` | The mode is not `strict` or `editor`. |
+| `ProfileMetadataMismatch(...)` | The release, profile identity, or feature introduction in the manifest or metadata does not match the built-in profile. |
+| `UnsupportedFeatureIntroduction(feature_introduction~)` | The feature-introduction string is not in the currently supported metadata set. |
+| `InputTooLarge(requested_bytes~, max_bytes~)` | Input bytes exceed `ParseLimits.max_bytes`. |
+| `InvalidLimit(limit_name~, value~)` | Any parse limit is negative. |
+| `InvalidSyntaxTree` | The CST generated by the parser failed span, text-length, or child-order invariant checks. |
 
-### 结果内 parser 诊断
+### Parser Diagnostics in Results
 
-语法能够生成 `ParseResult` 时，错误不会以网络状态码返回，而是放在 `result.diagnostics` 中，并保留源字节与 CST：
+When syntax can produce a `ParseResult`, errors are not returned as network status codes; they are placed in `result.diagnostics` while source bytes and the CST are retained:
 
-| code | 含义 |
+| code | Meaning |
 |---|---|
-| `DORIS-PARSE-001` | statement 末尾存在不符合预期的 trailing material。 |
-| `DORIS-PARSE-002` | 通用语法错误，例如缺少 keyword、symbol、expression、identifier 或 clause。 |
-| `DORIS-PARSE-003` | 非法源编码或未闭合的词法材料。 |
-| `DORIS-PARSE-004` | 达到 parser 资源限制，例如 token、递归、恢复或诊断预算。 |
-| `DORIS-PARSE-006` | 选定 profile 不支持的 Doris feature，例如较早 profile 中的 `QUALIFY`、`TABLET` 或 `MERGE`。 |
-| `DORIS-PARSE-007` | 选定 profile 中未实现/不支持的 statement。 |
+| `DORIS-PARSE-001` | Unexpected trailing material exists at the end of a statement. |
+| `DORIS-PARSE-002` | General syntax error, such as a missing keyword, symbol, expression, identifier, or clause. |
+| `DORIS-PARSE-003` | Invalid source encoding or unterminated lexical material. |
+| `DORIS-PARSE-004` | A parser resource limit was reached, such as the token, recursion, recovery, or diagnostic budget. |
+| `DORIS-PARSE-006` | A Doris feature unsupported by the selected profile, such as `QUALIFY`, `TABLET`, or `MERGE` in an earlier profile. |
+| `DORIS-PARSE-007` | A statement not implemented or unsupported by the selected profile. |
 
-这些 code 应作为字符串处理。诊断消息和 `expected_class` 用于展示与定位，具体定位通过 `start_byte`/`end_byte` 和 `statement_id` 获取。代码 `DORIS-PARSE-005` 目前没有在 parser 实现中作为公开诊断生成。
+Treat these codes as strings. Diagnostic messages and `expected_class` are for presentation and location; obtain the precise location through `start_byte`/`end_byte` and `statement_id`. Code `DORIS-PARSE-005` is not currently generated as a public diagnostic by the parser implementation.
 
-### Formatter 诊断与错误
+### Formatter Diagnostics and Errors
 
-格式化入口的 parse 级失败仍使用 `ParseError`。能返回 `FormatResult` 时，formatter 诊断使用与 parser 相同的字段形状：
+Parse-level failures from formatting entry points still use `ParseError`. When a `FormatResult` can be returned, formatter diagnostics use the same field shape as parser diagnostics:
 
 ```moonbit
 pub(all) struct FormatDiagnostic {
@@ -342,21 +343,21 @@ pub(all) struct FormatDiagnostic {
 }
 ```
 
-当前 formatter refusal code 为：
+The current formatter refusal code is:
 
-| code | 含义 |
+| code | Meaning |
 |---|---|
-| `DORIS-FORMAT-001` | CST 含有 `error`、`missing` 或 `skipped` 材料，formatter 拒绝生成部分输出。 |
+| `DORIS-FORMAT-001` | The CST contains `error`, `missing`, or `skipped` material, so the formatter refuses to generate partial output. |
 
-直接使用 formatter package 的 `FormatError` 还可能返回：`InvalidIndent`、`InvalidLineWidth`、`UnknownKeywordCase`、`UnknownCommaStyle`、`UnknownNewlineStyle` 和 `InvalidSyntaxTree`。通过 `api.format_text` 时，格式选项应先使用有效枚举和 `FormatOptions::new` 构造；parse 相关错误则按上面的 `ParseError` 返回。
+Direct use of the formatter package’s `FormatError` may also return: `InvalidIndent`, `InvalidLineWidth`, `UnknownKeywordCase`, `UnknownCommaStyle`, `UnknownNewlineStyle`, and `InvalidSyntaxTree`. When using `api.format_text`, construct format options first with valid enums and `FormatOptions::new`; parse-related errors are returned as the `ParseError` described above.
 
-## 速率限制
+## Rate Limits
 
-没有 HTTP 速率限制、连接配额或服务端窗口。Fathom 是纯库，调用方自行决定并发和生命周期。
+There are no HTTP rate limits, connection quotas, or server-side windows. Fathom is a pure library, so callers decide concurrency and lifecycle.
 
-为防止单次不可信输入消耗无限资源，解析器提供的是**单次调用资源预算**，不是网络 rate limit：`max_bytes`、`max_tokens`、`max_recursion_depth`、`max_recovery_steps` 和 `max_diagnostics`。它们必须是非负整数；超过预算时会保留有界的错误/跳过材料并生成 `DORIS-PARSE-004`，而不是等待外部服务或静默丢弃源字节。
+To prevent a single untrusted input from consuming unlimited resources, the parser provides a **per-call resource budget**, not a network rate limit: `max_bytes`, `max_tokens`, `max_recursion_depth`, `max_recovery_steps`, and `max_diagnostics`. These must be non-negative integers. When a budget is exceeded, bounded error/skipped material is retained and `DORIS-PARSE-004` is generated, rather than waiting for an external service or silently discarding source bytes.
 
-## 完整示例
+## Complete Example
 
 ```moonbit
 import {
@@ -394,4 +395,4 @@ fn main {
 }
 ```
 
-该示例展示了同一份源字节如何先生成带诊断的 `ParseResult`，再生成格式化结果；原始输入的精确重放通过 `printer.print_result` 完成，而不是读取格式化输出。
+This example shows how the same source bytes first produce a diagnostic-bearing `ParseResult` and then a formatted result; exact replay of the original input is performed with `printer.print_result`, not by reading the formatted output.

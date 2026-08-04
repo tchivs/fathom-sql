@@ -1,23 +1,24 @@
 <!-- GSD:generated -->
-# 配置说明
+English | [简体中文](zh-CN/CONFIGURATION.md)
+# Configuration
 
-Fathom 是一个以 MoonBit 实现的 Doris SQL 解析与格式化库。它没有运行时服务配置或环境变量；配置通过 MoonBit 模块清单以及 `api` 包中的解析、恢复和格式化选项显式传入。
+Fathom is a Doris SQL parsing and formatting library implemented in MoonBit. It has no runtime service configuration or environment variables; configuration is passed explicitly through MoonBit module manifests and parsing, recovery, and formatting options in the `api` package.
 
-## 环境变量
+## Environment Variables
 
-仓库中没有 `.env`、`.env.example` 或 `.env.sample` 文件，也没有发现 `process.env`、`os.environ`、`os.getenv`、`std::env::var` 等环境变量读取。运行库不依赖环境变量，因此不存在需要设置的环境变量。
+The repository contains no `.env`, `.env.example`, or `.env.sample` files, and no reads of `process.env`, `os.environ`, `os.getenv`, `std::env::var`, or similar environment-variable APIs were found. The runtime library does not depend on environment variables, so there are no environment variables to set.
 
-| 变量 | 必需 | 默认值 | 说明 |
+| Variable | Required | Default | Description |
 |---|---|---|---|
-| 无 | — | — | 解析器和格式化器均通过 API 参数配置。 |
+| None | — | — | The parser and formatter are configured through API parameters. |
 
-## 配置文件格式
+## Configuration File Format
 
-项目使用 MoonBit 的 DSL 清单，不使用额外的 JSON、YAML、TOML 或部署平台配置文件。
+The project uses MoonBit DSL manifests and does not use additional JSON, YAML, TOML, or deployment-platform configuration files.
 
 ### `moon.mod`
 
-根目录的 `moon.mod` 定义模块身份和默认构建目标：
+The root `moon.mod` defines the module identity and default build target:
 
 ```moonbit
 name = "fathom/doris-sql"
@@ -25,33 +26,33 @@ version = "0.1.0"
 preferred_target = "native"
 ```
 
-当前清单还记录了 MoonBit 工具链政策注释：项目按官方 MoonBit v0.10.5 文档线维护，并记录了 `moon 0.1.20260724 (5f1406a 2026-07-24)` 的版本信息。修改工具链时，应同步更新该清单中的版本记录并在目标环境运行构建检查。
+The current manifest also records a MoonBit toolchain policy comment: the project is maintained against the official MoonBit v0.10.5 documentation line and records the version information `moon 0.1.20260724 (5f1406a 2026-07-24)`. When modifying the toolchain, update the version record in this manifest and run build checks in the target environment.
 
 ### `moon.pkg`
 
-每个 MoonBit 包通过同目录的 `moon.pkg` 声明包类型和依赖方向。根目录和 `api/`、`analyzer/`、`formatter/`、`lexer/`、`parser/`、`printer/`、`source/`、`syntax/`、`token/` 等包均为库包；`test/` 通过 `moon.pkg` 声明测试所需的包导入。包清单不接受环境变量覆盖，依赖关系应在相应 `moon.pkg` 中直接修改。
+Each MoonBit package declares its package type and dependency direction through the `moon.pkg` in the same directory. The root package and the `api/`, `analyzer/`, `formatter/`, `lexer/`, `parser/`, `printer/`, `source/`, `syntax/`, and `token/` packages are all library packages; `test/` declares the package imports required for tests through its `moon.pkg`. Package manifests do not accept environment-variable overrides; modify dependencies directly in the corresponding `moon.pkg`.
 
-根包的最小配置如下：
+The root package's minimal configuration is:
 
 ```moonbit
 pkgtype(kind: "library")
 ```
 
-`moon.mod` 的 `preferred_target = "native"` 只设置默认目标，不会限制显式选择其他受支持的 MoonBit 后端。
+`preferred_target = "native"` in `moon.mod` only sets the default target; it does not restrict explicit selection of other supported MoonBit backends.
 
-## 解析配置
+## Parsing Configuration
 
-解析 API 位于 `api/api.mbt`。`api.parse` 接受原始 `Bytes` 和 `ParseOptions`；`api.parse_with_ids`、`api.parse_with_metadata` 提供字符串 ID 入口。解析配置是调用级别的，不会写入全局状态。
+The parsing API is located in `api/api.mbt`. `api.parse` accepts raw `Bytes` and `ParseOptions`; `api.parse_with_ids` and `api.parse_with_metadata` provide string-ID entry points. Parsing configuration is scoped to each call and is not written to global state.
 
-### 必需的解析设置
+### Required Parsing Settings
 
-每次构造 `ParseOptions` 都必须明确指定 Doris profile 和解析模式：
+Every `ParseOptions` construction must explicitly specify a Doris profile and parsing mode:
 
-- **Profile**：只能是 `2.1`、`3.x` 或 `4.x`；未知值返回 `ParseError::UnknownProfile`，不会回退到通用 MySQL 方言。
-- **Mode**：只能是 `strict` 或 `editor`；未知值返回 `ParseError::UnknownMode`。
-- **Manifest 元数据（可选入口）**：使用 `from_manifest` 时，`exact_release` 和 `feature_introduction` 必须与所选 profile 的内置元数据完全匹配，否则返回 `ProfileMetadataMismatch`；不受支持的 feature introduction 返回 `UnsupportedFeatureIntroduction`。
+- **Profile**: Only `2.1`, `3.x`, or `4.x` are allowed; an unknown value returns `ParseError::UnknownProfile` and does not fall back to the generic MySQL dialect.
+- **Mode**: Only `strict` or `editor` are allowed; an unknown value returns `ParseError::UnknownMode`.
+- **Manifest metadata (optional entry point)**: When using `from_manifest`, `exact_release` and `feature_introduction` must exactly match the built-in metadata for the selected profile; otherwise, `ProfileMetadataMismatch` is returned. An unsupported feature introduction returns `UnsupportedFeatureIntroduction`.
 
-三个 profile 的内置元数据如下：
+The built-in metadata for the three profiles is:
 
 | Profile ID | `exact_release` | `feature_introduction` |
 |---|---|---|
@@ -59,7 +60,7 @@ pkgtype(kind: "library")
 | `3.x` | `3.x` | `2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY` |
 | `4.x` | `4.x` | `2.1 baseline SELECT; DML/DDL released; 4.x released SELECT` |
 
-示例：
+Example:
 
 ```moonbit
 let options = match @api.ParseOptions::new("4.x", "editor") {
@@ -69,36 +70,36 @@ let options = match @api.ParseOptions::new("4.x", "editor") {
 let result = @api.parse(b"SELECT * FROM orders", options)
 ```
 
-### 资源限制
+### Resource Limits
 
-`ParseLimits::default()` 从 `parser.ParserLimits::default()` 获取以下默认值。需要隔离不可信或大型输入时，可使用 `ParseOptions::for_profile_with_limits` 传入自定义限制。
+`ParseLimits::default()` obtains the following default values from `parser.ParserLimits::default()`. To isolate untrusted or large inputs, pass custom limits through `ParseOptions::for_profile_with_limits`.
 
-| 设置 | 默认值 | 作用 |
+| Setting | Default | Purpose |
 |---|---:|---|
-| `max_bytes` | `8 * 1024 * 1024`（8 MiB） | 原始输入的最大字节数；超过后返回 `InputTooLarge`。 |
-| `max_tokens` | `1_000_000` | 单次解析允许处理的 token 数上限。 |
-| `max_recursion_depth` | `128` | 递归下降和表达式解析的最大递归深度。 |
-| `max_recovery_steps` | `10_000` | Editor 模式错误恢复允许执行的最大步数。 |
-| `max_diagnostics` | `100` | 单次解析保留的最大诊断数量。 |
+| `max_bytes` | `8 * 1024 * 1024` (8 MiB) | Maximum byte length of the raw input; exceeding it returns `InputTooLarge`. |
+| `max_tokens` | `1_000_000` | Maximum number of tokens allowed in a single parse. |
+| `max_recursion_depth` | `128` | Maximum recursion depth for recursive descent and expression parsing. |
+| `max_recovery_steps` | `10_000` | Maximum number of steps permitted for error recovery in Editor mode. |
+| `max_diagnostics` | `100` | Maximum number of diagnostics retained for a single parse. |
 
-所有自定义限制必须为非负整数。`api.parse` 和 `api.format_text` 会在开始处理输入前校验限制；负值返回 `ParseError::InvalidLimit`，不会静默修正。输入字节数超过 `max_bytes` 返回 `ParseError::InputTooLarge`。
+All custom limits must be non-negative integers. `api.parse` and `api.format_text` validate the limits before beginning to process input; a negative value returns `ParseError::InvalidLimit` and is not silently corrected. Input whose byte length exceeds `max_bytes` returns `ParseError::InputTooLarge`.
 
-## 格式化设置
+## Formatting Settings
 
-格式化配置由 `formatter/options.mbt` 中的 `FormatOptions` 提供，并通过 `api.format_text`、`api.format_with_ids` 或 `api.format_with_metadata` 使用。`FormatOptions::default()` 的默认值为：
+Formatting configuration is provided by `FormatOptions` in `formatter/options.mbt` and is used through `api.format_text`, `api.format_with_ids`, or `api.format_with_metadata`. The defaults of `FormatOptions::default()` are:
 
-| 设置 | 默认值 | 可选值或约束 |
+| Setting | Default | Allowed values or constraints |
 |---|---|---|
-| `keyword_case` | `Upper` | `Upper`、`Lower`；字符串 ID 为 `upper`、`lower`。 |
-| `indent` | `2` | 非负整数，表示缩进空格数。 |
-| `line_width` | `100` | 正整数，表示目标行宽。 |
-| `comma_style` | `Trailing` | `Trailing`、`Leading`；字符串 ID 为 `trailing`、`leading`。 |
-| `newline_style` | `FollowInput` | `FollowInput`、`Lf`、`Crlf`；字符串 ID 为 `follow`、`lf`、`crlf`。 |
-| `trailing_newline` | `true` | 是否在输出末尾保留换行。 |
+| `keyword_case` | `Upper` | `Upper`, `Lower`; string IDs are `upper`, `lower`. |
+| `indent` | `2` | A non-negative integer representing the number of indentation spaces. |
+| `line_width` | `100` | A positive integer representing the target line width. |
+| `comma_style` | `Trailing` | `Trailing`, `Leading`; string IDs are `trailing`, `leading`. |
+| `newline_style` | `FollowInput` | `FollowInput`, `Lf`, `Crlf`; string IDs are `follow`, `lf`, `crlf`. |
+| `trailing_newline` | `true` | Whether to retain a newline at the end of the output. |
 
-`FormatOptions::new` 在构造时拒绝负 `indent`（`InvalidIndent`）和非正 `line_width`（`InvalidLineWidth`）。未知的字符串枚举 ID 应在调用方映射为对应枚举；`KeywordCase::from_id`、`CommaStyle::from_id` 和 `NewlineStyle::from_id` 对未知 ID 返回 `None`。
+`FormatOptions::new` rejects a negative `indent` (`InvalidIndent`) and a non-positive `line_width` (`InvalidLineWidth`) during construction. Unknown string enum IDs should be mapped to the corresponding enum by the caller; `KeywordCase::from_id`, `CommaStyle::from_id`, and `NewlineStyle::from_id` return `None` for unknown IDs.
 
-示例：
+Example:
 
 ```moonbit
 let parse_options = match @api.ParseOptions::new("3.x", "strict") {
@@ -109,32 +110,32 @@ let format_options = @formatter.FormatOptions::default()
 let formatted = @api.format_text(b"select id, name from users", parse_options, format_options)
 ```
 
-格式化器遇到包含 `error`、`missing` 或 `skipped` 材料的语法树时会拒绝输出，返回 `accepted = false`、空输出以及 `DORIS-FORMAT-001` 诊断；这不是可通过环境变量关闭的行为。
+When the formatter encounters a syntax tree containing `error`, `missing`, or `skipped` material, it rejects the output and returns `accepted = false`, empty output, and a `DORIS-FORMAT-001` diagnostic. This behavior cannot be disabled through environment variables.
 
-## 必需与可选设置
+## Required and Optional Settings
 
-Fathom 是库而不是需要启动配置的常驻应用，因此不存在“缺少配置导致进程启动失败”的设置。必需设置只存在于 API 调用边界：
+Fathom is a library rather than a resident application that requires startup configuration, so no setting causes the process to fail to start because configuration is missing. Required settings exist only at the API-call boundary:
 
-1. 解析和格式化必须选择有效的 Doris profile 与模式。
-2. 使用 manifest 入口时，release 和 feature introduction 元数据必须和 profile 一致。
-3. 若提供自定义 `ParseLimits`，所有限制必须为非负值。
-4. 若提供自定义 `FormatOptions`，`indent` 必须非负，`line_width` 必须大于零。
+1. Parsing and formatting must select a valid Doris profile and mode.
+2. When using the manifest entry point, release and feature-introduction metadata must match the profile.
+3. When custom `ParseLimits` are provided, all limits must be non-negative.
+4. When custom `FormatOptions` are provided, `indent` must be non-negative and `line_width` must be greater than zero.
 
-未提供自定义限制或格式化选项时，分别使用上文列出的默认值。解析器不会从输入内容推断 profile，也不会从外部目录、数据库或 Doris FE 加载配置。
+When custom limits or formatting options are not provided, the defaults listed above are used respectively. The parser does not infer a profile from the input or load configuration from external directories, databases, or Doris FE.
 
-## 按环境覆盖
+## Per-Environment Overrides
 
-仓库中没有 `.env.development`、`.env.production`、`.env.test`，也没有 `NODE_ENV` 条件分支或其他环境配置加载器。开发、测试和发布环境使用同一套源码及 MoonBit 清单；差异应通过调用方显式传入 `ParseOptions`、`ParseLimits` 和 `FormatOptions`，或通过构建命令显式选择目标。
+The repository contains no `.env.development`, `.env.production`, or `.env.test` files, and no `NODE_ENV` conditional branches or other environment-configuration loaders. Development, test, and release environments use the same source code and MoonBit manifests; differences should be supplied explicitly by the caller through `ParseOptions`, `ParseLimits`, and `FormatOptions`, or by explicitly selecting a target through the build command.
 
-例如，编辑器场景可以选择 `editor` 模式并降低资源上限，批处理场景可以选择 `strict` 模式并使用默认限制；这两种行为属于调用参数，不是环境变量覆盖。
+For example, an editor scenario can select `editor` mode and lower resource limits, while a batch scenario can select `strict` mode and use the default limits; these are call parameters, not environment-variable overrides.
 
-## 配置相关文件
+## Configuration-Related Files
 
-| 文件 | 用途 |
+| File | Purpose |
 |---|---|
-| `moon.mod` | 模块名称、版本和默认目标。 |
-| `moon.pkg` | 根包类型。 |
-| `api/api.mbt` | `ParseOptions`、`ParseLimits`、解析入口和格式化入口。 |
-| `parser/parser.mbt` | 解析资源限制及其默认值、校验逻辑。 |
-| `formatter/options.mbt` | 格式化枚举、`FormatOptions` 默认值和校验。 |
-| 各包目录下的 `moon.pkg` | 包类型和包间导入关系。 |
+| `moon.mod` | Module name, version, and default target. |
+| `moon.pkg` | Root package type. |
+| `api/api.mbt` | `ParseOptions`, `ParseLimits`, parsing entry points, and formatting entry points. |
+| `parser/parser.mbt` | Parsing resource limits, their defaults, and validation logic. |
+| `formatter/options.mbt` | Formatting enums, `FormatOptions` defaults, and validation. |
+| `moon.pkg` in each package directory | Package type and imports between packages. |
