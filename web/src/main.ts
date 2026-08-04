@@ -5,6 +5,7 @@ import {
   ParserAdapter,
   byteToPosition,
   diagnosticRange,
+  utf8Bytes,
 } from './monaco-adapter.ts';
 
 const SAMPLE = 'SELECT /*+ SET_VAR(query_timeout=1000) */\n  id, -- keep this comment\n  name\nFROM demo_table\nWHERE id > 10;';
