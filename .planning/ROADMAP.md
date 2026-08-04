@@ -96,7 +96,23 @@ Plans:
   3. Formatter output is deterministic and idempotent, reparses successfully for supported input, and reports or refuses unsafe transformations for unrecoverable/error trees.
   4. User can run `doris-sql format` on a file or standard input to receive formatted SQL and diagnostics, with a non-zero status for invalid input under the selected profile.
 
-**Plans**: TBD
+**Plans**: 4 plans in 4 waves
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — formatter core tracer with FormatOptions, refusal walk, and api.format_text shared entry
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — full canonical layout: per-family clause tables, list measure-then-break, comma styles, script layout, comment/hint attachment
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — all six option dimensions functional, 44-row corpus harness, option-matrix idempotence, never-panic boundary suite
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04-PLAN.md — doris-sql format CLI: libc FFI, hand-rolled args with required --profile, exit 0/1/2, moon-test suite + binary smoke
 
 ### Phase 4: Ecosystem and Multi-Target Delivery
 
