@@ -626,3 +626,108 @@ test "formatter_03_02_list_layout_and_comma_styles" {
   }
 }
 
+/// 03-02 Task 3: multi-statement script layout (research Open Q4 resolution)
+/// and the full comment/hint attachment rule (research Pattern 3). Each
+/// statement renders on its own line at column 0 with one newline between
+/// statements; `;` tokens are preserved as part of the statement's token
+/// sequence; document-leading/trailing comments and between-statement
+/// comments survive verbatim at their positions; inline comments stay inline;
+/// own-line comments stay on their own line; hints are byte-identical.
+test "formatter_03_02_script_layout_and_comment_attachment" {
+  let fixtures = [
+    // (a) Two-statement script: statement-per-line, one newline separator,
+    // both trailing semicolons preserved verbatim.
+    {
+      fixture_id: "4.x-two-statement-script",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select 1; select 2;",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT 1;\nSELECT 2;\n",
+    },
+    // (b) Script with a leading comment, a comment between statements, and a
+    // trailing comment: all three preserved verbatim at their document
+    // positions (statement-leading trivia for lead/between; a document-level
+    // trivia leaf for the trailing comment).
+    {
+      fixture_id: "4.x-script-comments-at-document-positions",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"-- lead\nselect 1;\n-- between\nselect 2;\n-- trail",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"-- lead\nSELECT 1;\n-- between\nSELECT 2;\n-- trail\n",
+    },
+    // (c) Inline comment: a comment after code on the same line (no newline
+    // in its original trivia run) stays inline.
+    {
+      fixture_id: "4.x-inline-comment-stays-inline",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a, b from t -- trailing",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT a, b\nFROM t -- trailing\n",
+    },
+    // (d) Own-line comment: a comment whose original trivia run contains a
+    // newline goes on its own line at the current indent.
+    {
+      fixture_id: "4.x-own-line-comment-stays-own-line",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a from t\n-- own line\nwhere id = 1",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT a\nFROM t\n-- own line\nWHERE id = 1\n",
+    },
+    // (e) Hint block: /*+ ... */ bytes verbatim, never uppercased (D-36,
+    // research Pitfall 2).
+    {
+      fixture_id: "4.x-hint-byte-identical",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select /*+ SET_VAR(enable_vectorized_engine=true) */ a, b from t",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT /*+ SET_VAR(enable_vectorized_engine=true) */ a, b\nFROM t\n",
+    },
+    // (f) A line comment at the end of a statement line forces a break after
+    // itself (required for -- comments, which would swallow the next clause).
+    {
+      fixture_id: "4.x-line-comment-forces-break",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a, b from t -- c\nwhere id = 1",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT a, b\nFROM t -- c\nWHERE id = 1\n",
+    },
+    // (g) The 4.x corpus multi-statement script embedded as raw bytes: all
+    // -- provenance-header comments preserved byte-for-byte, statements one
+    // per line with their semicolons, family clause breaks per table.
+    {
+      fixture_id: "4.x-corpus-script",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"-- Released Apache Doris 4.x multi-statement script fixture (DORIS-03): a\n-- semicolon-separated document parses each statement independently with\n-- monotonic statement ids; the invalid-statement variant (later statements\n-- survive) is asserted by the corpus_test oracle.\n-- Source: statement-family pages (https://doris.apache.org/docs/4.x/sql-manual/sql-statements/)\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t;\nINSERT INTO t VALUES (2); SELECT b;",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"-- Released Apache Doris 4.x multi-statement script fixture (DORIS-03): a\n-- semicolon-separated document parses each statement independently with\n-- monotonic statement ids; the invalid-statement variant (later statements\n-- survive) is asserted by the corpus_test oracle.\n-- Source: statement-family pages (https://doris.apache.org/docs/4.x/sql-manual/sql-statements/)\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE\nTABLE t(a INT);\nINSERT\nINTO t\nVALUES(1);\nSELECT *\nFROM t;\nINSERT\nINTO t\nVALUES(2);\nSELECT b;\n",
+    },
+  ]
+  for fixture in fixtures {
+    assert_true(formatter_fixture_ok(fixture))
+  }
+  // statement_offsets stay correct under the per-line loop: the second
+  // statement's offset points at the separator byte (len("SELECT 1;")).
+  let options = @formatter.FormatOptions::default()
+  let result = match @api.format_with_ids(b"select 1; select 2;", "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.accepted)
+  assert_eq(result.statement_offsets.length(), 2)
+  assert_eq(result.statement_offsets[0], 0)
+  assert_eq(result.statement_offsets[1], b"SELECT 1;".length())
+}
