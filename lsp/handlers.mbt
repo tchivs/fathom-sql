@@ -126,7 +126,7 @@ fn changed_document(params : Json) -> (String, Int, Bytes)? {
     None => return None
   }
   let version = match int_field(document, "version") {
-    Some(version) if version >= 0 => version
+    Some(version) => if version >= 0 { version } else { return None }
     None => return None
   }
   let changes = match array_field(params, "contentChanges") {

@@ -22,7 +22,7 @@ test "completion_uses_clause_contexts_and_stable_labels" {
   }
   assert_true(from_result.items.length() > 0)
   assert_true(from_result.items[0].label == "JOIN")
-  let where_result = match @completion.complete(b"SELECT x FROM t WHERE ", "4.x", 23) {
+  let where_result = match @completion.complete(b"SELECT x FROM t WHERE ", "4.x", 22) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -36,7 +36,7 @@ test "completion_filters_profile_and_replaces_multibyte_prefix" {
     Err(_) => panic()
   }
   assert_eq(old_profile.items.length(), 0)
-  let raw = b"SELECT \xe5\x88\97 FR"
+  let raw = @utf8.encode("SELECT 列 FR")
   let result = match @completion.complete(raw, "4.x", raw.length()) {
     Ok(result) => result
     Err(_) => panic()

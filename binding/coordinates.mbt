@@ -111,7 +111,7 @@ pub fn position_to_byte(source : @source.SourceText, position : Position) -> Res
   let mut units = 0
   while index < end {
     let width = utf8_width(bytes, index)
-    let next_units = units + if width == 4 { 2 } else { 1 }
+    let next_units = units + (if width == 4 { 2 } else { 1 })
     if position.character == units {
       return Ok(index)
     }
