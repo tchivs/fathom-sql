@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 02
 current_phase_name: Doris Completeness and Corpus
-status: executing
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-08-04T05:42:24.933Z"
+status: verifying
+stopped_at: Completed 02-06-PLAN.md
+last_updated: "2026-08-04T05:52:28.772Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 
 Phase: 02 (Doris Completeness and Corpus) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-04 — Phase 02 execution started
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 90%
 | Phase 02 P03 | 11 | 3 tasks | 5 files |
 | Phase 02 P02-05 | 15 | 3 tasks | 5 files |
 | Phase 02 P02-04 | 90 | 3 tasks | 40 files |
+| Phase 02 P06 | 35 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Recent decisions affecting current work:
 - [Phase ?]: A2 closed: async materialized views are supported under every released profile per the 2.1/3.x/4.x docs (CREATE MATERIALIZED VIEW with BUILD/REFRESH clauses); no deferral remains
 - [Phase ?]: A3 verified: the released 2.1 CREATE TABLE grammar documents BUCKETS AUTO and AUTO PARTITION BY; DorisFeature::BucketsAuto moved 3.x to 2.1
 - [Phase ?]: Bare CREATE MATERIALIZED VIEW [AS] query keeps the sync restricted body; the async form is selected by ASYNC/IF NOT EXISTS or async clauses
+- [Phase ?]: differential.tsv is regenerated deterministically by sqlglot_diff.py: one row per manifest fixture; existing fe_nereids_observation values are preserved by fixture_id so manual FE runs are never clobbered
+- [Phase ?]: sqlglot acceptance uses error_level=RAISE; Command-fallback acceptances are flagged in the resolution; no-file fixtures record not-run-offline, observations are never fabricated (A8)
+- [Phase ?]: FE script records fe_nereids_observation by merge (update-by-fixture_id, append only unknown ids), parser-only NereidsParser.parseSQL, never cluster-connected (T-02-53), FE_VERSION pinned per manual run (D-20)
 
 ### Pending Todos
 
@@ -133,6 +137,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T05:42:24.913Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-08-04T05:52:18.481Z
+Stopped at: Completed 02-06-PLAN.md
 Resume file: None

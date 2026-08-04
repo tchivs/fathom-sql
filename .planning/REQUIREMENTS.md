@@ -29,7 +29,7 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 - [x] **CORP-01**: Project maintains a reproducible official-Doris-document corpus manifest whose fixtures record release family, source URL, retrieval/source revision, statement category, and expected support status.
 - [x] **CORP-02**: Every supported corpus fixture has golden coverage for strict parsing, lossless replay, formatting where applicable, and malformed or recovery cases without relying on undocumented current/dev syntax.
 - [x] **CORP-03**: Project publishes parse coverage and failure reports by Doris version and statement category, including known gaps instead of an unqualified full-compatibility claim.
-- [ ] **CORP-04**: Project can run differential checks against feasible Doris FE/Nereids and SQLGlot references, recording disagreements and their version-specific resolution without making either implementation the public contract.
+- [x] **CORP-04**: Project can run differential checks against feasible Doris FE/Nereids and SQLGlot references, recording disagreements and their version-specific resolution without making either implementation the public contract.
 
 ### Analysis Boundary
 
@@ -96,7 +96,7 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | CORP-01 | Phase 2: Doris Completeness and Corpus | Complete |
 | CORP-02 | Phase 2: Doris Completeness and Corpus | Complete |
 | CORP-03 | Phase 2: Doris Completeness and Corpus | Complete |
-| CORP-04 | Phase 2: Doris Completeness and Corpus | Pending |
+| CORP-04 | Phase 2: Doris Completeness and Corpus | Complete |
 | ANLY-01 | Phase 2: Doris Completeness and Corpus | Complete |
 | FMT-01 | Phase 3: Formatting and Safe Edits | Pending |
 | FMT-02 | Phase 3: Formatting and Safe Edits | Pending |

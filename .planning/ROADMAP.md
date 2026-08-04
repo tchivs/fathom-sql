@@ -60,7 +60,7 @@ Plans:
   4. Project publishes reproducible official-document fixture manifests, golden/recovery results, version/category coverage and failure reports, plus recorded FE/SQLGlot differential disagreements and resolutions.
   5. Consumer can perform syntax checks without catalog metadata and can optionally supply table/column metadata through a separate analyzer interface without coupling parsing to FE execution semantics.
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans executed
 Plans:
 **Wave 1**
 
@@ -81,7 +81,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 02-06-PLAN.md — SQLGlot local differential runner and FE/Nereids manual script
+- [x] 02-06-PLAN.md — SQLGlot local differential runner and FE/Nereids manual script
 
 ### Phase 3: Formatting and Safe Edits
 
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
-| 2. Doris Completeness and Corpus | 5/6 | In Progress|  |
+| 2. Doris Completeness and Corpus | 6/6 | In Progress|  |
 | 3. Formatting and Safe Edits | 0/TBD | Not started | - |
 | 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
 
