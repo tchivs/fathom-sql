@@ -17,10 +17,17 @@ struct FormatterFixture {
   raw : Bytes
   expected_valid : Bool
   expected_golden : Bytes
+  /// Per-fixture FormatOptions; None uses the defaults (D-29..D-32). The same
+  /// options drive the idempotence pass so format(format(x)) is byte-exact
+  /// under the fixture's own policy (D-34).
+  options : @formatter.FormatOptions?
 }
 
 fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
-  let options = @formatter.FormatOptions::default()
+  let options = match fixture.options {
+    Some(opts) => opts
+    None => @formatter.FormatOptions::default()
+  }
   let formatted = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
     Ok(result) => result
     Err(_) => return false
@@ -73,6 +80,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       mode: "strict",
       raw: b"select /*+ SET_VAR(enable_vectorized_engine=true) */ a, /* keep */ b -- trailing\nfrom t",
       expected_valid: true,
+      options: None,
       expected_golden: b"SELECT /*+ SET_VAR(enable_vectorized_engine=true) */ a, /* keep */ b -- trailing\nFROM t\n",
     },
     // 3.x multi-clause SELECT (FROM/WHERE/GROUP BY/ORDER BY) whose select list
@@ -84,6 +92,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       mode: "strict",
       raw: b"select user_id, user_name, user_email, user_phone, user_address, user_status, user_created_at, user_updated_at from user_profile where user_status = 'active' group by user_id order by user_created_at",
       expected_valid: true,
+      options: None,
       expected_golden: b"SELECT\n  user_id,\n  user_name,\n  user_email,\n  user_phone,\n  user_address,\n  user_status,\n  user_created_at,\n  user_updated_at\nFROM user_profile\nWHERE user_status = 'active'\nGROUP BY user_id\nORDER BY user_created_at\n",
     },
     // Error tree (unsupported statement): absolute refusal, empty output.
@@ -93,6 +102,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       mode: "strict",
       raw: b"drop table x",
       expected_valid: false,
+      options: None,
       expected_golden: b"",
     },
     // Version-invalid 2.1 MERGE (SourceError leaf): refusal with DORIS-FORMAT-001.
@@ -102,6 +112,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       mode: "strict",
       raw: b"MERGE INTO t USING s ON a=b WHEN MATCHED THEN UPDATE SET x=1",
       expected_valid: false,
+      options: None,
       expected_golden: b"",
     },
     // Empty input: accepted, empty output, no diagnostics.
@@ -111,6 +122,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       mode: "strict",
       raw: b"",
       expected_valid: true,
+      options: None,
       expected_golden: b"",
     },
     // CRLF input: \r\n preserved byte-for-byte (flagged assumption A2).
@@ -120,6 +132,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       mode: "strict",
       raw: b"select a\r\nfrom t",
       expected_valid: true,
+      options: None,
       expected_golden: b"SELECT a\r\nFROM t\r\n",
     },
   ]
@@ -306,3 +319,157 @@ test "formatter_options_error_propagation_never_reaches_api" {
   )
   assert_true(bad_width is Err(@formatter.FormatError::InvalidLineWidth(value=-10)))
 }
+
+/// 03-02 Task 1: per-family clause tables (research Pattern 1) — every
+/// supported statement family renders with hard breaks only at its table's
+/// clause keywords (never at the statement's first token), subquery bodies
+/// indent inner clauses at +1, and unknown families fall back to flat
+/// token-sequence-preserving emission. All fixtures assert byte-exact
+/// idempotence (D-34) and zero-diagnostic reparse (D-35).
+///
+/// Canonical spacing convention (inherited from 03-01): no space before
+/// "(" — so FROM(, WHERE(, VALUES(, KEY( etc. render parens directly
+/// attached to the preceding keyword (zero-space punctuation rule).
+test "formatter_03_02_family_clause_tables_and_subquery_indent" {
+  let fixtures = [
+    // INSERT: INTO (table keyword) breaks after the family start; VALUES
+    // clause breaks; the single VALUES row fits inline.
+    {
+      fixture_id: "4.x-insert-values-family",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"insert into test values (1, 2);",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"INSERT\nINTO test\nVALUES(1, 2);\n",
+    },
+    // UPDATE: SET and WHERE break; the SET assignment list stays inline
+    // (SET is not a list context — commas flow in canonical ", " form).
+    {
+      fixture_id: "4.x-update-set-where-family",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"update t1 set c1 = 1, c2 = default where id = 1;",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"UPDATE t1\nSET c1 = 1, c2 = DEFAULT\nWHERE id = 1;\n",
+    },
+    // DELETE: FROM breaks after the family start; WHERE breaks.
+    {
+      fixture_id: "4.x-delete-from-where-family",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"delete from t where id = 1;",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"DELETE\nFROM t\nWHERE id = 1;\n",
+    },
+    // MERGE (4.x): every Merge-table keyword breaks (INTO USING ON WHEN
+    // THEN UPDATE SET) per the literal Pattern-1 rule.
+    {
+      fixture_id: "4.x-merge-family",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"merge into t using s on t.id = s.id when matched then update set t.v = s.v;",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"MERGE\nINTO t\nUSING s\nON t.id = s.id\nWHEN MATCHED\nTHEN\nUPDATE\nSET t.v = s.v;\n",
+    },
+    // CREATE VIEW: AS and SELECT break (DDL shared table); FROM is not in
+    // the DDL table so the query body stays on the SELECT line.
+    {
+      fixture_id: "4.x-create-view-family",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"create view v as select a, b from t;",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"CREATE VIEW v\nAS\nSELECT a, b FROM t;\n",
+    },
+    // CREATE TABLE with the full body: column definitions break at indent+1,
+    // clause keywords (COMMENT inside the column group, ENGINE, UNIQUE KEY,
+    // ORDER BY, PARTITION BY, DISTRIBUTED BY, ROLLUP, PROPERTIES) break at
+    // their level; RANGE(k1) (PARTITION ...) partition definitions fit
+    // inline; type words keep input case (only classification-table words
+    // are rewritten, D-28).
+    {
+      fixture_id: "4.x-create-table-family",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"create table example_table (k1 tinyint, k2 decimal(10, 2) default \"10.5\", k3 char(10) comment \"string column\", k4 int not null default \"1\" comment \"int column\", v1 bigint sum default \"0\" comment \"aggregate value\", index idx_k1 (k1) using bitmap comment \"index comment\") engine=olap unique key(k1, k2) order by(k1) comment \"my table\" partition by range(k1) (partition p1 values less than (\"2021-01-01\"), partition p2 values less than (\"2022-01-01\")) distributed by hash(k1) buckets 32 rollup (r1 (k1) duplicate key (k1)) properties (\"replication_num\" = \"1\", \"storage_medium\" = \"SSD\");",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"CREATE\nTABLE example_table(\n  k1 tinyint,\n  k2 decimal(10, 2) DEFAULT \"10.5\",\n  k3 char(10)\n  COMMENT \"string column\",\n  k4 int NOT NULL DEFAULT \"1\"\n  COMMENT \"int column\",\n  v1 bigint sum DEFAULT \"0\"\n  COMMENT \"aggregate value\",\n  INDEX idx_k1(k1) USING bitmap\n  COMMENT \"index comment\"\n)\nENGINE=olap UNIQUE\nKEY(k1, k2)\nORDER BY(k1)\nCOMMENT \"my table\"\nPARTITION BY RANGE(k1)(PARTITION p1 VALUES LESS THAN(\"2021-01-01\"), PARTITION p2 VALUES LESS THAN(\"2022-01-01\"))\nDISTRIBUTED BY HASH(k1) BUCKETS 32\nROLLUP(r1(k1) DUPLICATE KEY(k1))\nPROPERTIES(\"replication_num\" = \"1\", \"storage_medium\" = \"SSD\");\n",
+    },
+    // Subquery indentation (Task 1 acceptance): the paren group after FROM is
+    // an expression-run body whose clause keywords break at indent+1; the
+    // inner SELECT starts its own line at +1; paren depth returns to the
+    // statement level after the closing paren (outer WHERE at column 0).
+    {
+      fixture_id: "4.x-select-subquery-indent",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select user_id, user_name from (select user_id, user_name from user_profile where user_status = 'active') sub where user_id > 1",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT user_id, user_name\nFROM(\n  SELECT user_id, user_name\n  FROM user_profile\n  WHERE user_status = 'active') sub\nWHERE user_id > 1\n",
+    },
+  ]
+  for fixture in fixtures {
+    assert_true(formatter_fixture_ok(fixture))
+  }
+}
+
+/// 03-02 Task 1: a family without a clause table (a bare ValueList-shaped
+/// document, constructed directly against the CST since the parser never
+/// produces one) falls back to token-sequence-preserving flat emission — no
+/// clause break is forced and every leaf byte is replayed.
+test "formatter_unknown_family_falls_back_to_flat_emission" {
+  let raw = b"(1, 2)"
+  let source = match @source.SourceText::new_with_limit(raw, 8388608) {
+    Ok(s) => s
+    Err(_) => panic()
+  }
+  let span = fn(start : Int, end : Int) -> @source.Span {
+    match @source.Span::checked(start, end, raw.length()) {
+      Ok(s) => s
+      Err(_) => panic()
+    }
+  }
+  let leaves = [
+    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(0, 1))),
+    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(1, 2))),
+    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(2, 3))),
+    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceTrivia, span(3, 4))),
+    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(4, 5))),
+    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(5, 6))),
+  ]
+  let family = match @syntax.SyntaxNode::new(@syntax.SyntaxKind::ValueList, span(0, 6), leaves) {
+    Some(node) => node
+    None => panic()
+  }
+  let statement = match @syntax.SyntaxNode::new(
+    @syntax.SyntaxKind::Statement,
+    span(0, 6),
+    [@syntax.SyntaxElement::ChildNode(family)],
+  ) {
+    Some(node) => node
+    None => panic()
+  }
+  let root = match @syntax.SyntaxNode::new(
+    @syntax.SyntaxKind::Document,
+    span(0, 6),
+    [@syntax.SyntaxElement::ChildNode(statement)],
+  ) {
+    Some(node) => node
+    None => panic()
+  }
+  let result = @formatter.format(root, source, @formatter.FormatOptions::default())
+  assert_true(result.accepted)
+  // Flat emission: `(1, 2)` with the canonical single trailing newline — the
+  // ValueList family has no clause table, so no break is forced anywhere and
+  // the full token sequence is replayed byte-for-byte.
+  assert_eq(result.output, b"(1, 2)\n")
+  assert_eq(result.diagnostics.length(), 0)
+}
+
