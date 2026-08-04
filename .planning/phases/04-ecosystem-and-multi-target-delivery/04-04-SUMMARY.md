@@ -77,8 +77,8 @@ status: complete
 
 | Requirement | Evidence | Status |
 |---|---|---|
-| ECO-06 | `web/index.html`, `web/src/main.ts`, `web/src/monaco-adapter.ts`, `web/src/styles.css`, and `web/scripts/serve.mjs` provide a relative-artifact offline Monaco host with diagnostics, formatting, profile selection, refusal preservation, reload error, and accessibility/responsive states. | Implemented; parent targeted Node/offline and host checks pending. |
-| ECO-07 | `vscode/package.json`, `vscode/src/extension.ts`, `vscode/src/extension-contract.ts`, and `vscode/README.md` provide standard LanguageClient stdio startup, explicit profile propagation, Doris selector, lifecycle, native feature delegation, and unavailable-server plain-text fallback. | Implemented; final human-hosted VS Code checkpoint pending. |
+| ECO-06 | `web/index.html`, `web/src/main.ts`, `web/src/monaco-adapter.ts`, `web/src/styles.css`, and `web/scripts/serve.mjs` provide a relative-artifact offline Monaco host with diagnostics, formatting, profile selection, refusal preservation, reload error, and accessibility/responsive states. | Implemented; 4 Web tests, offline smoke, and real browser checks passed. |
+| ECO-07 | `vscode/package.json`, `vscode/src/extension.ts`, `vscode/src/extension-contract.ts`, and `vscode/README.md` provide standard LanguageClient stdio startup, explicit profile propagation, Doris selector, lifecycle, native feature delegation, and unavailable-server plain-text fallback. | Implemented; 3 VS Code tests and protocol smoke passed; final human-hosted VS Code checkpoint remains pending. |
 
 ## Dependency Approval
 
@@ -92,16 +92,13 @@ No package was installed into parser-core, Native, or other MoonBit packages. Tr
 
 ## Verification Status
 
-Per the execution instruction, the plan verification commands were intentionally **not run** in this executor. The parent executor is expected to run:
-
-```text
-node --test web/src/main.test.ts
-node web/scripts/offline-smoke.mjs --offline
-node --test vscode/src/extension.test.ts
-node vscode/scripts/launch-smoke.mjs --protocol
-```
-
-The implementation commits are `8540148` (Web host), `175f45e` (VS Code host), and `504182b` (local Web static-host correction). No host browser or VS Code executable was available/exercised here.
+- `node --test web/src/main.test.ts`: 4 passed, 0 failed.
+- `node web/scripts/offline-smoke.mjs --offline`: local artifact/profile/refusal contracts passed.
+- `node --test vscode/src/extension.test.ts`: 3 passed, 0 failed.
+- `node vscode/scripts/launch-smoke.mjs --protocol`: pinned client/stdio/profile/lifecycle/fallback contracts passed.
+- Real Chromium browser check via local `web/scripts/serve.mjs`: Parser ready, relative JS artifact loaded, no console errors, incomplete SQL showed recoverable diagnostics, accepted formatting preserved `SET_VAR` hint, refusal left source unchanged, profiles were exactly 2.1/3.x/4.x, and page overflow was false at 320/768/1280 widths.
+- Browser responsive/accessibility assertions verified visible Format document control, `role=status`, diagnostic heading association, and UTF-8 byte detail alongside UTF-16 ranges.
+- No local VS Code executable was available; host-only activation checkpoint remains explicitly pending.
 
 ## Final Human VS Code Checkpoint
 
@@ -117,12 +114,25 @@ The implementation commits are `8540148` (Web host), `175f45e` (VS Code host), a
 - **Fix:** Added `web/scripts/serve.mjs`, a dependency-free repository-relative local host that serves `.ts` as JavaScript and `.wasm` as Wasm while rejecting path traversal.
 - **Files modified:** `web/scripts/serve.mjs`, `web/package.json`.
 - **Commit:** `504182b`.
+No parser, formatter, CST, schema, LSP transport, database, FE, network, authentication, or second-parser changes were made.
 
-No parser, formatter, CST, schema, LSP transport, FQL, database, FE, network, authentication, or second-parser changes were made.
+**2. [Rule 2 - Critical host packaging] Served Monaco CSS side-effect imports as local JavaScript modules**
+- **Found during:** Parent real browser smoke.
+- **Issue:** Monaco ESM imports CSS side effects as module scripts; a generic CSS response caused a strict MIME error and left the UI in `Loading parser artifact…`.
+- **Fix:** `serve.mjs` returns a local JS side-effect module that injects the exact CSS text only when `Sec-Fetch-Dest: script`; ordinary stylesheet requests remain `text/css`.
+- **Files modified:** `web/scripts/serve.mjs`
+- **Commit:** `bc6db54`
+
+**3. [Rule 1 - Bug] Imported the Web UTF-8 byte helper**
+- **Found during:** Parent real browser smoke after Parser ready.
+- **Issue:** `parseNow` referenced `utf8Bytes` without importing it, causing a page error on the first scheduled parse.
+- **Fix:** Added the missing `utf8Bytes` import from `monaco-adapter.ts`.
+- **Files modified:** `web/src/main.ts`
+- **Commit:** `15cbea5`
 
 ## Risks
 
-- Browser and VS Code host verification remains intentionally deferred to the parent because the execution instruction forbids running the plan's host verification commands in this executor.
+- Automated Web/VS Code tests, offline/protocol smoke, and real browser UI checks passed. The final VS Code host checkpoint remains environment-dependent; TypeScript source still needs normal extension packaging before VSIX publication.
 - The VS Code package keeps TypeScript source and `tsconfig.json` separate from the Native executable; a release pipeline must compile/package the extension for the target VS Code host before publishing a VSIX.
 - Linear Wasm remains the Wave 3 compatibility artifact; this Web UI uses the primary generated JS facade and does not introduce a Wasm GC claim.
 
@@ -134,5 +144,5 @@ None in the implemented plan surface. The final human VS Code checkpoint is a re
 
 - Web and VS Code package manifests/lockfiles contain the approved pinned direct dependencies.
 - Web and VS Code host implementation, tests, smoke scripts, README, language configuration, and local launcher are present.
-- Task commits `8540148`, `175f45e`, and `504182b` exist in the repository history.
-- No host verification command was run or claimed as passed, and the human VS Code checkpoint is explicitly marked pending.
+- Task commits `8540148`, `175f45e`, `504182b`, `bc6db54`, and `15cbea5` exist in repository history.
+- Automated host checks and real browser checks passed; the human VS Code checkpoint is explicitly pending and unclaimed.
