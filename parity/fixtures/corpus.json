@@ -1,0 +1,15 @@
+{
+  "schema_version": "parity-fixtures.v1",
+  "transport": "inline-root-v1",
+  "cases": [
+    {"id":"valid-2.1","profile":"2.1","kind":"valid","source_bytes":[115,101,108,101,99,116,32,49]},
+    {"id":"recovered-3.x","profile":"3.x","kind":"recovered","source_bytes":[115,101,108,101,99,116,32,40]},
+    {"id":"error-4.x","profile":"4.x","kind":"error","source_bytes":[115,101,108,101,99,116,32,64,64,64]},
+    {"id":"comments-hint","profile":"4.x","kind":"comments-and-hint","source_bytes":[115,101,108,101,99,116,32,47,42,43,32,83,69,84,95,86,65,82,40,120,61,49,41,32,42,47,32,49,32,45,45,32,110,111,116,101,13,10]},
+    {"id":"crlf-multiple","profile":"3.x","kind":"crlf","source_bytes":[115,101,108,101,99,116,32,49,59,13,10,115,101,108,101,99,116,32,50]},
+    {"id":"non-ascii","profile":"2.1","kind":"non-ascii","source_bytes":[115,101,108,101,99,116,32,39,228,184,173,230,150,135,39]},
+    {"id":"format-refusal","profile":"4.x","kind":"format-refusal","source_bytes":[115,101,108,101,99,116,32,40]},
+    {"id":"raw-bytes","profile":"3.x","kind":"raw-bytes","source_bytes":[115,101,108,101,99,116,32,255,0,10]},
+    {"id":"empty","profile":"2.1","kind":"empty","source_bytes":[]}
+  ]
+}
