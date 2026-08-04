@@ -109,7 +109,7 @@ The export smoke assertions now live in the executable `parity` package and call
 - **Issue:** `moon test --target native --package binding --package parity` turns `binding` into a test main and rejects `#export_name` in a `foreign_library`; it also requires assertion-bearing `run_fixture` to use the `raise` effect.
 - **Fix:** Removed `binding/export_smoke_test.mbt`, added real `@binding.doris_*` serialized-byte assertions in `parity/export_smoke_test.mbt`, and changed `run_fixture` to `-> Unit raise`. Production `binding/moon.pkg` and export symbols remain unchanged.
 - **Files modified:** `binding/export_smoke_test.mbt` (removed), `parity/export_smoke_test.mbt`, `parity/parity_test.mbt`
-- **Commit:** pending
+- **Commit:** `947b4ef`
 
 No architectural changes, external dependencies, package installs, parser forks, network/FE/database paths, or Web/VS Code host work were introduced.
 
