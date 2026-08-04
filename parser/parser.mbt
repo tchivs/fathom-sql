@@ -1815,6 +1815,808 @@ fn parse_merge(
   valid
 }
 
+// ---------------------------------------------------------------
+// DDL: CREATE TABLE / VIEW / INDEX / MATERIALIZED VIEW (02-02)
+// ---------------------------------------------------------------
+// Grammar authority is the verbatim 4.x grammars in 02-RESEARCH.md
+// (sections 6-9). Per-family sync predicates only; the shared
+// is_clause_keyword set is never extended with DDL words (Pitfall 3).
+
+// CREATE [TEMPORARY|EXTERNAL] <verb> — resolves the statement kind for the
+// keyword-first dispatcher without consuming the cursor.
+fn create_form_kind(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> @syntax.SyntaxKind {
+  let mut i = start_index + 1
+  let length = indices.length()
+  if i >= length { return @syntax.SyntaxKind::CreateTable }
+  let modifier = match stream.raw(indices[i]) {
+    Some(raw) => bytes_equal_ci(raw, b"TEMPORARY") || bytes_equal_ci(raw, b"EXTERNAL")
+    None => false
+  }
+  if modifier { i = i + 1 }
+  if i >= length { return @syntax.SyntaxKind::CreateTable }
+  match stream.raw(indices[i]) {
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => @syntax.SyntaxKind::CreateTable
+    Some(raw) if bytes_equal_ci(raw, b"VIEW") => @syntax.SyntaxKind::CreateView
+    Some(raw) if bytes_equal_ci(raw, b"INDEX") => @syntax.SyntaxKind::CreateIndex
+    Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") => @syntax.SyntaxKind::CreateMaterializedView
+    _ => @syntax.SyntaxKind::CreateTable
+  }
+}
+
+fn parse_create(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"CREATE", state, source, statement_id, "expected CREATE statement")
+  ignore(consume_word(cursor, b"TEMPORARY"))
+  ignore(consume_word(cursor, b"EXTERNAL"))
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => {
+      valid = parse_create_table(cursor, state, source, statement_id) && valid
+    }
+    Some(_) => {
+      // VIEW / INDEX / MATERIALIZED VIEW arms land in Tasks 2-3 of 02-02.
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "unsupported CREATE form in the current build", "create-form", at, statement_id)
+      valid = false
+    }
+    None => ()
+  }
+  valid
+}
+
+// Per-family clause sync predicate for CREATE TABLE recovery (Pattern 2).
+fn is_create_table_clause_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"ENGINE") || bytes_equal_ci(raw, b"KEY") ||
+    bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"BY") ||
+    bytes_equal_ci(raw, b"COMMENT") || bytes_equal_ci(raw, b"PARTITION") ||
+    bytes_equal_ci(raw, b"AUTO") || bytes_equal_ci(raw, b"DISTRIBUTED") ||
+    bytes_equal_ci(raw, b"BUCKETS") || bytes_equal_ci(raw, b"ROLLUP") ||
+    bytes_equal_ci(raw, b"PROPERTIES") || bytes_equal_ci(raw, b"AS") ||
+    bytes_equal_ci(raw, b"LIKE") || bytes_equal_ci(raw, b"DUPLICATE") ||
+    bytes_equal_ci(raw, b"UNIQUE") || bytes_equal_ci(raw, b"AGGREGATE") ||
+    bytes_equal_ci(raw, b"IF") || bytes_equal_ci(raw, b"NOT")
+}
+
+fn is_key_type(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"DUPLICATE") || bytes_equal_ci(raw, b"UNIQUE") ||
+      bytes_equal_ci(raw, b"AGGREGATE")
+    None => false
+  }
+}
+
+// Documented aggregate functions for AGGREGATE-model value columns.
+fn is_aggregate_type(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"SUM") || bytes_equal_ci(raw, b"MIN") ||
+      bytes_equal_ci(raw, b"MAX") || bytes_equal_ci(raw, b"REPLACE") ||
+      bytes_equal_ci(raw, b"HLL_UNION") || bytes_equal_ci(raw, b"BITMAP_UNION") ||
+      bytes_equal_ci(raw, b"REPLACE_IF_NOT_NULL") || bytes_equal_ci(raw, b"QUANTILE_UNION")
+    None => false
+  }
+}
+
+// Documented column-type family names (research section 6 type list); used to
+// disambiguate an INDEX definition from a column literally named `index`.
+fn is_column_type_word(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"BOOLEAN") || bytes_equal_ci(raw, b"TINYINT") ||
+    bytes_equal_ci(raw, b"SMALLINT") || bytes_equal_ci(raw, b"INT") ||
+    bytes_equal_ci(raw, b"BIGINT") || bytes_equal_ci(raw, b"LARGEINT") ||
+    bytes_equal_ci(raw, b"FLOAT") || bytes_equal_ci(raw, b"DOUBLE") ||
+    bytes_equal_ci(raw, b"DECIMAL") || bytes_equal_ci(raw, b"DATE") ||
+    bytes_equal_ci(raw, b"TIME") || bytes_equal_ci(raw, b"DATETIME") ||
+    bytes_equal_ci(raw, b"TIMESTAMPTZ") || bytes_equal_ci(raw, b"CHAR") ||
+    bytes_equal_ci(raw, b"VARCHAR") || bytes_equal_ci(raw, b"STRING") ||
+    bytes_equal_ci(raw, b"VARBINARY") || bytes_equal_ci(raw, b"ARRAY") ||
+    bytes_equal_ci(raw, b"MAP") || bytes_equal_ci(raw, b"STRUCT") ||
+    bytes_equal_ci(raw, b"VARIANT") || bytes_equal_ci(raw, b"JSON") ||
+    bytes_equal_ci(raw, b"BITMAP") || bytes_equal_ci(raw, b"HLL") ||
+    bytes_equal_ci(raw, b"QUANTILE_STATE") || bytes_equal_ci(raw, b"AGG_STATE") ||
+    bytes_equal_ci(raw, b"IPv4") || bytes_equal_ci(raw, b"IPv6")
+}
+
+fn is_word_bytes(raw : Bytes) -> Bool {
+  if raw.length() == 0 {
+    false
+  } else {
+    let first = raw[0].to_int()
+    (first >= 65 && first <= 90) || (first >= 97 && first <= 122) || first == 95 || first == 96
+  }
+}
+
+// INDEX [ IF NOT EXISTS ] name ( cols ) ... inside the table body: true only
+// when the word after INDEX is IF or a non-type name followed by '(' — so a
+// column literally named `index` (index <type>) still parses as a column
+// (Pitfall 2).
+fn is_index_definition_start(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"INDEX") => {
+      match peek_raw(cursor, 1) {
+        Some(next) if bytes_equal_ci(next, b"IF") => true
+        Some(next) if is_word_bytes(next) && !is_column_type_word(next) => peek_raw(cursor, 2) is Some(b"(")
+        _ => false
+      }
+    }
+    _ => false
+  }
+}
+
+fn parse_create_table(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"TABLE", state, source, statement_id, "expected TABLE after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  // LIKE variant: CREATE TABLE new LIKE existing [ WITH ROLLUP ( list ) ].
+  if consume_word(cursor, b"LIKE") {
+    valid = parse_qualified_name(cursor, state, source, statement_id, "existing table name") && valid
+    if consume_word(cursor, b"WITH") {
+      valid = expect_word(cursor, b"ROLLUP", state, source, statement_id, "expected ROLLUP after WITH in LIKE") && valid
+      valid = parse_identifier_option(cursor, state, source, statement_id, "LIKE ROLLUP") && valid
+    }
+    return valid
+  }
+  let mut has_body = false
+  if raw_at(cursor) is Some(b"(") {
+    advance(cursor)
+    has_body = true
+    valid = parse_create_table_body(cursor, state, source, statement_id) && valid
+    let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing table body parenthesis")
+    if !closed {
+      recover_to_clause_boundary(cursor, state, source, statement_id, is_create_table_clause_boundary)
+    }
+    valid = closed && valid
+  }
+  if consume_word(cursor, b"ENGINE") {
+    valid = expect_symbol(cursor, b"=", state, source, statement_id, "expected = after ENGINE") && valid
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected engine type after ENGINE =", "identifier", make_span(source, at, at), statement_id)
+      valid = false
+    }
+  }
+  if is_key_type(cursor) {
+    advance(cursor)
+    valid = expect_word(cursor, b"KEY", state, source, statement_id, "expected KEY after key type") && valid
+    valid = parse_identifier_option(cursor, state, source, statement_id, "KEY") && valid
+    let order_token = token_at(cursor)
+    if consume_word(cursor, b"ORDER") {
+      let order_span = match order_token { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      let feature = @token.DorisFeature::OrderByClause
+      if !feature_allowed(state, feature) {
+        add_feature_diagnostic(state, feature, order_span, statement_id)
+        valid = false
+      }
+      valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER") && valid
+      valid = parse_identifier_option(cursor, state, source, statement_id, "ORDER BY") && valid
+    }
+  }
+  if consume_word(cursor, b"COMMENT") {
+    let is_stringish = match token_at(cursor) {
+      Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+      None => false
+    }
+    if !is_stringish {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected table comment string after COMMENT", "string", at, statement_id)
+      valid = false
+    } else {
+      advance(cursor)
+    }
+  }
+  if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"AUTO") || bytes_equal_ci(raw, b"PARTITION")) {
+    valid = parse_partitions_definition(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"DISTRIBUTED") {
+    valid = parse_distribution_clause(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"ROLLUP") {
+    valid = parse_rollup_definition(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"PROPERTIES") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "PROPERTIES") && valid
+  }
+  // CTAS: optional AS marker followed by a query body.
+  if consume_word(cursor, b"AS") {
+    if !is_query_start(cursor) {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected query after AS in CREATE TABLE", "query", at, statement_id)
+      valid = false
+    } else {
+      valid = parse_query(cursor, state, source, statement_id) && valid
+    }
+  } else if is_query_start(cursor) {
+    valid = parse_query(cursor, state, source, statement_id) && valid
+  } else if !has_body {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected table body, LIKE, or query after CREATE TABLE", "table-body", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+// Comma-separated column definitions followed by optional INDEX definitions,
+// inside the table body parenthesis (columns first, then indexes).
+fn parse_create_table_body(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      if is_index_definition_start(cursor) {
+        valid = parse_create_table_index(cursor, state, source, statement_id) && valid
+      } else {
+        valid = parse_column_definition(cursor, state, source, statement_id) && valid
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected column or index after comma", "table-body", make_span(source, at, at), statement_id)
+          valid = false
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one column definition", "table-body", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+fn parse_column_definition(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if !is_identifier_candidate(cursor) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected column name", "identifier", at, statement_id)
+    return false
+  }
+  advance(cursor)
+  valid = parse_column_type(cursor, state, source, statement_id) && valid
+  if consume_word(cursor, b"KEY") { () }
+  if is_aggregate_type(cursor) { advance(cursor) }
+  if consume_word(cursor, b"GENERATED") {
+    valid = expect_word(cursor, b"ALWAYS", state, source, statement_id, "expected ALWAYS after GENERATED") && valid
+    valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS after GENERATED ALWAYS") && valid
+    valid = parse_parenthesized_expression(cursor, state, source, statement_id, "generated column") && valid
+  } else if consume_word(cursor, b"AS") {
+    valid = parse_parenthesized_expression(cursor, state, source, statement_id, "generated column") && valid
+  }
+  if consume_word(cursor, b"NOT") {
+    valid = expect_word(cursor, b"NULL", state, source, statement_id, "expected NULL after NOT") && valid
+  } else if consume_word(cursor, b"NULL") {
+    ()
+  }
+  if consume_word(cursor, b"AUTO_INCREMENT") {
+    if !consume_symbol(cursor, b"(") {
+      valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected AUTO_INCREMENT parenthesis") && valid
+    } else {
+      let is_start = match token_at(cursor) {
+        Some(token) => token.kind is @token.TokenKind::Number || is_identifier_candidate(cursor)
+        None => false
+      }
+      if !is_start {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected AUTO_INCREMENT start value", "number", at, statement_id)
+        valid = false
+      } else {
+        advance(cursor)
+      }
+      valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing AUTO_INCREMENT parenthesis") && valid
+    }
+  }
+  if consume_word(cursor, b"DEFAULT") {
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"ON") {
+    valid = expect_word(cursor, b"UPDATE", state, source, statement_id, "expected UPDATE after ON") && valid
+    valid = expect_word(cursor, b"CURRENT_TIMESTAMP", state, source, statement_id, "expected CURRENT_TIMESTAMP after ON UPDATE") && valid
+    if consume_symbol(cursor, b"(") {
+      let is_precision = match token_at(cursor) {
+        Some(token) => token.kind is @token.TokenKind::Number
+        None => false
+      }
+      if !is_precision {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected precision after ON UPDATE CURRENT_TIMESTAMP (", "number", at, statement_id)
+        valid = false
+      } else {
+        advance(cursor)
+      }
+      valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing precision parenthesis") && valid
+    }
+  }
+  if consume_word(cursor, b"COMMENT") {
+    let is_stringish = match token_at(cursor) {
+      Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+      None => false
+    }
+    if !is_stringish {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected column comment string after COMMENT", "string", at, statement_id)
+      valid = false
+    } else {
+      advance(cursor)
+    }
+  }
+  valid
+}
+
+// col_type := identifier [ ( params ) ] [ < params > ]; params items are
+// numbers, strings, or identifiers (with optional nested params/generics and
+// an optional STRUCT-style field type).
+fn parse_column_type(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !is_identifier_candidate(cursor) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected column type", "type", at, statement_id)
+    return false
+  }
+  advance(cursor)
+  let mut valid = true
+  if consume_symbol(cursor, b"(") {
+    valid = parse_type_params(cursor, state, source, statement_id) && valid
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing type parameter parenthesis") && valid
+  }
+  if raw_at(cursor) is Some(b"<") {
+    advance(cursor)
+    valid = parse_type_params(cursor, state, source, statement_id) && valid
+    valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing type generic bracket") && valid
+  }
+  valid
+}
+
+fn parse_type_params(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    match token_at(cursor) {
+      None => done = true
+      Some(token) if token.kind is @token.TokenKind::Number || token.kind is @token.TokenKind::StringLiteral => {
+        any = true
+        advance(cursor)
+      }
+      Some(_) if is_identifier_candidate(cursor) => {
+        any = true
+        advance(cursor)
+        if consume_symbol(cursor, b"(") {
+          valid = parse_type_params(cursor, state, source, statement_id) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing nested type parenthesis") && valid
+        }
+        if raw_at(cursor) is Some(b"<") {
+          advance(cursor)
+          valid = parse_type_params(cursor, state, source, statement_id) && valid
+          valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing nested type generic bracket") && valid
+        }
+        // STRUCT-style field type: name followed by an optional type word.
+        if is_identifier_candidate(cursor) && !(raw_at(cursor) is Some(b"(")) && !(raw_at(cursor) is Some(b"<")) {
+          advance(cursor)
+        }
+      }
+      Some(_) => {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected type parameter", "type-parameter", span, statement_id)
+        valid = false
+        done = true
+      }
+    }
+    if !done {
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") || raw_at(cursor) is Some(b">") {
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected type parameter", "type-parameter", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+fn parse_parenthesized_expression(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  what : String,
+) -> Bool {
+  if !consume_symbol(cursor, b"(") {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected ( for " + what, "symbol", at, statement_id)
+    return false
+  }
+  let mut valid = parse_expression(cursor, 1, 1, state, source, statement_id)
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing " + what + " parenthesis") && valid
+  valid
+}
+
+// INDEX [ IF NOT EXISTS ] name ( col list ) [ USING type ] [ PROPERTIES ( ... ) ] [ COMMENT '...' ]
+fn parse_create_table_index(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_word(cursor, b"INDEX", state, source, statement_id, "expected INDEX definition")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  if !is_identifier_candidate(cursor) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected index name", "identifier", at, statement_id)
+    valid = false
+  } else {
+    advance(cursor)
+  }
+  valid = parse_identifier_option(cursor, state, source, statement_id, "INDEX") && valid
+  if consume_word(cursor, b"USING") {
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected index type after USING", "identifier", at, statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"PROPERTIES") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "INDEX PROPERTIES") && valid
+  }
+  if consume_word(cursor, b"COMMENT") {
+    let is_stringish = match token_at(cursor) {
+      Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+      None => false
+    }
+    if !is_stringish {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected index comment string after COMMENT", "string", at, statement_id)
+      valid = false
+    } else {
+      advance(cursor)
+    }
+  }
+  valid
+}
+
+fn parse_partitions_definition(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let auto_token = token_at(cursor)
+  if consume_word(cursor, b"AUTO") {
+    let auto_span = match auto_token { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    let feature = @token.DorisFeature::AutoPartitionBy
+    if !feature_allowed(state, feature) {
+      add_feature_diagnostic(state, feature, auto_span, statement_id)
+      valid = false
+    }
+    valid = expect_word(cursor, b"PARTITION", state, source, statement_id, "expected PARTITION after AUTO") && valid
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after AUTO PARTITION") && valid
+    if consume_word(cursor, b"RANGE") {
+      valid = parse_parenthesized_expression(cursor, state, source, statement_id, "AUTO PARTITION BY RANGE") && valid
+    } else if consume_word(cursor, b"LIST") {
+      valid = parse_identifier_option(cursor, state, source, statement_id, "AUTO PARTITION BY LIST") && valid
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected RANGE or LIST after AUTO PARTITION BY", "partition-type", at, statement_id)
+      valid = false
+    }
+    valid = parse_origin_partitions(cursor, state, source, statement_id) && valid
+  } else if consume_word(cursor, b"PARTITION") {
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION") && valid
+    if consume_word(cursor, b"RANGE") {
+      ()
+    } else if consume_word(cursor, b"LIST") {
+      ()
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected RANGE or LIST after PARTITION BY", "partition-type", at, statement_id)
+      valid = false
+    }
+    valid = parse_identifier_option(cursor, state, source, statement_id, "PARTITION BY") && valid
+    valid = parse_origin_partitions(cursor, state, source, statement_id) && valid
+  } else {
+    valid = false
+  }
+  valid
+}
+
+// ( <one_partition_definition> [ , ... ] ) — the list may be empty.
+fn parse_origin_partitions(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( for partition definitions")
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      valid = parse_one_partition_definition(cursor, state, source, statement_id) && valid
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") { done = true }
+      } else {
+        done = true
+      }
+    }
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing partition definitions parenthesis") && valid
+  valid
+}
+
+fn parse_one_partition_definition(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if consume_word(cursor, b"PARTITION") {
+    if consume_word(cursor, b"IF") {
+      valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+      valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+    }
+    if !is_identifier_candidate(cursor) {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected partition name", "identifier", at, statement_id)
+      valid = false
+    } else {
+      advance(cursor)
+    }
+    if consume_word(cursor, b"VALUES") {
+      if consume_word(cursor, b"LESS") {
+        valid = expect_word(cursor, b"THAN", state, source, statement_id, "expected THAN after VALUES LESS") && valid
+        if !consume_symbol(cursor, b"(") {
+          valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected VALUES LESS THAN parenthesis") && valid
+        } else {
+          valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES LESS THAN parenthesis") && valid
+        }
+      } else if consume_word(cursor, b"IN") {
+        if !consume_symbol(cursor, b"(") {
+          valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected VALUES IN parenthesis") && valid
+        } else {
+          valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES IN parenthesis") && valid
+        }
+      } else if consume_symbol(cursor, b"{") {
+        if consume_symbol(cursor, b"(") {
+          valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+          valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES IN parenthesis") && valid
+        } else {
+          valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+        }
+        valid = expect_symbol(cursor, b"}", state, source, statement_id, "expected closing VALUES IN brace") && valid
+      } else if consume_symbol(cursor, b"[") {
+        // VALUES [ <lower>, <upper> ) — half-open range.
+        valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+        valid = expect_symbol(cursor, b",", state, source, statement_id, "expected comma in VALUES range") && valid
+        valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+        valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES range parenthesis") && valid
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected LESS THAN, IN, or range after VALUES", "partition-values", at, statement_id)
+        valid = false
+      }
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected VALUES after partition name", "partition-values", at, statement_id)
+      valid = false
+    }
+  } else if consume_word(cursor, b"FROM") {
+    // FROM <lower> TO <upper> INTERVAL <n> [ <datetime_unit> ]
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+    valid = expect_word(cursor, b"TO", state, source, statement_id, "expected TO in partition range") && valid
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+    valid = expect_word(cursor, b"INTERVAL", state, source, statement_id, "expected INTERVAL in partition range") && valid
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+    if is_identifier_candidate(cursor) { advance(cursor) }
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected PARTITION or FROM in partition definition", "partition", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+// DISTRIBUTED BY { HASH ( cols ) | RANDOM } [ BUCKETS { count | AUTO } ]
+fn parse_distribution_clause(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after DISTRIBUTED")
+  if consume_word(cursor, b"HASH") {
+    valid = parse_identifier_option(cursor, state, source, statement_id, "HASH") && valid
+  } else if consume_word(cursor, b"RANDOM") {
+    ()
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected HASH or RANDOM after DISTRIBUTED BY", "distribution", at, statement_id)
+    valid = false
+  }
+  if consume_word(cursor, b"BUCKETS") {
+    let auto_token = token_at(cursor)
+    match auto_token {
+      Some(token) if token.kind is @token.TokenKind::Number => advance(cursor)
+      Some(token) => {
+        let is_auto = match raw_at(cursor) {
+          Some(raw) => bytes_equal_ci(raw, b"AUTO")
+          None => false
+        }
+        if is_auto {
+          let feature = @token.DorisFeature::BucketsAuto
+          if !feature_allowed(state, feature) {
+            add_feature_diagnostic(state, feature, token.span, statement_id)
+            valid = false
+          }
+          advance(cursor)
+        } else {
+          let at = match token_at(cursor) { Some(t) => t.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected bucket count or AUTO after BUCKETS", "bucket-count", at, statement_id)
+          valid = false
+        }
+      }
+      None => {
+        let at = match token_at(cursor) { Some(t) => t.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected bucket count or AUTO after BUCKETS", "bucket-count", at, statement_id)
+        valid = false
+      }
+    }
+  }
+  valid
+}
+
+// ROLLUP ( name ( cols ) [ DUPLICATE KEY ( cols ) ] [ , ... ] )
+fn parse_rollup_definition(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after ROLLUP")
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      if !is_identifier_candidate(cursor) {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected rollup name", "identifier", at, statement_id)
+        valid = false
+      } else {
+        advance(cursor)
+      }
+      valid = parse_identifier_option(cursor, state, source, statement_id, "ROLLUP") && valid
+      if consume_word(cursor, b"DUPLICATE") {
+        valid = expect_word(cursor, b"KEY", state, source, statement_id, "expected KEY after DUPLICATE") && valid
+        valid = parse_identifier_option(cursor, state, source, statement_id, "DUPLICATE KEY") && valid
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") { done = true }
+      } else {
+        done = true
+      }
+    }
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing ROLLUP parenthesis") && valid
+  valid
+}
+
+// PROPERTIES ( key = value [ , ... ] ) — keys/values may be strings, quoted
+// names, numbers, or identifiers (docs examples use quoted strings).
+fn parse_properties_clause(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  what : String,
+) -> Bool {
+  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after " + what)
+  let mut any = false
+  let mut done = false
+  while !done {
+    let is_value = match token_at(cursor) {
+      Some(token) => token.kind is @token.TokenKind::StringLiteral ||
+        token.kind is @token.TokenKind::Number || is_identifier_candidate(cursor)
+      None => false
+    }
+    if !is_value {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      if raw_at(cursor) is Some(b")") {
+        done = true
+      } else {
+        add_diagnostic(state, "DORIS-PARSE-002", "expected property key in " + what, "property-key", span, statement_id)
+        valid = false
+        done = true
+      }
+    } else {
+      any = true
+      advance(cursor)
+      valid = expect_symbol(cursor, b"=", state, source, statement_id, "expected = in " + what + " pair") && valid
+      let is_value2 = match token_at(cursor) {
+        Some(token) => token.kind is @token.TokenKind::StringLiteral ||
+          token.kind is @token.TokenKind::Number || is_identifier_candidate(cursor)
+        None => false
+      }
+      if !is_value2 {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected property value in " + what, "property-value", at, statement_id)
+        valid = false
+      } else {
+        advance(cursor)
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") { done = true }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one property in " + what, "property", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing " + what + " parenthesis") && valid
+  valid
+}
+
 // Runs the shared trailing-token recovery loop and builds the family statement
 // node with the Statement wrapper, preserving Phase 1 semantics exactly.
 fn finish_statement(
@@ -2058,6 +2860,10 @@ fn parse_segment(
       finish_statement(stream, cursor, start_index, end_index, span, parse_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
     Some(raw) if bytes_equal_ci(raw, b"MERGE") =>
       finish_statement(stream, cursor, start_index, end_index, span, parse_merge(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Merge, "unexpected tokens after MERGE statement")
+    Some(raw) if bytes_equal_ci(raw, b"CREATE") => {
+      let kind = create_form_kind(stream, indices, 0)
+      finish_statement(stream, cursor, start_index, end_index, span, parse_create(cursor, state, stream.source, statement_id), state, statement_id, kind, "unexpected tokens after CREATE statement")
+    }
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
 }

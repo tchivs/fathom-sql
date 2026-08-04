@@ -8,6 +8,15 @@ pub(all) enum SyntaxKind {
   Delete
   Merge
   ValueList
+  CreateTable
+  CreateView
+  CreateIndex
+  CreateMaterializedView
+  ColumnDefinition
+  KeyClause
+  DistributionClause
+  PartitionClause
+  PropertyList
   Expression
   Token
   Trivia

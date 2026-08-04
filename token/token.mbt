@@ -135,6 +135,9 @@ pub(all) enum DorisFeature {
   Tablet
   PartitionStar
   MergeInto
+  OrderByClause
+  BucketsAuto
+  AutoPartitionBy
 } derive(Eq, @debug.Debug)
 
 pub struct FeatureMetadata {
@@ -179,6 +182,30 @@ pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
       diagnostic_code: "DORIS-PARSE-006",
       recovery_kind: "error",
       diagnostic_message: "feature MERGE is unavailable in the selected released profile",
+    }
+    OrderByClause => {
+      name: "CREATE TABLE ORDER BY",
+      keyword: b"ORDER",
+      introduced_profile: "4.x",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature CREATE TABLE ORDER BY is unavailable in the selected released profile (docs note: since 4.1.0)",
+    }
+    BucketsAuto => {
+      name: "BUCKETS AUTO",
+      keyword: b"BUCKETS",
+      introduced_profile: "3.x",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature BUCKETS AUTO is unavailable in the selected released profile (assumed introduction: 3.x)",
+    }
+    AutoPartitionBy => {
+      name: "AUTO PARTITION BY",
+      keyword: b"AUTO",
+      introduced_profile: "2.1",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature AUTO PARTITION BY is unavailable in the selected released profile (assumed introduction: 2.1)",
     }
   }
 }

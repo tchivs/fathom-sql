@@ -403,7 +403,6 @@ test "unsupported_statement_starters_emit_one_007_each" {
     b"EXPLAIN SELECT 1",
     b"LOAD DATA INPATH 'x' INTO TABLE t",
     b"TRUNCATE TABLE t",
-    b"CREATE TABLE t (a INT)",
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
