@@ -5,4 +5,5 @@ import {
   "fathom/doris-sql/printer" @printer,
   "fathom/doris-sql/source" @source,
   "fathom/doris-sql/token" @token,
+  "fathom/doris-sql/formatter" @formatter,
 }

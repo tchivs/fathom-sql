@@ -336,6 +336,118 @@ pub fn parse_with_ids(
   parse(raw, options)
 }
 
+// Formatter type re-exports (D-38): api is the shared Phase 4 LSP core entry,
+// so @api.FormatOptions / @api.FormatResult etc. resolve through the facade.
+// Type aliases compile on moon 0.1.20260724 (probe-verified).
+pub type FormatOptions = @formatter.FormatOptions
+pub type FormatResult = @formatter.FormatResult
+pub type FormatDiagnostic = @formatter.FormatDiagnostic
+pub type FormatError = @formatter.FormatError
+pub type KeywordCase = @formatter.KeywordCase
+pub type CommaStyle = @formatter.CommaStyle
+pub type NewlineStyle = @formatter.NewlineStyle
+
+/// Primitive-shaped formatting diagnostic converted from a parser diagnostic
+/// (mirror of primitive_diagnostic above, same six fields).
+fn format_diagnostic(diagnostic : @parser.ParserDiagnostic) -> FormatDiagnostic {
+  {
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    message: diagnostic.message,
+    expected_class: diagnostic.expected_class,
+    start_byte: diagnostic.span.start_byte,
+    end_byte: diagnostic.span.end_byte,
+    statement_id: diagnostic.statement_id,
+  }
+}
+
+/// Shared core format entry (D-38): one internal parse mirroring `parse`, then
+/// the formatter over the in-memory SyntaxNode. Parse diagnostics are converted
+/// to FormatDiagnostic shape and prepended so a refusal never masks parse
+/// errors (threat T-03-01). UnknownProfile / InputTooLarge / InvalidSyntaxTree
+/// propagate as ParseError exactly like `parse`.
+pub fn format_text(
+  raw : Bytes,
+  parse_options : ParseOptions,
+  format_options : FormatOptions,
+) -> Result[FormatResult, ParseError] {
+  let limits = parse_options.limits
+  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
+    Ok(source) => source
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+      return Err(InputTooLarge(requested_bytes~, max_bytes~))
+    }
+  }
+  let parser_mode = match parse_options.mode {
+    ParseMode::Strict => @parser.ParseMode::Strict
+    ParseMode::Editor => @parser.ParseMode::Editor
+  }
+  let parser_limits = @parser.ParserLimits::new(
+    limits.max_bytes,
+    limits.max_tokens,
+    limits.max_recursion_depth,
+    limits.max_recovery_steps,
+    limits.max_diagnostics,
+  )
+  let parsed = @parser.parse_with_limits_context(
+    source,
+    parse_options.profile_context,
+    parser_mode,
+    parser_limits,
+  )
+  if !parsed.root.is_valid(source.byte_length()) {
+    return Err(InvalidSyntaxTree)
+  }
+  let formatted = @formatter.format(parsed.root, source, format_options)
+  let diagnostics : Array[FormatDiagnostic] = []
+  for diagnostic in parsed.diagnostics {
+    diagnostics.push(format_diagnostic(diagnostic))
+  }
+  for diagnostic in formatted.diagnostics {
+    diagnostics.push(diagnostic)
+  }
+  Ok({
+    accepted: formatted.accepted,
+    output: formatted.output,
+    diagnostics: diagnostics,
+    statement_offsets: formatted.statement_offsets,
+  })
+}
+
+pub fn format_with_ids(
+  raw : Bytes,
+  profile_id : String,
+  mode_id_value : String,
+  format_options : FormatOptions,
+) -> Result[FormatResult, ParseError] {
+  let options = match ParseOptions::new(profile_id, mode_id_value) {
+    Ok(options) => options
+    Err(error) => return Err(error)
+  }
+  format_text(raw, options, format_options)
+}
+
+pub fn format_with_metadata(
+  raw : Bytes,
+  profile_id : String,
+  exact_release : String,
+  feature_introduction : String,
+  mode_id_value : String,
+  format_options : FormatOptions,
+) -> Result[FormatResult, ParseError] {
+  let options = match ParseOptions::from_manifest(
+    profile_id,
+    exact_release,
+    feature_introduction,
+    mode_id_value,
+  ) {
+    Ok(options) => options
+    Err(error) => return Err(error)
+  }
+  format_text(raw, options, format_options)
+}
+
 pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
   self.source_byte_length == self.source_bytes.length()
 }
