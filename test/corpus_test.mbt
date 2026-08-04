@@ -286,12 +286,71 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // script-multi-statement (4.x): all-valid multi-statement document; the
+  // DORIS-03 invalid-statement variant is asserted by
+  // script_multi_statement_fixture_keeps_statement_ids below.
+  {
+    fixture_id: "4.x-script-multi-statement",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"CREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t;\nINSERT INTO t VALUES (2); SELECT b;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  // malformed-recovery (4.x): editor-mode recovery goldens (expected-error).
+  {
+    fixture_id: "4.x-malformed-recovery",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"UPDATE t SET x = 1 WHERE;\nINSERT INTO t VALUES (1;\n",
+    mode: "editor",
+    expected_valid: false,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {
-  assert_true(dml_ddl_corpus_fixtures.length() >= 3)
+  assert_true(dml_ddl_corpus_fixtures.length() >= 30)
   for fixture in dml_ddl_corpus_fixtures {
     assert_true(fixture.fixture_id.length() > 0)
     assert_true(metadata_fixture_replay_ok(fixture))
   }
+}
+
+test "script_multi_statement_fixture_keeps_statement_ids" {
+  // The corpus script fixture is an all-valid multi-statement document with
+  // five statements; the DORIS-03 variant (an unsupported statement between
+  // valid ones) must keep later statements with distinct statement ids.
+  let valid = b"CREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t;\nINSERT INTO t VALUES (2); SELECT b;\n"
+  let result = match @api.parse_with_ids(valid, "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.valid)
+  assert_eq(result.diagnostics.length(), 0)
+  assert_eq(@printer.print_result(result), valid)
+  let mut statement_count = 0
+  for child in result.root.children {
+    if child.kind == "statement" { statement_count = statement_count + 1 }
+  }
+  assert_eq(statement_count, 5)
+  assert_true(result.all_spans_in_bounds())
+
+  let raw = b"INSERT INTO t VALUES (1); bad; SELECT b"
+  let bad = match @api.parse_with_ids(raw, "4.x", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(@printer.print_result(bad), raw)
+  let mut bad_statement_count = 0
+  for child in bad.root.children {
+    if child.kind == "statement" { bad_statement_count = bad_statement_count + 1 }
+  }
+  assert_eq(bad_statement_count, 3)
+  assert_true(!bad.valid)
+  let diagnostic = bad.diagnostics[0]
+  assert_eq(diagnostic.statement_id, 1U)
+  assert_eq(diagnostic.code, "DORIS-PARSE-007")
+  assert_true(bad.all_spans_in_bounds())
 }
