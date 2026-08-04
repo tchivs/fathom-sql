@@ -72,3 +72,54 @@ pub fn span_to_range(source : @source.SourceText, start_byte : Int, end_byte : I
   }
   Ok({ start: start, end: end })
 }
+fn utf8_width(bytes : Bytes, index : Int) -> Int {
+  let first = bytes[index].to_int()
+  if first < 0x80 { 1 }
+  else if first < 0xE0 { 2 }
+  else if first < 0xF0 { 3 }
+  else { 4 }
+}
+
+fn line_content_end(source : @source.SourceText, line : Int) -> Int {
+  let starts = source.line_index().line_starts()
+  let start = starts[line]
+  let next = if line + 1 < starts.length() { starts[line + 1] } else { source.byte_length() }
+  if next - start >= 2 && source.bytes()[next - 2].to_int() == 13 && source.bytes()[next - 1].to_int() == 10 {
+    next - 2
+  } else if next > start && (source.bytes()[next - 1].to_int() == 10 || source.bytes()[next - 1].to_int() == 13) {
+    next - 1
+  } else {
+    next
+  }
+}
+
+/// Convert an LSP UTF-16 position back to the authoritative source byte offset.
+/// The inverse lives beside byte_to_position so completion and future edit
+/// requests cannot grow a second coordinate policy.
+pub fn position_to_byte(source : @source.SourceText, position : Position) -> Result[Int, CoordinateError] {
+  if position.line < 0 || position.character < 0 {
+    return Err(InvalidOffset(offset=-1))
+  }
+  let starts = source.line_index().line_starts()
+  if position.line >= starts.length() {
+    return Err(InvalidOffset(offset=source.byte_length() + 1))
+  }
+  let start = starts[position.line]
+  let end = line_content_end(source, position.line)
+  let bytes = source.bytes()
+  let mut index = start
+  let mut units = 0
+  while index < end {
+    let width = utf8_width(bytes, index)
+    let next_units = units + if width == 4 { 2 } else { 1 }
+    if position.character == units {
+      return Ok(index)
+    }
+    if position.character < next_units {
+      return Err(InvalidOffset(offset=start))
+    }
+    units = next_units
+    index = index + width
+  }
+  if position.character == units { Ok(index) } else { Err(InvalidOffset(offset=end + 1)) }
+}

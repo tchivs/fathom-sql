@@ -21,6 +21,11 @@ fn field(value : Json, key : String) -> Json? {
   }
 }
 
+pub fn has_field(value : Json, key : String) -> Bool {
+  field(value, key).is_some()
+}
+
+
 pub fn string_field(value : Json, key : String) -> String? {
   match field(value, key) {
     Some(String(text)) => Some(text)
@@ -30,7 +35,7 @@ pub fn string_field(value : Json, key : String) -> String? {
 
 pub fn int_field(value : Json, key : String) -> Int? {
   match field(value, key) {
-    Number(number, ..) if number.to_int().to_double() == number => Some(number.to_int())
+    Some(Number(number, ..)) if number.to_int().to_double() == number => Some(number.to_int())
     _ => None
   }
 }
@@ -53,7 +58,6 @@ fn decode_id(value : Json) -> RpcId? {
   match value {
     Number(number, ..) if number.to_int().to_double() == number => Some(IntId(value=number.to_int()))
     String(text) => Some(TextId(value=text))
-    Null => Some(NullId)
     _ => None
   }
 }

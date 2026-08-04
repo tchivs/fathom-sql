@@ -61,3 +61,22 @@ test "utf16_conversion_treats_crlf_as_one_line" {
   assert_eq(line_end.line, 1)
   assert_eq(line_end.character, 3)
 }
+
+
+test "utf16_positions_round_trip_to_source_bytes" {
+  let raw = b"a\xf0\x9f\x98\x80b\r\nSELECT"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let emoji_end = match position_to_byte(source, { line: 0, character: 3 }) {
+    Ok(offset) => offset
+    Err(_) => panic()
+  }
+  assert_eq(emoji_end, 5)
+  let second_line = match position_to_byte(source, { line: 1, character: 6 }) {
+    Ok(offset) => offset
+    Err(_) => panic()
+  }
+  assert_eq(second_line, raw.length())
+}

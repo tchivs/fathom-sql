@@ -16,8 +16,13 @@ pub fn DocumentStore::new() -> DocumentStore {
 
 pub fn DocumentStore::open(self : DocumentStore, uri : String, version : Int, text : Bytes) -> Bool {
   if version < 0 { return false }
-  self.docs[uri] = { uri: uri, version: version, text: text }
-  true
+  match self.docs.get(uri) {
+    Some(document) if version <= document.version => false
+    _ => {
+      self.docs[uri] = { uri: uri, version: version, text: text }
+      true
+    }
+  }
 }
 
 pub fn DocumentStore::change(self : DocumentStore, uri : String, version : Int, text : Bytes) -> Bool {

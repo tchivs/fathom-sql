@@ -98,9 +98,9 @@ fn document_from_params(params : Json, key : String) -> (String, Int, Bytes)? {
     Some(uri) => uri
     None => return None
   }
-  let version = match  int_field(document, "version") {
-    Some(version) => version
-    None => return None
+  let version = match int_field(document, "version") {
+    Some(version) if version >= 0 => version
+    _ => return None
   }
   let text = match  string_field(document, "text") {
     Some(text) => text
@@ -125,16 +125,16 @@ fn changed_document(params : Json) -> (String, Int, Bytes)? {
     Some(uri) => uri
     None => return None
   }
-  let version = match  int_field(document, "version") {
-    Some(version) => version
+  let version = match int_field(document, "version") {
+    Some(version) if version >= 0 => version
     None => return None
   }
-  let changes = match  array_field(params, "contentChanges") {
-    Some(changes) => changes
-    None => return None
+  let changes = match array_field(params, "contentChanges") {
+    Some(changes) if changes.length() == 1 => changes
+    _ => return None
   }
-  if changes.length() == 0 { return None }
-  let text = match  string_field(changes[0], "text") {
+  if has_field(changes[0], "range") { return None }
+  let text = match string_field(changes[0], "text") {
     Some(text) => text
     None => return None
   }
@@ -154,6 +154,7 @@ fn initialize_result() -> Json {
     "capabilities": {
       "textDocumentSync": Json::number(1.0),
       "documentFormattingProvider": Json::boolean(true),
+      "completionProvider": { "triggerCharacters": Json::array([Json::string(" "), Json::string(".")]) },
       "positionEncoding": Json::array([Json::string("utf-16")]),
     },
     "serverInfo": { "name": Json::string("doris-lsp"), "version": Json::string("0.1") },
@@ -196,6 +197,93 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
   responses
 }
 
+fn completion_request(params : Json) -> (String, @binding.Position, Int?)? {
+  let text_document = match object_field(params, "textDocument") {
+    Some(value) => value
+    None => return None
+  }
+  let uri = match string_field(text_document, "uri") {
+    Some(uri) => uri
+    None => return None
+  }
+  let position = match object_field(params, "position") {
+    Some(value) => value
+    None => return None
+  }
+  let line = match int_field(position, "line") {
+    Some(value) if value >= 0 => value
+    _ => return None
+  }
+  let character = match int_field(position, "character") {
+    Some(value) if value >= 0 => value
+    _ => return None
+  }
+  let version = if has_field(text_document, "version") {
+    match int_field(text_document, "version") {
+      Some(value) if value >= 0 => Some(value)
+      _ => return None
+    }
+  } else {
+    None
+  }
+  Some((uri, { line: line, character: character }, version))
+}
+
+fn completion_item_json(raw : Bytes, item : @completion.CompletionItem) -> Json? {
+  let range = match diagnostic_range(raw, item.start_byte, item.end_byte) {
+    Some(range) => range
+    None => return None
+  }
+  Some({
+    "label": Json::string(item.label),
+    "kind": Json::number(14.0),
+    "detail": Json::string(item.detail),
+    "textEdit": {
+      "range": range_json(range),
+      "newText": Json::string(item.new_text),
+    },
+  })
+}
+
+fn completion_result(state : ServerState, params : Json, id : RpcId) -> Array[Bytes] {
+  let (uri, position, requested_version) = match completion_request(params) {
+    Some(value) => value
+    None => return [error_response(id, -32602, "completion requires textDocument and UTF-16 position")]
+  }
+  let document = match state.docs.get(uri) {
+    Some(document) => document
+    None => return [error_response(id, -32602, "completion document is not open")]
+  }
+  match requested_version {
+    Some(version) if version != document.version => return [error_response(id, -32602, "completion document version is stale")]
+    _ => ()
+  }
+  let source = match source(document.text) {
+    Some(source) => source
+    None => return [error_response(id, -32602, "completion source is invalid")]
+  }
+  let cursor_byte = match @binding.position_to_byte(source, position) {
+    Ok(offset) => offset
+    Err(_) => return [error_response(id, -32602, "completion position is outside the current document")]
+  }
+  let result = match @completion.complete(document.text, state.profile, cursor_byte) {
+    Ok(result) => result
+    Err(_) => return [error_response(id, -32602, "completion request could not be evaluated")]
+  }
+  let values : Array[Json] = []
+  for item in result.items {
+    match completion_item_json(document.text, item) {
+      Some(value) => values.push(value)
+      None => return [error_response(id, -32603, "unable to map completion range")]
+    }
+  }
+  [response(id, {
+    "isIncomplete": Json::boolean(result.is_incomplete),
+    "items": Json::array(values),
+  })]
+}
+
+
 pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes] {
   match message.method {
     "initialize" => {
@@ -236,62 +324,89 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       []
     }
     "textDocument/didOpen" => {
-      if !state.initialized || state.shutdown { return [] }
-      let params = match message.params {
-        Some(params) => params
-        None => return []
-      }
-      let (uri, version, text) = match document_from_params(params, "textDocument") {
-        Some(value) => value
-        None => return []
-      }
-      if state.docs.open(uri, version, text) {
-        match state.docs.get(uri) {
-          Some(document) => [parse_document(state, document)]
-          None => []
+      if !state.initialized || state.shutdown {
+        match message.id { Some(id) => [error_response(id, -32600, "server is not ready")]; None => [] }
+      } else {
+        let params = match message.params {
+          Some(params) => params
+          None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires textDocument")]; None => [] }
         }
-      } else { [] }
+        let document = match document_from_params(params, "textDocument") {
+          Some(value) => value
+          None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires uri, version, and text")]; None => [] }
+        }
+        let (uri, version, text) = document
+        if state.docs.open(uri, version, text) {
+          match state.docs.get(uri) {
+            Some(document) => [parse_document(state, document)]
+            None => []
+          }
+        } else {
+          match message.id { Some(id) => [error_response(id, -32602, "didOpen version is stale")]; None => [] }
+        }
+      }
     }
     "textDocument/didChange" => {
-      if !state.initialized || state.shutdown { return [] }
-      let params = match message.params {
-        Some(params) => params
-        None => return []
-      }
-      let (uri, version, text) = match changed_document(params) {
-        Some(value) => value
-        None => return []
-      }
-      if state.docs.change(uri, version, text) {
-        match state.docs.get(uri) {
-          Some(document) => [parse_document(state, document)]
-          None => []
+      if !state.initialized || state.shutdown {
+        match message.id { Some(id) => [error_response(id, -32600, "server is not ready")]; None => [] }
+      } else {
+        let params = match message.params {
+          Some(params) => params
+          None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires textDocument and contentChanges")]; None => [] }
         }
-      } else { [] }
+        let changed = match changed_document(params) {
+          Some(value) => value
+          None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires a full-content change")]; None => [] }
+        }
+        let (uri, version, text) = changed
+        if state.docs.change(uri, version, text) {
+          match state.docs.get(uri) {
+            Some(document) => [parse_document(state, document)]
+            None => []
+          }
+        } else {
+          match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
+        }
+      }
     }
     "textDocument/didClose" => {
-      match message.params {
+      let result = match message.params {
         Some(params) => match uri_from_params(params, "textDocument") {
-          Some(uri) => ignore(state.docs.close(uri))
-          None => ()
+          Some(uri) => { ignore(state.docs.close(uri)); None }
+          None => Some("didClose requires textDocument.uri")
         }
-        None => ()
+        None => Some("didClose requires textDocument.uri")
       }
-      []
+      match (result, message.id) {
+        (Some(message), Some(id)) => [error_response(id, -32602, message)]
+        _ => []
+      }
+    }
+    "textDocument/completion" => {
+      let id = match message.id {
+        Some(id) => id
+        None => return []
+      }
+      if !state.initialized || state.shutdown { return [error_response(id, -32600, "server is not ready")] }
+      let params = match message.params {
+        Some(params) => params
+        None => return [error_response(id, -32602, "completion requires params")]
+      }
+      completion_result(state, params, id)
     }
     "textDocument/formatting" => {
       let id = match message.id {
         Some(id) => id
         None => return []
       }
-      if !state.initialized || state.shutdown { return [ error_response(id, -32600, "server is not ready")] }
+      if !state.initialized || state.shutdown { return [error_response(id, -32600, "server is not ready")] }
       let params = match message.params {
         Some(params) => params
-        None => return [ response(id, Json::array([]))]
+        None => return [error_response(id, -32602, "formatting requires textDocument")]
       }
       let uri = match uri_from_params(params, "textDocument") {
         Some(uri) => uri
-        None => return [ response(id, Json::array([]))]
+        None => return [error_response(id, -32602, "formatting requires textDocument.uri")]
       }
       formatting_result(state, uri, id)
     }
