@@ -13,29 +13,29 @@
 
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
-extern "c" fn read_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "read"
+pub extern "c" fn read_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "read"
 
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
-extern "c" fn write_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "write"
+pub extern "c" fn write_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "write"
 
 #cfg(any(target="native", target="llvm"))
-extern "c" fn exit_process(code : Int) = "exit"
+pub extern "c" fn exit_process(code : Int) = "exit"
 
 #cfg(any(target="native", target="llvm"))
 #borrow(path, mode)
-extern "c" fn open_file(path : Bytes, mode : Bytes) -> Int64 = "fopen"
+pub extern "c" fn open_file(path : Bytes, mode : Bytes) -> Int64 = "fopen"
 
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
-extern "c" fn read_file_chunk(ptr : Bytes, size : Int, count : Int, handle : Int64) -> Int = "fread"
+pub extern "c" fn read_file_chunk(ptr : Bytes, size : Int, count : Int, handle : Int64) -> Int = "fread"
 
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
-extern "c" fn write_file_chunk(ptr : Bytes, size : Int, count : Int, handle : Int64) -> Int = "fwrite"
+pub extern "c" fn write_file_chunk(ptr : Bytes, size : Int, count : Int, handle : Int64) -> Int = "fwrite"
 
 #cfg(any(target="native", target="llvm"))
-extern "c" fn close_file(handle : Int64) -> Int = "fclose"
+pub extern "c" fn close_file(handle : Int64) -> Int = "fclose"
 
 /// Read a whole file into bytes; None when fopen fails (missing/unreadable).
 /// Bounded chunked reads (4096 bytes), stops at EOF. fopen returns 0L on

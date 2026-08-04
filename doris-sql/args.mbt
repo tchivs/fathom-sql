@@ -17,8 +17,10 @@ pub enum UsageError {
 } derive(Eq, @debug.Debug)
 
 /// Parsed format invocation. `file` None or "-" means stdin; trailing_newline
-/// defaults true and --no-trailing-newline clears it.
-pub struct Command {
+/// defaults true and --no-trailing-newline clears it. `pub(all)` so the
+/// black-box cli_test.mbt module can construct test Commands (moon 0.1.20260724
+/// rejects pub-struct literals cross-package without it — 03-01 lesson).
+pub(all) struct Command {
   profile : String
   keyword_case : String?
   indent : Int?

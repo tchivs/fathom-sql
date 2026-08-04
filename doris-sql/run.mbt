@@ -5,7 +5,7 @@
 /// moon-testable (D-40): no process spawn, no shared state, no temp files —
 /// parallel or interrupted invocations cannot corrupt each other.
 
-pub struct CliOutcome {
+pub(all) struct CliOutcome {
   exit_code : Int
   stdout : Bytes
   stderr : Bytes
