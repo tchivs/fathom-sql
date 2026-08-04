@@ -1,0 +1,18 @@
+{
+  "matrix_version": "target-abi.v1",
+  "schema_versions": ["doris.parse.v1", "doris.format.v1"],
+  "targets": [
+    {"id":"native","runner":"parity/run_native.mbt","command":"moon build --target native parity"},
+    {"id":"js-esm","runner":"parity/run_js.mbt","command":"moon build --target js parity"},
+    {"id":"wasm-linear","runner":"parity/run_wasm.mbt","command":"moon build --target wasm parity"}
+  ],
+  "profiles": ["2.1", "3.x", "4.x"],
+  "transport": "inline-root-v1",
+  "raw_bytes": "source_bytes is an explicit JSON byte array; JS uses Uint8Array",
+  "wasm_gc": {"supported": false, "reason":"linear-Wasm is the only Phase 4 compatibility promise"},
+  "gates": [
+    "unknown schema/profile/mode is a deterministic doris.error.v1 envelope",
+    "malformed and empty source preserve source_bytes and source_byte_length",
+    "serialized output contains no MoonBit ADT or internal object handle"
+  ]
+}

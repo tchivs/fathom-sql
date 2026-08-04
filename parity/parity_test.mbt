@@ -110,3 +110,22 @@ test "parity_capabilities_exclude_wasm_gc_and_expose_linear_wasm" {
   let bad_profile = json_text(@binding.doris_profile_v1("mysql"))
   assert_true(bad_profile.contains("DORIS-SCHEMA-003"))
 }
+
+test "target_abi_regression_preserves_bytes_and_exposes_only_primitives" {
+  let valid = json_text(@binding.doris_parse_v1(b"select 1", "4.x", "strict"))
+  assert_true(valid.contains("\"schema_version\":\"doris.parse.v1\""))
+  assert_true(valid.contains("\"source_bytes\":[115,101,108,101,99,116,32,49]"))
+  assert_true(!valid.contains("SyntaxNode"))
+  assert_true(!valid.contains("ParseResult"))
+  let empty = json_text(@binding.doris_parse_v1(b"", "2.1", "strict"))
+  assert_true(empty.contains("\"source_byte_length\":0"))
+  assert_true(empty.contains("\"source_bytes\":[]"))
+  let malformed = json_text(@binding.doris_parse_v1(b"\xff", "3.x", "editor"))
+  assert_true(malformed.contains("\"source_bytes\":[255]"))
+  assert_true(malformed.contains("\"diagnostics\":"))
+  let formatted = json_text(@binding.doris_format_v1(
+    b"select 1", "4.x", "strict", "upper", 2, 100, "trailing", "lf", true,
+  ))
+  assert_true(formatted.contains("\"schema_version\":\"doris.format.v1\""))
+  assert_true(!formatted.contains("FormatResult"))
+}
