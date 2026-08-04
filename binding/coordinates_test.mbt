@@ -41,3 +41,23 @@ test "utf8_byte_offsets_convert_nontrivially_to_utf16_units" {
   assert_eq(after_emoji.character, 3)
   assert_eq(eof.character, 4)
 }
+
+test "utf16_conversion_treats_crlf_as_one_line" {
+  let raw = b"ab\r\n\xe5\x88\x97\xf0\x9f\x98\x80\n"
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let line_start = match byte_to_position(source, 4) {
+    Ok(position) => position
+    Err(_) => panic()
+  }
+  let line_end = match byte_to_position(source, 11) {
+    Ok(position) => position
+    Err(_) => panic()
+  }
+  assert_eq(line_start.line, 1)
+  assert_eq(line_start.character, 0)
+  assert_eq(line_end.line, 1)
+  assert_eq(line_end.character, 3)
+}

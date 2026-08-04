@@ -48,8 +48,9 @@ fn utf16_units_before(bytes : Bytes, end_byte : Int) -> Int {
 }
 
 pub fn byte_to_position(source : @source.SourceText, byte_offset : Int) -> Result[Position, CoordinateError] {
-  guard let (line, byte_column) = source.line_index().line_col(byte_offset) else {
-    return Err(InvalidOffset(offset=byte_offset))
+  let (line, byte_column) = match source.line_index().line_col(byte_offset) {
+    Some(value) => value
+    None => return Err(InvalidOffset(offset=byte_offset))
   }
   let line_start = source.line_index().line_starts()[line]
   let bytes = source.bytes()
