@@ -501,7 +501,7 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
       fixture_id: "2.1-industrial",
       profile: "2.1",
       exact_release: "2.1",
-      feature_introduction: "2.1 baseline SELECT",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released",
       raw: b"SELECT 1",
       mode: "strict",
       expected_valid: true,
@@ -510,7 +510,7 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
       fixture_id: "3.x-industrial",
       profile: "3.x",
       exact_release: "3.x",
-      feature_introduction: "2.1 baseline; 3.x window and QUALIFY",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
       raw: b"WITH c AS (SELECT k FROM t) SELECT k FROM c UNION ALL SELECT k FROM t2",
       mode: "editor",
       expected_valid: true,
@@ -519,7 +519,7 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
       fixture_id: "4.x-industrial",
       profile: "4.x",
       exact_release: "4.x",
-      feature_introduction: "2.1 baseline; 4.x released SELECT",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
       raw: b"SELECT (((1)))",
       mode: "strict",
       expected_valid: true,
@@ -528,7 +528,7 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
       fixture_id: "2.1-invalid-encoding",
       profile: "2.1",
       exact_release: "2.1",
-      feature_introduction: "2.1 baseline SELECT",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released",
       raw: b"SELECT \xff",
       mode: "editor",
       expected_valid: false,
@@ -537,7 +537,7 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
       fixture_id: "4.x-recovery",
       profile: "4.x",
       exact_release: "4.x",
-      feature_introduction: "2.1 baseline; 4.x released SELECT",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
       raw: b"SELECT k +",
       mode: "editor",
       expected_valid: false,
@@ -552,13 +552,13 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
 
 test "metadata_mismatch_unknown_and_unsupported_rows_are_rejected_before_parse" {
   assert_true(@api.parse_with_metadata(
-    b"SELECT 1", "2.1", "2.0", "2.1 baseline SELECT", "strict",
+    b"SELECT 1", "2.1", "2.0", "2.1 baseline SELECT; DML/DDL released", "strict",
   ) is Err(@api.ParseError::ProfileMetadataMismatch(..)))
   assert_true(@api.parse_with_metadata(
     b"SELECT 1", "2.1", "2.1", "3.x QUALIFY", "strict",
   ) is Err(@api.ParseError::UnsupportedFeatureIntroduction(..)))
   assert_true(@api.parse_with_metadata(
-    b"SELECT 1", "2.1", "2.1", "2.1 baseline; 3.x window and QUALIFY", "strict",
+    b"SELECT 1", "2.1", "2.1", "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY", "strict",
   ) is Err(@api.ParseError::ProfileMetadataMismatch(..)))
   assert_true(@api.parse_with_metadata(
     b"SELECT 1", "5.x", "5.x", "5.x released SELECT", "strict",
@@ -573,7 +573,7 @@ test "metadata_mismatch_unknown_and_unsupported_rows_are_rejected_before_parse" 
     Err(_) => panic()
   }
   assert_eq(options.profile_metadata().exact_release, "3.x")
-  assert_eq(options.profile_metadata().feature_introduction, "2.1 baseline; 3.x window and QUALIFY")
+  assert_eq(options.profile_metadata().feature_introduction, "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY")
 }
 
 test "projection_modifiers_accept_all_except_and_distinctrow" {

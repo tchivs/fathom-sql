@@ -62,9 +62,9 @@ pub fn ProfileMetadata::for_manifest(
     None => return Err(UnknownProfile(profile_id~))
   }
   let metadata = profile.metadata()
-  if feature_introduction != "2.1 baseline SELECT" &&
-    feature_introduction != "2.1 baseline; 3.x window and QUALIFY" &&
-    feature_introduction != "2.1 baseline; 4.x released SELECT" {
+  if feature_introduction != "2.1 baseline SELECT; DML/DDL released" &&
+    feature_introduction != "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY" &&
+    feature_introduction != "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT" {
     return Err(UnsupportedFeatureIntroduction(feature_introduction=feature_introduction))
   }
   if exact_release != metadata.exact_release || feature_introduction != metadata.feature_introduction {
@@ -83,9 +83,9 @@ pub fn DorisProfile::validate_metadata(
   self : DorisProfile,
   metadata : ProfileMetadata,
 ) -> Result[ValidatedProfileContext, ProfileMetadataError] {
-  if metadata.feature_introduction != "2.1 baseline SELECT" &&
-    metadata.feature_introduction != "2.1 baseline; 3.x window and QUALIFY" &&
-    metadata.feature_introduction != "2.1 baseline; 4.x released SELECT" {
+  if metadata.feature_introduction != "2.1 baseline SELECT; DML/DDL released" &&
+    metadata.feature_introduction != "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY" &&
+    metadata.feature_introduction != "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT" {
     return Err(UnsupportedFeatureIntroduction(feature_introduction=metadata.feature_introduction))
   }
   let expected = self.metadata()
@@ -110,21 +110,21 @@ pub fn DorisProfile::validate_metadata(
       id: "2.1",
       release_family: "2.1",
       exact_release: "2.1",
-      feature_introduction: "2.1 baseline SELECT",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released",
       introduced_features: "baseline",
     }
     V3_X => {
       id: "3.x",
       release_family: "3.x",
       exact_release: "3.x",
-      feature_introduction: "2.1 baseline; 3.x window and QUALIFY",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
       introduced_features: "3.x-released",
     }
     V4_X => {
       id: "4.x",
       release_family: "4.x",
       exact_release: "4.x",
-      feature_introduction: "2.1 baseline; 4.x released SELECT",
+      feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
       introduced_features: "4.x-released",
     }
    }
