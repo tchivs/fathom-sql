@@ -1,0 +1,13 @@
+// Executable CLI package (D-37/D-38): the package dir name doris-sql/ builds
+// the binary doris-sql.exe (probe-verified on moon 0.1.20260724). The CLI is a
+// thin adapter — imports only the api core plus env/buffer/utf8/debug; NO core
+// formatter import and no FFI anywhere outside this package (the formatter and
+// api stay backend-neutral for the Wasm/JS targets).
+pkgtype(kind: "executable")
+import {
+  "fathom/doris-sql/api" @api,
+  "moonbitlang/core/buffer" @buffer,
+  "moonbitlang/core/debug" @debug,
+  "moonbitlang/core/env" @env,
+  "moonbitlang/core/encoding/utf8" @utf8,
+}
