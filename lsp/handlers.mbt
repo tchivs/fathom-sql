@@ -327,22 +327,23 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       if !state.initialized || state.shutdown {
         match message.id { Some(id) => [error_response(id, -32600, "server is not ready")]; None => [] }
       } else {
-        let params = match message.params {
-          Some(params) => params
-          None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires textDocument")]; None => [] }
-        }
-        let document = match document_from_params(params, "textDocument") {
-          Some(value) => value
-          None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires uri, version, and text")]; None => [] }
-        }
-        let (uri, version, text) = document
-        if state.docs.open(uri, version, text) {
-          match state.docs.get(uri) {
-            Some(document) => [parse_document(state, document)]
-            None => []
+        match message.params {
+          Some(params) => {
+            match document_from_params(params, "textDocument") {
+              Some((uri, version, text)) => {
+                if state.docs.open(uri, version, text) {
+                  match state.docs.get(uri) {
+                    Some(document) => [parse_document(state, document)]
+                    None => []
+                  }
+                } else {
+                  match message.id { Some(id) => [error_response(id, -32602, "didOpen version is stale")]; None => [] }
+                }
+              }
+              None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires uri, version, and text")]; None => [] }
+            }
           }
-        } else {
-          match message.id { Some(id) => [error_response(id, -32602, "didOpen version is stale")]; None => [] }
+          None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires textDocument")]; None => [] }
         }
       }
     }
@@ -350,22 +351,23 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       if !state.initialized || state.shutdown {
         match message.id { Some(id) => [error_response(id, -32600, "server is not ready")]; None => [] }
       } else {
-        let params = match message.params {
-          Some(params) => params
-          None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires textDocument and contentChanges")]; None => [] }
-        }
-        let changed = match changed_document(params) {
-          Some(value) => value
-          None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires a full-content change")]; None => [] }
-        }
-        let (uri, version, text) = changed
-        if state.docs.change(uri, version, text) {
-          match state.docs.get(uri) {
-            Some(document) => [parse_document(state, document)]
-            None => []
+        match message.params {
+          Some(params) => {
+            match changed_document(params) {
+              Some((uri, version, text)) => {
+                if state.docs.change(uri, version, text) {
+                  match state.docs.get(uri) {
+                    Some(document) => [parse_document(state, document)]
+                    None => []
+                  }
+                } else {
+                  match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
+                }
+              }
+              None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires a full-content change")]; None => [] }
+            }
           }
-        } else {
-          match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
+          None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires textDocument and contentChanges")]; None => [] }
         }
       }
     }
