@@ -1,0 +1,65 @@
+word	classification	introduced_profile	source
+SELECT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+WITH	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+FROM	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+WHERE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+GROUP	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+HAVING	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+ORDER	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+LIMIT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+JOIN	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+UNION	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+QUALIFY	reserved	3.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (QUALIFY clause; DorisFeature::Qualify 3.x; absent from the official reserved list)
+WINDOW	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+INTO	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+ON	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+USING	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+AS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+AND	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+OR	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+NOT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+IN	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+LIKE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+REGEXP	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+IS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+NULL	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+TRUE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+FALSE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+RECURSIVE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+BY	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+GROUPING	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+SETS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+ROLLUP	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+CUBE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+ALL	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DISTINCT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DISTINCTROW	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+EXCEPT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+INNER	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+LEFT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+RIGHT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+FULL	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+CROSS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+NATURAL	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+OUTER	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+PARTITION	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+SAMPLE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+TABLESAMPLE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+OVER	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+ASC	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DESC	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+NULLS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+FIRST	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+LAST	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+ROWS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+RANGE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+GROUPS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+BETWEEN	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+CURRENT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+ROW	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+UNBOUNDED	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+PRECEDING	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+FOLLOWING	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+OFFSET	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
+OUTFILE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+TABLET	contextual	3.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (TABLET clause; DorisFeature::Tablet 3.x; contextual per D-14 although listed in the official reserved keywords)

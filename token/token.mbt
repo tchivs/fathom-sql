@@ -265,6 +265,142 @@ fn token_bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
   }
 }
 
+/// Three-layer keyword classification (D-14): reserved words require backticks
+/// as identifiers, non-reserved grammar words stay usable as unquoted
+/// identifiers, and contextual words are clause-only (identifiers elsewhere).
+pub(all) enum ClassificationKind {
+  Reserved
+  NonReserved
+  Contextual
+} derive(Eq, @debug.Debug)
+
+/// One classified keyword row: word spelling, classification, the released
+/// profile that introduced the classification-relevant usage, and the official
+/// docs source row. Every word the parser productions use has a row
+/// (D-13/D-16 single source of truth).
+pub struct ClassificationEntry {
+  pub word : Bytes
+  pub classification : ClassificationKind
+  pub introduced_profile : String
+  pub source : String
+} derive(Eq, @debug.Debug)
+
+let reserved_keywords_url = "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"
+let select_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/"
+let insert_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/"
+let merge_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/"
+let create_table_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/"
+let create_view_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/"
+let create_mv_docs_url = "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/sync-materialized-view/CREATE-MATERIALIZED-VIEW/"
+
+/// The word-level classification gate and the DorisFeature production gate are
+/// distinct layers (D-14/D-15): classification_of / is_reserved_word gate
+/// identifier acceptance (a reserved word requires backticks), while
+/// DorisFeature + ValidatedProfileContext::supports gate production
+/// availability and emit DORIS-PARSE-006. A word can be reserved since 2.1
+/// while a clause using it is feature-gated (ORDER -> DorisFeature::
+/// OrderByClause "4.x" for CREATE TABLE ORDER BY), and MERGE carries "4.x"
+/// introduced_profile metadata AND a DorisFeature row. introduced_profile on a
+/// row is audit metadata; only DorisFeature gates reject version-invalid
+/// syntax.
+let classification_rows : Array[ClassificationEntry] = [
+  // Phase 1 reserved words, re-encoded with byte-identical answers. The
+  // official reserved-keyword list (identical across 2.1/3.x/4.x) is the
+  // classification authority (D-13); words absent from it but reserved by the
+  // Phase 1 clause/operator contract (QUALIFY, WINDOW, RECURSIVE, GROUPING,
+  // ROLLUP, DISTINCTROW, SAMPLE, OVER, NULLS, FIRST, LAST, GROUPS, OFFSET)
+  // stay reserved so is_reserved_word / is_unquoted_identifier behavior is
+  // preserved exactly.
+  { word: b"SELECT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"WITH", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"FROM", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"WHERE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"GROUP", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"HAVING", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"ORDER", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"LIMIT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"JOIN", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"UNION", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"QUALIFY", classification: Reserved, introduced_profile: "3.x", source: select_docs_url + " (QUALIFY clause; DorisFeature::Qualify 3.x; absent from the official reserved list)" },
+  { word: b"WINDOW", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"INTO", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"ON", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"USING", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"AS", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"AND", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"OR", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"NOT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"IN", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"LIKE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"REGEXP", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"IS", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"NULL", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"TRUE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"FALSE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"RECURSIVE", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"BY", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"GROUPING", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"SETS", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"ROLLUP", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"CUBE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"ALL", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DISTINCT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DISTINCTROW", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"EXCEPT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"INNER", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"LEFT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"RIGHT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"FULL", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"CROSS", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"NATURAL", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"OUTER", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"PARTITION", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"SAMPLE", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"TABLESAMPLE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"OVER", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"ASC", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DESC", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"NULLS", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"FIRST", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"LAST", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"ROWS", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"RANGE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"GROUPS", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"BETWEEN", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"CURRENT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"ROW", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"UNBOUNDED", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"PRECEDING", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"FOLLOWING", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"OFFSET", classification: Reserved, introduced_profile: "2.1", source: select_docs_url + " (Phase 1 clause/recovery word; absent from the official reserved list)" },
+  { word: b"OUTFILE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  // TABLET stays contextual per Phase 1 behavior and D-14, even though the
+  // official reserved list contains it; the TABLET clause is 3.x-gated via
+  // DorisFeature::Tablet.
+  { word: b"TABLET", classification: Contextual, introduced_profile: "3.x", source: select_docs_url + " (TABLET clause; DorisFeature::Tablet 3.x; contextual per D-14 although listed in the official reserved keywords)" },
+]
+
+/// Case-insensitive lookup of a word's classification row (D-13/D-14).
+pub fn classification_of(raw : Bytes) -> ClassificationEntry? {
+  let mut index = 0
+  while index < classification_rows.length() {
+    let entry = classification_rows[index]
+    if token_bytes_equal_ci(raw, entry.word) {
+      return Some(entry)
+    }
+    index = index + 1
+  }
+  None
+}
+
+pub fn classification_entry_count() -> Int {
+  classification_rows.length()
+}
+
+pub fn classification_entry_at(index : Int) -> ClassificationEntry? {
+  classification_rows.get(index)
+}
+
 /// Released-profile clause boundaries shared by parser contexts.
 pub fn is_clause_keyword(raw : Bytes) -> Bool {
   token_bytes_equal_ci(raw, b"SELECT") || token_bytes_equal_ci(raw, b"WITH") ||
@@ -277,33 +413,14 @@ pub fn is_clause_keyword(raw : Bytes) -> Bool {
     token_bytes_equal_ci(raw, b"USING")
 }
 
-/// Released-profile reserved and operator words. TABLET remains contextual.
+/// Released-profile reserved words: table-backed (D-14) — true iff a Reserved
+/// row exists (case-insensitive). Answers match the Phase 1 clause/operator
+/// set exactly; TABLET remains contextual.
 pub fn is_reserved_word(raw : Bytes) -> Bool {
-  is_clause_keyword(raw) ||
-    token_bytes_equal_ci(raw, b"AS") || token_bytes_equal_ci(raw, b"AND") ||
-    token_bytes_equal_ci(raw, b"OR") || token_bytes_equal_ci(raw, b"NOT") ||
-    token_bytes_equal_ci(raw, b"IN") || token_bytes_equal_ci(raw, b"LIKE") ||
-    token_bytes_equal_ci(raw, b"REGEXP") || token_bytes_equal_ci(raw, b"IS") ||
-    token_bytes_equal_ci(raw, b"NULL") || token_bytes_equal_ci(raw, b"TRUE") ||
-    token_bytes_equal_ci(raw, b"FALSE") || token_bytes_equal_ci(raw, b"RECURSIVE") ||
-    token_bytes_equal_ci(raw, b"BY") || token_bytes_equal_ci(raw, b"GROUPING") ||
-    token_bytes_equal_ci(raw, b"SETS") || token_bytes_equal_ci(raw, b"ROLLUP") ||
-    token_bytes_equal_ci(raw, b"CUBE") || token_bytes_equal_ci(raw, b"ALL") ||
-    token_bytes_equal_ci(raw, b"DISTINCT") || token_bytes_equal_ci(raw, b"DISTINCTROW") ||
-    token_bytes_equal_ci(raw, b"EXCEPT") || token_bytes_equal_ci(raw, b"INNER") ||
-    token_bytes_equal_ci(raw, b"LEFT") || token_bytes_equal_ci(raw, b"RIGHT") ||
-    token_bytes_equal_ci(raw, b"FULL") || token_bytes_equal_ci(raw, b"CROSS") ||
-    token_bytes_equal_ci(raw, b"NATURAL") || token_bytes_equal_ci(raw, b"OUTER") ||
-    token_bytes_equal_ci(raw, b"PARTITION") || token_bytes_equal_ci(raw, b"SAMPLE") ||
-    token_bytes_equal_ci(raw, b"TABLESAMPLE") || token_bytes_equal_ci(raw, b"OVER") ||
-    token_bytes_equal_ci(raw, b"ASC") || token_bytes_equal_ci(raw, b"DESC") ||
-    token_bytes_equal_ci(raw, b"NULLS") || token_bytes_equal_ci(raw, b"FIRST") ||
-    token_bytes_equal_ci(raw, b"LAST") || token_bytes_equal_ci(raw, b"ROWS") ||
-    token_bytes_equal_ci(raw, b"RANGE") || token_bytes_equal_ci(raw, b"GROUPS") ||
-    token_bytes_equal_ci(raw, b"BETWEEN") || token_bytes_equal_ci(raw, b"CURRENT") ||
-    token_bytes_equal_ci(raw, b"ROW") || token_bytes_equal_ci(raw, b"UNBOUNDED") ||
-    token_bytes_equal_ci(raw, b"PRECEDING") || token_bytes_equal_ci(raw, b"FOLLOWING") ||
-    token_bytes_equal_ci(raw, b"OFFSET") || token_bytes_equal_ci(raw, b"OUTFILE")
+  match classification_of(raw) {
+    Some(entry) => entry.classification is Reserved
+    None => false
+  }
 }
 
 pub fn is_unquoted_identifier(raw : Bytes) -> Bool {
