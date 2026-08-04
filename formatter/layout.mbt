@@ -818,12 +818,17 @@ fn layout_sequence(
             // its own line at the current line indent; a line comment forces a
             // break after itself. At the very start of the output (document
             // leading comment, buffer still empty) no break and no space is
-            // forced — the comment is simply the first emitted bytes.
+            // forced — the comment is simply the first emitted bytes. A
+            // comment that is the first leaf of a broken-list item arrives
+            // with the item's break already pending: that break is the correct
+            // line start (item indent, not the stale line_indent), so it must
+            // NOT be overwritten (03-03 Rule 1 fix — hint/hint-block placement
+            // flip-flopped between format passes otherwise).
             if run_has_newline {
-              if out.buf.length() > 0 {
+              if out.buf.length() > 0 && !out.pending_break {
                 out.break_line_at(out.line_indent)
               }
-            } else if out.buf.length() > 0 {
+            } else if out.buf.length() > 0 && !out.pending_break {
               out.space()
             }
             out.emit(bytes, false)
