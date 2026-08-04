@@ -378,6 +378,56 @@ let classification_rows : Array[ClassificationEntry] = [
   // official reserved list contains it; the TABLET clause is 3.x-gated via
   // DorisFeature::Tablet.
   { word: b"TABLET", classification: Contextual, introduced_profile: "3.x", source: select_docs_url + " (TABLET clause; DorisFeature::Tablet 3.x; contextual per D-14 although listed in the official reserved keywords)" },
+  // DML/DDL production words from 02-01/02-02 (D-09..D-12, D-13 authority).
+  // Words on the official reserved list are Reserved; ordinary grammar words
+  // absent from it are NonReserved (usable as unquoted identifiers, Pitfall
+  // 2); clause-only words are Contextual. MERGE is Reserved with a "4.x"
+  // introduced_profile per D-09 (4.x-doc-only statement) plus a DorisFeature
+  // row; MATCHED is a 4.x clause-only word (MERGE). introduced_profile here is
+  // word-level audit metadata — production availability is enforced by
+  // DorisFeature gates (D-15).
+  { word: b"INSERT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"UPDATE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DELETE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"OVERWRITE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"VALUES", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"SET", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"WHEN", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"THEN", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DEFAULT", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"CREATE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"TABLE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"INDEX", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"IF", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"EXISTS", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"KEY", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DUPLICATE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"UNIQUE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"DISTRIBUTED", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"AUTO", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"RANGE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"LIST", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
+  { word: b"MERGE", classification: Reserved, introduced_profile: "4.x", source: merge_docs_url + " (4.x-doc-only statement per D-09; not in the official reserved list; DorisFeature::MergeInto 4.x)" },
+  { word: b"BUCKETS", classification: NonReserved, introduced_profile: "2.1", source: create_table_docs_url + " (DISTRIBUTED BY ... BUCKETS clause; absent from the official reserved list)" },
+  { word: b"PROPERTIES", classification: NonReserved, introduced_profile: "2.1", source: create_table_docs_url + " (PROPERTIES clause; absent from the official reserved list)" },
+  { word: b"COMMENT", classification: NonReserved, introduced_profile: "2.1", source: create_table_docs_url + " (COMMENT clause; absent from the official reserved list)" },
+  { word: b"AGGREGATE", classification: NonReserved, introduced_profile: "2.1", source: create_table_docs_url + " (AGGREGATE key model; absent from the official reserved list)" },
+  { word: b"ENGINE", classification: NonReserved, introduced_profile: "2.1", source: create_table_docs_url + " (ENGINE = clause; absent from the official reserved list)" },
+  { word: b"VIEW", classification: NonReserved, introduced_profile: "2.1", source: create_view_docs_url + " (CREATE VIEW statement; absent from the official reserved list)" },
+  { word: b"MATCHED", classification: Contextual, introduced_profile: "4.x", source: merge_docs_url + " (WHEN MATCHED clause; absent from the official reserved list)" },
+  { word: b"LABEL", classification: Contextual, introduced_profile: "2.1", source: insert_docs_url + " (WITH LABEL clause; absent from the official reserved list)" },
+  { word: b"HASH", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (DISTRIBUTED BY HASH clause; absent from the official reserved list)" },
+  { word: b"RANDOM", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (DISTRIBUTED BY RANDOM clause; absent from the official reserved list)" },
+  { word: b"LESS", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (VALUES LESS THAN clause; absent from the official reserved list)" },
+  { word: b"THAN", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (VALUES LESS THAN clause; absent from the official reserved list)" },
+  { word: b"PARTITIONS", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (partition-list clause; absent from the official reserved list)" },
+  { word: b"TEMPORARY", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (CREATE TEMPORARY TABLE modifier; absent from the official reserved list)" },
+  { word: b"EXTERNAL", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (CREATE EXTERNAL TABLE modifier; absent from the official reserved list)" },
+  { word: b"MATERIALIZED", classification: Contextual, introduced_profile: "2.1", source: create_mv_docs_url + " (CREATE MATERIALIZED VIEW word; absent from the official reserved list)" },
+  { word: b"AUTO_INCREMENT", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (column option; absent from the official reserved list)" },
+  { word: b"CURRENT_TIMESTAMP", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (DEFAULT/ON UPDATE value; absent from the official reserved list)" },
+  { word: b"GENERATED", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (generated-column word; absent from the official reserved list)" },
+  { word: b"ALWAYS", classification: Contextual, introduced_profile: "2.1", source: create_table_docs_url + " (generated-column word; absent from the official reserved list)" },
 ]
 
 /// Case-insensitive lookup of a word's classification row (D-13/D-14).

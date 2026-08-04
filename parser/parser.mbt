@@ -393,7 +393,13 @@ fn is_expression_operand(cursor : Cursor, token : @token.Token) -> Bool {
   match token.kind {
     @token.TokenKind::Identifier => {
       match raw_at(cursor) {
-        Some(raw) if bytes_equal_ci(raw, b"NULL") || bytes_equal_ci(raw, b"TRUE") || bytes_equal_ci(raw, b"FALSE") => true
+        // NULL/TRUE/FALSE and DEFAULT are reserved words that double as
+        // value-expression keywords (docs: VALUES (expression | DEFAULT),
+        // UPDATE ... SET col = DEFAULT). They stay reserved for identifier
+        // acceptance (backticks required as names) while remaining valid
+        // expression operands.
+        Some(raw) if bytes_equal_ci(raw, b"NULL") || bytes_equal_ci(raw, b"TRUE") ||
+          bytes_equal_ci(raw, b"FALSE") || bytes_equal_ci(raw, b"DEFAULT") => true
         _ => is_identifier_candidate(cursor)
       }
     }

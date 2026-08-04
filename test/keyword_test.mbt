@@ -104,6 +104,48 @@ fn tsv_rows() -> Array[(Bytes, String, String, String)] {
     (b"OFFSET", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)"),
     (b"OUTFILE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
     (b"TABLET", "contextual", "3.x", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (TABLET clause; DorisFeature::Tablet 3.x; contextual per D-14 although listed in the official reserved keywords)"),
+    (b"INSERT", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"UPDATE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"DELETE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"OVERWRITE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"VALUES", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"SET", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"WHEN", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"THEN", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"DEFAULT", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"CREATE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"TABLE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"INDEX", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"IF", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"EXISTS", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"KEY", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"DUPLICATE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"UNIQUE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"DISTRIBUTED", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"AUTO", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"RANGE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"LIST", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
+    (b"MERGE", "reserved", "4.x", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/ (4.x-doc-only statement per D-09; not in the official reserved list; DorisFeature::MergeInto 4.x)"),
+    (b"BUCKETS", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY ... BUCKETS clause; absent from the official reserved list)"),
+    (b"PROPERTIES", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (PROPERTIES clause; absent from the official reserved list)"),
+    (b"COMMENT", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (COMMENT clause; absent from the official reserved list)"),
+    (b"AGGREGATE", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (AGGREGATE key model; absent from the official reserved list)"),
+    (b"ENGINE", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (ENGINE = clause; absent from the official reserved list)"),
+    (b"VIEW", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/ (CREATE VIEW statement; absent from the official reserved list)"),
+    (b"MATCHED", "contextual", "4.x", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/ (WHEN MATCHED clause; absent from the official reserved list)"),
+    (b"LABEL", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/ (WITH LABEL clause; absent from the official reserved list)"),
+    (b"HASH", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY HASH clause; absent from the official reserved list)"),
+    (b"RANDOM", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY RANDOM clause; absent from the official reserved list)"),
+    (b"LESS", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (VALUES LESS THAN clause; absent from the official reserved list)"),
+    (b"THAN", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (VALUES LESS THAN clause; absent from the official reserved list)"),
+    (b"PARTITIONS", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (partition-list clause; absent from the official reserved list)"),
+    (b"TEMPORARY", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (CREATE TEMPORARY TABLE modifier; absent from the official reserved list)"),
+    (b"EXTERNAL", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (CREATE EXTERNAL TABLE modifier; absent from the official reserved list)"),
+    (b"MATERIALIZED", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/sync-materialized-view/CREATE-MATERIALIZED-VIEW/ (CREATE MATERIALIZED VIEW word; absent from the official reserved list)"),
+    (b"AUTO_INCREMENT", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (column option; absent from the official reserved list)"),
+    (b"CURRENT_TIMESTAMP", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DEFAULT/ON UPDATE value; absent from the official reserved list)"),
+    (b"GENERATED", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (generated-column word; absent from the official reserved list)"),
+    (b"ALWAYS", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (generated-column word; absent from the official reserved list)"),
   ]
 }
 
@@ -202,5 +244,135 @@ test "dml_words_do_not_enter_the_shared_clause_set" {
     b"UPDATE", b"DELETE", b"MATCHED", b"THEN", b"CREATE", b"BUCKETS",
   ] {
     assert_true(!@token.is_clause_keyword(raw))
+  }
+}
+
+test "non_reserved_and_contextual_dml_ddl_words_are_usable_identifiers" {
+  // Research Pitfall 2: grammar words absent from the official reserved list
+  // stay usable as unquoted identifiers, aliases, and property keys (D-14).
+  let words = [
+    b"BUCKETS", b"PROPERTIES", b"COMMENT", b"AGGREGATE", b"ENGINE",
+    b"VIEW", b"MATCHED", b"LABEL", b"HASH", b"RANDOM", b"LESS", b"THAN",
+    b"PARTITIONS", b"TEMPORARY", b"EXTERNAL", b"MATERIALIZED",
+    b"AUTO_INCREMENT", b"CURRENT_TIMESTAMP", b"GENERATED", b"ALWAYS",
+    b"TABLET",
+  ]
+  for word in words {
+    for profile in ["2.1", "3.x", "4.x"] {
+      let projection = parse_kw(b"SELECT " + word + b" FROM t", profile, "strict")
+      assert_true(projection.valid)
+      assert_eq(projection.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(projection), b"SELECT " + word + b" FROM t")
+      let alias = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
+      assert_true(alias.valid)
+      assert_eq(alias.diagnostics.length(), 0)
+      let property = parse_kw(
+        b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
+        profile,
+        "strict",
+      )
+      assert_true(property.valid)
+      assert_eq(property.diagnostics.length(), 0)
+      let quoted = parse_kw(b"SELECT `" + word + b"` FROM t", profile, "strict")
+      assert_true(quoted.valid)
+      assert_eq(quoted.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(quoted), b"SELECT `" + word + b"` FROM t")
+    }
+  }
+}
+
+test "reserved_dml_ddl_words_require_backticks_as_identifiers" {
+  // Reserved words must be rejected as unquoted identifiers (DORIS-PARSE-002)
+  // and accepted backticked; the shared clause set is untouched.
+  let words = [
+    b"INSERT", b"UPDATE", b"DELETE", b"OVERWRITE", b"VALUES", b"SET",
+    b"WHEN", b"THEN", b"DEFAULT", b"CREATE", b"TABLE", b"INDEX", b"IF",
+    b"EXISTS", b"KEY", b"DUPLICATE", b"UNIQUE", b"DISTRIBUTED", b"AUTO",
+    b"RANGE", b"LIST", b"MERGE",
+  ]
+  for word in words {
+    for profile in ["2.1", "3.x", "4.x"] {
+      let alias = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
+      assert_true(!alias.valid)
+      assert_true(alias.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(alias), b"SELECT a AS " + word + b" FROM t")
+      let property = parse_kw(
+        b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
+        profile,
+        "strict",
+      )
+      assert_true(!property.valid)
+      assert_true(property.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(
+        @printer.print_result(property),
+        b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
+      )
+      let quoted = parse_kw(b"SELECT `" + word + b"` FROM t", profile, "strict")
+      assert_true(quoted.valid)
+      assert_eq(quoted.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(quoted), b"SELECT `" + word + b"` FROM t")
+    }
+  }
+}
+
+test "version_invalid_keyword_use_emits_006_through_feature_gates" {
+  // MERGE is 4.x-doc-only (D-09): 2.1/3.x must emit DORIS-PARSE-006 through
+  // the DorisFeature::MergeInto gate — never silent acceptance (D-15).
+  let merge = b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v"
+  for profile in ["2.1", "3.x"] {
+    let result = parse_kw(merge, profile, "strict")
+    assert_true(!result.valid)
+    assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+    assert_eq(@printer.print_result(result), merge)
+    assert_true(result.all_spans_in_bounds())
+  }
+  let merge_ok = parse_kw(merge, "4.x", "strict")
+  assert_true(merge_ok.valid)
+  assert_eq(merge_ok.diagnostics.length(), 0)
+  // QUALIFY and TABLET are 3.x-gated words (DorisFeature rows).
+  let qualify = parse_kw(b"SELECT a FROM t QUALIFY a = 1", "2.1", "strict")
+  assert_true(!qualify.valid)
+  assert_true(qualify.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+  let tablet = parse_kw(b"SELECT a FROM t TABLET (1)", "2.1", "strict")
+  assert_true(!tablet.valid)
+  assert_true(tablet.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+  // MATCHED carries "4.x" introduced_profile metadata but no standalone word
+  // gate: outside the (4.x-gated) MERGE production it remains an identifier —
+  // the word-level classification gate and the DorisFeature production gate
+  // are distinct layers.
+  let matched = parse_kw(b"SELECT matched FROM t", "2.1", "strict")
+  assert_true(matched.valid)
+  assert_eq(matched.diagnostics.length(), 0)
+  assert_eq(@printer.print_result(matched), b"SELECT matched FROM t")
+}
+
+test "grammar_words_still_work_in_clause_position" {
+  // Every classified DML/DDL word keeps its clause-keyword role inside its own
+  // statement family (02-01/02-02 behavior) — classification only affects
+  // identifier acceptance elsewhere.
+  let raws = [
+    b"INSERT INTO t VALUES (1, DEFAULT)",
+    b"UPDATE t SET c1 = 1 WHERE id = 1",
+    b"DELETE FROM t WHERE id = 1",
+    b"DELETE FROM t PARTITIONS (p1, p2) WHERE id = 1",
+    b"INSERT INTO t WITH LABEL lab VALUES (1)",
+    b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v",
+    b"CREATE TABLE t (a INT) ENGINE = OLAP DUPLICATE KEY (a) COMMENT 'c' DISTRIBUTED BY HASH (a) BUCKETS 10 PROPERTIES (\"k\" = \"v\")",
+    b"CREATE TABLE t (a INT) DISTRIBUTED BY RANDOM BUCKETS 10",
+    b"CREATE TABLE t (a INT) PARTITION BY RANGE (a) (PARTITION p1 VALUES LESS THAN (10))",
+    b"CREATE TABLE t (a INT) AUTO PARTITION BY LIST (a) ()",
+    b"CREATE TABLE t (a INT, c1 INT AUTO_INCREMENT(1), c2 DATETIME DEFAULT CURRENT_TIMESTAMP, c3 BIGINT GENERATED ALWAYS AS (a * 2))",
+    b"CREATE VIEW v AS SELECT 1",
+    b"CREATE INDEX idx ON t (a) USING INVERTED",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT a FROM t",
+    b"CREATE TABLE t2 LIKE t1",
+    b"CREATE TABLE t2 AS SELECT a FROM t",
+  ]
+  for raw in raws {
+    let result = parse_kw(raw, "4.x", "strict")
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(result.all_spans_in_bounds())
   }
 }

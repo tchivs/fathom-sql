@@ -63,3 +63,45 @@ FOLLOWING	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-elemen
 OFFSET	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (Phase 1 clause/recovery word; absent from the official reserved list)
 OUTFILE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 TABLET	contextual	3.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/ (TABLET clause; DorisFeature::Tablet 3.x; contextual per D-14 although listed in the official reserved keywords)
+INSERT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+UPDATE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DELETE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+OVERWRITE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+VALUES	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+SET	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+WHEN	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+THEN	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DEFAULT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+CREATE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+TABLE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+INDEX	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+IF	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+EXISTS	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+KEY	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DUPLICATE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+UNIQUE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DISTRIBUTED	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+AUTO	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+RANGE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+LIST	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+MERGE	reserved	4.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/ (4.x-doc-only statement per D-09; not in the official reserved list; DorisFeature::MergeInto 4.x)
+BUCKETS	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY ... BUCKETS clause; absent from the official reserved list)
+PROPERTIES	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (PROPERTIES clause; absent from the official reserved list)
+COMMENT	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (COMMENT clause; absent from the official reserved list)
+AGGREGATE	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (AGGREGATE key model; absent from the official reserved list)
+ENGINE	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (ENGINE = clause; absent from the official reserved list)
+VIEW	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/ (CREATE VIEW statement; absent from the official reserved list)
+MATCHED	contextual	4.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/ (WHEN MATCHED clause; absent from the official reserved list)
+LABEL	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/ (WITH LABEL clause; absent from the official reserved list)
+HASH	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY HASH clause; absent from the official reserved list)
+RANDOM	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY RANDOM clause; absent from the official reserved list)
+LESS	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (VALUES LESS THAN clause; absent from the official reserved list)
+THAN	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (VALUES LESS THAN clause; absent from the official reserved list)
+PARTITIONS	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (partition-list clause; absent from the official reserved list)
+TEMPORARY	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (CREATE TEMPORARY TABLE modifier; absent from the official reserved list)
+EXTERNAL	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (CREATE EXTERNAL TABLE modifier; absent from the official reserved list)
+MATERIALIZED	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/sync-materialized-view/CREATE-MATERIALIZED-VIEW/ (CREATE MATERIALIZED VIEW word; absent from the official reserved list)
+AUTO_INCREMENT	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (column option; absent from the official reserved list)
+CURRENT_TIMESTAMP	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DEFAULT/ON UPDATE value; absent from the official reserved list)
+GENERATED	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (generated-column word; absent from the official reserved list)
+ALWAYS	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (generated-column word; absent from the official reserved list)
