@@ -26,7 +26,14 @@ fn main {
       panic() // unreachable — exit_process terminates
     }
   }
-  let stdin_bytes = read_stdin()
+  // WR-01: only read stdin when the invocation selects stdin (no file, or
+  // "-"). A file-mode invocation must not block on an open stdin that never
+  // delivers EOF (interactive terminal, CI with a live stdin pipe, a parent
+  // holding fd 0) — read_stdin would hang before the file is ever touched.
+  let stdin_bytes = match command.file {
+    Some(path) if path != "-" => b""
+    _ => read_stdin()
+  }
   let outcome = run_format(command, stdin_bytes)
   if outcome.stdout.length() > 0 {
     ignore(write_fd(1, outcome.stdout, outcome.stdout.length()))
