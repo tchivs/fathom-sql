@@ -16,44 +16,44 @@ pub(all) struct RpcMessage {
 
 fn field(value : Json, key : String) -> Json? {
   match value {
-    Json::Object(object) => object.get(key)
+    Object(object) => object.get(key)
     _ => None
   }
 }
 
 pub fn string_field(value : Json, key : String) -> String? {
   match field(value, key) {
-    Some(Json::String(text)) => Some(text)
+    Some(String(text)) => Some(text)
     _ => None
   }
 }
 
 pub fn int_field(value : Json, key : String) -> Int? {
   match field(value, key) {
-    Json::Number(number, ..) if number.to_int().to_double() == number => Some(number.to_int())
+    Number(number, ..) if number.to_int().to_double() == number => Some(number.to_int())
     _ => None
   }
 }
 
 pub fn object_field(value : Json, key : String) -> Json? {
   match field(value, key) {
-    Some(object) => if object is Json::Object(_) { Some(object) } else { None }
+    Some(object) => if object is Object(_) { Some(object) } else { None }
     _ => None
   }
 }
 
 pub fn array_field(value : Json, key : String) -> Array[Json]? {
   match field(value, key) {
-    Some(Json::Array(values)) => Some(values)
+    Some(Array(values)) => Some(values)
     _ => None
   }
 }
 
 fn decode_id(value : Json) -> RpcId? {
   match value {
-    Json::Number(number, ..) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
-    Json::String(text) => Some(String(value=text))
-    Json::Null => Some(Null)
+    Number(number, ..) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
+    String(text) => Some(String(value=text))
+    Null => Some(Null)
     _ => None
   }
 }
@@ -70,16 +70,16 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
     _ => return Err("malformed JSON-RPC body")
   }
   let object = match value {
-    Json::Object(object) => object
+    Object(object) => object
     _ => return Err("JSON-RPC message must be an object")
   }
   let version = match object.get("jsonrpc") {
-    Some(Json::String(version)) => version
+    Some(String(version)) => version
     _ => return Err("JSON-RPC message is missing jsonrpc=2.0")
   }
   if version != "2.0" { return Err("unsupported JSON-RPC version") }
   let method = match object.get("method") {
-    Some(Json::String(method)) => method
+    Some(String(method)) => method
     _ => return Err("JSON-RPC message is missing method")
   }
   let id = match object.get("id") {
@@ -88,7 +88,7 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
   }
   if object.get("id").is_some() && id.is_none() { return Err("invalid JSON-RPC id") }
   let params = match object.get("params") {
-    Some(Json::Null) | None => None
+    Some(Null) | None => None
     Some(value) => Some(value)
   }
   Ok({ id: id, method: method, params: params })

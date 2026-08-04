@@ -240,3 +240,13 @@ The shared serialized schema and coordinate policy are ready for later JS/Wasm w
 - **Files modified:** `lsp/protocol.mbt`, `lsp/handlers.mbt`, `lsp/main.mbt`
 - **Verification:** Validation commands intentionally skipped per parent instruction.
 - **Commit:** `24f6fe5` (atomic compile-fix correction)
+
+### Wave 1 JSON pattern-constructor correction
+
+**4. [Rule 1 - Bug] Use unqualified built-in JSON pattern constructors in LSP matches**
+- **Found during:** Wave 1 parent targeted package compilation
+- **Issue:** MoonBit's core `Json` patterns are matched as unqualified `Number`, `String`, `Null`, `Object`, and `Array`; qualified `Json::...` forms are expression constructors and cause pattern-constructor type mismatches.
+- **Fix:** Updated `lsp/protocol.mbt` to use unqualified JSON pattern constructors in every match and type test, while preserving `Json::number/string/array/object` expression constructors and built-in `null` values.
+- **Files modified:** `lsp/protocol.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction; sibling-package search found no additional qualified JSON pattern forms under `lsp/`.
+- **Commit:** This atomic follow-up correction commit (hash reported to parent executor).
