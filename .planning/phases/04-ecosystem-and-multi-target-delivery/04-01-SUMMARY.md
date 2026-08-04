@@ -230,3 +230,13 @@ The shared serialized schema and coordinate policy are ready for later JS/Wasm w
 - **Files modified:** `lsp/*.mbt`
 - **Verification:** Validation commands intentionally skipped per parent instruction; static search confirms no forbidden namespaces remain under `lsp/`.
 - **Commit:** Included in the atomic compile-fix commit for this repair.
+
+### Wave 1 remaining LSP compiler corrections
+
+**4. [Rule 1 - Bug] Applied toolchain-compatible LSP JSON and mutability fixes**
+- **Found during:** Wave 1 parent targeted package compilation
+- **Issue:** Core `Json::Number` exposes one positional payload, `Json::Null` cannot cross the package boundary as a constructed value, and two local bindings were unnecessarily mutable.
+- **Fix:** Matched `Json::Number(number, ..)`, returned built-in `null`, and removed mutability from `responses` and `state` without changing protocol behavior.
+- **Files modified:** `lsp/protocol.mbt`, `lsp/handlers.mbt`, `lsp/main.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction.
+- **Commit:** `24f6fe5` (atomic compile-fix correction)
