@@ -1864,13 +1864,181 @@ fn parse_create(
     Some(raw) if bytes_equal_ci(raw, b"VIEW") => {
       valid = parse_create_view(cursor, state, source, statement_id) && valid
     }
+    Some(raw) if bytes_equal_ci(raw, b"INDEX") => {
+      valid = parse_create_index(cursor, state, source, statement_id) && valid
+    }
+    Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") => {
+      valid = parse_create_materialized_view(cursor, state, source, statement_id) && valid
+    }
     Some(_) => {
-      // INDEX / MATERIALIZED VIEW arms land in Task 3 of 02-02.
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "unsupported CREATE form in the current build", "create-form", at, statement_id)
+      add_diagnostic(state, "DORIS-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
       valid = false
     }
     None => ()
+  }
+  valid
+}
+
+// CREATE INDEX [ IF NOT EXISTS ] index_name ON table_name ( col list )
+//   [ USING { INVERTED | NGRAM_BF | ANN } ] [ PROPERTIES ( "key" = "value" , ... ) ] [ COMMENT '...' ]
+fn parse_create_index(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"INDEX", state, source, statement_id, "expected INDEX after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  if !is_identifier_candidate(cursor) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected index name", "identifier", at, statement_id)
+    valid = false
+  } else {
+    advance(cursor)
+  }
+  valid = expect_word(cursor, b"ON", state, source, statement_id, "expected ON after index name") && valid
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  valid = parse_identifier_option(cursor, state, source, statement_id, "INDEX") && valid
+  if consume_word(cursor, b"USING") {
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected index type after USING", "identifier", at, statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"PROPERTIES") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "INDEX PROPERTIES") && valid
+  }
+  if consume_word(cursor, b"COMMENT") {
+    let is_stringish = match token_at(cursor) {
+      Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+      None => false
+    }
+    if !is_stringish {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected index comment string after COMMENT", "string", at, statement_id)
+      valid = false
+    } else {
+      advance(cursor)
+    }
+  }
+  valid
+}
+
+// Sync materialized view body clause boundaries: the docs restrict the query
+// to a single base table with no JOIN/HAVING/LIMIT/LATERAL VIEW.
+fn is_mv_clause_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"WHERE") || bytes_equal_ci(raw, b"GROUP") ||
+    bytes_equal_ci(raw, b"ORDER") || bytes_equal_ci(raw, b"HAVING") ||
+    bytes_equal_ci(raw, b"LIMIT") || bytes_equal_ci(raw, b"JOIN") ||
+    bytes_equal_ci(raw, b"LATERAL")
+}
+
+// CREATE MATERIALIZED VIEW mv_name [ AS ] query — the restricted sync-MV body:
+//   SELECT expr [, ...] FROM base_table [ WHERE cond ] [ GROUP BY cols ] [ ORDER BY cols ]
+fn parse_create_materialized_view(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"MATERIALIZED", state, source, statement_id, "expected MATERIALIZED after CREATE")
+  valid = expect_word(cursor, b"VIEW", state, source, statement_id, "expected VIEW after MATERIALIZED") && valid
+  valid = parse_qualified_name(cursor, state, source, statement_id, "materialized view name") && valid
+  ignore(consume_word(cursor, b"AS"))
+  valid = parse_mv_query(cursor, state, source, statement_id) && valid
+  valid
+}
+
+fn parse_mv_query(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"SELECT", state, source, statement_id, "expected SELECT in materialized view body")
+  valid = parse_expression_list_until_clause(cursor, state, source, statement_id) && valid
+  valid = expect_word(cursor, b"FROM", state, source, statement_id, "expected FROM in materialized view body") && valid
+  if raw_at(cursor) is Some(b"(") {
+    // Docs constraint: single base table, no subquery.
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "materialized view body requires a single base table (no subquery)", "sync materialized view body", at, statement_id)
+    valid = false
+  } else {
+    // Plain qualified name only: a JOIN/LATERAL VIEW after the name must stay
+    // visible to the forbidden-clause check below, so no alias/option parsing.
+    valid = parse_qualified_name(cursor, state, source, statement_id, "base table") && valid
+  }
+  if consume_word(cursor, b"WHERE") {
+    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"GROUP") {
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after GROUP") && valid
+    valid = parse_mv_column_list(cursor, state, source, statement_id, "GROUP BY") && valid
+  }
+  if consume_word(cursor, b"ORDER") {
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after ORDER") && valid
+    valid = parse_mv_column_list(cursor, state, source, statement_id, "ORDER BY") && valid
+  }
+  if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"JOIN") || bytes_equal_ci(raw, b"HAVING") ||
+    bytes_equal_ci(raw, b"LIMIT") || bytes_equal_ci(raw, b"LATERAL")) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "JOIN, HAVING, LIMIT, and LATERAL VIEW are not supported in a sync materialized view body", "sync materialized view body", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+// <column_name> [ , ... ] — terminates at the per-family MV clause boundary.
+fn parse_mv_column_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  what : String,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    match raw_at(cursor) {
+      None => done = true
+      Some(raw) if is_mv_clause_boundary(raw) => done = true
+      Some(_) if is_identifier_candidate(cursor) => {
+        any = true
+        advance(cursor)
+        if consume_symbol(cursor, b",") {
+          if raw_at(cursor) is None || raw_at(cursor) is Some(b";") {
+            let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+            add_diagnostic(state, "DORIS-PARSE-002", "expected column name after comma in " + what, "identifier", make_span(source, at, at), statement_id)
+            valid = false
+            done = true
+          }
+        } else {
+          done = true
+        }
+      }
+      Some(_) => {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected column name in " + what, "identifier", at, statement_id)
+        valid = false
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one column in " + what, "identifier", make_span(source, at, at), statement_id)
+    valid = false
   }
   valid
 }

@@ -320,3 +320,105 @@ test "malformed_create_view_recovers_losslessly" {
     }
   }
 }
+
+test "create_index_parses_documented_forms" {
+  let raws = [
+    b"CREATE INDEX index1 ON table1 (col1) USING INVERTED",
+    b"CREATE INDEX index2 ON table1 (col1) USING NGRAM_BF PROPERTIES (\"gram_size\" = \"3\", \"bf_size\" = \"1024\")",
+    b"CREATE INDEX idx ON db.table1 (col1, col2) USING ANN PROPERTIES (\"index_type\" = \"hnsw\", \"metric_type\" = \"l2_distance\", \"dim\" = \"128\")",
+    b"CREATE INDEX IF NOT EXISTS idx ON t (c) COMMENT 'index comment'",
+    b"CREATE INDEX idx ON t (c)",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_ddl(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "create_index"))
+      }
+    }
+  }
+}
+
+test "create_sync_materialized_view_parses_restricted_body" {
+  let raws = [
+    b"CREATE MATERIALIZED VIEW mv AS SELECT k, SUM(v) FROM t GROUP BY k",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT k FROM t WHERE k > 1",
+    b"CREATE MATERIALIZED VIEW mv SELECT a, b FROM t ORDER BY a",
+    b"CREATE MATERIALIZED VIEW db.mv AS SELECT SUM(v) FROM t",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT k, SUM(v) FROM t WHERE k > 0 GROUP BY k ORDER BY k",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_ddl(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "create_materialized_view"))
+      }
+    }
+  }
+}
+
+test "create_materialized_view_rejects_forbidden_clauses_with_localized_diagnostic" {
+  let raws = [
+    b"CREATE MATERIALIZED VIEW mv AS SELECT a FROM t JOIN u ON t.id = u.id",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT a, SUM(b) FROM t GROUP BY a HAVING SUM(b) > 1",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT a FROM t LIMIT 10",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT a FROM t LATERAL VIEW explode(x) e",
+    b"CREATE MATERIALIZED VIEW mv AS SELECT a FROM (SELECT 1) t",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.any(d => d.expected_class == "sync materialized view body"))
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+}
+
+test "malformed_create_index_recovers_losslessly" {
+  let raws = [
+    b"CREATE INDEX idx",
+    b"CREATE INDEX idx ON",
+    b"CREATE INDEX idx ON t",
+    b"CREATE INDEX idx ON t (c) USING",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+}
+
+test "doris03_mixed_ddl_dml_select_script_keeps_statement_ids" {
+  let raws = [
+    b"CREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t",
+    b"CREATE VIEW v AS SELECT a FROM t; INSERT INTO t VALUES (1); SELECT b",
+  ]
+  for raw in raws {
+    let result = parse_ddl(raw, "4.x", "strict")
+    assert_eq(@printer.print_result(result), raw)
+    assert_eq(result.root.children.length(), 3)
+    assert_true(result.valid)
+    let mut statement_count = 0
+    for child in result.root.children {
+      if child.kind == "statement" { statement_count = statement_count + 1 }
+    }
+    assert_eq(statement_count, 3)
+    assert_true(result.all_spans_in_bounds())
+  }
+}
