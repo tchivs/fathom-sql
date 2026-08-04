@@ -1,0 +1,15 @@
+{
+  "schema_version": "doris.parse.v1",
+  "source_transport": "inline-root-v1",
+  "profile": "4.x",
+  "mode": "editor",
+  "source_bytes": [83, 69, 76, 69, 67, 84, 32, 49],
+  "source_byte_length": 8,
+  "root": {"kind": "document", "start_byte": 0, "end_byte": 8, "text_len": 8, "children": []},
+  "diagnostics": [],
+  "format": {
+    "schema_version": "doris.format.v1",
+    "accepted": true,
+    "statement_offsets": [0]
+  }
+}

@@ -1,25 +1,3 @@
-fn utf16_units_before(bytes : Bytes, end_byte : Int) -> Int {
-  let mut index = 0
-  let mut units = 0
-  while index < end_byte {
-    let first = bytes[index].to_int()
-    if first < 0x80 {
-      index = index + 1
-      units = units + 1
-    } else if first < 0xE0 {
-      index = index + 2
-      units = units + 1
-    } else if first < 0xF0 {
-      index = index + 3
-      units = units + 1
-    } else {
-      index = index + 4
-      units = units + 2
-    }
-  }
-  units
-}
-
 test "line_index_tracks_lf_crlf_and_byte_spans" {
   let raw = b"ab\r\n\xe5\x88\x97\xf0\x9f\x98\x80\nz"
   let source = match @source.SourceText::new(raw) {
@@ -42,8 +20,24 @@ test "line_index_tracks_lf_crlf_and_byte_spans" {
 
 test "utf8_byte_offsets_convert_nontrivially_to_utf16_units" {
   let raw = b"a\xf0\x9f\x98\x80b"
-  assert_eq(raw.length(), 6)
-  assert_eq(utf16_units_before(raw, 1), 1)
-  assert_eq(utf16_units_before(raw, 5), 3)
-  assert_eq(utf16_units_before(raw, 6), 4)
+  let source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let first = match byte_to_position(source, 1) {
+    Ok(position) => position
+    Err(_) => panic()
+  }
+  let after_emoji = match byte_to_position(source, 5) {
+    Ok(position) => position
+    Err(_) => panic()
+  }
+  let eof = match byte_to_position(source, 6) {
+    Ok(position) => position
+    Err(_) => panic()
+  }
+  assert_eq(first.line, 0)
+  assert_eq(first.character, 1)
+  assert_eq(after_emoji.character, 3)
+  assert_eq(eof.character, 4)
 }

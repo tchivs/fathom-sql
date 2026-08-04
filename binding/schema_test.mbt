@@ -18,6 +18,21 @@ fn schema_fixture_has_frozen_fields() -> Unit raise {
 
 test "schema_fixture_has_frozen_fields" { schema_fixture_has_frozen_fields() }
 
+test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
+  let result = match @api.parse_with_ids(b"SELECT /* note */ 1", "4.x", "editor") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let encoded = parse_result_json(result)
+  assert_true(encoded.contains("doris.parse.v1"))
+  assert_true(encoded.contains("inline-root-v1"))
+  assert_true(encoded.contains("source_bytes"))
+  assert_true(encoded.contains("trivia"))
+  assert_true(validate_schema_version("doris.parse.v1") is Ok(_))
+  assert_true(validate_schema_version("doris.parse.v9") is Err(UnsupportedSchemaVersion(..)))
+  assert_true(validate_profile("mysql") is Err(UnsupportedProfile(..)))
+}
+
 test "schema_fixture_requires_leaf_kinds_and_half_open_spans" {
   let leaves = ["token", "trivia", "error", "missing", "skipped"]
   let expected = ["token", "trivia", "error", "missing", "skipped"]
