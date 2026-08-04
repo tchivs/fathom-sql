@@ -1,0 +1,4 @@
+pkgtype(kind: "library")
+import {
+  "fathom/doris-sql/syntax" @syntax,
+}
