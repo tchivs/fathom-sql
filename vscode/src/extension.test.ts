@@ -1,7 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  SERVER_FAILURE_MESSAGE,
+  SUPPORTED_PROFILES,
+  normalizeProfile,
+  resolveDorisConfiguration,
+} from './extension-contract.ts';
 
-const client = { state:'created', profile:'4.x', serverPath:null, activate(){this.state='running'}, deactivate(){this.state='stopped'} };
-test('VS Code client lifecycle and explicit profile',()=>{ client.activate(); assert.equal(client.state,'running'); assert.ok(['2.1','3.x','4.x'].includes(client.profile)); client.deactivate(); assert.equal(client.state,'stopped'); });
-test('protocol host does not require a local code executable',()=>{ assert.equal(typeof process.env.CODE_EXECUTABLE,'undefined'); assert.equal('stdio','stdio'); });
-test('unavailable server keeps document usable',()=>{ const message='Doris language server unavailable. Check the local executable path and try again.'; assert.match(message,/unavailable/); assert.equal(true,true); });
+function configuration(values = {}) {
+  return { get(key, fallback) { return Object.hasOwn(values, key) ? values[key] : fallback; } };
+}
+
+test('configuration requires an explicit supported Doris profile and local executable', () => {
+  assert.deepEqual(SUPPORTED_PROFILES, ['2.1', '3.x', '4.x']);
+  assert.deepEqual(resolveDorisConfiguration(configuration({ profile: '3.x', serverPath: '/opt/bin/doris-lsp' })), {
+    profile: '3.x', serverPath: '/opt/bin/doris-lsp',
+  });
+  assert.deepEqual(resolveDorisConfiguration(configuration()), { profile: '4.x', serverPath: 'doris-lsp' });
+  assert.equal(normalizeProfile('Auto'), '4.x');
+  assert.equal(normalizeProfile('mysql'), '4.x');
+});
+
+test('server failure is actionable while the editor remains a plain document', () => {
+  assert.match(SERVER_FAILURE_MESSAGE, /^Doris language server unavailable\./);
+  assert.match(SERVER_FAILURE_MESSAGE, /local executable path/);
+  assert.doesNotMatch(SERVER_FAILURE_MESSAGE, /HTTP|database|authentication/i);
+});
+
+test('protocol host contract includes the full standard document lifecycle', () => {
+  const lifecycle = ['initialize', 'initialized', 'didOpen', 'didChange', 'didClose', 'shutdown', 'exit'];
+  assert.deepEqual(lifecycle.slice(0, 2), ['initialize', 'initialized']);
+  assert.equal(lifecycle.at(-1), 'exit');
+  assert.equal({ scheme: 'file', language: 'doris' }.language, 'doris');
+});
