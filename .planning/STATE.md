@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
+current_phase: 03
 current_phase_name: Formatting and Safe Edits
 status: executing
-stopped_at: Completed 02-06-PLAN.md
-last_updated: "2026-08-04T10:02:56.191Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-08-04T10:22:24.245Z"
 last_activity: 2026-08-04
-last_activity_desc: Phase 02 complete, transitioned to Phase 3
+last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-03)
 
 **Core value:** 用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
-**Current focus:** Phase 02 — Doris Completeness and Corpus
+**Current focus:** Phase 03 — Formatting and Safe Edits
 
 ## Current Position
 
-Phase: 3 — Formatting and Safe Edits
-Plan: Not started
+Phase: 03 (Formatting and Safe Edits) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-08-04 — Phase 02 complete, transitioned to Phase 3
+Last activity: 2026-08-04 — Phase 03 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [██████████] 100%
 | Phase 02 P02-05 | 15 | 3 tasks | 5 files |
 | Phase 02 P02-04 | 90 | 3 tasks | 40 files |
 | Phase 02 P06 | 35 | 2 tasks | 5 files |
+| Phase 03 P01 | 41 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,12 @@ Recent decisions affecting current work:
 - [Phase ?]: differential.tsv is regenerated deterministically by sqlglot_diff.py: one row per manifest fixture; existing fe_nereids_observation values are preserved by fixture_id so manual FE runs are never clobbered
 - [Phase ?]: sqlglot acceptance uses error_level=RAISE; Command-fallback acceptances are flagged in the resolution; no-file fixtures record not-run-offline, observations are never fabricated (A8)
 - [Phase ?]: FE script records fe_nereids_observation by merge (update-by-fixture_id, append only unknown ids), parser-only NereidsParser.parseSQL, never cluster-connected (T-02-53), FE_VERSION pinned per manual run (D-20)
+- [Phase ?]: formatter/ consumes only source/token/syntax + core buffer (D-27 one-way); printer/ untouched; print_lossless stays the lossless contract
+- [Phase ?]: Keyword case rewriting consumes @token.classification_of only; no second keyword list in formatter/ (D-28)
+- [Phase ?]: Refusal is absolute (D-33): error/missing/skipped material -> accepted=false, empty output, exactly one DORIS-FORMAT-001; parse diagnostics prepended, never masked (T-03-01)
+- [Phase ?]: api.format_text is the shared Phase 4 LSP core entry (D-38); formatter types re-exported via MoonBit type aliases
+- [Phase ?]: statement_offsets records the buffer length before each statement layout; the inter-statement separator newline is part of the following statement's layout, so the offset points at the separator byte
+- [Phase ?]: Select-list measure-then-break measures non-trivia lengths + one space per trivia run + ', ' per comma - invariant to input whitespace, idempotent across passes
 
 ### Pending Todos
 
@@ -138,6 +145,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T05:52:18.481Z
-Stopped at: Completed 02-06-PLAN.md
+Last session: 2026-08-04T10:21:48.183Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None

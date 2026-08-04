@@ -96,11 +96,11 @@ Plans:
   3. Formatter output is deterministic and idempotent, reparses successfully for supported input, and reports or refuses unsafe transformations for unrecoverable/error trees.
   4. User can run `doris-sql format` on a file or standard input to receive formatted SQL and diagnostics, with a non-zero status for invalid input under the selected profile.
 
-**Plans**: 4 plans in 4 waves
+**Plans**: 1/4 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — formatter core tracer with FormatOptions, refusal walk, and api.format_text shared entry
+- [x] 03-01-PLAN.md — formatter core tracer with FormatOptions, refusal walk, and api.format_text shared entry
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -146,7 +146,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
 | 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
-| 3. Formatting and Safe Edits | 0/TBD | Not started | - |
+| 3. Formatting and Safe Edits | 1/4 | In Progress|  |
 | 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
 
 **Coverage:** 27/27 v1 requirements mapped; 0 unmapped; each requirement assigned to exactly one phase.

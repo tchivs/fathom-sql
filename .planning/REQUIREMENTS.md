@@ -37,9 +37,9 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 
 ### Formatting and Safe Edits
 
-- [ ] **FMT-01**: Consumer can request a deterministic canonical rendering distinct from exact lossless replay, with documented handling for supported Doris syntax.
-- [ ] **FMT-02**: User can configure formatter keyword case, indentation, line width, comma style, newline style, and trailing-newline policy while comments and hints remain attached to the intended source regions.
-- [ ] **FMT-03**: Formatter produces idempotent output (`format(format(sql)) == format(sql)`), reparses its output successfully for supported input, and refuses or reports unsafe transformations on unrecoverable/error trees.
+- [x] **FMT-01**: Consumer can request a deterministic canonical rendering distinct from exact lossless replay, with documented handling for supported Doris syntax.
+- [x] **FMT-02**: User can configure formatter keyword case, indentation, line width, comma style, newline style, and trailing-newline policy while comments and hints remain attached to the intended source regions.
+- [x] **FMT-03**: Formatter produces idempotent output (`format(format(sql)) == format(sql)`), reparses its output successfully for supported input, and refuses or reports unsafe transformations on unrecoverable/error trees.
 - [ ] **FMT-04**: User can run `doris-sql format` against a file or standard input and receive formatted SQL, diagnostics, and a non-zero status for invalid input according to the selected profile.
 
 ### Ecosystem Delivery
@@ -98,9 +98,9 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | CORP-03 | Phase 2: Doris Completeness and Corpus | Complete |
 | CORP-04 | Phase 2: Doris Completeness and Corpus | Complete |
 | ANLY-01 | Phase 2: Doris Completeness and Corpus | Complete |
-| FMT-01 | Phase 3: Formatting and Safe Edits | Pending |
-| FMT-02 | Phase 3: Formatting and Safe Edits | Pending |
-| FMT-03 | Phase 3: Formatting and Safe Edits | Pending |
+| FMT-01 | Phase 3: Formatting and Safe Edits | Complete |
+| FMT-02 | Phase 3: Formatting and Safe Edits | Complete |
+| FMT-03 | Phase 3: Formatting and Safe Edits | Complete |
 | FMT-04 | Phase 3: Formatting and Safe Edits | Pending |
 | ECO-01 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 | ECO-02 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
