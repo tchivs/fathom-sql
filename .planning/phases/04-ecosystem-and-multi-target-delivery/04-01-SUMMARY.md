@@ -18,7 +18,7 @@ affects: [04-02, 04-03, 04-04, js-wasm, vscode]
 actuals:
   tokens: 9901
   tasks: 3
-  commits: 3
+  commits: 4
 tech-stack:
   added: []
   patterns:
@@ -115,6 +115,9 @@ coverage:
 1. **Task 1: Freeze serialized envelope and coordinate policy** - `63f9455` (feat)
 2. **Task 2: Implement Native JSON-RPC LSP lifecycle and document synchronization** - `76eedfc` (feat)
 3. **Task 3: Wire diagnostics and full-document formatting TextEdit** - `55fecea` (feat)
+4. **Task 2 hardening: protocol-safe malformed frame handling** - `3c406ab` (fix)
+
+**Plan metadata:** `95092fa` (docs: summarize Native schema and LSP tracer)
 
 ## Files Created/Modified
 
@@ -147,7 +150,7 @@ coverage:
 - **Fix:** Changed `read_frame` to distinguish `Ok(None)` EOF from `Err(FrameError)` and emit a bounded JSON-RPC parse error before continuing.
 - **Files modified:** `lsp/framing.mbt`, `lsp/main.mbt`
 - **Verification:** Static implementation review; targeted validation intentionally deferred per execution instruction.
-- **Committed in:** `55fecea` (Task 3 commit, because the hardening was completed with the diagnostics tracer slice)
+- **Committed in:** `3c406ab` (follow-up fix to the Task 2 boundary)
 
 **2. [Rule 3 - Blocking] Production harnesses needed package imports and real calls**
 - **Found during:** Tasks 1-3
