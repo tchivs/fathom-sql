@@ -227,3 +227,96 @@ test "create_table_property_flood_parses_losslessly" {
   assert_eq(@printer.print_result(result), raw)
   assert_true(result.all_spans_in_bounds())
 }
+
+test "create_view_parses_plain_column_defined_and_if_not_exists_forms" {
+  let raws = [
+    b"CREATE VIEW v AS SELECT a, b FROM t",
+    b"CREATE VIEW v (a, b) AS SELECT a, b FROM t",
+    b"CREATE VIEW IF NOT EXISTS db.v (a COMMENT 'col a') AS SELECT x AS a FROM t",
+    b"CREATE VIEW v SELECT a FROM t",
+    b"CREATE VIEW v AS SELECT a FROM t UNION ALL SELECT a FROM u",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_ddl(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "create_view"))
+      }
+    }
+  }
+}
+
+test "create_view_cte_bodied_query_parses" {
+  // A CTE-bodied view is a query and parses via parse_query (flagged Open Q1).
+  let raw = b"CREATE VIEW v AS WITH cte AS (SELECT 1) SELECT * FROM cte"
+  for profile in ["2.1", "3.x", "4.x"] {
+    let result = parse_ddl(raw, profile, "strict")
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(result.all_spans_in_bounds())
+  }
+}
+
+test "create_table_like_parses_with_and_without_rollup" {
+  let raws = [
+    b"CREATE TABLE new_t LIKE existing_t",
+    b"CREATE TABLE new_t LIKE existing_t WITH ROLLUP (r1, r2)",
+    b"CREATE TABLE db.new_t LIKE db.existing_t",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      let result = parse_ddl(raw, profile, "strict")
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "create_table"))
+    }
+  }
+}
+
+test "create_table_as_select_composes_the_clause_stack" {
+  let raws = [
+    b"CREATE TABLE t AS SELECT a, b FROM src",
+    b"CREATE TABLE t (a INT) DISTRIBUTED BY HASH (a) BUCKETS 10 AS SELECT a FROM src",
+    b"CREATE EXTERNAL TABLE t PROPERTIES (\"type\" = \"hive\") AS SELECT 1",
+    b"CREATE TABLE t (a INT, INDEX idx (a)) ENGINE=OLAP COMMENT \"ctas\" AS SELECT a FROM src",
+  ]
+  for raw in raws {
+    for profile in ["2.1", "3.x", "4.x"] {
+      for mode in ["strict", "editor"] {
+        let result = parse_ddl(raw, profile, mode)
+        assert_true(result.valid)
+        assert_eq(result.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(result), raw)
+        assert_true(result.all_spans_in_bounds())
+        assert_true(has_kind(result.root, "create_table"))
+      }
+    }
+  }
+}
+
+test "malformed_create_view_recovers_losslessly" {
+  let raws = [
+    b"CREATE VIEW",
+    b"CREATE VIEW v",
+    b"CREATE VIEW v AS",
+    b"CREATE VIEW v (a) AS SELECT",
+    b"CREATE VIEW v (a) AS FROM t",
+  ]
+  for raw in raws {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, "4.x", mode)
+      assert_true(!result.valid)
+      assert_true(result.diagnostics.length() > 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+      assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+    }
+  }
+}

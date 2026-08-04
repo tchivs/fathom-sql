@@ -1861,13 +1861,96 @@ fn parse_create(
     Some(raw) if bytes_equal_ci(raw, b"TABLE") => {
       valid = parse_create_table(cursor, state, source, statement_id) && valid
     }
+    Some(raw) if bytes_equal_ci(raw, b"VIEW") => {
+      valid = parse_create_view(cursor, state, source, statement_id) && valid
+    }
     Some(_) => {
-      // VIEW / INDEX / MATERIALIZED VIEW arms land in Tasks 2-3 of 02-02.
+      // INDEX / MATERIALIZED VIEW arms land in Task 3 of 02-02.
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       add_diagnostic(state, "DORIS-PARSE-002", "unsupported CREATE form in the current build", "create-form", at, statement_id)
       valid = false
     }
     None => ()
+  }
+  valid
+}
+
+// CREATE VIEW [ IF NOT EXISTS ] [ db. ] view_name [ ( column_definition list ) ] [ AS ] query_stmt
+fn parse_create_view(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"VIEW", state, source, statement_id, "expected VIEW after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "view name") && valid
+  if raw_at(cursor) is Some(b"(") {
+    advance(cursor)
+    valid = parse_view_columns(cursor, state, source, statement_id) && valid
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing view column parenthesis") && valid
+  }
+  ignore(consume_word(cursor, b"AS"))
+  if !is_query_start(cursor) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected query after CREATE VIEW", "query", at, statement_id)
+    valid = false
+  } else {
+    valid = parse_query(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+// column_definition: <column_name> [ COMMENT '<comment>' ] [ , ... ]
+fn parse_view_columns(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      if !is_identifier_candidate(cursor) {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected view column name", "identifier", at, statement_id)
+        valid = false
+      } else {
+        advance(cursor)
+      }
+      if consume_word(cursor, b"COMMENT") {
+        let is_stringish = match token_at(cursor) {
+          Some(token) => token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Quoted
+          None => false
+        }
+        if !is_stringish {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "DORIS-PARSE-002", "expected view column comment string after COMMENT", "string", at, statement_id)
+          valid = false
+        } else {
+          advance(cursor)
+        }
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") { done = true }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one view column", "view-column", make_span(source, at, at), statement_id)
+    valid = false
   }
   valid
 }
