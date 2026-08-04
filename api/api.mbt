@@ -197,6 +197,8 @@ fn kind_id(kind : @syntax.SyntaxKind) -> String {
     @syntax.SyntaxKind::Document => "document"
     @syntax.SyntaxKind::Statement => "statement"
     @syntax.SyntaxKind::Select => "select"
+    @syntax.SyntaxKind::Insert => "insert"
+    @syntax.SyntaxKind::ValueList => "value_list"
     @syntax.SyntaxKind::Expression => "expression"
     @syntax.SyntaxKind::Token => "token"
     @syntax.SyntaxKind::Trivia => "trivia"

@@ -99,7 +99,7 @@ test "diagnostic_caps_preserve_first_error_and_emit_one_resource" {
     assert_true(result.diagnostics.length() <= cap)
     assert_true(result.diagnostics.length() > 0)
     if cap == 1 { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-004") }
-    else { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-001") }
+    else { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007") }
     let mut resources = 0
     for diagnostic in result.diagnostics {
       if diagnostic.code == "DORIS-PARSE-004" { resources = resources + 1 }

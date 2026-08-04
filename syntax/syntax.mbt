@@ -3,6 +3,8 @@ pub(all) enum SyntaxKind {
   Document
   Statement
   Select
+  Insert
+  ValueList
   Expression
   Token
   Trivia

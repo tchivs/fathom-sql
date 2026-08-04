@@ -791,6 +791,18 @@ fn parse_identifier_option(
     add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
     return false
   }
+  parse_identifier_list_after_open(cursor, state, source, statement_id, option)
+}
+
+// Assumes the opening parenthesis has already been consumed; parses the
+// comma-separated identifier list through the closing parenthesis.
+fn parse_identifier_list_after_open(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  option : String,
+) -> Bool {
   if raw_at(cursor) is Some(b")") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
     add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " list", "option", span, statement_id)
@@ -1329,6 +1341,231 @@ fn parse_query(
   valid
 }
 
+fn parse_qualified_name(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  message : String,
+) -> Bool {
+  let mut parts = 0
+  let mut valid = true
+  while is_identifier_candidate(cursor) {
+    advance(cursor)
+    parts = parts + 1
+    if consume_symbol(cursor, b".") {
+      if !is_identifier_candidate(cursor) {
+        let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+        add_diagnostic(state, "DORIS-PARSE-002", "expected identifier after dot in " + message, "identifier", make_span(source, at, at), statement_id)
+        valid = false
+        break
+      }
+    } else {
+      break
+    }
+  }
+  if parts == 0 {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected " + message, "identifier", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+// Token-scans a WITH CTE prefix and returns the first significant token after
+// the last CTE close (the statement verb), so the keyword-first dispatcher can
+// route WITH-prefixed statements (WITH c AS (...) SELECT/UPDATE/...).
+fn with_prefix_verb(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> Bytes? {
+  let mut i = start_index + 1
+  let length = indices.length()
+  if i >= length { return None }
+  let recursive = match stream.raw(indices[i]) {
+    Some(raw) => bytes_equal_ci(raw, b"RECURSIVE")
+    None => false
+  }
+  if recursive { i = i + 1 }
+  while true {
+    if i >= length { return None }
+    // CTE name (single token)
+    i = i + 1
+    // Optional ( column list ): consume to the matching close parenthesis.
+    let has_column_list = match stream.raw(indices[i]) {
+      Some(raw) if i < length => raw == b"("
+      _ => false
+    }
+    if has_column_list {
+      i = i + 1
+      let mut depth = 1
+      while i < length && depth > 0 {
+        match stream.raw(indices[i]) {
+          Some(raw) if raw == b"(" => depth = depth + 1
+          Some(raw) if raw == b")" => depth = depth - 1
+          _ => ()
+        }
+        i = i + 1
+      }
+    }
+    if i >= length { return None }
+    let has_as = match stream.raw(indices[i]) {
+      Some(raw) => bytes_equal_ci(raw, b"AS")
+      None => false
+    }
+    if !has_as { return stream.raw(indices[i]) }
+    i = i + 1
+    if i >= length { return None }
+    if !(stream.raw(indices[i]) is Some(b"(")) { return stream.raw(indices[i]) }
+    i = i + 1
+    let mut depth = 1
+    while i < length && depth > 0 {
+      match stream.raw(indices[i]) {
+        Some(raw) if raw == b"(" => depth = depth + 1
+        Some(raw) if raw == b")" => depth = depth - 1
+        _ => ()
+      }
+      i = i + 1
+    }
+    if i >= length { return None }
+    if stream.raw(indices[i]) is Some(b",") {
+      i = i + 1
+    } else {
+      return stream.raw(indices[i])
+    }
+  }
+  None
+}
+
+fn parse_values_rows(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut done = false
+  while !done {
+    if !consume_symbol(cursor, b"(") {
+      valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected VALUES row parenthesis") && valid
+      done = true
+    } else {
+      valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+      valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES row parenthesis") && valid
+      if !consume_symbol(cursor, b",") { done = true }
+    }
+  }
+  valid
+}
+
+fn parse_insert(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"INSERT", state, source, statement_id, "expected INSERT statement")
+  if consume_word(cursor, b"OVERWRITE") {
+    valid = expect_word(cursor, b"table", state, source, statement_id, "expected table after INSERT OVERWRITE") && valid
+  } else {
+    valid = expect_word(cursor, b"INTO", state, source, statement_id, "expected INTO after INSERT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  if consume_word(cursor, b"PARTITION") {
+    if !consume_symbol(cursor, b"(") {
+      valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected opening PARTITION parenthesis") && valid
+    } else if raw_at(cursor) is Some(b"*") {
+      let star_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      let feature = @token.DorisFeature::PartitionStar
+      if !feature_allowed(state, feature) {
+        add_feature_diagnostic(state, feature, star_span, statement_id)
+        valid = false
+      }
+      advance(cursor)
+      valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing PARTITION parenthesis") && valid
+    } else {
+      valid = parse_identifier_list_after_open(cursor, state, source, statement_id, "PARTITION") && valid
+    }
+  }
+  if consume_word(cursor, b"WITH") {
+    valid = expect_word(cursor, b"LABEL", state, source, statement_id, "expected LABEL after WITH in INSERT") && valid
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+      add_diagnostic(state, "DORIS-PARSE-002", "expected label after WITH LABEL", "identifier", make_span(source, at, at), statement_id)
+      valid = false
+    }
+  }
+  if raw_at(cursor) is Some(b"(") {
+    valid = parse_identifier_option(cursor, state, source, statement_id, "column") && valid
+  }
+  // Hint blocks are lexer comments (trivia) and are preserved as leaves
+  // automatically; no explicit consumption is required.
+  if consume_word(cursor, b"VALUES") {
+    valid = parse_values_rows(cursor, state, source, statement_id) && valid
+  } else if is_query_start(cursor) {
+    valid = parse_query(cursor, state, source, statement_id) && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "DORIS-PARSE-002", "expected VALUES or query after INSERT", "insert-source", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+// Runs the shared trailing-token recovery loop and builds the family statement
+// node with the Statement wrapper, preserving Phase 1 semantics exactly.
+fn finish_statement(
+  stream : @token.TokenStream,
+  cursor : Cursor,
+  start_index : Int,
+  end_index : Int,
+  span : @source.Span,
+  parsed : Bool,
+  state : RecoveryState,
+  statement_id : UInt,
+  kind : @syntax.SyntaxKind,
+  trailing_message : String,
+) -> @syntax.SyntaxNode {
+  let mut trailing = false
+  while cursor.position < cursor.indices.length() {
+    match raw_at(cursor) {
+      Some(raw) if raw == b";" => advance(cursor)
+      Some(_) => {
+        let before = cursor.position
+        trailing = true
+        recover_expression(cursor, state, stream.source, statement_id)
+        if cursor.position == before { advance(cursor) }
+      }
+      None => cursor.position = cursor.indices.length()
+    }
+  }
+  if trailing { add_diagnostic(state, "DORIS-PARSE-001", trailing_message, "statement", span, statement_id) }
+  let children = segment_children_for_events(stream, start_index, end_index, state.feature_events)
+  if !parsed || trailing { children.push(@syntax.SyntaxElement::ChildNode(require_node(@syntax.SyntaxNode::missing(span.end_byte, stream.source.byte_length())))) }
+  let statement_node = require_node(@syntax.SyntaxNode::new(kind, span, children))
+  require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(statement_node)]))
+}
+
+// D-12: statements outside the supported profile become explicit Error nodes
+// with the stable DORIS-PARSE-007 diagnostic; never silent acceptance.
+fn unsupported_statement(
+  stream : @token.TokenStream,
+  start_index : Int,
+  end_index : Int,
+  span : @source.Span,
+  state : RecoveryState,
+  statement_id : UInt,
+) -> @syntax.SyntaxNode {
+  add_diagnostic(state, "DORIS-PARSE-007", "unsupported statement in the selected profile", "statement", span, statement_id)
+  let children = segment_children_for_profile(stream, start_index, end_index)
+  let error = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Error, span, children))
+  require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
+}
+
 fn significant_indices(stream : @token.TokenStream, start_index : Int, end_index : Int) -> Array[Int] {
   let indices : Array[Int] = []
   let mut index = start_index
@@ -1493,39 +1730,24 @@ fn parse_segment(
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
   let indices = significant_indices(stream, start_index, end_index)
-  let selected = match indices.get(0) {
-    Some(first_index) => match stream.raw(first_index) {
-      Some(raw) if bytes_equal_ci(raw, b"SELECT") || bytes_equal_ci(raw, b"WITH") => true
-      Some(_) => { add_diagnostic(state, "DORIS-PARSE-001", "expected SELECT statement", "statement", span, statement_id); false }
-      None => false
-    }
-    None => false
+  let cursor = { stream: stream, indices: indices, position: 0 }
+  let verb = match indices.get(0) {
+    Some(first_index) => stream.raw(first_index)
+    None => None
   }
-  if selected {
-    let cursor = { stream: stream, indices: indices, position: 0 }
-    let parsed = parse_query(cursor, state, stream.source, statement_id)
-    let mut trailing = false
-    while cursor.position < cursor.indices.length() {
-      match raw_at(cursor) {
-        Some(raw) if raw == b";" => advance(cursor)
-        Some(_) => {
-          let before = cursor.position
-          trailing = true
-          recover_expression(cursor, state, stream.source, statement_id)
-          if cursor.position == before { advance(cursor) }
-        }
-        None => cursor.position = cursor.indices.length()
+  match verb {
+    Some(raw) if bytes_equal_ci(raw, b"SELECT") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_query(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Select, "unexpected tokens after SELECT query")
+    Some(raw) if bytes_equal_ci(raw, b"WITH") => {
+      match with_prefix_verb(stream, indices, 0) {
+        Some(next) if bytes_equal_ci(next, b"SELECT") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_query(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Select, "unexpected tokens after SELECT query")
+        _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
       }
     }
-    if trailing { add_diagnostic(state, "DORIS-PARSE-001", "unexpected tokens after SELECT query", "statement", span, statement_id) }
-    let children = segment_children_for_events(stream, start_index, end_index, state.feature_events)
-    if !parsed || trailing { children.push(@syntax.SyntaxElement::ChildNode(require_node(@syntax.SyntaxNode::missing(span.end_byte, stream.source.byte_length())))) }
-    let select = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Select, span, children))
-    require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(select)]))
-  } else {
-    let children = segment_children_for_profile(stream, start_index, end_index)
-    let error = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Error, span, children))
-    require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
+    Some(raw) if bytes_equal_ci(raw, b"INSERT") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_insert(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Insert, "unexpected tokens after INSERT statement")
+    _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
 }
 

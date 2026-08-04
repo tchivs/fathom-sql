@@ -133,6 +133,7 @@ pub fn DorisProfile::validate_metadata(
 pub(all) enum DorisFeature {
   Qualify
   Tablet
+  PartitionStar
 } derive(Eq, @debug.Debug)
 
 pub struct FeatureMetadata {
@@ -161,6 +162,14 @@ pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
       diagnostic_code: "DORIS-PARSE-006",
       recovery_kind: "error",
       diagnostic_message: "feature TABLET is unavailable in the selected released profile",
+    }
+    PartitionStar => {
+      name: "PARTITION (*)",
+      keyword: b"PARTITION",
+      introduced_profile: "2.1",
+      diagnostic_code: "DORIS-PARSE-006",
+      recovery_kind: "error",
+      diagnostic_message: "feature PARTITION (*) is unavailable in the selected released profile",
     }
   }
 }
