@@ -219,3 +219,14 @@ The shared serialized schema and coordinate policy are ready for later JS/Wasm w
 ---
 *Phase: 04-ecosystem-and-multi-target-delivery*
 *Completed: 2026-08-04*
+
+
+### Wave 1 compile-fix repair
+
+**3. [Rule 1 - Bug] Repaired LSP same-package and built-in JSON namespaces**
+- **Found during:** Wave 1 parent targeted package compilation
+- **Issue:** LSP production and test files used sibling package aliases for files in the same package, and referenced core JSON as `@json.Json`; response builders also relied on untyped map literals for `.stringify()`.
+- **Fix:** Switched sibling references to same-package names, changed JSON values/constructors to `Json`/`Json::`, retained `@json.parse` for package parsing, and explicitly typed JSON-RPC response objects as `Json`.
+- **Files modified:** `lsp/*.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction; static search confirms no forbidden namespaces remain under `lsp/`.
+- **Commit:** Included in the atomic compile-fix commit for this repair.

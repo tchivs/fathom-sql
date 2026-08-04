@@ -11,49 +11,49 @@ pub enum RpcId {
 pub(all) struct RpcMessage {
   pub id : RpcId?
   pub method : String
-  pub params : @json.Json?
+  pub params : Json?
 }
 
-fn field(value : @json.Json, key : String) -> @json.Json? {
+fn field(value : Json, key : String) -> Json? {
   match value {
-    @json.Json::Object(object) => object.get(key)
+    Json::Object(object) => object.get(key)
     _ => None
   }
 }
 
-pub fn string_field(value : @json.Json, key : String) -> String? {
+pub fn string_field(value : Json, key : String) -> String? {
   match field(value, key) {
-    Some(@json.Json::String(text)) => Some(text)
+    Some(Json::String(text)) => Some(text)
     _ => None
   }
 }
 
-pub fn int_field(value : @json.Json, key : String) -> Int? {
+pub fn int_field(value : Json, key : String) -> Int? {
   match field(value, key) {
-    Some(@json.Json::Number(number, _)) if number.to_int().to_double() == number => Some(number.to_int())
+    Some(Json::Number(number, _)) if number.to_int().to_double() == number => Some(number.to_int())
     _ => None
   }
 }
 
-pub fn object_field(value : @json.Json, key : String) -> @json.Json? {
+pub fn object_field(value : Json, key : String) -> Json? {
   match field(value, key) {
-    Some(object) => if object is @json.Json::Object(_) { Some(object) } else { None }
+    Some(object) => if object is Json::Object(_) { Some(object) } else { None }
     _ => None
   }
 }
 
-pub fn array_field(value : @json.Json, key : String) -> Array[@json.Json]? {
+pub fn array_field(value : Json, key : String) -> Array[Json]? {
   match field(value, key) {
-    Some(@json.Json::Array(values)) => Some(values)
+    Some(Json::Array(values)) => Some(values)
     _ => None
   }
 }
 
-fn decode_id(value : @json.Json) -> RpcId? {
+fn decode_id(value : Json) -> RpcId? {
   match value {
-    @json.Json::Number(number, _) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
-    @json.Json::String(text) => Some(String(value=text))
-    @json.Json::Null => Some(Null)
+    Json::Number(number, _) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
+    Json::String(text) => Some(String(value=text))
+    Json::Null => Some(Null)
     _ => None
   }
 }
@@ -70,16 +70,16 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
     _ => return Err("malformed JSON-RPC body")
   }
   let object = match value {
-    @json.Json::Object(object) => object
+    Json::Object(object) => object
     _ => return Err("JSON-RPC message must be an object")
   }
   let version = match object.get("jsonrpc") {
-    Some(@json.Json::String(version)) => version
+    Some(Json::String(version)) => version
     _ => return Err("JSON-RPC message is missing jsonrpc=2.0")
   }
   if version != "2.0" { return Err("unsupported JSON-RPC version") }
   let method = match object.get("method") {
-    Some(@json.Json::String(method)) => method
+    Some(Json::String(method)) => method
     _ => return Err("JSON-RPC message is missing method")
   }
   let id = match object.get("id") {
@@ -88,43 +88,46 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
   }
   if object.get("id").is_some() && id.is_none() { return Err("invalid JSON-RPC id") }
   let params = match object.get("params") {
-    Some(@json.Json::Null) | None => None
+    Some(Json::Null) | None => None
     Some(value) => Some(value)
   }
   Ok({ id: id, method: method, params: params })
 }
 
-fn id_json(id : RpcId) -> @json.Json {
+fn id_json(id : RpcId) -> Json {
   match id {
-    Number(value~) => @json.Json::number(value.to_double())
-    String(value~) => @json.Json::string(value)
-    Null => @json.Json::Null
+    Number(value~) => Json::number(value.to_double())
+    String(value~) => Json::string(value)
+    Null => Json::Null
   }
 }
 
-pub fn response(id : RpcId, result : @json.Json) -> Bytes {
-  @utf8.encode({
-    "jsonrpc": @json.Json::string("2.0"),
+pub fn response(id : RpcId, result : Json) -> Bytes {
+  let value : Json = {
+    "jsonrpc": Json::string("2.0"),
     "id": id_json(id),
     "result": result,
-  }.stringify())
+  }
+  @utf8.encode(value.stringify())
 }
 
 pub fn error_response(id : RpcId, code : Int, message : String) -> Bytes {
-  @utf8.encode({
-    "jsonrpc": @json.Json::string("2.0"),
+  let value : Json = {
+    "jsonrpc": Json::string("2.0"),
     "id": id_json(id),
     "error": {
-      "code": @json.Json::number(code.to_double()),
-      "message": @json.Json::string(message),
+      "code": Json::number(code.to_double()),
+      "message": Json::string(message),
     },
-  }.stringify())
+  }
+  @utf8.encode(value.stringify())
 }
 
-pub fn notification(method : String, params : @json.Json) -> Bytes {
-  @utf8.encode({
-    "jsonrpc": @json.Json::string("2.0"),
-    "method": @json.Json::string(method),
+pub fn notification(method : String, params : Json) -> Bytes {
+  let value : Json = {
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string(method),
     "params": params,
-  }.stringify())
+  }
+  @utf8.encode(value.stringify())
 }

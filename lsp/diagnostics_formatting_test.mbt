@@ -23,24 +23,24 @@ test "diagnostics_and_formatting_contract" {
 }
 
 test "lsp_publishes_diagnostics_and_one_full_document_edit" {
-  let state = @handlers.ServerState::new()
-  let init = match @protocol.parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"profile\":\"4.x\"}}}")) {
+  let state =  ServerState::new()
+  let init = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"profile\":\"4.x\"}}}")) {
     Ok(message) => message
     Err(_) => panic()
   }
-  ignore(@handlers.handle_message(state, init))
-  let open = match @protocol.parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///tracer.sql\",\"version\":1,\"text\":\"select 1\"}}}")) {
+  ignore( handle_message(state, init))
+  let open = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///tracer.sql\",\"version\":1,\"text\":\"select 1\"}}}")) {
     Ok(message) => message
     Err(_) => panic()
   }
-  let published = @handlers.handle_message(state, open)
+  let published =  handle_message(state, open)
   assert_eq(published.length(), 1)
   assert_true(@utf8.decode_lossy(published[0]).contains("publishDiagnostics"))
-  let format = match @protocol.parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///tracer.sql\"}}}")) {
+  let format = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///tracer.sql\"}}}")) {
     Ok(message) => message
     Err(_) => panic()
   }
-  let edits = @handlers.handle_message(state, format)
+  let edits =  handle_message(state, format)
   assert_true(edits.length() >= 1)
   let body = @utf8.decode_lossy(edits[edits.length() - 1])
   assert_true(body.contains("newText"))
