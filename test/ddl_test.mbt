@@ -45,22 +45,20 @@ test "create_table_order_by_is_gated_below_4x" {
   }
 }
 
-test "create_table_buckets_auto_is_gated_below_3x" {
+test "create_table_buckets_auto_is_accepted_by_all_released_profiles" {
+  // A3 verification (02-04 corpus wave): the released 2.1 CREATE TABLE
+  // grammar documents `BUCKETS { <bucket_count> | AUTO }`, so the
+  // DorisFeature::BucketsAuto gate moved from 3.x to 2.1 and BUCKETS AUTO is
+  // accepted under every released profile.
   let raw = b"CREATE TABLE t (k1 INT) DISTRIBUTED BY HASH (k1) BUCKETS AUTO"
-  for mode in ["strict", "editor"] {
-    let old = parse_ddl(raw, "2.1", mode)
-    assert_true(!old.valid)
-    assert_true(old.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
-    assert_true(has_kind(old.root, "error"))
-    assert_eq(@printer.print_result(old), raw)
-    assert_true(old.all_spans_in_bounds())
-  }
-  for profile in ["3.x", "4.x"] {
-    let result = parse_ddl(raw, profile, "strict")
-    assert_true(result.valid)
-    assert_eq(result.diagnostics.length(), 0)
-    assert_eq(@printer.print_result(result), raw)
-    assert_true(result.all_spans_in_bounds())
+  for profile in ["2.1", "3.x", "4.x"] {
+    for mode in ["strict", "editor"] {
+      let result = parse_ddl(raw, profile, mode)
+      assert_true(result.valid)
+      assert_eq(result.diagnostics.length(), 0)
+      assert_eq(@printer.print_result(result), raw)
+      assert_true(result.all_spans_in_bounds())
+    }
   }
 }
 

@@ -194,10 +194,10 @@ pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
     BucketsAuto => {
       name: "BUCKETS AUTO",
       keyword: b"BUCKETS",
-      introduced_profile: "3.x",
+      introduced_profile: "2.1",
       diagnostic_code: "DORIS-PARSE-006",
       recovery_kind: "error",
-      diagnostic_message: "feature BUCKETS AUTO is unavailable in the selected released profile (assumed introduction: 3.x)",
+      diagnostic_message: "feature BUCKETS AUTO is unavailable in the selected released profile (documented since 2.1 per the released CREATE TABLE grammar)",
     }
     AutoPartitionBy => {
       name: "AUTO PARTITION BY",
@@ -205,7 +205,7 @@ pub fn DorisFeature::metadata(self : DorisFeature) -> FeatureMetadata {
       introduced_profile: "2.1",
       diagnostic_code: "DORIS-PARSE-006",
       recovery_kind: "error",
-      diagnostic_message: "feature AUTO PARTITION BY is unavailable in the selected released profile (assumed introduction: 2.1)",
+      diagnostic_message: "feature AUTO PARTITION BY is unavailable in the selected released profile (documented since 2.1 per the released CREATE TABLE grammar)",
     }
   }
 }

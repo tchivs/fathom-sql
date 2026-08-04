@@ -22,4 +22,7 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 2.1	dml-delete	1	1	0	pinned revision unavailable offline	core predicate-form DELETE recorded; PARTITION/ORDER BY/LIMIT variants stay out of the 2.1 fixture
 3.x	dml-delete	1	1	0	pinned revision unavailable offline	core predicate-form DELETE recorded; PARTITION/ORDER BY/LIMIT variants stay out of the 3.x fixture
 4.x	dml-delete	1	1	0	pinned revision unavailable offline	DELETE both documented forms incl. PARTITION/PARTITIONS and ORDER BY/LIMIT per the 4.x grammar
+2.1	ddl-create-table	1	1	0	pinned revision unavailable offline	A3 correction: 2.1 released grammar documents BUCKETS AUTO and AUTO PARTITION BY; DorisFeature::BucketsAuto gate moved 3.x to 2.1 (ORDER BY stays 4.x-gated)
+3.x	ddl-create-table	1	1	0	pinned revision unavailable offline	full body verified against the 3.x CREATE TABLE grammar (keys, buckets incl. AUTO, partitions, properties)
+4.x	ddl-create-table	1	1	0	pinned revision unavailable offline	full body incl. 4.1.0+ ORDER BY, TEMPORARY modifier, rollup per the 4.x grammar
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed
