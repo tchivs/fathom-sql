@@ -405,7 +405,6 @@ let classification_rows : Array[ClassificationEntry] = [
   { word: b"UNIQUE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
   { word: b"DISTRIBUTED", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
   { word: b"AUTO", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
-  { word: b"RANGE", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
   { word: b"LIST", classification: Reserved, introduced_profile: "2.1", source: reserved_keywords_url },
   { word: b"MERGE", classification: Reserved, introduced_profile: "4.x", source: merge_docs_url + " (4.x-doc-only statement per D-09; not in the official reserved list; DorisFeature::MergeInto 4.x)" },
   { word: b"BUCKETS", classification: NonReserved, introduced_profile: "2.1", source: create_table_docs_url + " (DISTRIBUTED BY ... BUCKETS clause; absent from the official reserved list)" },

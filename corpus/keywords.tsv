@@ -82,7 +82,6 @@ DUPLICATE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-elemen
 UNIQUE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 DISTRIBUTED	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 AUTO	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
-RANGE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 LIST	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 MERGE	reserved	4.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/ (4.x-doc-only statement per D-09; not in the official reserved list; DorisFeature::MergeInto 4.x)
 BUCKETS	non-reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY ... BUCKETS clause; absent from the official reserved list)

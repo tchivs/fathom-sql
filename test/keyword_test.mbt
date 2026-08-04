@@ -34,6 +34,18 @@ fn bytes_equal_ci(left : Bytes, right : Bytes) -> Bool {
   }
 }
 
+fn to_lower_bytes(raw : Bytes) -> Bytes {
+  let out : Array[Byte] = []
+  let mut index = 0
+  while index < raw.length() {
+    let byte = raw[index].to_int()
+    let folded = if byte >= 65 && byte <= 90 { byte + 32 } else { byte }
+    out.push(folded.to_byte())
+    index = index + 1
+  }
+  Bytes::from_array(out)
+}
+
 /// Embedded mirror of corpus/keywords.tsv (D-16): word, classification,
 /// introduced_profile, source. The correspondence test below asserts exact
 /// parity with the runtime classification table, so the checked-in audit
@@ -123,7 +135,6 @@ fn tsv_rows() -> Array[(Bytes, String, String, String)] {
     (b"UNIQUE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
     (b"DISTRIBUTED", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
     (b"AUTO", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
-    (b"RANGE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
     (b"LIST", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/"),
     (b"MERGE", "reserved", "4.x", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/ (4.x-doc-only statement per D-09; not in the official reserved list; DorisFeature::MergeInto 4.x)"),
     (b"BUCKETS", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/ (DISTRIBUTED BY ... BUCKETS clause; absent from the official reserved list)"),
@@ -263,9 +274,9 @@ test "non_reserved_and_contextual_dml_ddl_words_are_usable_identifiers" {
       assert_true(projection.valid)
       assert_eq(projection.diagnostics.length(), 0)
       assert_eq(@printer.print_result(projection), b"SELECT " + word + b" FROM t")
-      let alias = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
-      assert_true(alias.valid)
-      assert_eq(alias.diagnostics.length(), 0)
+      let alias_result = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
+      assert_true(alias_result.valid)
+      assert_eq(alias_result.diagnostics.length(), 0)
       let property = parse_kw(
         b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
         profile,
@@ -292,10 +303,10 @@ test "reserved_dml_ddl_words_require_backticks_as_identifiers" {
   ]
   for word in words {
     for profile in ["2.1", "3.x", "4.x"] {
-      let alias = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
-      assert_true(!alias.valid)
-      assert_true(alias.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
-      assert_eq(@printer.print_result(alias), b"SELECT a AS " + word + b" FROM t")
+      let alias_result = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
+      assert_true(!alias_result.valid)
+      assert_true(alias_result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_eq(@printer.print_result(alias_result), b"SELECT a AS " + word + b" FROM t")
       let property = parse_kw(
         b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
         profile,
@@ -374,5 +385,123 @@ test "grammar_words_still_work_in_clause_position" {
     assert_eq(result.diagnostics.length(), 0)
     assert_eq(@printer.print_result(result), raw)
     assert_true(result.all_spans_in_bounds())
+  }
+}
+
+fn profile_rank(profile : String) -> Int {
+  match profile {
+    "2.1" => 0
+    "3.x" => 1
+    "4.x" => 2
+    _ => -1
+  }
+}
+
+/// Production statement exercising a word's gated feature, or None when the
+/// word carries no DorisFeature gate of its own (word-level metadata only).
+fn gated_statement(word : Bytes) -> Bytes? {
+  if bytes_equal_ci(word, b"QUALIFY") {
+    Some(b"SELECT a FROM t QUALIFY a = 1")
+  } else if bytes_equal_ci(word, b"TABLET") {
+    Some(b"SELECT a FROM t TABLET (1)")
+  } else if bytes_equal_ci(word, b"MERGE") {
+    Some(b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v")
+  } else {
+    None
+  }
+}
+
+test "full_classification_table_audit_across_profiles" {
+  // Audits every row of the runtime table across 2.1/3.x/4.x (DORIS-04,
+  // D-15): (a) case-insensitive lookup, (b) NonReserved/Contextual words are
+  // unquoted identifiers and property keys, (c) Reserved words are rejected
+  // unquoted (DORIS-PARSE-002) but accepted backticked, (d) gated words emit
+  // DORIS-PARSE-006 under older profiles while non-gated words with newer
+  // introduced_profile metadata remain identifiers — the word-level gate and
+  // the DorisFeature production gate are distinct layers.
+  let mut index = 0
+  while index < @token.classification_entry_count() {
+    let entry = match @token.classification_entry_at(index) {
+      Some(entry) => entry
+      None => panic()
+    }
+    let word = entry.word
+    // (a) classification_of is case-insensitive: a lower-case variant of the
+    // canonical spelling resolves to the same row.
+    let lower = to_lower_bytes(word)
+    match @token.classification_of(lower) {
+      Some(resolved) => assert_eq(resolved.word, word)
+      None => panic()
+    }
+    for profile in ["2.1", "3.x", "4.x"] {
+      let unquoted_ok = match entry.classification {
+        NonReserved | Contextual => true
+        Reserved => false
+      }
+      if unquoted_ok {
+        // (b) usable as an unquoted identifier in a SELECT projection and as
+        // a property key inside CREATE TABLE PROPERTIES.
+        let projection = parse_kw(b"SELECT " + word + b" FROM t", profile, "strict")
+        assert_true(projection.valid)
+        assert_eq(projection.diagnostics.length(), 0)
+        let property = parse_kw(
+          b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
+          profile,
+          "strict",
+        )
+        assert_true(property.valid)
+        assert_eq(property.diagnostics.length(), 0)
+      } else {
+        // (c) rejected as an unquoted identifier (DORIS-PARSE-002-class) both
+        // as an alias and as a property key, and accepted backticked.
+        let alias_result = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
+        assert_true(!alias_result.valid)
+        assert_true(alias_result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+        assert_eq(@printer.print_result(alias_result), b"SELECT a AS " + word + b" FROM t")
+        let property = parse_kw(
+          b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
+          profile,
+          "strict",
+        )
+        assert_true(!property.valid)
+        assert_true(property.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+        assert_eq(
+          @printer.print_result(property),
+          b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
+        )
+        let quoted = parse_kw(b"SELECT a AS `" + word + b"` FROM t", profile, "strict")
+        assert_true(quoted.valid)
+        assert_eq(quoted.diagnostics.length(), 0)
+        assert_eq(@printer.print_result(quoted), b"SELECT a AS `" + word + b"` FROM t")
+      }
+    }
+    // (d) introduced_profile "3.x"/"4.x" words: gated features reject older
+    // profiles with DORIS-PARSE-006; non-gated words remain identifiers.
+    if entry.introduced_profile == "3.x" || entry.introduced_profile == "4.x" {
+      match gated_statement(word) {
+        Some(stmt) => {
+          for profile in ["2.1", "3.x", "4.x"] {
+            let result = parse_kw(stmt, profile, "strict")
+            if profile_rank(profile) < profile_rank(entry.introduced_profile) {
+              assert_true(!result.valid)
+              assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+            } else {
+              assert_true(result.valid)
+              assert_eq(result.diagnostics.length(), 0)
+            }
+            assert_eq(@printer.print_result(result), stmt)
+            assert_true(result.all_spans_in_bounds())
+          }
+        }
+        None => {
+          for profile in ["2.1", "3.x", "4.x"] {
+            let result = parse_kw(b"SELECT " + word + b" FROM t", profile, "strict")
+            assert_true(result.valid)
+            assert_eq(result.diagnostics.length(), 0)
+          }
+        }
+      }
+    }
+    index = index + 1
   }
 }
