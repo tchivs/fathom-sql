@@ -191,3 +191,118 @@ test "formatter_refusal_never_masks_parse_diagnostics" {
   assert_true(refusal.start_byte <= refusal.end_byte)
   assert_eq(refusal.statement_id, 0U)
 }
+
+test "formatter_from_id_maps_cli_string_ids" {
+  // The CLI flag surface (03-04) maps string values with these helpers.
+  assert_true(@formatter.KeywordCase::from_id("upper") is Some(@formatter.KeywordCase::Upper))
+  assert_true(@formatter.KeywordCase::from_id("lower") is Some(@formatter.KeywordCase::Lower))
+  assert_true(@formatter.KeywordCase::from_id("mixed") is None)
+  assert_true(@formatter.CommaStyle::from_id("trailing") is Some(@formatter.CommaStyle::Trailing))
+  assert_true(@formatter.CommaStyle::from_id("leading") is Some(@formatter.CommaStyle::Leading))
+  assert_true(@formatter.CommaStyle::from_id("none") is None)
+  assert_true(@formatter.NewlineStyle::from_id("follow") is Some(@formatter.NewlineStyle::FollowInput))
+  assert_true(@formatter.NewlineStyle::from_id("lf") is Some(@formatter.NewlineStyle::Lf))
+  assert_true(@formatter.NewlineStyle::from_id("crlf") is Some(@formatter.NewlineStyle::Crlf))
+  assert_true(@formatter.NewlineStyle::from_id("auto") is None)
+}
+
+test "formatter_statement_offsets_index_into_output" {
+  let options = @formatter.FormatOptions::default()
+  let result = match @api.format_with_ids(b"select 1; select 2", "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.accepted)
+  let offsets = result.statement_offsets
+  assert_eq(offsets.length(), 2)
+  assert_eq(offsets[0], 0)
+  assert_true(offsets[1] > offsets[0])
+  assert_true(offsets[1] < result.output.length())
+  // The inter-statement separator newline is emitted as part of the next
+  // statement's layout (pending break materialized at its first token), so the
+  // second statement's offset points at the separator byte: len("SELECT 1;").
+  assert_eq(offsets[1], b"SELECT 1;".length())
+  // Statement-per-line separation; the input's second statement has no
+  // trailing semicolon, so neither does the output.
+  assert_eq(result.output, b"SELECT 1;\nSELECT 2\n")
+  // Empty documents yield an empty offsets array.
+  let empty = match @api.format_with_ids(b"", "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(empty.statement_offsets.length(), 0)
+  assert_eq(empty.output.length(), 0)
+}
+
+test "formatter_metadata_and_ids_agree_on_output" {
+  // format_with_metadata (manifest-style) and format_with_ids must produce the
+  // same formatted output — metadata propagation is irrelevant to formatting.
+  let raw = b"select /*+ SET_VAR(enable_vectorized_engine=true) */ a, /* keep */ b -- trailing\nfrom t"
+  let options = @formatter.FormatOptions::default()
+  let via_ids = match @api.format_with_ids(raw, "4.x", "strict", options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let via_metadata = match @api.format_with_metadata(
+    raw,
+    "4.x",
+    "4.x",
+    "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    "strict",
+    options,
+  ) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(via_ids.accepted)
+  assert_true(via_metadata.accepted)
+  assert_eq(via_metadata.output, via_ids.output)
+  assert_eq(via_metadata.diagnostics.length(), via_ids.diagnostics.length())
+}
+
+test "formatter_determinism_pure_function_backstop" {
+  // Probe FMT-01: format_text is a pure function of (raw, parse_options,
+  // format_options) — repeated calls return byte-identical output and
+  // diagnostics, with no shared mutable state or IO.
+  let raw = b"select user_id, user_name, user_email, user_phone, user_address, user_status, user_created_at, user_updated_at from user_profile where user_status = 'active' group by user_id order by user_created_at"
+  let options = @formatter.FormatOptions::default()
+  let parse_options = match @api.ParseOptions::new("3.x", "strict") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  let first = match @api.format_text(raw, parse_options, options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let second = match @api.format_text(raw, parse_options, options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(first.accepted)
+  assert_true(second.accepted)
+  assert_eq(second.output, first.output)
+  assert_eq(second.diagnostics.length(), first.diagnostics.length())
+}
+
+test "formatter_options_error_propagation_never_reaches_api" {
+  // ASVS V5: invalid option structs fail construction, so the api entry only
+  // ever receives validated FormatOptions values (type-safe by construction).
+  let bad_indent = @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    -2,
+    100,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  )
+  assert_true(bad_indent is Err(@formatter.FormatError::InvalidIndent(value=-2)))
+  let bad_width = @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    -10,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  )
+  assert_true(bad_width is Err(@formatter.FormatError::InvalidLineWidth(value=-10)))
+}

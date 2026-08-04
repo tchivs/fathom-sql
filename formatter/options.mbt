@@ -90,3 +90,31 @@ pub fn FormatOptions::newline_style(self : FormatOptions) -> NewlineStyle {
 pub fn FormatOptions::trailing_newline(self : FormatOptions) -> Bool {
   self.trailing_newline
 }
+
+/// String-id mapping for the CLI flag surface (plan 03-04) and the
+/// option-combination test driver (plan 03-03), mirroring
+/// DorisProfile::from_id (token.mbt:241-248). Unknown ids return None.
+pub fn KeywordCase::from_id(id : String) -> KeywordCase? {
+  match id {
+    "upper" => Some(KeywordCase::Upper)
+    "lower" => Some(KeywordCase::Lower)
+    _ => None
+  }
+}
+
+pub fn CommaStyle::from_id(id : String) -> CommaStyle? {
+  match id {
+    "trailing" => Some(CommaStyle::Trailing)
+    "leading" => Some(CommaStyle::Leading)
+    _ => None
+  }
+}
+
+pub fn NewlineStyle::from_id(id : String) -> NewlineStyle? {
+  match id {
+    "follow" => Some(NewlineStyle::FollowInput)
+    "lf" => Some(NewlineStyle::Lf)
+    "crlf" => Some(NewlineStyle::Crlf)
+    _ => None
+  }
+}
