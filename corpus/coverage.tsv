@@ -13,4 +13,7 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 2.1	dml-insert-values	1	1	0	pinned revision unavailable offline	INSERT INTO ... VALUES core, column list, DEFAULT, and multi-row forms verified from the 2.1 INSERT page examples (prompts/output blocks excluded)
 3.x	dml-insert-values	1	1	0	pinned revision unavailable offline	INSERT VALUES forms verified in the 3.x released docs tree
 4.x	dml-insert-values	1	1	0	pinned revision unavailable offline	INSERT VALUES forms plus the STREAMING hint variant per the 4.x INSERT grammar
+2.1	dml-insert-select	1	1	0	pinned revision unavailable offline	INSERT ... SELECT, column list, and PARTITION/WITH LABEL query forms per the 2.1 INSERT page examples 3-4
+3.x	dml-insert-select	1	1	0	pinned revision unavailable offline	INSERT ... SELECT forms verified in the 3.x released docs tree
+4.x	dml-insert-select	1	1	0	pinned revision unavailable offline	INSERT ... SELECT incl. qualified db.table target per the 4.x INSERT grammar
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed

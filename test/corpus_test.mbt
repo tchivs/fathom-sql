@@ -37,6 +37,36 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // dml-insert-select: INSERT INTO ... SELECT (2.1/3.x/4.x INSERT pages;
+  // PARTITION and WITH LABEL query forms are documented in all three trees,
+  // qualified db.table target verified on the 4.x page).
+  {
+    fixture_id: "2.1-insert-select",
+    profile: "2.1",
+    exact_release: "2.1",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released",
+    raw: b"INSERT INTO test SELECT * FROM test2;\nINSERT INTO test (c1, c2) SELECT * FROM test2;\nINSERT INTO test PARTITION(p1, p2) WITH LABEL `label1` SELECT * FROM test2;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "3.x-insert-select",
+    profile: "3.x",
+    exact_release: "3.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
+    raw: b"INSERT INTO test SELECT * FROM test2;\nINSERT INTO test (c1, c2) SELECT * FROM test2;\nINSERT INTO test PARTITION(p1, p2) WITH LABEL `label1` SELECT * FROM test2;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "4.x-insert-select",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"INSERT INTO test SELECT * FROM test2;\nINSERT INTO test (c1, c2) SELECT * FROM test2;\nINSERT INTO test PARTITION(p1, p2) WITH LABEL `label1` SELECT * FROM test2;\nINSERT INTO db.test (c1) SELECT c1 FROM test2;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {
