@@ -340,6 +340,38 @@ pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
   self.source_byte_length == self.source_bytes.length()
 }
 
+/// Statement-level entry (D-23): statement ids are assigned in source order to
+/// content segments, so the id-th Statement node in `root.children` is the
+/// requested statement. Children that are not Statement nodes (trivia-only
+/// segments between semicolons, skipped resource tails) never consume an id.
+/// Returns None when `statement_id` does not exist (including empty documents).
+pub fn ParseResult::statement(self : ParseResult, statement_id : UInt) -> PrimitiveNode? {
+  let mut seen : UInt = 0U
+  for child in self.root.children {
+    if child.kind == "statement" {
+      if seen == statement_id {
+        return Some(child)
+      }
+      seen = seen + 1U
+    }
+  }
+  None
+}
+
+/// Statement-level diagnostics (D-23): the diagnostics of one statement,
+/// filtered by `statement_id` in source/emission order — the DORIS-03 path
+/// ("invalid statement does not discard later statements") is directly
+/// consumable per statement.
+pub fn ParseResult::statement_diagnostics(self : ParseResult, statement_id : UInt) -> Array[PrimitiveDiagnostic] {
+  let out : Array[PrimitiveDiagnostic] = []
+  for diagnostic in self.diagnostics {
+    if diagnostic.statement_id == statement_id {
+      out.push(diagnostic)
+    }
+  }
+  out
+}
+
 pub fn ParseResult::all_spans_in_bounds(self : ParseResult) -> Bool {
   fn check(node : PrimitiveNode, length : Int, parent_start : Int, parent_end : Int) -> Bool {
     if node.text_len < 0 || node.text_len != node.end_byte - node.start_byte || node.start_byte < 0 || node.start_byte > node.end_byte || node.end_byte > length || node.start_byte < parent_start || node.end_byte > parent_end {
