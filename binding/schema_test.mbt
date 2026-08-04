@@ -1,5 +1,5 @@
 // Deterministic schema contract fixtures for Phase 4 adapters.
-fn schema_fixture_has_frozen_fields() {
+fn schema_fixture_has_frozen_fields() -> Unit raise {
   let fields = ["schema_version", "source_transport", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
   let expected = ["schema_version", "source_transport", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
   assert_eq(fields.length(), 10)

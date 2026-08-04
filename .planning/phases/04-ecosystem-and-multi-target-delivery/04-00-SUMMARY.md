@@ -47,7 +47,11 @@ Deterministic MoonBit, Web, and VS Code host harnesses establish executable cont
 
 ## Verification Status
 
-Per assignment constraints, the plan verification commands were intentionally not run. The harness files and offline/protocol entrypoints were created without external package installation.
+- `moon test --target native --package binding --package lsp --package parity`: 10 tests passed, 0 failed.
+- `node --test web/src/main.test.ts vscode/src/extension.test.ts`: 7 tests passed, 0 failed.
+- `node web/scripts/offline-smoke.mjs --offline`: passed.
+- `node vscode/scripts/launch-smoke.mjs --protocol`: passed.
+- No external dependencies were installed.
 
 ### Auto-fixed Issues
 
@@ -58,7 +62,7 @@ Per assignment constraints, the plan verification commands were intentionally no
 - **Files modified:** `binding/moon.pkg`, `lsp/moon.pkg`, `parity/moon.pkg`, and the Wave 0 MoonBit harness files.
 - **Commit:** This repair commit
 
-The parent observed the zero-test failure before this repair. Validation commands remain intentionally skipped per assignment constraints.
+The parent observed the zero-test failure before the repair; after the repair, the focused MoonBit and host harness commands passed.
 
 ## Remaining Risks
 
