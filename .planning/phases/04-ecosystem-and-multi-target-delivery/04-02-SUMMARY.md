@@ -65,16 +65,15 @@ A bounded, deterministic syntax completion facade now supplies profile-aware Dor
 
 | Requirement | Evidence | Status |
 |---|---|---|
-| ECO-01 | `lsp/handlers.mbt`, `lsp/documents.mbt`, `lsp/protocol.mbt`, `lsp/protocol_test.mbt` enforce synchronized versions, malformed-request errors, lifecycle safety, and current-snapshot dispatch. | Implemented; parent targeted validation pending. |
-| ECO-03 | `completion/completion.mbt` and `lsp/completion_test.mbt` provide parser/token-owned syntax completion with no catalog path, profile filtering, incomplete-input recovery, bounded candidates, and byte ranges mapped by LSP. | Implemented; parent targeted validation pending. |
+| ECO-01 | `lsp/handlers.mbt`, `lsp/documents.mbt`, `lsp/protocol.mbt`, `lsp/protocol_test.mbt` enforce synchronized versions, malformed-request errors, lifecycle safety, and current-snapshot dispatch. | Implemented; 20 targeted package tests passed and framed smoke passed. |
+| ECO-03 | `completion/completion.mbt` and `lsp/completion_test.mbt` provide parser/token-owned syntax completion with no catalog path, profile filtering, incomplete-input recovery, bounded candidates, and byte ranges mapped by LSP. | Implemented; completion contexts, ordering, profile gate, multibyte replacement, and LSP mapping passed. |
 
-## Verification Expected by Parent
+## Parent Verification
 
-Per the execution instruction, this agent did not run plan verification commands, formatters, linters, or project-wide suites. The parent executor should run:
-
-- `moon test --target native --filter completion`
-- `moon test --target native --filter lsp`
-- Native framed smoke against `_build/native/release/build/lsp/lsp.exe`, including initialize, versioned didOpen/didChange, minimum completion contexts, an incomplete document, malformed completion params, stale version rejection, shutdown, and exit.
+- `moon test --target native --package binding --package lsp`: 20 tests passed, 0 failed.
+- `moon build --target native --release --package lsp`: completed with 0 errors.
+- Native framed smoke against `_build/native/release/build/lsp/lsp.exe`: 10 valid top-level messages, including malformed-frame recovery, initialize, versioned didOpen/didChange diagnostics, current completion (`FROM`, then `JOIN`), stale-version rejection, malformed completion params, didClose, shutdown, and exit.
+  - The plan's `--filter completion`/`--filter lsp` invocations reported no test entries in this MoonBit toolchain; package-level targeted execution is the passing evidence.
 
 ## Deviations from Plan
 
@@ -98,8 +97,7 @@ No architectural changes, external dependencies, parser forks, catalog access, n
 
 ## Risks
 
-- Targeted completion/LSP tests and framed smoke were intentionally deferred to the parent executor; compiler/toolchain compatibility remains the remaining execution risk.
-- Completion intentionally offers syntax keywords and clause words only. Table/column or other catalog-backed semantic suggestions are excluded by contract.
+- Targeted package tests, Native release build, and framed smoke passed. Completion intentionally offers syntax keywords and clause words only; table/column or other catalog-backed semantic suggestions remain excluded by contract.
 - The inverse coordinate converter rejects positions inside a supplementary-plane surrogate pair rather than manufacturing a byte boundary; standard LSP clients should send scalar-boundary UTF-16 positions.
 
 ## Known Stubs
@@ -110,10 +108,13 @@ None in the implemented plan surface.
 
 1. `f84e2c1` — `feat(04-02): add parser-owned syntax completion`
 2. `cee1423` — `feat(04-02): harden LSP completion protocol`
+3. `aafbf6e` — `fix: repair Wave 2 didOpen/didChange handler typing`
+4. `9137af6` — `fix: order context-aware completion candidates`
+5. `c21e577` — `fix: close wave 2 completion validation gaps`
 
 ## Self-Check: PASSED
 
 - Summary file exists at the required phase path.
 - `completion/completion.mbt`, `lsp/completion_test.mbt`, and `lsp/protocol_test.mbt` exist.
-- Implementation commits `f84e2c1` and `cee1423` are present in repository history.
-- Parent-targeted validation commands are listed but intentionally unrun per execution constraints.
+- Implementation and validation-repair commits listed above are present.
+- Targeted package tests, release build, and framed smoke passed.
