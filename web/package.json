@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Offline Monaco host for the Doris SQL parser facade",
   "scripts": {
-    "start": "python3 -m http.server 4173",
+    "start": "node scripts/serve.mjs",
     "build": "node scripts/offline-smoke.mjs --offline"
   },
   "dependencies": {
