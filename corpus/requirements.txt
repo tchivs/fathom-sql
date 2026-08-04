@@ -1,0 +1,5 @@
+# Dev tooling pin for the differential harness (CORP-04, D-20).
+# SQLGlot is a locally runnable parse-comparison baseline only: it is never a
+# parser-core dependency and never the public contract (D-07/D-20).
+# Pinned by the RESEARCH.md PyPI legitimacy audit (OK verdict, 2026-08-04).
+sqlglot==30.14.0
