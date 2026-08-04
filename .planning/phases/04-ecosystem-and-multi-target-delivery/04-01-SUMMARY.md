@@ -60,33 +60,30 @@ coverage:
     verification:
       - kind: unit
         ref: "binding/schema_test.mbt#schema_serializes_real_parse_result_and_refuses_unknown_versions"
-        status: unknown
-    human_judgment: true
-    rationale: "Validation commands were intentionally skipped; parent executor must run the targeted schema suite."
+        status: pass
+    human_judgment: false
   - id: D2
     description: "Native bounded Content-Length JSON-RPC framing, lifecycle, full-content document state, and malformed-frame responses"
     requirement: ECO-01
     verification:
       - kind: unit
         ref: "lsp/framing_test.mbt#malformed_frame_is_rejected_not_crashed"
-        status: unknown
+        status: pass
       - kind: integration
-        ref: "moon build --target native --release and framed initialize/open/change/close/shutdown/exit tracer session"
-        status: unknown
-    human_judgment: true
-    rationale: "Validation commands were intentionally skipped; parent executor must build and smoke-test the executable."
+        ref: "Native release build and framed initialize/open/change/close/shutdown/exit tracer session"
+        status: pass
+    human_judgment: false
   - id: D3
     description: "Parser diagnostics and accepted/refused formatting mapped to UTF-16 diagnostics and one safe full-document edit"
     requirement: ECO-02
     verification:
       - kind: unit
         ref: "lsp/diagnostics_formatting_test.mbt#lsp_publishes_diagnostics_and_one_full_document_edit"
-        status: unknown
+        status: pass
       - kind: unit
         ref: "binding/coordinates_test.mbt#utf16_conversion_treats_crlf_as_one_line"
-        status: unknown
-    human_judgment: true
-    rationale: "Validation commands were intentionally skipped; parent executor must run targeted diagnostics/coordinate suites."
+        status: pass
+    human_judgment: false
 ---
 
 # Phase 4 Plan 1: Native Schema and LSP Tracer Summary
@@ -185,27 +182,21 @@ coverage:
 ## Issues Encountered
 
 - The repository contains unrelated planning changes and untracked planning artifacts from parallel workflow activity; they were not staged or modified by these implementation commits.
-- The plan's targeted verification commands and Native framed smoke session were intentionally not run because the parent explicitly required validation to be skipped. Exact commands for the parent are listed below.
+- Wave 1 parent validation passed after targeted toolchain and protocol repairs; the focused tests, Native release build, and framed smoke are recorded below.
 
-## Verification Commands for Parent Executor
+## Parent Verification
 
-Run the plan's targeted checks from the repository root:
-
-- `moon test --target native --filter schema`
-- `moon test --target native --filter coordinates`
-- `moon test --target native --filter lifecycle`
-- `moon test --target native --filter framing`
-- `moon test --target native --filter diagnostics_formatting`
-- Build the `lsp/` executable for Native and feed a framed initialize → initialized → didOpen → didChange → didClose → shutdown → exit session, including a malformed frame, then assert framed responses and newest-version diagnostics.
-
-These commands/results are **expected but unrun by this executor**; no pass/fail claim is made here.
+- `moon test --target native --package binding --package lsp`: 13 tests passed, 0 failed.
+- `moon build --target native --release --package lsp`: completed with 0 errors.
+- Native framed smoke through `_build/native/release/build/lsp/lsp.exe`: passed malformed-frame recovery, initialize/initialized, versioned didOpen/didChange diagnostics, formatting TextEdit, didClose, shutdown, and exit.
+- Framed smoke decoded 6 valid top-level JSON-RPC messages and verified error/result/notification bodies.
 
 ## Security and Risk Notes
 
 - The Native boundary caps headers at 16 KiB and frame bodies at 8 MiB, reads exact body bytes, validates JSON UTF-8, and emits framed protocol errors.
 - Parser input remains bounded by the existing API/parser limits. The document store retains only the newest full-content snapshot per URI.
 - Process IO is confined to the LSP executable. No FE, database, HTTP, network, catalog, or second parser path was added.
-- The parent should pay particular attention to MoonBit toolchain syntax/API compatibility when running the targeted suites because validation was intentionally skipped.
+- Targeted tests, Native build, and framed smoke passed; remaining compiler output consists of non-blocking warnings about reserved names and redundant modifiers.
 
 ## Known Stubs
 
@@ -217,13 +208,13 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-The shared serialized schema and coordinate policy are ready for later JS/Wasm wrappers and parity work. The Native LSP tracer now provides the production boundary for subsequent completion hardening and host packaging. Parent validation is required before expanding the wave.
+The shared serialized schema and coordinate policy are ready for later JS/Wasm wrappers and parity work. The Native LSP tracer provides the production boundary for subsequent completion hardening and host packaging; parent validation has passed.
 
 ## Self-Check: PASSED
 
-- Task commits `63f9455`, `76eedfc`, and `55fecea` exist and contain only task-related implementation/harness files.
-- The required summary output and all plan artifacts are present.
-- Validation commands were intentionally skipped as required by the parent assignment; coverage entries remain `unknown` rather than claiming unobserved passes.
+- Task implementation commits and follow-up toolchain/protocol repairs remain scoped to Phase 4 Native schema/LSP files.
+- Targeted tests, release build, and framed smoke passed; coverage entries above are marked `pass`.
+- No external service or dependency setup was required.
 
 ---
 *Phase: 04-ecosystem-and-multi-target-delivery*
