@@ -8,7 +8,7 @@ The MVP progresses from a source-faithful, recoverable Doris parsing kernel to v
 
 - [x] **Phase 1: Core Kernel** - Establish versioned, lossless, recoverable parsing for industrial Doris SELECT and expressions.
 - [x] **Phase 2: Doris Completeness and Corpus** - Expand Doris DML/DDL and make official, versioned corpus coverage auditable. (completed 2026-08-04)
-- [ ] **Phase 3: Formatting and Safe Edits** - Provide exact replay, configurable canonical formatting, and a safe formatting CLI.
+- [x] **Phase 3: Formatting and Safe Edits** - Provide exact replay, configurable canonical formatting, and a safe formatting CLI. (completed 2026-08-04)
 - [ ] **Phase 4: Ecosystem and Multi-Target Delivery** - Deliver Native LSP, stable Wasm/JavaScript APIs, and editor/web integrations.
 
 ## Phase Details
@@ -127,8 +127,14 @@ Plans:
   3. Native, JavaScript, and linear-Wasm targets expose the same versioned serialized CST/trivia/span/diagnostic/profile schema and pass shared parity fixtures, including documented byte-to-line/UTF-16 coordinates.
   4. Project provides a working offline Web/Monaco demonstration and a VS Code extension that surfaces Doris diagnostics and formatting through the standard LSP client protocol.
 
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 4/5 plans executed
+Plans:
+
+- [x] 04-00-PLAN.md — create shared schema, parity, LSP, Web, and VS Code harnesses
+- [x] 04-01-PLAN.md — freeze serialized schema/coordinates and deliver Native LSP diagnostics/formatting tracer
+- [x] 04-02-PLAN.md — add syntax-aware completion and protocol/version hardening
+- [x] 04-03-PLAN.md — expose JS/linear-Wasm facades and prove Native/JS/Wasm parity
+- [ ] 04-04-PLAN.md — deliver offline Web/Monaco and VS Code hosts with accessibility checkpoints
 
 ## Dependency and Ordering Rationale
 
@@ -146,7 +152,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
 | 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
-| 3. Formatting and Safe Edits | 4/4 | In Progress|  |
-| 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
+| 3. Formatting and Safe Edits | 4/4 | Complete    | 2026-08-04 |
+| 4. Ecosystem and Multi-Target Delivery | 4/5 | In Progress|  |
 
 **Coverage:** 27/27 v1 requirements mapped; 0 unmapped; each requirement assigned to exactly one phase.

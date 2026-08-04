@@ -47,8 +47,8 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 - [ ] **ECO-01**: Editor can connect to a Native Doris LSP server that implements lifecycle, document synchronization, versioned documents, and diagnostics without a live Doris FE.
 - [ ] **ECO-02**: LSP client can request comment-preserving formatting for a document and receive ranges/edits using a documented byte-to-line/UTF-16 coordinate conversion policy.
 - [ ] **ECO-03**: LSP client can receive syntax-aware completion suggestions for Doris keywords, clauses, and parser-known contexts while the SQL document is incomplete.
-- [ ] **ECO-04**: Web application can use a Wasm/JavaScript SDK to parse the same Doris profiles and obtain the stable CST/diagnostic results without exposing internal MoonBit ADT or backend-specific types.
-- [ ] **ECO-05**: Native, JavaScript, and linear-Wasm targets expose a versioned serialized schema for CST nodes, trivia, spans, diagnostics, and profile selection with parity fixtures across targets.
+- [x] **ECO-04**: Web application can use a Wasm/JavaScript SDK to parse the same Doris profiles and obtain the stable CST/diagnostic results without exposing internal MoonBit ADT or backend-specific types.
+- [x] **ECO-05**: Native, JavaScript, and linear-Wasm targets expose a versioned serialized schema for CST nodes, trivia, spans, diagnostics, and profile selection with parity fixtures across targets.
 - [ ] **ECO-06**: Project provides a working Web/Monaco demonstration that uses the Wasm/JavaScript SDK for Doris diagnostics and formatting without a database connection.
 - [ ] **ECO-07**: Project provides a VS Code extension that connects to the Native LSP using the standard client protocol and exposes Doris diagnostics and formatting.
 
@@ -105,8 +105,8 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | ECO-01 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 | ECO-02 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 | ECO-03 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
-| ECO-04 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
-| ECO-05 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
+| ECO-04 | Phase 4: Ecosystem and Multi-Target Delivery | Complete |
+| ECO-05 | Phase 4: Ecosystem and Multi-Target Delivery | Complete |
 | ECO-06 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 | ECO-07 | Phase 4: Ecosystem and Multi-Target Delivery | Pending |
 

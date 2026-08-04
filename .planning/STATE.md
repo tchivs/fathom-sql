@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-current_phase_name: Formatting and Safe Edits
-status: verifying
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-08-04T12:34:44.897Z"
+current_phase: 4
+current_phase_name: Ecosystem and Multi-Target Delivery
+status: executing
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-08-04T15:29:35.773Z"
 last_activity: 2026-08-04
-last_activity_desc: Phase 03 execution started
+last_activity_desc: Phase 4 execution started
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 20
+  completed_plans: 18
 ---
 
 # Project State
@@ -23,22 +23,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-03)
 
 **Core value:** 用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
-**Current focus:** Phase 03 — Formatting and Safe Edits
+**Current focus:** Phase 4 — Ecosystem and Multi-Target Delivery
 
 ## Current Position
 
-Phase: 03 (Formatting and Safe Edits) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-08-04 — Phase 03 execution started
+Phase: 4 (Ecosystem and Multi-Target Delivery) — EXECUTING
+Plan: 5 of 5
+Status: Ready to execute
+Last activity: 2026-08-04 — Phase 4 execution started
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
+- Total plans completed: 10
 - Average duration: N/A
 - Total execution time: 0.0 hours
 
@@ -51,6 +51,7 @@ Progress: [██████████] 100%
 | 3. Formatting and Safe Edits | 0 | TBD | N/A |
 | 4. Ecosystem and Multi-Target Delivery | 0 | TBD | N/A |
 | 02 | 6 | - | - |
+| 3 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -76,6 +77,7 @@ Progress: [██████████] 100%
 | Phase 03 P03-02 | 29 | 3 tasks | 3 files |
 | Phase 03-formatting-and-safe-edits P03 | 63min | 3 tasks | 3 files |
 | Phase 03 P03-04 | 58 | 2 tasks | 6 files |
+| Phase 04 P03 | implementation session | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -133,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase ?]: A run-newline comment opening a broken-list item keeps the pending item break (item indent) instead of clobbering it with the stale line_indent - fixes hint placement flip-flop between format passes
 - [Phase ?]: doris-sql format CLI is a thin executable package (D-37/D-38): pure run_format -> CliOutcome maps @api.format_with_ids results to exact D-39 exit codes 0/1/2; --profile required (CORE-01, exit 2 otherwise); byte-exact unbuffered stdout via write_fd(1) so exit_process drops nothing
 - [Phase ?]: CLI toolchain adaptations on moon 0.1.20260724: Result[Command, UsageError] instead of union types; black-box _test.mbt modules require pub(all) structs and pub FFI externs; hand-rolled int parsing keeps the CLI dependency surface at api/env/buffer/utf8/debug
+- [Phase ?]: Expose doris_parse_v1, doris_format_v1, doris_profile_v1, and doris_capabilities_v1 as primitive UTF-8 JSON Bytes exports.
+- [Phase ?]: Use inline-root-v1 JSON byte arrays for exact source transport and advertise only linear Wasm, not Wasm GC.
 
 ### Pending Todos
 
@@ -158,6 +162,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T12:34:44.874Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-08-04T15:27:54.666Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
