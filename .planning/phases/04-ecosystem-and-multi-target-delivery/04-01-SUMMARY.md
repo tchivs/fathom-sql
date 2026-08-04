@@ -163,6 +163,16 @@ coverage:
 **Total deviations:** 2 auto-fixed (Rule 2, Rule 3)
 **Impact on plan:** Both changes are directly required for protocol safety and for the Wave 0 harnesses to test production behavior. No parser fork, host dependency, network service, or scope expansion was introduced.
 
+### Toolchain correction after parent validation
+
+**3. [Rule 1 - Bug] Corrected MoonBit core JSON namespace usage**
+- **Found during:** Wave 1 parent targeted compile validation
+- **Issue:** Production binding serializers referenced `@json.Json` and `@json.Json::...`, but the MoonBit core JSON value type and constructors are exposed as built-in `Json` and `Json::...` names.
+- **Fix:** Replaced the type and constructor namespace in `binding/json.mbt` and the related `binding/schema.mbt` references; the `@json` package alias and serialization semantics remain unchanged.
+- **Files modified:** `binding/json.mbt`, `binding/schema.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction; confirmed no `@json.Json` references remain under `binding/`.
+- **Commit:** `0814d53` (atomic follow-up correction)
+
 ## Issues Encountered
 
 - The repository contains unrelated planning changes and untracked planning artifacts from parallel workflow activity; they were not staged or modified by these implementation commits.

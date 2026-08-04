@@ -60,24 +60,24 @@ pub fn schema_error_message(error : SchemaError) -> String {
 
 pub fn schema_error_json(error : SchemaError) -> String {
   stringify({
-    "schema_version": @json.Json::string("doris.error.v1"),
-    "code": @json.Json::string(schema_error_code(error)),
-    "message": @json.Json::string(schema_error_message(error)),
+    "schema_version": Json::string("doris.error.v1"),
+    "code": Json::string(schema_error_code(error)),
+    "message": Json::string(schema_error_message(error)),
   })
 }
 
 pub fn parse_result_json(result : @api.ParseResult) -> String {
   stringify({
-    "schema_version": @json.Json::string(PARSE_SCHEMA_VERSION),
-    "source_transport": @json.Json::string(result.source_transport),
-    "profile": @json.Json::string(result.profile),
-    "exact_release": @json.Json::string(result.exact_release),
-    "feature_introduction": @json.Json::string(result.feature_introduction),
-    "mode": @json.Json::string(result.mode),
-    "valid": @json.Json::boolean(result.valid),
-    "recovered": @json.Json::boolean(result.recovered),
+    "schema_version": Json::string(PARSE_SCHEMA_VERSION),
+    "source_transport": Json::string(result.source_transport),
+    "profile": Json::string(result.profile),
+    "exact_release": Json::string(result.exact_release),
+    "feature_introduction": Json::string(result.feature_introduction),
+    "mode": Json::string(result.mode),
+    "valid": Json::boolean(result.valid),
+    "recovered": Json::boolean(result.recovered),
     "source_bytes": byte_array_json(result.source_bytes),
-    "source_byte_length": @json.Json::number(result.source_byte_length.to_double()),
+    "source_byte_length": Json::number(result.source_byte_length.to_double()),
     "root": node_json(result.root),
     "diagnostics": diagnostics_json(result.diagnostics),
   })
@@ -85,12 +85,12 @@ pub fn parse_result_json(result : @api.ParseResult) -> String {
 
 pub fn format_result_json(source : Bytes, result : @api.FormatResult, profile : String) -> String {
   stringify({
-    "schema_version": @json.Json::string(FORMAT_SCHEMA_VERSION),
-    "source_transport": @json.Json::string(SOURCE_TRANSPORT),
-    "profile": @json.Json::string(profile),
+    "schema_version": Json::string(FORMAT_SCHEMA_VERSION),
+    "source_transport": Json::string(SOURCE_TRANSPORT),
+    "profile": Json::string(profile),
     "source_bytes": byte_array_json(source),
-    "source_byte_length": @json.Json::number(source.length().to_double()),
-    "accepted": @json.Json::boolean(result.accepted),
+    "source_byte_length": Json::number(source.length().to_double()),
+    "accepted": Json::boolean(result.accepted),
     "formatted": byte_array_json(result.output),
     "diagnostics": format_diagnostics_json(result.diagnostics),
     "statement_offsets": offsets_json(result.statement_offsets),
