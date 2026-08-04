@@ -67,24 +67,30 @@ actuals:
 
 | Requirement | Evidence | Status |
 |---|---|---|
-| ECO-04 | `binding/exports.mbt`, `binding/moon.pkg`, and `binding/schema.mbt` expose parse/format/profile/capability functions using explicit primitive `Bytes`, `String`, `Int`, and `Bool` arguments/results. `doris.error.v1` handles malformed profiles/modes/options without internal values. | Implemented; parent target build/smoke gate pending. |
-| ECO-05 | `parity/fixtures/corpus.json`, `parity/fixtures/target-matrix.json`, `parity/parity_test.mbt`, and the three target runners cover serialized schema, profile metadata, source bytes, recursive roots, diagnostics, spans through the shared schema, formatting outputs, rejection cases, and target metadata. | Implemented; parent parity/build gate pending. |
+| ECO-04 | `binding/exports.mbt`, `binding/moon.pkg`, and `binding/schema.mbt` expose parse/format/profile/capability functions using explicit primitive `Bytes`, `String`, `Int`, and `Bool` arguments/results. `doris.error.v1` handles malformed profiles/modes/options without internal values. | Implemented; Native/JS/Wasm target checks and JS/Wasm artifact smoke passed. |
+| ECO-05 | `parity/fixtures/corpus.json`, `parity/fixtures/target-matrix.json`, `parity/parity_test.mbt`, and the three target runners cover serialized schema, profile metadata, source bytes, recursive roots, diagnostics, spans through the shared schema, formatting outputs, rejection cases, and target metadata. | Implemented; 12 Native parity tests and target builds passed. |
 
-## Target/Build Evidence Expected by Parent
+## Parent Target/Build Evidence
 
-The parent-target validation exposed a MoonBit toolchain limitation: a `foreign_library` package cannot be converted into a test main because its `#export_name` declarations are rejected in that harness. All binding schema and coordinate tests now live in the non-foreign executable `parity` package, using `@binding.` prefixes and `@source` imports; the foreign package contains production sources only. The executor therefore did not run validation commands. The parent should run:
-
-- `moon check --target js binding`
-- `moon check --target native binding`
-- `moon test --target native --package binding --package parity`
-
-The export smoke assertions and relocated schema/coordinate assertions call the real `@binding` functions from `parity`, preserving observable test names and coverage without weakening export/parity coverage. Production `binding/moon.pkg` and export symbols remain unchanged. The checked-in runners and `target-matrix.json` provide the target-specific entrypoints and expected compatibility metadata. No Wasm GC build or compatibility claim is included.
+- `moon test --target native --package parity`: 12 tests passed, 0 failed. Binding schema/coordinate/export smoke tests run from the non-foreign parity package because selecting the foreign-library package as a Native test target triggers MoonBit error 4219.
+- `moon check --target native`: completed with 0 errors.
+- `moon check --target native binding`: completed with 0 errors.
+- `moon check --target js binding`: completed with 0 errors.
+- `moon build --target js binding`: completed with 0 errors; generated ESM d.ts exposes all four stable symbols.
+- `moon build --target wasm binding`: completed with 0 errors; generated linear-Wasm module exposes all four stable symbols.
+- `moon build --target js parity && moon build --target wasm parity`: both completed with 0 errors.
+- JS runtime smoke decoded `doris.parse.v1`, rejected `mysql` as `DORIS-SCHEMA-003`, preserved source bytes, and verified `wasm_gc:false` capability metadata.
+- Wasm module smoke found exactly `doris_parse_v1`, `doris_format_v1`, `doris_profile_v1`, and `doris_capabilities_v1` among its four exports.
+- No Wasm GC build or compatibility claim is included.
 
 ## Task Commits
 
 1. `af7f0ca` — `feat(04-03): add primitive JS and linear Wasm exports`
 2. `538b966` — `test(04-03): add cross-target parity corpus and runners`
 3. `d293a97` — `test(04-03): add target ABI regression gates`
+4. `947b4ef`, `99c7691`, `9767d4b` — foreign-library test relocation and summary metadata
+5. `81d2845` — relocate binding schema/coordinate tests into parity
+6. `c054c15` — restore binding source dependency and FormatError constructor labels
 
 ## Deviations from Plan
 
@@ -113,10 +119,16 @@ The export smoke assertions and relocated schema/coordinate assertions call the 
 
 No architectural changes, external dependencies, package installs, parser forks, network/FE/database paths, or Web/VS Code host work were introduced.
 
+**4. [Rule 1 - Bug] Restored foreign-library dependencies and formatter error labels**
+- **Found during:** Parent Native/JS/Wasm target validation
+- **Issue:** The foreign-library manifest omitted the shared `source` dependency used by the coordinate adapter, and `FormatError` constructor fields were matched with incorrect labels, preventing target compilation.
+- **Fix:** Added the `source` import and matched `keyword_case_id`, `comma_style_id`, and `newline_style_id` exactly; validated native and JS checks plus JS/Wasm builds.
+- **Files modified:** `binding/moon.pkg`, `binding/schema.mbt`
+- **Commit:** `c054c15`
+
 ## Risks
 
-- Cross-target compiler/build and runtime parity verification remains intentionally delegated to the parent executor; this summary does not claim those commands passed.
-- Linear Wasm `Bytes` ownership/host decoding must be confirmed by the parent target artifact smoke. The source-level boundary is explicit and does not expose a MoonBit object handle.
+- Native/JS/Wasm target checks, builds, parity tests, and JS/Wasm artifact smoke passed. Linear Wasm `Bytes` ownership/host decoding remains a host-integration concern; the source-level boundary is explicit and does not expose a MoonBit object handle.
 - JSON byte-array encoding is deliberately stable but larger than base64; changing it requires a new source transport/schema version.
 
 ## Known Stubs
@@ -126,6 +138,6 @@ None in the implemented plan surface. The three runner mains invoke the real bin
 ## Self-Check: PASSED
 
 - Required implementation and fixture files exist in the working tree.
-- Commits `af7f0ca`, `538b966`, and `d293a97` exist in git history.
+- Export, parity, and target repair commits listed above are present.
 - No placeholder/TODO/FIXME/empty-result stub was found in the plan's implementation surface.
-- Unrun verification commands are explicitly recorded above for the parent executor; no unsupported pass claim is made.
+- Native parity tests, Native checks, JS/Wasm checks/builds, and JS/Wasm artifact smoke passed.
