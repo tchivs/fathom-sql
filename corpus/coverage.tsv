@@ -25,4 +25,7 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 2.1	ddl-create-table	1	1	0	pinned revision unavailable offline	A3 correction: 2.1 released grammar documents BUCKETS AUTO and AUTO PARTITION BY; DorisFeature::BucketsAuto gate moved 3.x to 2.1 (ORDER BY stays 4.x-gated)
 3.x	ddl-create-table	1	1	0	pinned revision unavailable offline	full body verified against the 3.x CREATE TABLE grammar (keys, buckets incl. AUTO, partitions, properties)
 4.x	ddl-create-table	1	1	0	pinned revision unavailable offline	full body incl. 4.1.0+ ORDER BY, TEMPORARY modifier, rollup per the 4.x grammar
+2.1	ddl-create-view	1	1	0	pinned revision unavailable offline	plain and column-defined VIEW forms; IF NOT EXISTS/column comments verified on the 4.x page only
+3.x	ddl-create-view	1	1	0	pinned revision unavailable offline	plain and column-defined VIEW forms; IF NOT EXISTS/column comments verified on the 4.x page only
+4.x	ddl-create-view	1	1	0	pinned revision unavailable offline	IF NOT EXISTS, column comments, and CTE-bodied query per the 4.x CREATE VIEW grammar
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed

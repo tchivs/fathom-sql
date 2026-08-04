@@ -156,6 +156,35 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // ddl-create-view: 2.1/3.x record plain and column-defined forms; the 4.x
+  // fixture adds IF NOT EXISTS, column comments, and a CTE-bodied query.
+  {
+    fixture_id: "2.1-create-view",
+    profile: "2.1",
+    exact_release: "2.1",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released",
+    raw: b"CREATE VIEW v AS SELECT a, b FROM t;\nCREATE VIEW v (a, b) AS SELECT a, b FROM t;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "3.x-create-view",
+    profile: "3.x",
+    exact_release: "3.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
+    raw: b"CREATE VIEW v AS SELECT a, b FROM t;\nCREATE VIEW v (a, b) AS SELECT a, b FROM t;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "4.x-create-view",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"CREATE VIEW v AS SELECT a, b FROM t;\nCREATE VIEW IF NOT EXISTS db.v (a COMMENT 'col a') AS SELECT x AS a FROM t;\nCREATE VIEW v AS WITH cte AS (SELECT 1) SELECT * FROM cte;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {
