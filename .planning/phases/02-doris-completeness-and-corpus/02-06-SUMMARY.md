@@ -160,3 +160,9 @@ None — no external service configuration. (Optional: `python3 -m venv .venv &&
 ---
 *Phase: 02-doris-completeness-and-corpus*
 *Completed: 2026-08-04*
+
+## Self-Check: PASSED
+
+- SUMMARY file exists: `.planning/phases/02-doris-completeness-and-corpus/02-06-SUMMARY.md`
+- Task commits verified in git log: `7981418`, `2db2e1c`
+- Final metadata commit verified: `6d472f6`
