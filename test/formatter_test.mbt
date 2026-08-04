@@ -473,3 +473,156 @@ test "formatter_unknown_family_falls_back_to_flat_emission" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+/// 03-02 Task 2: measure-then-break list layout (research Pattern 2). The
+/// flat-fit decision reads only the summed leaf spans (never the running
+/// column), so idempotence holds by construction; comma placement follows
+/// options.comma_style(); expression runs (function arguments, arithmetic
+/// parens) are never broken internally; a last-item comma is emitted only
+/// where the empirical reparse probe accepted it (see comment below).
+///
+/// Empirical trailing-comma probe (4.x strict, run during implementation —
+/// flagged assumption A1 / research Open Q1): parse_with_ids accepts a comma
+/// after the last list item in exactly two contexts —
+///   PROPERTIES ( ... )              ACCEPTS (probe: 1 and 2 items)
+///   partition-defs ( ... ) after )  ACCEPTS (probe: 1 and 2 items)
+/// and REJECTS it everywhere else: select list, VALUES rows, VALUES row
+/// interior, column definitions, IN list, KEY list, function arguments,
+/// PARTITIONS list, INSERT column list. Emitted last-item commas therefore
+/// appear only in the two accepted contexts below (goldens assert the
+/// reparse gate); every other context emits no last-item comma.
+test "formatter_03_02_list_layout_and_comma_styles" {
+  let narrow = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    20,
+    @formatter.CommaStyle::Trailing,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let leading = match @formatter.FormatOptions::new(
+    @formatter.KeywordCase::Upper,
+    2,
+    20,
+    @formatter.CommaStyle::Leading,
+    @formatter.NewlineStyle::FollowInput,
+    true,
+  ) {
+    Ok(opts) => opts
+    Err(_) => panic()
+  }
+  let fixtures = [
+    // (a) A VALUES list that fits: whole-list-fits emits it inline.
+    {
+      fixture_id: "4.x-values-list-fits-inline",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"insert into t values (1, 2), (3, 4), (5, 6), (7, 8)",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"INSERT\nINTO t\nVALUES(1, 2),(3, 4),(5, 6),(7, 8)\n",
+    },
+    // (b) The same VALUES list at line_width 20: one row per line at
+    // indent+1, trailing commas, no last-item comma (probe: VALUES rejects).
+    {
+      fixture_id: "4.x-values-list-break-one-row-per-line",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"insert into t values (1, 2), (3, 4), (5, 6), (7, 8)",
+      expected_valid: true,
+      options: Some(narrow),
+      expected_golden: b"INSERT\nINTO t\nVALUES\n  (1, 2),\n  (3, 4),\n  (5, 6),\n  (7, 8)\n",
+    },
+    // (c) Select list at line_width 20: one item per line at indent+1 with
+    // Trailing comma placement; no last-item comma (probe: select rejects).
+    {
+      fixture_id: "4.x-select-list-break-trailing",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a, b, c, d, e, f, g, h, i, j, k from t where id = 1",
+      expected_valid: true,
+      options: Some(narrow),
+      expected_golden: b"SELECT\n  a,\n  b,\n  c,\n  d,\n  e,\n  f,\n  g,\n  h,\n  i,\n  j,\n  k\nFROM t\nWHERE id = 1\n",
+    },
+    // (d) Leading comma style: the comma opens the following item's line.
+    {
+      fixture_id: "4.x-select-list-break-leading",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select a, b, c, d, e, f, g, h, i, j, k from t where id = 1",
+      expected_valid: true,
+      options: Some(leading),
+      expected_golden: b"SELECT\n  a\n  , b\n  , c\n  , d\n  , e\n  , f\n  , g\n  , h\n  , i\n  , j\n  , k\nFROM t\nWHERE id = 1\n",
+    },
+    // (e) Expression runs are never broken internally: function arguments
+    // (f( ... )) and arithmetic parens stay on one line even when long.
+    {
+      fixture_id: "4.x-function-args-never-broken",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select f(argument_one, argument_two, argument_three, argument_four, argument_five) from t",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT f(argument_one, argument_two, argument_three, argument_four, argument_five)\nFROM t\n",
+    },
+    {
+      fixture_id: "4.x-arithmetic-parens-never-broken",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select * from t where (a + b) * (c - d) / (e % f) > 10 and x = 1",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"SELECT *\nFROM t\nWHERE(a + b) *(c - d) /(e % f) > 10 AND x = 1\n",
+    },
+    // (f) CREATE TABLE column definitions: the column list breaks at
+    // indent+1 when over width (column-definition list context). Seven
+    // columns measure ~47 flat chars, so the break needs line_width 20.
+    {
+      fixture_id: "4.x-create-table-column-list-break",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"create table t (a int, b int, c int, d int, e int, f int, g int)",
+      expected_valid: true,
+      options: Some(narrow),
+      expected_golden: b"CREATE\nTABLE t(\n  a int,\n  b int,\n  c int,\n  d int,\n  e int,\n  f int,\n  g int\n)\n",
+    },
+    // (g) Probe-accepted contexts: PROPERTIES and partition definitions emit
+    // the last-item trailing comma (recorded above); the golden's reparse
+    // gate re-verifies Doris acceptance for each emitted comma.
+    {
+      fixture_id: "4.x-properties-last-item-comma",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"create table t (k1 int) properties (\"storage_medium\" = \"SSD\", \"replication_num\" = \"3\", \"storage_cooldown_ttl\" = \"1d\", \"light_schema_change\" = \"true\")",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"CREATE\nTABLE t(k1 int)\nPROPERTIES(\n  \"storage_medium\" = \"SSD\",\n  \"replication_num\" = \"3\",\n  \"storage_cooldown_ttl\" = \"1d\",\n  \"light_schema_change\" = \"true\",\n)\n",
+    },
+    {
+      fixture_id: "4.x-partition-defs-last-item-comma",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"create table t (k1 date) partition by range(k1) (partition p1 values less than (\"2021-01-01\"), partition p2 values less than (\"2022-01-01\"), partition p3 values less than (\"2023-01-01\"))",
+      expected_valid: true,
+      options: None,
+      expected_golden: b"CREATE\nTABLE t(k1 date)\nPARTITION BY RANGE(k1)(\n  PARTITION p1 VALUES LESS THAN(\"2021-01-01\"),\n  PARTITION p2 VALUES LESS THAN(\"2022-01-01\"),\n  PARTITION p3 VALUES LESS THAN(\"2023-01-01\"),\n)\n",
+    },
+    // Probe-rejected context (record): IN lists get NO last-item comma even
+    // when broken (probe: IN rejects).
+    {
+      fixture_id: "4.x-in-list-no-last-item-comma",
+      profile: "4.x",
+      mode: "strict",
+      raw: b"select * from t where id in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11) and x = 1",
+      expected_valid: true,
+      options: Some(narrow),
+      expected_golden: b"SELECT *\nFROM t\nWHERE id IN(\n  1,\n  2,\n  3,\n  4,\n  5,\n  6,\n  7,\n  8,\n  9,\n  10,\n  11\n) AND x = 1\n",
+    },
+  ]
+  for fixture in fixtures {
+    assert_true(formatter_fixture_ok(fixture))
+  }
+}
+
