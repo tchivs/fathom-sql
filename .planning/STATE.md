@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: Formatting and Safe Edits
-status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-08-04T11:23:30.291Z"
+status: verifying
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-08-04T12:34:44.897Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 
 Phase: 03 (Formatting and Safe Edits) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-04 — Phase 03 execution started
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [█████████░] 93%
 | Phase 03 P01 | 41 | 2 tasks | 11 files |
 | Phase 03 P03-02 | 29 | 3 tasks | 3 files |
 | Phase 03-formatting-and-safe-edits P03 | 63min | 3 tasks | 3 files |
+| Phase 03 P03-04 | 58 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Lower keyword case is the ASCII case-fold of the classification-table canonical word; quoted names, strings, comments, and hints pass through unchanged (D-28/D-36)
 - [Phase ?]: The 4.x-industrial corpus row drops the TABLET (1001) clause (parser gap: TABLET only on unaliased table refs, probe-verified) so the manifest's supported status and the D-35 reparse gate hold
 - [Phase ?]: A run-newline comment opening a broken-list item keeps the pending item break (item indent) instead of clobbering it with the stale line_indent - fixes hint placement flip-flop between format passes
+- [Phase ?]: doris-sql format CLI is a thin executable package (D-37/D-38): pure run_format -> CliOutcome maps @api.format_with_ids results to exact D-39 exit codes 0/1/2; --profile required (CORE-01, exit 2 otherwise); byte-exact unbuffered stdout via write_fd(1) so exit_process drops nothing
+- [Phase ?]: CLI toolchain adaptations on moon 0.1.20260724: Result[Command, UsageError] instead of union types; black-box _test.mbt modules require pub(all) structs and pub FFI externs; hand-rolled int parsing keeps the CLI dependency surface at api/env/buffer/utf8/debug
 
 ### Pending Todos
 
@@ -155,6 +158,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T11:23:30.266Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-08-04T12:34:44.874Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None

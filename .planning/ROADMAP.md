@@ -96,7 +96,7 @@ Plans:
   3. Formatter output is deterministic and idempotent, reparses successfully for supported input, and reports or refuses unsafe transformations for unrecoverable/error trees.
   4. User can run `doris-sql format` on a file or standard input to receive formatted SQL and diagnostics, with a non-zero status for invalid input under the selected profile.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 Plans:
 **Wave 1**
 
@@ -112,7 +112,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-04-PLAN.md — doris-sql format CLI: libc FFI, hand-rolled args with required --profile, exit 0/1/2, moon-test suite + binary smoke
+- [x] 03-04-PLAN.md — doris-sql format CLI: libc FFI, hand-rolled args with required --profile, exit 0/1/2, moon-test suite + binary smoke
 
 ### Phase 4: Ecosystem and Multi-Target Delivery
 
@@ -146,7 +146,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
 | 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
-| 3. Formatting and Safe Edits | 3/4 | In Progress|  |
+| 3. Formatting and Safe Edits | 4/4 | In Progress|  |
 | 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
 
 **Coverage:** 27/27 v1 requirements mapped; 0 unmapped; each requirement assigned to exactly one phase.
