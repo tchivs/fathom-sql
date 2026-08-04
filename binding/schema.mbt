@@ -130,11 +130,11 @@ pub fn parse_error_json(error : @api.ParseError) -> String {
 
 pub fn format_error_json(error : @api.FormatError) -> String {
   let message = match error {
-    @api.FormatError::UnknownKeywordCase(value~) => "unsupported keyword case: \{value}"
-    @api.FormatError::UnknownCommaStyle(value~) => "unsupported comma style: \{value}"
-    @api.FormatError::UnknownNewlineStyle(value~) => "unsupported newline style: \{value}"
-    @api.FormatError::InvalidIndent(value~) => "invalid indent: \{value}"
-    @api.FormatError::InvalidLineWidth(value~) => "invalid line width: \{value}"
+    @api.FormatError::UnknownKeywordCase(keyword_case_id~) => "unsupported keyword case: " + keyword_case_id
+    @api.FormatError::UnknownCommaStyle(comma_style_id~) => "unsupported comma style: " + comma_style_id
+    @api.FormatError::UnknownNewlineStyle(newline_style_id~) => "unsupported newline style: " + newline_style_id
+    @api.FormatError::InvalidIndent(value~) => "invalid indent: " + value.to_string()
+    @api.FormatError::InvalidLineWidth(value~) => "invalid line width: " + value.to_string()
     @api.FormatError::InvalidSyntaxTree => "formatter received an invalid syntax tree"
   }
   let code = match error {
