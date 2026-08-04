@@ -15,11 +15,11 @@ fn main {
             }
             running = !state.exited
           }
-          Err(message) =>  write_frame( frame( error_response( RpcId::Null, -32700, message)))
+          Err(message) =>  write_frame( frame( error_response( RpcId::NullId, -32700, message)))
         }
       }
       Ok(None) => running = false
-      Err(_) =>  write_frame( frame( error_response( RpcId::Null, -32700, "malformed Content-Length frame")))
+      Err(_) =>  write_frame( frame( error_response( RpcId::NullId, -32700, "malformed Content-Length frame")))
     }
   }
 }

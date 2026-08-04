@@ -173,6 +173,15 @@ coverage:
 - **Verification:** Validation commands intentionally skipped per parent instruction; confirmed no `@json.Json` references remain under `binding/`.
 - **Commit:** `0814d53` (atomic follow-up correction)
 
+### Constructor collision correction
+
+**4. [Rule 1 - Bug] Renamed RpcId constructors to avoid JSON pattern collisions**
+- **Found during:** Wave 1 parent targeted compile validation
+- **Issue:** Unqualified JSON patterns `Number`, `String`, and `Null` resolved to same-package `RpcId` constructors, causing native compilation failures.
+- **Fix:** Renamed the public constructors to `IntId`, `TextId`, and `NullId`; updated all LSP construction and pattern sites while preserving JSON-RPC wire serialization.
+- **Files modified:** `lsp/protocol.mbt`, `lsp/main.mbt`
+- **Verification:** Validation commands intentionally skipped per parent instruction.
+- **Commit:** Atomic follow-up correction commit (hash reported to parent executor).
 ## Issues Encountered
 
 - The repository contains unrelated planning changes and untracked planning artifacts from parallel workflow activity; they were not staged or modified by these implementation commits.

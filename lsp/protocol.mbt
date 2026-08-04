@@ -3,9 +3,9 @@
 /// and primitive shapes required by the Native tracer.
 
 pub enum RpcId {
-  Number(value~ : Int)
-  String(value~ : String)
-  Null
+  IntId(value~ : Int)
+  TextId(value~ : String)
+  NullId
 } derive(Eq, @debug.Debug)
 
 pub(all) struct RpcMessage {
@@ -51,9 +51,9 @@ pub fn array_field(value : Json, key : String) -> Array[Json]? {
 
 fn decode_id(value : Json) -> RpcId? {
   match value {
-    Number(number, ..) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
-    String(text) => Some(String(value=text))
-    Null => Some(Null)
+    Number(number, ..) if number.to_int().to_double() == number => Some(IntId(value=number.to_int()))
+    String(text) => Some(TextId(value=text))
+    Null => Some(NullId)
     _ => None
   }
 }
@@ -96,9 +96,9 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
 
 fn id_json(id : RpcId) -> Json {
   match id {
-    Number(value~) => Json::number(value.to_double())
-    String(value~) => Json::string(value)
-    Null => null
+    IntId(value~) => Json::number(value.to_double())
+    TextId(value~) => Json::string(value)
+    NullId => null
   }
 }
 
