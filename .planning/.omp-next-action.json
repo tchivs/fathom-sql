@@ -1,0 +1,5 @@
+{
+  "label": "**Phase 1: Core Kernel** — 建立无损、可恢复的 Doris SQL 解析内核",
+  "command": "/gsd-discuss-phase 1 --auto",
+  "requiresFreshContext": false
+}
