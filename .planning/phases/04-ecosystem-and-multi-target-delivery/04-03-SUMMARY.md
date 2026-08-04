@@ -28,15 +28,15 @@ key-files:
   modified:
     - binding/moon.pkg
     - binding/schema.mbt
-    - binding/export_smoke_test.mbt
+    - parity/export_smoke_test.mbt
     - parity/moon.pkg
     - parity/parity_test.mbt
     - parity/run_native.mbt
     - parity/run_js.mbt
     - parity/run_wasm.mbt
-decisions:
-  - "Use four stable #export_name symbols: doris_parse_v1, doris_format_v1, doris_profile_v1, and doris_capabilities_v1."
-  - "All operation results and errors cross JS/Wasm as UTF-8 serialized JSON Bytes; raw SQL input remains explicit Bytes and source_bytes is retained in the envelope."
+    - binding/moon.pkg
+    - binding/schema.mbt
+    - binding/exports.mbt
   - "Formatting options are explicit primitive arguments rather than a MoonBit options object."
   - "Wasm GC is not advertised; target metadata names only native, js-esm, and wasm-linear."
 metrics:
@@ -72,13 +72,13 @@ actuals:
 
 ## Target/Build Evidence Expected by Parent
 
-The plan's automated verification commands were intentionally not run in this executor, per the parent instruction. The parent should run:
+The parent-target validation exposed a MoonBit toolchain limitation: a `foreign_library` package cannot be converted into a test main because its `#export_name` declarations are rejected in that harness. The executor therefore did not run validation commands. The parent should run:
 
-- `moon test --target native --filter export_smoke`
-- `moon test --target native --filter parity`
-- `moon check --target native && moon build --target js && moon build --target wasm`
+- `moon check --target js binding`
+- `moon check --target native binding`
+- `moon test --target native --package binding --package parity`
 
-The checked-in runners and `target-matrix.json` provide the target-specific entrypoints and expected compatibility metadata for those commands. No Wasm GC build or compatibility claim is included.
+The export smoke assertions now live in the executable `parity` package and call `@binding.doris_*` functions, checking serialized bytes and non-internal values. `parity/run_fixture` uses `-> Unit raise` so its assertions compile. The checked-in runners and `target-matrix.json` provide the target-specific entrypoints and expected compatibility metadata. No Wasm GC build or compatibility claim is included.
 
 ## Task Commits
 
@@ -100,9 +100,16 @@ The checked-in runners and `target-matrix.json` provide the target-specific entr
 **2. [Rule 2 - Missing Critical] Added explicit raw-byte and ABI regression cases**
 - **Found during:** Tasks 2-3 parity design
 - **Issue:** The pre-existing parity files only compared literal arrays and did not exercise the exported facade or raw-byte/error contracts.
-- **Fix:** Replaced the tautology with real calls through `binding` and added fixture/target-matrix cases for non-ASCII, CRLF, NUL/non-UTF-8 bytes, empty input, refusal, rejection, and internal-type absence.
-- **Files modified:** `parity/parity_test.mbt`, `parity/run_native.mbt`, `parity/run_js.mbt`, `parity/run_wasm.mbt`, `parity/moon.pkg`, `binding/export_smoke_test.mbt`, `parity/fixtures/corpus.json`, `parity/fixtures/target-matrix.json`
+- **Fix:** Replaced the tautology with decoded JSON assertions for schema/profile/source byte length/source bytes/recursive roots/diagnostics/format refusal, deterministic unsupported-input envelopes, and no internal MoonBit type names.
+- **Files modified:** `parity/parity_test.mbt`, `parity/run_native.mbt`, `parity/run_js.mbt`, `parity/run_wasm.mbt`, `parity/fixtures/corpus.json`, `parity/fixtures/target-matrix.json`
 - **Commit:** `538b966`, `d293a97`
+
+**3. [Rule 3 - Toolchain Boundary] Relocated export smoke tests out of the foreign-library package**
+- **Found during:** Parent-target validation
+- **Issue:** `moon test --target native --package binding --package parity` turns `binding` into a test main and rejects `#export_name` in a `foreign_library`; it also requires assertion-bearing `run_fixture` to use the `raise` effect.
+- **Fix:** Removed `binding/export_smoke_test.mbt`, added real `@binding.doris_*` serialized-byte assertions in `parity/export_smoke_test.mbt`, and changed `run_fixture` to `-> Unit raise`. Production `binding/moon.pkg` and export symbols remain unchanged.
+- **Files modified:** `binding/export_smoke_test.mbt` (removed), `parity/export_smoke_test.mbt`, `parity/parity_test.mbt`
+- **Commit:** pending
 
 No architectural changes, external dependencies, package installs, parser forks, network/FE/database paths, or Web/VS Code host work were introduced.
 

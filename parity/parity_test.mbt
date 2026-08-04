@@ -25,7 +25,7 @@ fn fixture_profile(id : String) -> String {
   }
 }
 
-fn run_fixture(id : String) -> Unit {
+fn run_fixture(id : String) -> Unit raise {
   let source = fixture_source(id)
   let profile = fixture_profile(id)
   let parsed = json_text(@binding.doris_parse_v1(source, profile, "editor"))
