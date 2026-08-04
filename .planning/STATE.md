@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: Doris Completeness and Corpus
 status: executing
-stopped_at: Phase 02 autonomous chain started
-last_updated: "2026-08-04T03:36:56.493Z"
-last_activity: 2026-08-03
-last_activity_desc: Phase 02 autonomous chain started
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-08-04T04:01:56.320Z"
+last_activity: 2026-08-04
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 10
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 ## Current Position
 
 Phase: 02 (Doris Completeness and Corpus) — EXECUTING
-Plan: 0 of TBD
-Status: Phase 02 autonomous chain started
-Last activity: 2026-08-03 — Phase 02 autonomous chain started
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-08-04 — Phase 02 execution started
 
-Progress: [██████████] 100%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 | Phase 01 P02 | 25 | 2 tasks | 8 files |
 | Phase 01 P03 | 48 | 2 tasks | 8 files |
 | Phase 01 P04 | 5 | 2 tasks | 9 files |
+| Phase 02 P02-01 | 9 | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 资源上限后的完整输入保留为 root source snapshot，CST 使用 source-backed SKIPPED remainder
 - [Phase ?]: 工业 SELECT 采用统一递归下降查询路径与集中 Pratt 优先级表，profile 严格限定 2.1/3.x/4.x。
 - [Phase ?]: 官方 revision 无法从离线 GitHub API 核验时保留 unavailable-offline + known-gap，不伪造 commit。
+- [Phase ?]: Unknown statement starters emit DORIS-PARSE-007 unsupported-statement diagnostics; DORIS-PARSE-001 stays reserved for trailing tokens inside recognized statements
+- [Phase ?]: DML sync words live in per-family predicates only; the shared is_clause_keyword set is untouched (research Pitfall 3)
+- [Phase ?]: Multi-char comparison operators (<=, >=, <>, !=, <=>) scan as single lexer symbols so DELETE form-1 op lists and SELECT comparisons parse
 
 ### Pending Todos
 
@@ -109,6 +113,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T11:48:08.716Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-08-04T04:01:56.300Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None

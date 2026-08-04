@@ -60,11 +60,11 @@ Plans:
   4. Project publishes reproducible official-document fixture manifests, golden/recovery results, version/category coverage and failure reports, plus recorded FE/SQLGlot differential disagreements and resolutions.
   5. Consumer can perform syntax checks without catalog metadata and can optionally supply table/column metadata through a separate analyzer interface without coupling parsing to FE execution semantics.
 
-**Plans**: 6 plans in 5 waves
+**Plans**: 1/6 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — keyword-first DML dispatch with INSERT tracer, UPDATE/DELETE, 4.x-gated MERGE, and unsupported-statement nodes
+- [x] 02-01-PLAN.md — keyword-first DML dispatch with INSERT tracer, UPDATE/DELETE, 4.x-gated MERGE, and unsupported-statement nodes
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
-| 2. Doris Completeness and Corpus | 0/TBD | In Progress | - |
+| 2. Doris Completeness and Corpus | 1/6 | In Progress|  |
 | 3. Formatting and Safe Edits | 0/TBD | Not started | - |
 | 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
 

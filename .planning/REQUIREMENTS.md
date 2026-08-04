@@ -19,9 +19,9 @@ Requirements for the initial four-milestone release. Each maps to exactly one ro
 
 ### Doris Coverage
 
-- [ ] **DORIS-01**: User can parse version-supported DML statements including INSERT, INSERT OVERWRITE, UPDATE, DELETE, and supported MERGE forms in semicolon-separated scripts.
+- [x] **DORIS-01**: User can parse version-supported DML statements including INSERT, INSERT OVERWRITE, UPDATE, DELETE, and supported MERGE forms in semicolon-separated scripts.
 - [ ] **DORIS-02**: User can parse version-supported Doris DDL including tables, views, CTAS/LIKE, keys, aggregation semantics, distribution, buckets, partitions, dynamic partitions, properties, indexes, and materialized views.
-- [ ] **DORIS-03**: Parser preserves statement boundaries and reports a localized diagnostic when one statement in a multi-statement document is invalid, without discarding later statements.
+- [x] **DORIS-03**: Parser preserves statement boundaries and reports a localized diagnostic when one statement in a multi-statement document is invalid, without discarding later statements.
 - [ ] **DORIS-04**: Parser applies an auditable, versioned classification of reserved, non-reserved, and contextual Doris/MySQL-compatible keywords, allowing valid non-reserved words as identifiers.
 
 ### Corpus and Validation
@@ -89,9 +89,9 @@ Traceability is populated by the MVP roadmap. Each v1 requirement maps to exactl
 | CORE-05 | Phase 1: Core Kernel | Complete |
 | CORE-06 | Phase 1: Core Kernel | Complete |
 | CORE-07 | Phase 1: Core Kernel | Complete |
-| DORIS-01 | Phase 2: Doris Completeness and Corpus | Pending |
+| DORIS-01 | Phase 2: Doris Completeness and Corpus | Complete |
 | DORIS-02 | Phase 2: Doris Completeness and Corpus | Pending |
-| DORIS-03 | Phase 2: Doris Completeness and Corpus | Pending |
+| DORIS-03 | Phase 2: Doris Completeness and Corpus | Complete |
 | DORIS-04 | Phase 2: Doris Completeness and Corpus | Pending |
 | CORP-01 | Phase 2: Doris Completeness and Corpus | Pending |
 | CORP-02 | Phase 2: Doris Completeness and Corpus | Pending |
