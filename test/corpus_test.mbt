@@ -185,6 +185,35 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
     mode: "strict",
     expected_valid: true,
   },
+  // ddl-create-index: 2.1/3.x record INVERTED (the only type those pages
+  // document); the 4.x fixture adds NGRAM_BF/ANN, properties, and comments.
+  {
+    fixture_id: "2.1-create-index",
+    profile: "2.1",
+    exact_release: "2.1",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released",
+    raw: b"CREATE INDEX index1 ON table1 (col1) USING INVERTED;\nCREATE INDEX idx ON db.table1 (col1, col2) USING INVERTED;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "3.x-create-index",
+    profile: "3.x",
+    exact_release: "3.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY",
+    raw: b"CREATE INDEX index1 ON table1 (col1) USING INVERTED;\nCREATE INDEX idx ON db.table1 (col1, col2) USING INVERTED;\n",
+    mode: "strict",
+    expected_valid: true,
+  },
+  {
+    fixture_id: "4.x-create-index",
+    profile: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+    raw: b"CREATE INDEX index1 ON table1 (col1) USING INVERTED;\nCREATE INDEX index2 ON table1 (col1) USING NGRAM_BF PROPERTIES (\"gram_size\" = \"3\", \"bf_size\" = \"1024\");\nCREATE INDEX IF NOT EXISTS idx ON t (c) COMMENT 'index comment';\nCREATE INDEX idx ON db.table1 (col1, col2) USING ANN PROPERTIES (\"index_type\" = \"hnsw\", \"metric_type\" = \"l2_distance\", \"dim\" = \"128\");\n",
+    mode: "strict",
+    expected_valid: true,
+  },
 ]
 
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {

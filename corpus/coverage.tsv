@@ -28,4 +28,7 @@ profile	category	fixture_count	supported_count	expected_error_count	known_gap	co
 2.1	ddl-create-view	1	1	0	pinned revision unavailable offline	plain and column-defined VIEW forms; IF NOT EXISTS/column comments verified on the 4.x page only
 3.x	ddl-create-view	1	1	0	pinned revision unavailable offline	plain and column-defined VIEW forms; IF NOT EXISTS/column comments verified on the 4.x page only
 4.x	ddl-create-view	1	1	0	pinned revision unavailable offline	IF NOT EXISTS, column comments, and CTE-bodied query per the 4.x CREATE VIEW grammar
+2.1	ddl-create-index	1	1	0	pinned revision unavailable offline	INVERTED is the only index type the 2.1 pages document
+3.x	ddl-create-index	1	1	0	pinned revision unavailable offline	INVERTED is the only index type the 3.x pages document
+4.x	ddl-create-index	1	1	0	pinned revision unavailable offline	INVERTED, NGRAM_BF, and ANN index types with properties/comments per the 4.x grammar
 all	known-gaps	0	0	0	exact website commit SHA unavailable from offline lookup	FE execution semantics, catalog-required behavior, formatter snapshots, and full official example enumeration are deliberately not claimed
