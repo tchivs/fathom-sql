@@ -1,10 +1,74 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  ARTIFACT_FAILURE,
+  ParserAdapter,
+  byteToPosition,
+  diagnosticRange,
+  utf8Bytes,
+} from './monaco-adapter.ts';
 
-const parse = (profile, source, valid = true) => ({ schema_version:'doris.parse.v1', source_transport:'inline-root-v1', profile, mode:'editor', valid, recovered:!valid, source_bytes:[...Buffer.from(source)], source_byte_length:Buffer.byteLength(source), root:{kind:'document',start_byte:0,end_byte:Buffer.byteLength(source),text_len:Buffer.byteLength(source),children:[{kind:'trivia',start_byte:0,end_byte:0}]}, diagnostics:valid?[]:[{severity:'error',code:'DORIS-PARSE-001',message:'incomplete',start_byte:0,end_byte:Buffer.byteLength(source)}] });
-const format = (source, accepted=true) => ({schema_version:'doris.format.v1',accepted,output:accepted?source.trim()+'\n':'',diagnostics:accepted?[]:[{code:'DORIS-FORMAT-001'}],statement_offsets:accepted?[0]:[]});
+const encoder = new TextEncoder();
+const jsonBytes = (value) => encoder.encode(JSON.stringify(value));
 
-test('profile propagation and serialized parse contract',()=>{ for (const p of ['2.1','3.x','4.x']) { const r=parse(p,'SELECT 1'); assert.equal(r.profile,p); assert.equal(r.schema_version,'doris.parse.v1'); assert.equal(r.source_byte_length,8); assert.equal(r.root.children[0].kind,'trivia'); }});
-test('diagnostics and refusal preserve source',()=>{ const source='SELECT'; const r=parse('4.x',source,false); assert.equal(r.recovered,true); assert.equal(r.diagnostics[0].code,'DORIS-PARSE-001'); const f=format(source,false); assert.equal(f.accepted,false); assert.equal(f.output,''); });
-test('accessibility state hooks are explicit',()=>{ const states=['Loading parser artifact…','Parser ready','Parser unavailable','Formatting…']; assert.deepEqual(states.slice(0,2),['Loading parser artifact…','Parser ready']); });
-test('relative offline artifact failure is actionable',()=>{ const path='../../_build/js/doris.js'; assert.equal(path.startsWith('/'),false); assert.match('The local parser artifact could not be loaded. Reload the demo',/Reload the demo/); });
+function fakeArtifact(calls) {
+  return {
+    doris_parse_v1(raw, profile, mode) {
+      calls.push({ operation: 'parse', raw: [...raw], profile, mode });
+      return jsonBytes({
+        schema_version: 'doris.parse.v1', profile, mode, valid: true, recovered: false,
+        source_bytes: [...raw], source_byte_length: raw.length, root: { kind: 'document', start_byte: 0, end_byte: raw.length, children: [] }, diagnostics: [],
+      });
+    },
+    doris_format_v1(raw, profile, mode) {
+      calls.push({ operation: 'format', raw: [...raw], profile, mode });
+      return jsonBytes({
+        schema_version: 'doris.format.v1', profile, accepted: true,
+        source_bytes: [...raw], source_byte_length: raw.length, formatted: [...encoder.encode('SELECT 1;\n')], diagnostics: [], statement_offsets: [0],
+      });
+    },
+  };
+}
+
+test('adapter loads one relative artifact and propagates serialized profile/source', async () => {
+  const calls = [];
+  const artifact = fakeArtifact(calls);
+  const relativeUrl = new URL('../../_build/js/debug/build/binding/binding.js', import.meta.url);
+  const adapter = new ParserAdapter(relativeUrl, async (url) => {
+    assert.equal(url.protocol, 'file:');
+    assert.equal(url.pathname.endsWith('/_build/js/debug/build/binding/binding.js'), true);
+    return artifact;
+  });
+  const source = 'SELECT 1';
+  const result = await adapter.parse(source, '3.x');
+  assert.equal(result.schema_version, 'doris.parse.v1');
+  assert.equal(result.profile, '3.x');
+  assert.deepEqual(result.source_bytes, [...utf8Bytes(source)]);
+  const formatted = await adapter.format(source, '3.x');
+  assert.equal(formatted.output, 'SELECT 1;\n');
+  assert.deepEqual(calls.map((call) => call.operation), ['parse', 'format']);
+  assert.equal(calls[0].mode, 'editor');
+  assert.equal(calls[1].mode, 'strict');
+});
+
+test('adapter rejects unsupported automatic or generic profiles before artifact calls', async () => {
+  const adapter = new ParserAdapter(new URL('file:///local/binding.js'), async () => { throw new Error('must not load'); });
+  await assert.rejects(() => adapter.parse('SELECT 1', 'Auto'), /supported Doris profile/);
+  await assert.rejects(() => adapter.format('SELECT 1', 'mysql'), /supported Doris profile/);
+});
+
+test('UTF-16 diagnostic ranges are derived from authoritative UTF-8 bytes', () => {
+  const source = '🙂\r\nSELECT 名称';
+  const raw = utf8Bytes(source);
+  assert.deepEqual(byteToPosition(raw, 4), { line: 0, character: 2 });
+  assert.deepEqual(byteToPosition(raw, 6), { line: 1, character: 0 });
+  const diagnostic = diagnosticRange(raw, { start_byte: 13, end_byte: raw.length });
+  assert.deepEqual(diagnostic.start, { line: 1, character: 7 });
+  assert.deepEqual(diagnostic.end, { line: 1, character: 9 });
+});
+
+test('artifact failure copy is actionable and local-only', () => {
+  assert.equal(new URL('../../_build/js/debug/build/binding/binding.js', import.meta.url).protocol, 'file:');
+  assert.match(ARTIFACT_FAILURE, /Reload the demo/);
+  assert.match(ARTIFACT_FAILURE, /no network or database connection/);
+});

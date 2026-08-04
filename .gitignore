@@ -1,0 +1,6 @@
+.ace-tool/
+_build/
+
+web/node_modules/
+vscode/node_modules/
+vscode/dist/
