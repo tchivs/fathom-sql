@@ -117,13 +117,13 @@ fn read_exact(count : Int) -> Bytes? {
   Some(out.to_bytes())
 }
 
-pub fn read_frame() -> Bytes? {
+pub fn read_frame() -> Result[Bytes?, FrameError] {
   let header = @buffer.Buffer::Buffer(size_hint=256)
   let one = Bytes::new(1)
   let mut found = false
   while !found && header.to_bytes().length() <= MAX_HEADER_BYTES {
     let got = read_fd(0, one, 1)
-    if got <= 0 { return None }
+    if got <= 0 { return Ok(None) }
     header.write_bytes(one[0:1])
     let bytes = header.to_bytes()
     let length = bytes.length()
@@ -131,15 +131,18 @@ pub fn read_frame() -> Bytes? {
       found = true
     }
   }
-  if !found { return None }
+  if !found { return Err(InvalidHeader) }
   let header_bytes = header.to_bytes()
   let separator = header_bytes.length() - 4
   let body_length = match content_length(header_bytes[0:separator].to_owned()) {
     Ok(value) => value
-    Err(_) => return None
+    Err(error) => return Err(error)
   }
-  if body_length < 0 || body_length > MAX_FRAME_BYTES { return None }
-  read_exact(body_length)
+  if body_length < 0 || body_length > MAX_FRAME_BYTES { return Err(FrameTooLarge(length=body_length)) }
+  match read_exact(body_length) {
+    Some(body) => Ok(Some(body))
+    None => Err(TruncatedFrame)
+  }
 }
 
 pub fn write_frame(body : Bytes) -> Unit {

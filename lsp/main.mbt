@@ -6,7 +6,7 @@ fn main {
   let mut running = true
   while running {
     match @framing.read_frame() {
-      Some(body) => {
+      Ok(Some(body)) => {
         match @protocol.parse_message(body) {
           Ok(message) => {
             let responses = @handlers.handle_message(state, message)
@@ -18,7 +18,8 @@ fn main {
           Err(message) => @framing.write_frame(@framing.frame(@protocol.error_response(@protocol.RpcId::Null, -32700, message)))
         }
       }
-      None => running = false
+      Ok(None) => running = false
+      Err(_) => @framing.write_frame(@framing.frame(@protocol.error_response(@protocol.RpcId::Null, -32700, "malformed Content-Length frame")))
     }
   }
 }
