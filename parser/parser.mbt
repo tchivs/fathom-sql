@@ -109,6 +109,10 @@ struct Cursor {
   stream : @token.TokenStream
   indices : Array[Int]
   mut position : Int
+  // WR-03: paren nesting depth at the current position, maintained
+  // incrementally by advance — O(1) per expression context instead of the
+  // former 0..position rescan (O(n) per expression, O(n²) per statement).
+  mut depth : Int
 }
 
 struct RecoveryState {
@@ -127,8 +131,20 @@ fn raw_at(cursor : Cursor) -> Bytes? {
   cursor.indices.get(cursor.position).map(index => cursor.stream.raw(index)).flatten()
 }
 
+/// Advance one token, maintaining paren depth incrementally (WR-03): the
+/// token at the current position is consumed, so its depth effect applies
+/// now. Rules mirror the former parenthesis_depth rescan exactly — `(`
+/// always increments; `)` decrements only above zero (unmatched closing
+/// parens clamp at 0). The only direct position mutation outside this
+/// function rewinds past "NOT" (a keyword, never a paren), so the
+/// incremental depth stays equal to the rescan at every position.
 fn advance(cursor : Cursor) -> Unit {
   if cursor.position < cursor.indices.length() {
+    match cursor.stream.raw(cursor.indices[cursor.position]) {
+      Some(raw) if raw == b"(" => cursor.depth = cursor.depth + 1
+      Some(raw) if raw == b")" && cursor.depth > 0 => cursor.depth = cursor.depth - 1
+      _ => ()
+    }
     cursor.position = cursor.position + 1
   }
 }
@@ -227,18 +243,12 @@ fn peek_raw(cursor : Cursor, offset : Int) -> Bytes? {
   cursor.indices.get(cursor.position + offset).map(index => cursor.stream.raw(index)).flatten()
 }
 
+/// Paren nesting depth at the current position (WR-03): maintained
+/// incrementally by advance, so this is O(1) instead of rescaming tokens
+/// 0..position on every expression context (which made end-to-end format
+/// O(n²) on comma-heavy input).
 fn parenthesis_depth(cursor : Cursor) -> Int {
-  let mut depth = 0
-  let mut index = 0
-  while index < cursor.position {
-    match cursor.indices.get(index).map(i => cursor.stream.raw(i)).flatten() {
-      Some(raw) if raw == b"(" => depth = depth + 1
-      Some(raw) if raw == b")" && depth > 0 => depth = depth - 1
-      _ => ()
-    }
-    index = index + 1
-  }
-  depth
+  cursor.depth
 }
 
 fn depth_allowed(cursor : Cursor, state : RecoveryState, source : @source.SourceText, statement_id : UInt) -> Bool {
@@ -3323,7 +3333,7 @@ fn parse_segment(
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
   let indices = significant_indices(stream, start_index, end_index)
-  let cursor = { stream: stream, indices: indices, position: 0 }
+  let cursor = { stream: stream, indices: indices, position: 0, depth: 0 }
   let verb = match indices.get(0) {
     Some(first_index) => stream.raw(first_index)
     None => None
