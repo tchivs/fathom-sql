@@ -169,7 +169,7 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
     Ok(result) => result
     Err(_) => return [ response(id, Json::array([]))]
   }
-  let mut responses : Array[Bytes] = []
+  let responses : Array[Bytes] = []
   if result.diagnostics.length() > 0 {
     responses.push(publish_diagnostics(document.uri, document.version, document.text, format_diagnostics_json(document.text, result.diagnostics)))
   }
@@ -229,7 +229,7 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       }
       if !state.initialized { return [ error_response(id, -32600, "server is not initialized")] }
       state.shutdown = true
-      [ response(id, Json::Null)]
+      [ response(id, null)]
     }
     "exit" => {
       state.exited = true

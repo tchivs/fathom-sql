@@ -30,7 +30,7 @@ pub fn string_field(value : Json, key : String) -> String? {
 
 pub fn int_field(value : Json, key : String) -> Int? {
   match field(value, key) {
-    Some(Json::Number(number, _)) if number.to_int().to_double() == number => Some(number.to_int())
+    Json::Number(number, ..) if number.to_int().to_double() == number => Some(number.to_int())
     _ => None
   }
 }
@@ -51,7 +51,7 @@ pub fn array_field(value : Json, key : String) -> Array[Json]? {
 
 fn decode_id(value : Json) -> RpcId? {
   match value {
-    Json::Number(number, _) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
+    Json::Number(number, ..) if number.to_int().to_double() == number => Some(Number(value=number.to_int()))
     Json::String(text) => Some(String(value=text))
     Json::Null => Some(Null)
     _ => None
@@ -98,7 +98,7 @@ fn id_json(id : RpcId) -> Json {
   match id {
     Number(value~) => Json::number(value.to_double())
     String(value~) => Json::string(value)
-    Null => Json::Null
+    Null => null
   }
 }
 

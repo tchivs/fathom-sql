@@ -2,7 +2,7 @@
 /// pure with respect to transport and call the backend-neutral api facade.
 
 fn main {
-  let mut state =  ServerState::new()
+  let state =  ServerState::new()
   let mut running = true
   while running {
     match  read_frame() {
