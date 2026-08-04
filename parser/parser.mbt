@@ -2644,12 +2644,12 @@ fn parse_column_type(
   advance(cursor)
   let mut valid = true
   if consume_symbol(cursor, b"(") {
-    valid = parse_type_params(cursor, state, source, statement_id) && valid
+    valid = parse_type_params(cursor, state, source, statement_id, 0) && valid
     valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing type parameter parenthesis") && valid
   }
   if raw_at(cursor) is Some(b"<") {
     advance(cursor)
-    valid = parse_type_params(cursor, state, source, statement_id) && valid
+    valid = parse_type_params(cursor, state, source, statement_id, 0) && valid
     valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing type generic bracket") && valid
   }
   valid
@@ -2660,7 +2660,22 @@ fn parse_type_params(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  depth : Int,
 ) -> Bool {
+  // CR-01: generic < > brackets never register in parenthesis_depth, so
+  // nested type-param recursion is bounded here with an explicit depth
+  // counter mirroring parse_expression_context. Without this guard an
+  // adversarial ARRAY<ARRAY<...>> chain (well within max_bytes/max_tokens)
+  // overflows the native stack instead of failing with a resource
+  // diagnostic.
+  if depth > state.limits.max_recursion_depth {
+    let current_span = match token_at(cursor) {
+      Some(token) => token.span
+      None => make_span(source, source.byte_length(), source.byte_length())
+    }
+    resource_diagnostic(state, current_span, statement_id)
+    return false
+  }
   let mut valid = true
   let mut any = false
   let mut done = false
@@ -2675,12 +2690,12 @@ fn parse_type_params(
         any = true
         advance(cursor)
         if consume_symbol(cursor, b"(") {
-          valid = parse_type_params(cursor, state, source, statement_id) && valid
+          valid = parse_type_params(cursor, state, source, statement_id, depth + 1) && valid
           valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing nested type parenthesis") && valid
         }
         if raw_at(cursor) is Some(b"<") {
           advance(cursor)
-          valid = parse_type_params(cursor, state, source, statement_id) && valid
+          valid = parse_type_params(cursor, state, source, statement_id, depth + 1) && valid
           valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing nested type generic bracket") && valid
         }
         // STRUCT-style field type: name followed by an optional type word.

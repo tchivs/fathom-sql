@@ -210,6 +210,62 @@ test "create_table_deep_parens_stay_bounded" {
   assert_true(result.all_spans_in_bounds())
 }
 
+test "create_table_deep_generic_nesting_stays_bounded" {
+  // CR-01 regression: parse_type_params recursion was unbounded — generic
+  // < > brackets never registered in parenthesis_depth, so ~70k-deep
+  // ARRAY<...> chains were silently accepted and ~100k-deep ones overflowed
+  // the native stack (SIGSEGV). The depth counter mirrors
+  // parse_expression_context and honors max_recursion_depth.
+  let mut deep : Bytes = b"INT"
+  let mut depth = 0
+  while depth < 140 {
+    deep = b"ARRAY<" + deep + b">"
+    depth = depth + 1
+  }
+  // 140 levels exceed the default max_recursion_depth (128): must fail
+  // bounded with a resource diagnostic, never a stack overflow.
+  let raw = b"CREATE TABLE t (c " + deep + b")"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(!result.valid)
+  assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(result.all_spans_in_bounds())
+  assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
+
+  // Deep-but-legal nesting (100 levels < 128) still parses cleanly.
+  let mut ok : Bytes = b"INT"
+  depth = 0
+  while depth < 100 {
+    ok = b"ARRAY<" + ok + b">"
+    depth = depth + 1
+  }
+  let ok_raw = b"CREATE TABLE t (c " + ok + b")"
+  let ok_result = parse_ddl(ok_raw, "4.x", "strict")
+  assert_true(ok_result.valid)
+  assert_eq(ok_result.diagnostics.length(), 0)
+  assert_eq(@printer.print_result(ok_result), ok_raw)
+  assert_true(ok_result.all_spans_in_bounds())
+
+  // A small custom max_recursion_depth makes the bound visible at tiny
+  // depths: 4 nested generics with a limit of 2 must fail bounded (depths
+  // 0..2 are legal, the 4th bracket level recurses to depth 3).
+  let limits = @api.ParseLimits::new(8 * 1024 * 1024, 1000, 2, 4, 8)
+  let options = @api.ParseOptions::for_profile_with_limits(
+    @token.DorisProfile::V4_X,
+    @api.ParseMode::Editor,
+    limits,
+  )
+  let tiny_raw = b"CREATE TABLE t (c ARRAY<ARRAY<ARRAY<ARRAY<INT>>>>)"
+  let tiny = match @api.parse(tiny_raw, options) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!tiny.valid)
+  assert_true(tiny.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+  assert_eq(@printer.print_result(tiny), tiny_raw)
+  assert_true(tiny.all_spans_in_bounds())
+}
+
 test "create_table_property_flood_parses_losslessly" {
   let mut props : Bytes = b""
   let mut index = 0
