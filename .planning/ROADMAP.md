@@ -7,7 +7,7 @@ The MVP progresses from a source-faithful, recoverable Doris parsing kernel to v
 ## Phases
 
 - [x] **Phase 1: Core Kernel** - Establish versioned, lossless, recoverable parsing for industrial Doris SELECT and expressions.
-- [ ] **Phase 2: Doris Completeness and Corpus** - Expand Doris DML/DDL and make official, versioned corpus coverage auditable.
+- [x] **Phase 2: Doris Completeness and Corpus** - Expand Doris DML/DDL and make official, versioned corpus coverage auditable. (completed 2026-08-04)
 - [ ] **Phase 3: Formatting and Safe Edits** - Provide exact replay, configurable canonical formatting, and a safe formatting CLI.
 - [ ] **Phase 4: Ecosystem and Multi-Target Delivery** - Deliver Native LSP, stable Wasm/JavaScript APIs, and editor/web integrations.
 
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
-| 2. Doris Completeness and Corpus | 6/6 | In Progress|  |
+| 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
 | 3. Formatting and Safe Edits | 0/TBD | Not started | - |
 | 4. Ecosystem and Multi-Target Delivery | 0/TBD | Not started | - |
 
