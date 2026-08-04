@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: Doris Completeness and Corpus
 status: executing
-stopped_at: Completed 02-05-PLAN.md
-last_updated: "2026-08-04T05:13:47.389Z"
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-08-04T05:42:24.933Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 ## Current Position
 
 Phase: 02 (Doris Completeness and Corpus) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-08-04 — Phase 02 execution started
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [████████░░] 80%
 | Phase 02 P02-02 | 9 | 3 tasks | 6 files |
 | Phase 02 P03 | 11 | 3 tasks | 5 files |
 | Phase 02 P02-05 | 15 | 3 tasks | 5 files |
+| Phase 02 P02-04 | 90 | 3 tasks | 40 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,9 @@ Recent decisions affecting current work:
 - [Phase ?]: D-22 minimal catalog: ColumnInfo/TableInfo records, open Catalog trait, StaticCatalog with case-sensitive keys (documented), last-wins on duplicates
 - [Phase ?]: D-23 statement entry: ParseResult::statement(statement_id) returns the id-th Statement node; statement_diagnostics filters by statement_id preserving source order
 - [Phase ?]: D-24 scope: analyzer ships interface + docs + minimal implementation; full ANAL-01 name resolution and type diagnostics are v2
+- [Phase ?]: A2 closed: async materialized views are supported under every released profile per the 2.1/3.x/4.x docs (CREATE MATERIALIZED VIEW with BUILD/REFRESH clauses); no deferral remains
+- [Phase ?]: A3 verified: the released 2.1 CREATE TABLE grammar documents BUCKETS AUTO and AUTO PARTITION BY; DorisFeature::BucketsAuto moved 3.x to 2.1
+- [Phase ?]: Bare CREATE MATERIALIZED VIEW [AS] query keeps the sync restricted body; the async form is selected by ASYNC/IF NOT EXISTS or async clauses
 
 ### Pending Todos
 
@@ -129,6 +133,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-04T05:13:47.363Z
-Stopped at: Completed 02-05-PLAN.md
+Last session: 2026-08-04T05:42:24.913Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None
