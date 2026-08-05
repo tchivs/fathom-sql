@@ -2,7 +2,7 @@ package fathom.jetbrains.doris
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
-import com.intellij.ui.ComboBox
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
