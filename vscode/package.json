@@ -5,23 +5,41 @@
   "version": "0.1.0",
   "private": true,
   "publisher": "fathom",
-  "engines": { "vscode": "^1.91.0" },
-  "main": "./src/extension.ts",
-  "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:doris", "onCommand:doris.restartLanguageServer"],
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "main": "./dist/extension.js",
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:doris",
+    "onCommand:doris.restartLanguageServer"
+  ],
   "contributes": {
-    "languages": [{
-      "id": "doris",
-      "aliases": ["Doris SQL", "doris-sql"],
-      "extensions": [".sql"],
-      "configuration": "./language-configuration.json"
-    }],
+    "languages": [
+      {
+        "id": "doris",
+        "aliases": [
+          "Doris SQL",
+          "doris-sql"
+        ],
+        "extensions": [
+          ".sql"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "configuration": {
       "title": "Doris SQL",
       "properties": {
         "doris.profile": {
           "type": "string",
-          "enum": ["2.1", "3.x", "4.x"],
+          "enum": [
+            "2.1",
+            "3.x",
+            "4.x"
+          ],
           "default": "4.x",
           "description": "Explicit Doris release profile sent to doris-lsp."
         },
@@ -32,18 +50,23 @@
         }
       }
     },
-    "commands": [{
-      "command": "doris.restartLanguageServer",
-      "title": "Doris SQL: Restart Language Server"
-    }]
+    "commands": [
+      {
+        "command": "doris.restartLanguageServer",
+        "title": "Doris SQL: Restart Language Server"
+      }
+    ]
   },
   "scripts": {
-    "package": "vsce package"
+    "compile": "tsc -p .",
+    "build": "npm run compile",
+    "package": "npm run compile && vsce package"
   },
   "dependencies": {
     "vscode-languageclient": "10.1.0"
   },
   "devDependencies": {
-    "@vscode/vsce": "3.9.2"
+    "@vscode/vsce": "3.9.2",
+    "typescript": "5.9.3"
   }
 }

@@ -24,9 +24,23 @@ network fallback.
 
 ## Local development
 
-The package manifest pins `vscode-languageclient@10.1.0` and the release-only
-`@vscode/vsce@3.9.2`. Build/release tooling must keep the Native `doris-lsp`
-executable separate from this JavaScript client package.
+The package manifest pins `vscode-languageclient@10.1.0`, the release-only
+`@vscode/vsce@3.9.2`, and `typescript@5.9.3` (build-only). Build/release
+tooling must keep the Native `doris-lsp` executable separate from this
+JavaScript client package.
+
+## Build
+
+The extension host loads the compiled CommonJS entry `dist/extension.js`
+(`"main"` in the manifest), so TypeScript sources must be compiled before the
+extension can run or be packaged:
+
+- `npm run compile` — `tsc -p .`, emitting `dist/` from `src/` (test files
+  are excluded; they run directly on the TS sources via Node type stripping).
+- `npm run package` — compile, then `vsce package`.
+
+The TypeScript devDependency resolves from the npm cache, so the build works
+offline (`npm ci --offline && npm run compile`).
 
 A final host checkpoint still requires a machine with VS Code and a local
 `doris-lsp`; this repository does not claim that manual checkpoint passed.
