@@ -155,7 +155,7 @@ fn initialize_result() -> Json {
       "textDocumentSync": Json::number(1.0),
       "documentFormattingProvider": Json::boolean(true),
       "completionProvider": { "triggerCharacters": Json::array([Json::string(" "), Json::string(".")]) },
-      "positionEncoding": Json::array([Json::string("utf-16")]),
+      "positionEncoding": Json::string("utf-16"),
     },
     "serverInfo": { "name": Json::string("doris-lsp"), "version": Json::string("0.1") },
   }
