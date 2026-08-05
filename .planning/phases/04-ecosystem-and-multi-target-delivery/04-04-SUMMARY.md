@@ -49,7 +49,7 @@ decisions:
   - "User-approved dependency checkpoint was accepted for monaco-editor 0.56.0, vscode-languageclient 10.1.0, and @vscode/vsce 3.9.2; no other npm packages were added directly."
   - "The browser host imports only the generated repository-relative JS facade; UI code consumes serialized envelopes and never exposes MoonBit ADTs or raw JSON-RPC."
   - "The VS Code client passes profile through initializationOptions and launches only the configured local doris-lsp executable over stdio."
-requirements-completed: [ECO-06, ECO-07]
+requirements-completed: [ECO-06]
 metrics:
   duration: implementation session
   completed: 2026-08-05
