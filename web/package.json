@@ -9,6 +9,6 @@
     "build": "node scripts/offline-smoke.mjs --offline"
   },
   "dependencies": {
-    "monaco-editor": "0.56.0"
+    "monaco-editor": "0.55.1"
   }
 }

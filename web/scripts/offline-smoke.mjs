@@ -12,7 +12,7 @@ const [manifestText, indexText, adapterText] = await Promise.all([
   readFile(resolve(root, 'src/monaco-adapter.ts'), 'utf8'),
 ]);
 const manifest = JSON.parse(manifestText);
-assert.equal(manifest.dependencies['monaco-editor'], '0.56.0');
+assert.equal(manifest.dependencies['monaco-editor'], '0.55.1');
 assert.match(indexText, /monaco-editor/);
 assert.match(indexText, /src\/main\.ts/);
 assert.match(adapterText, /_build\/js\/debug\/build\/binding\/binding\.js/);
