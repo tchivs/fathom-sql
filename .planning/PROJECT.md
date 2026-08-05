@@ -69,15 +69,18 @@ Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项�
 - **能力:** 无损 CST round-trip、SELECT+DML/DDL 覆盖(2.1/3.x/4.x profile 门控)、44 行官方语料 manifest、配置化格式化(6 维)+ CLI(exit 0/1/2)、Native LSP(诊断/格式化/补全,utf-16)、JS ESM + linear Wasm facade、离线 Monaco 演示、VS Code 扩展。
 - **已知边界:** ECO-07 人工 VS Code 宿主验证待做;FE/Nereids 差分脚本待人工执行;linear-Wasm CI 运行时步骤建议;9/44 manifest 行经 formatter harness 覆盖(对应关系手工维护)。
 
-## Next Milestone Goals (v2.0)
+## Current Milestone: v2.0 Analysis and Intelligence
 
-v2 候选(见归档 v1.0-REQUIREMENTS.md § v2 Requirements):
+**Goal:** 在 v1.0 稳定的无损 CST、格式化与多后端生态之上，把 SDK 从语法层扩展到语义与分析层（catalog 名字解析与类型诊断、Doris 专属 Lint、列级血缘、SQL 指纹），并收尾 v1.0 遗留验证项（VS Code 宿主验证、linear-Wasm CI 步骤）。
 
-- **ANAL-01** catalog 注入的名字解析与类型诊断
-- **LINT-01** Doris 专属 lint 规则集(可配置 severity + 安全 autofix)
-- **LINE-01** 列级血缘
-- **FING-01** 稳定 SQL 指纹与归一化
-- **EDIT-01** 有界增量解析与定向 CST 重构(基准证明必要性后)
+**Target features:**
+- ANAL-01 catalog 注入的名字解析与类型诊断（延续 v1 analyzer 边界 D-21/D-22/D-24）
+- LINT-01 Doris 专属 lint 规则集（可配置 severity + 安全 autofix）
+- LINE-01 列级血缘
+- FING-01 稳定 SQL 指纹与归一化
+- EDIT-01 有界增量解析与定向 CST 重构（基准证明必要性后）
+- 收尾:ECO-07 在装有 VS Code 的机器上人工验证扩展(04-04 Task 4)
+- 收尾:发布前补 linear-Wasm CI 运行时执行步骤
 
 ## Evolution
 
@@ -97,4 +100,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-05 after v1.0 milestone shipped*
+*Last updated: 2026-08-05 after milestone v2.0 started*
