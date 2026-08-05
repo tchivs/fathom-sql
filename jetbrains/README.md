@@ -15,7 +15,7 @@ Settings are read when a new LSP4IJ server connection starts. Applying settings 
 
 ## Build and verification
 
-The project uses the checked-in Gradle 8.14 wrapper, IntelliJ Platform Gradle Plugin `2.9.0`, Kotlin JVM `2.2.0`, IntelliJ IDEA Community `2025.2`, and JDK 21.
+The project uses the checked-in Gradle 9.0.0 wrapper, IntelliJ Platform Gradle Plugin `2.9.0`, Kotlin JVM `2.2.0`, IntelliJ IDEA Community `2025.2`, and JDK 21.
 
 ```bash
 ./gradlew --no-daemon test
