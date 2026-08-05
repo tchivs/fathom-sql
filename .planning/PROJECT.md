@@ -19,10 +19,11 @@ Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项�
 - [x] 覆盖 Doris DML、DDL 及 Doris 特有建表、分布、动态分区和物化视图语法，并对非法 SQL 提供精确、可恢复的诊断 — Validated in Phase 2: Doris Completeness and Corpus
 - [x] 保持解析与可选语义分析分离，允许无 catalog 元数据时进行纯语法校验，并为后续注入表/列元数据留下接口 — Validated in Phase 2: Doris Completeness and Corpus
 - [x] 提供可配置的 CST Pretty Printer 与 `doris-sql format` CLI，支持注释保留、缩进和关键字风格配置 — Validated in Phase 3: Formatting and Safe Edits
+- [x] 提供 Native CLI/LSP 与 WebAssembly/JavaScript SDK，使同一解析器可用于 LSP、CLI、Web 和 Monaco 集成 — Validated in Phase 4: Ecosystem and Multi-Target Delivery
 
 ### Active
 
-- [ ] 提供 Native CLI/LSP 与 WebAssembly/JavaScript SDK，使同一解析器可用于 LSP、CLI、Web 和 Monaco 集成
+(None — all v1 requirements validated across Phases 1-4)
 
 ### Out of Scope
 
@@ -77,4 +78,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-04 after Phase 3 completion*
+*Last updated: 2026-08-05 after Phase 4 completion — all v1 requirements validated*
