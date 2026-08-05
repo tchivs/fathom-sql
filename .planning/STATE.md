@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 current_phase_name: Ecosystem and Multi-Target Delivery
-status: planning
-stopped_at: Completed quick task 260805-e28-align-the-jetbrains-plugin-wrapper-and-d
-last_updated: "2026-08-05T02:11:13.738Z"
+status: verifying
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-08-05T02:30:00.000Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 03 complete, transitioned to Phase 04
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 
 ## Current Position
 
-Phase: 04 — Ecosystem and Multi-Target Delivery
-Plan: Not started
-Status: Ready to plan
+Phase: 04 (Ecosystem and Multi-Target Delivery) — EXECUTING
+Plan: 5 of 5
+Status: Phase complete — ready for verification
 Last activity: 2026-08-04 — Phase 03 complete, transitioned to Phase 04
 
-Progress: [██████████] 95%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -139,7 +139,7 @@ Recent decisions affecting current work:
 - [Phase ?]: CLI toolchain adaptations on moon 0.1.20260724: Result[Command, UsageError] instead of union types; black-box _test.mbt modules require pub(all) structs and pub FFI externs; hand-rolled int parsing keeps the CLI dependency surface at api/env/buffer/utf8/debug
 - [Phase ?]: Expose doris_parse_v1, doris_format_v1, doris_profile_v1, and doris_capabilities_v1 as primitive UTF-8 JSON Bytes exports.
 - [Phase ?]: Use inline-root-v1 JSON byte arrays for exact source transport and advertise only linear Wasm, not Wasm GC.
-- [Phase ?]: User approved pinned host dependencies: monaco-editor@0.56.0, vscode-languageclient@10.1.0, and @vscode/vsce@3.9.2 release-only.
+- [Phase ?]: User approved pinned host dependencies: monaco-editor@0.55.1 (installed offline from the npm cache), vscode-languageclient@10.1.0, and @vscode/vsce@3.9.2 release-only.
 - [Phase ?]: Align the JetBrains wrapper and README to Gradle 9.0.0, the official minimum for IntelliJ Platform Gradle Plugin 2.x, while retaining plugin 2.9.0, Kotlin 2.2.0, and LSP4IJ 0.20.1.
 
 ### Pending Todos
@@ -166,6 +166,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-05T02:11:13.698Z
-Stopped at: Completed quick task 260805-e28-align-the-jetbrains-plugin-wrapper-and-d
+Last session: 2026-08-05T02:28:45.156Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
