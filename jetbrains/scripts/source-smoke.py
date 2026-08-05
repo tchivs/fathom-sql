@@ -7,39 +7,79 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = ROOT.parent
 errors: list[str] = []
 
-def require(path: str, pattern: str, description: str) -> None:
-    text = (ROOT / path).read_text(encoding="utf-8")
-    if not re.search(pattern, text, re.MULTILINE | re.DOTALL):
-        errors.append(f"{path}: missing {description} ({pattern})")
 
-build = (ROOT / "build.gradle.kts").read_text(encoding="utf-8")
-for value, description in (("2.9.0", "IntelliJ Platform Gradle Plugin version"), ("2.2.0", "Kotlin JVM version"), ("0.20.1", "LSP4IJ version")):
+def require(path: Path, pattern: str, description: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    if not re.search(pattern, text, re.MULTILINE | re.DOTALL):
+        errors.append(f"{path.relative_to(PROJECT_ROOT)}: missing {description} ({pattern})")
+
+
+build_path = ROOT / "build.gradle.kts"
+build = build_path.read_text(encoding="utf-8")
+for value, description in (
+    ("2.9.0", "IntelliJ Platform Gradle Plugin version"),
+    ("2.2.0", "Kotlin JVM version"),
+    ("0.20.1", "LSP4IJ version"),
+):
     if value not in build:
-        errors.append(f"build.gradle.kts: missing {description} {value}")
+        errors.append(f"{build_path.relative_to(PROJECT_ROOT)}: missing {description} {value}")
 if re.search(r"org\\.eclipse\\.lsp4j|lsp4j\\s*[:\\\"]", build, re.IGNORECASE):
     errors.append("build.gradle.kts: independently declared LSP4J runtime")
+require(build_path, r"sinceBuild\s*=\s*\"252\"", "minimum IntelliJ build")
+require(build_path, r"select\s*\{", "Plugin Verifier product matrix")
+require(build_path, r"signing\s*\{", "signing configuration")
+require(build_path, r"publishing\s*\{", "Marketplace publishing configuration")
+if re.search(r"ideaVersion\s*\{[^}]*untilBuild", build):
+    errors.append("build.gradle.kts: plugin descriptor upper IDE bound must remain open")
 
-plugin = (ROOT / "src/main/resources/META-INF/plugin.xml").read_text(encoding="utf-8")
-require("src/main/resources/META-INF/plugin.xml", r'<depends>com\.redhat\.devtools\.lsp4ij</depends>', "LSP4IJ plugin dependency")
-require("src/main/resources/META-INF/plugin.xml", r'<server\s+id="doris"[^>]*factoryClass="fathom\.jetbrains\.doris\.DorisLanguageServerFactory"', "Doris server factory")
-require("src/main/resources/META-INF/plugin.xml", r'<fileNamePatternMapping\s+patterns="\*\.sql"\s+serverId="doris"\s+languageId="doris"', "SQL filename mapping")
-require("src/main/resources/META-INF/plugin.xml", r'applicationConfigurable[^>]*instance="fathom\.jetbrains\.doris\.DorisSettingsConfigurable"', "application settings configurable")
+plugin_path = ROOT / "src/main/resources/META-INF/plugin.xml"
+plugin = plugin_path.read_text(encoding="utf-8")
+require(plugin_path, r"<id>fathom\.doris\.sql</id>", "stable Marketplace plugin ID")
+require(plugin_path, r"<depends>com\.redhat\.devtools\.lsp4ij</depends>", "LSP4IJ plugin dependency")
+require(plugin_path, r'<server\s+id="doris"[^>]*factoryClass="fathom\.jetbrains\.doris\.DorisLanguageServerFactory"', "Doris server factory")
+require(plugin_path, r'<fileNamePatternMapping\s+patterns="\*\.sql"\s+serverId="doris"\s+languageId="doris"', "SQL filename mapping")
+require(plugin_path, r'applicationConfigurable[^>]*instance="fathom\.jetbrains\.doris\.DorisSettingsConfigurable"', "application settings configurable")
+if re.search(r"until-build=", plugin):
+    errors.append("plugin.xml: upper IDE bound must remain open")
 
-for source in ("src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt", "src/main/kotlin/fathom/jetbrains/doris/DorisSettingsConfigurable.kt", "src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt"):
-    if not (ROOT / source).exists():
+for source in (
+    "src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt",
+    "src/main/kotlin/fathom/jetbrains/doris/DorisSettingsConfigurable.kt",
+    "src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt",
+):
+    source_path = ROOT / source
+    if not source_path.exists():
         errors.append(f"{source}: source file missing")
 
-require("src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt", r"LanguageServerFactory", "LanguageServerFactory API")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt", r"createConnectionProvider\(project:\s*Project\)", "createConnectionProvider(Project)")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt", r"OSProcessStreamConnectionProvider", "stdio process provider")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt", r"GeneralCommandLine", "GeneralCommandLine")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt", r"getInitializationOptions\(rootUri:\s*VirtualFile\)", "initialization options override")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt", r'"profile"', "profile initialization key")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt", r'DEFAULT_EXECUTABLE\s*=\s*"doris-lsp"', "default executable")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt", r'DEFAULT_PROFILE\s*=\s*"4\.x"', "default profile")
-require("src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt", r'listOf\("2\.1",\s*"3\.x",\s*"4\.x"\)', "released profile set")
+factory_path = ROOT / "src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt"
+require(factory_path, r"LanguageServerFactory", "LanguageServerFactory API")
+require(factory_path, r"createConnectionProvider\(project:\s*Project\)", "createConnectionProvider(Project)")
+require(factory_path, r"OSProcessStreamConnectionProvider", "stdio process provider")
+require(factory_path, r"GeneralCommandLine", "GeneralCommandLine")
+require(factory_path, r"getInitializationOptions\(rootUri:\s*VirtualFile\)", "initialization options override")
+require(factory_path, r'"profile"', "profile initialization key")
+
+settings_path = ROOT / "src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt"
+require(settings_path, r'DEFAULT_EXECUTABLE\s*=\s*"doris-lsp"', "default executable")
+require(settings_path, r'DEFAULT_PROFILE\s*=\s*"4\.x"', "default profile")
+require(settings_path, r'listOf\("2\.1",\s*"3\.x",\s*"4\.x"\)', "released profile set")
+
+license_path = PROJECT_ROOT / "LICENSE"
+if not license_path.exists():
+    errors.append("LICENSE: Apache-2.0 license file missing")
+else:
+    require(license_path, r"Apache License", "Apache-2.0 license text")
+
+workflow_path = PROJECT_ROOT / ".github/workflows/jetbrains-plugin.yml"
+if not workflow_path.exists():
+    errors.append(".github/workflows/jetbrains-plugin.yml: CI workflow missing")
+else:
+    require(workflow_path, r"setup-java@v4", "JDK setup")
+    require(workflow_path, r"verifyPlugin", "Plugin Verifier CI step")
+    require(workflow_path, r"buildPlugin", "plugin packaging CI step")
 
 for path in ROOT.rglob("*"):
     if not path.is_file() or ".gradle" in path.parts or "build" in path.parts:
@@ -55,4 +95,4 @@ if errors:
     for error in errors:
         print(f"- {error}")
     sys.exit(1)
-print("SOURCE SMOKE PASSED: plugin wiring, settings propagation, stdio provider, and dependency boundaries")
+print("SOURCE SMOKE PASSED: runtime wiring, release metadata, signing/publishing DSL, CI, and dependency boundaries")

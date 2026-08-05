@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.2.0"
@@ -22,16 +24,29 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "252"
-            untilBuild = "253.*"
+            // Leave the upper bound open; compatibility is checked by Plugin Verifier.
         }
         changeNotes = "Initial Doris SQL LSP4IJ integration."
     }
     pluginVerification {
         ides {
-            create("IC", "2025.2")
+            select {
+                types = listOf(IntelliJPlatformType.IntellijIdea)
+                channels = listOf(ProductRelease.Channel.RELEASE)
+                sinceBuild = "252"
+                untilBuild = "261.*"
+            }
         }
     }
-}
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+    }
 
 dependencies {
     intellijPlatform {

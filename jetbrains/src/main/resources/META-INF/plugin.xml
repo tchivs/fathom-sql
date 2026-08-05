@@ -2,8 +2,8 @@
     <id>fathom.doris.sql</id>
     <name>Doris SQL LSP</name>
     <version>0.1.0</version>
-    <vendor email="maintainers@fathom.dev" url="https://github.com/apache/doris">Fathom</vendor>
-    <idea-version since-build="252" until-build="253.*"/>
+    <vendor email="maintainers@fathom.dev">Fathom</vendor>
+    <idea-version since-build="252"/>
     <description><![CDATA[
         Doris SQL language support backed by the repository's local doris-lsp Native server.
         LSP transport and protocol integration are provided by LSP4IJ.
