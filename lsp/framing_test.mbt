@@ -8,6 +8,29 @@ test "framing_requires_content_length_and_crlf" {
   assert_eq(decoded, b"{}")
 }
 
+test "write_all_resumes_partial_writes_at_the_correct_offset" {
+  let output = frame(b"{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"exit\"}")
+  let collected = @buffer.Buffer::Buffer(size_hint=output.length())
+  // Simulate a slow consumer that accepts at most 7 bytes per write; the
+  // retry must resume at the exact resume offset, never resend the prefix.
+  write_all(output, fn(bytes, count) {
+    let take = if count > 7 { 7 } else { count }
+    collected.write_bytes(bytes[0:take])
+    take
+  })
+  assert_eq(collected.to_bytes(), output)
+}
+
+test "write_all_stops_when_the_stream_reports_an_error" {
+  let output = frame(b"{}")
+  let mut calls = 0
+  write_all(output, fn(_bytes, _count) {
+    calls = calls + 1
+    if calls == 2 { -1 } else { 1 }
+  })
+  assert_eq(calls, 2)
+}
+
 test "malformed_frame_is_rejected_not_crashed" {
   let malformed = b"Content-Length: nope\r\n\r\n{}"
   assert_true(decode_frame(malformed) is Err(_))

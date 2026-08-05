@@ -145,12 +145,20 @@ pub fn read_frame() -> Result[Bytes?, FrameError] {
   }
 }
 
-pub fn write_frame(body : Bytes) -> Unit {
-  let output = frame(body)
+/// Write `output` through `write` (called with a slice starting at the resume
+/// offset), so a partial write can never re-send the frame prefix.
+pub fn write_all(output : Bytes, write : (Bytes, Int) -> Int) -> Unit {
   let mut offset = 0
   while offset < output.length() {
-    let written = write_fd(1, output, output.length() - offset)
+    // Slicing copies the remainder, which is acceptable at this frequency.
+    // Passing the whole buffer here would re-send bytes [0, offset) again.
+    let written = write(output[offset:].to_owned(), output.length() - offset)
     if written <= 0 { return }
     offset = offset + written
   }
+}
+
+pub fn write_frame(body : Bytes) -> Unit {
+  let output = frame(body)
+  write_all(output, fn(bytes, count) { write_fd(1, bytes, count) })
 }
