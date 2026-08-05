@@ -103,10 +103,15 @@ extern "c" fn read_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "read"
 #borrow(ptr)
 extern "c" fn write_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "write"
 
-fn read_exact(count : Int) -> Bytes? {
+fn read_exact(count : Int, prefix : Bytes, prefix_n : Int) -> Bytes? {
   let out = @buffer.Buffer::Buffer(size_hint=count)
-  let chunk = Bytes::new(4096)
   let mut remaining = count
+  if prefix_n > 0 {
+    let take = if prefix_n < count { prefix_n } else { count }
+    out.write_bytes(prefix[0:take])
+    remaining = count - take
+  }
+  let chunk = Bytes::new(4096)
   while remaining > 0 {
     let request = if remaining < 4096 { remaining } else { 4096 }
     let got = read_fd(0, chunk, request)
@@ -117,18 +122,107 @@ fn read_exact(count : Int) -> Bytes? {
   Some(out.to_bytes())
 }
 
-pub fn read_frame() -> Result[Bytes?, FrameError] {
+/// End offset (exclusive) of the first `\r\n\r\n` in `bytes`, or `None`.
+fn first_terminator_end(bytes : Bytes) -> Int? {
+  let mut e = 4
+  while e <= bytes.length() {
+    if bytes[e - 4].to_int() == 13 && bytes[e - 3].to_int() == 10 && bytes[e - 2].to_int() == 13 && bytes[e - 1].to_int() == 10 {
+      return Some(e)
+    }
+    e = e + 1
+  }
+  None
+}
+
+/// End offset (exclusive) of the first header terminator given the bytes read
+/// in previous chunks (`head`) and the latest chunk read, including a
+/// terminator that straddles the head/chunk boundary; `None` if no terminator
+/// is complete yet. This mirrors the original byte-at-a-time detection: the
+/// first terminator wins, so a header is never over-consumed into the body.
+fn header_end_in(head : Bytes, chunk : Bytes) -> Int? {
+  let h = head.length()
+  let terminator = b"\r\n\r\n"
+  // Terminator split across the boundary: head provides k bytes, chunk 4-k.
+  let mut k = 1
+  while k < 4 {
+    if h >= k && chunk.length() >= 4 - k {
+      if head[h - k:h].to_owned() == terminator[0:k].to_owned() && chunk[0:4 - k].to_owned() == terminator[k:4].to_owned() {
+        return Some(h + 4 - k)
+      }
+    }
+    k = k + 1
+  }
+  // Terminator fully inside the chunk.
+  let mut c = 0
+  while c + 3 < chunk.length() {
+    if chunk[c].to_int() == 13 && chunk[c + 1].to_int() == 10 && chunk[c + 2].to_int() == 13 && chunk[c + 3].to_int() == 10 {
+      return Some(h + c + 4)
+    }
+    c = c + 1
+  }
+  None
+}
+
+/// Pushback for bytes read from stdin past the end of the current frame.
+/// Chunked header reads can over-read into the body and, under client
+/// pipelining, into the next frame; those bytes must survive across
+/// `read_frame` calls exactly as the original byte-at-a-time reader left
+/// them in the pipe.
+pub struct FrameSource {
+  pub mut pending : Bytes
+}
+
+pub fn FrameSource::new() -> FrameSource {
+  { pending: Bytes::new(0) }
+}
+
+pub fn read_frame(source : FrameSource) -> Result[Bytes?, FrameError] {
   let header = @buffer.Buffer::Buffer(size_hint=256)
-  let one = Bytes::new(1)
+  let mut total = 0
+  let mut leftover = Bytes::new(0)
+  let mut leftover_n = 0
   let mut found = false
-  while !found && header.to_bytes().length() <= MAX_HEADER_BYTES {
-    let got = read_fd(0, one, 1)
+  // Bytes pushed back from the previous frame's over-read begin the next
+  // frame; they may already contain a complete header (plus a body prefix).
+  if source.pending.length() > 0 {
+    let pend = source.pending
+    source.pending = Bytes::new(0)
+    match first_terminator_end(pend) {
+      Some(e) => {
+        header.write_bytes(pend[0:e])
+        total = e
+        leftover = pend[e:pend.length()].to_owned()
+        leftover_n = pend.length() - e
+        found = true
+      }
+      None => {
+        header.write_bytes(pend)
+        total = pend.length()
+      }
+    }
+  }
+  let chunk = Bytes::new(4096)
+  while !found {
+    if total > MAX_HEADER_BYTES { break }
+    // Never read past the historical byte-at-a-time boundary (16 KB + 1).
+    let allowed = MAX_HEADER_BYTES + 1 - total
+    let request = if allowed < chunk.length() { allowed } else { chunk.length() }
+    if request <= 0 { break }
+    let got = read_fd(0, chunk, request)
     if got <= 0 { return Ok(None) }
-    header.write_bytes(one[0:1])
-    let bytes = header.to_bytes()
-    let length = bytes.length()
-    if length >= 4 && bytes[length - 4].to_int() == 13 && bytes[length - 3].to_int() == 10 && bytes[length - 2].to_int() == 13 && bytes[length - 1].to_int() == 10 {
-      found = true
+    let head = header.to_bytes()
+    match header_end_in(head, chunk[0:got].to_owned()) {
+      Some(end) => {
+        let consumed = end - total
+        header.write_bytes(chunk[0:consumed])
+        leftover = chunk[consumed:got].to_owned()
+        leftover_n = got - consumed
+        found = true
+      }
+      None => {
+        header.write_bytes(chunk[0:got])
+        total = total + got
+      }
     }
   }
   if !found { return Err(InvalidHeader) }
@@ -136,10 +230,19 @@ pub fn read_frame() -> Result[Bytes?, FrameError] {
   let separator = header_bytes.length() - 4
   let body_length = match content_length(header_bytes[0:separator].to_owned()) {
     Ok(value) => value
-    Err(error) => return Err(error)
+    Err(error) => {
+      if leftover_n > 0 { source.pending = leftover[0:leftover_n].to_owned() }
+      return Err(error)
+    }
   }
-  if body_length < 0 || body_length > MAX_FRAME_BYTES { return Err(FrameTooLarge(length=body_length)) }
-  match read_exact(body_length) {
+  if body_length < 0 || body_length > MAX_FRAME_BYTES {
+    if leftover_n > 0 { source.pending = leftover[0:leftover_n].to_owned() }
+    return Err(FrameTooLarge(length=body_length))
+  }
+  if leftover_n > body_length {
+    source.pending = leftover[body_length:leftover_n].to_owned()
+  }
+  match read_exact(body_length, leftover, leftover_n) {
     Some(body) => Ok(Some(body))
     None => Err(TruncatedFrame)
   }

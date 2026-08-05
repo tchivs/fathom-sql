@@ -3,9 +3,10 @@
 
 fn main {
   let state =  ServerState::new()
+  let source = FrameSource::new()
   let mut running = true
   while running {
-    match  read_frame() {
+    match  read_frame(source) {
       Ok(Some(body)) => {
         match  parse_message(body) {
           Ok(message) => {
