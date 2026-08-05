@@ -60,6 +60,25 @@ Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项�
 | 一套 MoonBit 核心同时输出 Native 与 Wasm/JS | 以同一实现覆盖 CLI、LSP、Web 和 Monaco 场景 | — Pending |
 | 先交付四个里程碑：内核、完整性、格式化、生态 | 先建立可靠解析基础，再扩展工具链，控制语法跟进风险 | — Pending |
 
+## Current State
+
+**v1.0 SHIPPED — 2026-08-05** (override_closeout, 5 documented overrides)
+
+- **代码规模:** ~15.5k 行 MoonBit(7 核心包 + lsp/binding/parity/completion/analyzer/formatter/doris-sql)+ ~1.3k 行 TS/Py/MJS(web demo、vscode 扩展、corpus 工具);257 文件,52 个 feat commits,2 天交付。
+- **测试:** 188/188 MoonBit 测试(test/parity/doris-sql/lsp)+ node 7/7 + 23/23 Chromium 断言(executor 实测)+ 全部 --check 绿。
+- **能力:** 无损 CST round-trip、SELECT+DML/DDL 覆盖(2.1/3.x/4.x profile 门控)、44 行官方语料 manifest、配置化格式化(6 维)+ CLI(exit 0/1/2)、Native LSP(诊断/格式化/补全,utf-16)、JS ESM + linear Wasm facade、离线 Monaco 演示、VS Code 扩展。
+- **已知边界:** ECO-07 人工 VS Code 宿主验证待做;FE/Nereids 差分脚本待人工执行;linear-Wasm CI 运行时步骤建议;9/44 manifest 行经 formatter harness 覆盖(对应关系手工维护)。
+
+## Next Milestone Goals (v2.0)
+
+v2 候选(见归档 v1.0-REQUIREMENTS.md § v2 Requirements):
+
+- **ANAL-01** catalog 注入的名字解析与类型诊断
+- **LINT-01** Doris 专属 lint 规则集(可配置 severity + 安全 autofix)
+- **LINE-01** 列级血缘
+- **FING-01** 稳定 SQL 指纹与归一化
+- **EDIT-01** 有界增量解析与定向 CST 重构(基准证明必要性后)
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
@@ -78,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-05 after Phase 4 completion — all v1 requirements validated*
+*Last updated: 2026-08-05 after v1.0 milestone shipped*

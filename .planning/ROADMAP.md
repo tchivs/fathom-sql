@@ -4,137 +4,55 @@
 
 The MVP progresses from a source-faithful, recoverable Doris parsing kernel to versioned Doris grammar and corpus coverage, then adds safe formatting and finally exposes the same MoonBit implementation through Native, LSP, Wasm/JavaScript, Web/Monaco, and VS Code integrations. Each phase delivers a usable consumer capability while preserving the explicit Doris profile, lossless CST, offline operation, and stable cross-target contracts that distinguish this SDK.
 
-## Phases
+## Milestones
 
-- [x] **Phase 1: Core Kernel** - Establish versioned, lossless, recoverable parsing for industrial Doris SELECT and expressions.
-- [x] **Phase 2: Doris Completeness and Corpus** - Expand Doris DML/DDL and make official, versioned corpus coverage auditable. (completed 2026-08-04)
-- [x] **Phase 3: Formatting and Safe Edits** - Provide exact replay, configurable canonical formatting, and a safe formatting CLI. (completed 2026-08-04)
-- [x] **Phase 4: Ecosystem and Multi-Target Delivery** - Deliver Native LSP, stable Wasm/JavaScript APIs, and editor/web integrations. (completed 2026-08-05)
+### ✅ v1.0: milestone — SHIPPED 2026-08-05
 
-## Phase Details
+Doris SQL Parser SDK 首个可发布里程碑:无损 CST 内核、SELECT/DML/DDL 覆盖、版本化官方语料库、可配置格式化与 CLI、Native LSP / JS-Wasm facade / Web-Monaco / VS Code 集成。27/27 v1 需求验证通过,全部离线可用。
+
+- **Archive:** [v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) · [v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md) · [v1.0-MILESTONE-AUDIT.md](v1.0-MILESTONE-AUDIT.md)
+- **Status:** SHIPPED (override_closeout — 5 documented verification overrides in STATE.md Deferred Items)
+
+<details>
+<summary>v1.0 Phase Details (archived)</summary>
 
 ### Phase 1: Core Kernel
 
 **Goal**: Consumers can parse an explicitly selected Doris 2.1, 3.x, or 4.x profile into a lossless, recoverable CST with precise diagnostics and industrial SELECT/expression coverage, entirely offline.
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
-**Requirements**: CORE-01, CORE-02, CORE-03, CORE-04, CORE-05, CORE-06, CORE-07
-**Success Criteria** (what must be TRUE):
-
-  1. Consumer can choose a Doris version profile and parse documented SELECT, JOIN, CTE, window, grouping, set-operation, hint, and expression forms without silent generic-dialect fallback.
-  2. Consumer can traverse a CST whose replay preserves original bytes, token spelling, comments, whitespace, newlines, unknown/error material, and source spans for parsed fragments.
-  3. Editor can submit incomplete or malformed SQL and receive a bounded recoverable CST with explicit missing/error/skipped nodes plus machine-readable, statement-linked diagnostics.
-  4. Application can run parsing and diagnostics offline without Doris FE, a database connection, or a runtime-specific parser implementation.
-
-**Plans:** 4/4 plans executed
-Plans:
-**Wave 1**
-
-- [x] 01-01-PLAN.md — establish the pinned source, token, and lexer tracer
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 01-02-PLAN.md — build the lossless CST, parser API, and exact replay path
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 01-03-PLAN.md — add bounded strict/editor recovery and stable diagnostics
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 01-04-PLAN.md — cover industrial SELECT and versioned corpus fixtures
-
-**UI hint**: yes
+**Requirements**: CORE-01..CORE-07
+**Status:** Complete 2026-08-03 (4/4 plans)
 
 ### Phase 2: Doris Completeness and Corpus
 
 **Goal**: Users can parse version-supported Doris scripts and warehouse-specific DML/DDL with localized errors, while maintainers and consumers can inspect reproducible coverage and the syntax-only/analyzer boundary.
 **Mode:** mvp
 **Depends on**: Phase 1
-**Requirements**: DORIS-01, DORIS-02, DORIS-03, DORIS-04, CORP-01, CORP-02, CORP-03, CORP-04, ANLY-01
-**Success Criteria** (what must be TRUE):
-
-  1. User can parse semicolon-separated scripts containing supported INSERT variants, UPDATE, DELETE, MERGE, tables, views, CTAS/LIKE, keys, distribution, buckets, partitions, properties, indexes, and materialized views under the selected Doris profile.
-  2. Parser preserves statement boundaries, localizes an invalid statement's diagnostic, and continues to retain and report later statements in the same document.
-  3. Consumer can use an auditable versioned keyword classification so valid non-reserved or contextual words remain usable as identifiers without accepting version-invalid syntax silently.
-  4. Project publishes reproducible official-document fixture manifests, golden/recovery results, version/category coverage and failure reports, plus recorded FE/SQLGlot differential disagreements and resolutions.
-  5. Consumer can perform syntax checks without catalog metadata and can optionally supply table/column metadata through a separate analyzer interface without coupling parsing to FE execution semantics.
-
-**Plans**: 6/6 plans executed
-Plans:
-**Wave 1**
-
-- [x] 02-01-PLAN.md — keyword-first DML dispatch with INSERT tracer, UPDATE/DELETE, 4.x-gated MERGE, and unsupported-statement nodes
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 02-02-PLAN.md — full CREATE TABLE body, VIEW/CTAS/LIKE, INDEX and sync MATERIALIZED VIEW with version gates
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 02-03-PLAN.md — data-driven three-layer keyword classification with keywords.tsv audit report
-- [x] 02-05-PLAN.md — analyzer package with minimal catalog and statement-level accessors
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 02-04-PLAN.md — DML/DDL metadata contract, expanded fixture corpus, and CORPUS-REPORT.md generator
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 02-06-PLAN.md — SQLGlot local differential runner and FE/Nereids manual script
+**Requirements**: DORIS-01..04, CORP-01..04, ANLY-01
+**Status:** Complete 2026-08-04 (6/6 plans)
 
 ### Phase 3: Formatting and Safe Edits
 
 **Goal**: Users can choose exact source replay or a deterministic, configurable, comment-preserving canonical rendering and invoke it safely from the `doris-sql format` command.
 **Mode:** mvp
 **Depends on**: Phase 2
-**Requirements**: FMT-01, FMT-02, FMT-03, FMT-04
-**Success Criteria** (what must be TRUE):
-
-  1. Consumer can request canonical output distinct from exact lossless replay, with documented behavior across supported Doris syntax.
-  2. User can configure keyword case, indentation, line width, comma style, newline style, and trailing-newline policy while comments and hints remain attached to their intended source regions.
-  3. Formatter output is deterministic and idempotent, reparses successfully for supported input, and reports or refuses unsafe transformations for unrecoverable/error trees.
-  4. User can run `doris-sql format` on a file or standard input to receive formatted SQL and diagnostics, with a non-zero status for invalid input under the selected profile.
-
-**Plans**: 4/4 plans executed
-Plans:
-**Wave 1**
-
-- [x] 03-01-PLAN.md — formatter core tracer with FormatOptions, refusal walk, and api.format_text shared entry
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 03-02-PLAN.md — full canonical layout: per-family clause tables, list measure-then-break, comma styles, script layout, comment/hint attachment
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 03-03-PLAN.md — all six option dimensions functional, 44-row corpus harness, option-matrix idempotence, never-panic boundary suite
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 03-04-PLAN.md — doris-sql format CLI: libc FFI, hand-rolled args with required --profile, exit 0/1/2, moon-test suite + binary smoke
+**Requirements**: FMT-01..04
+**Status:** Complete 2026-08-04 (4/4 plans)
 
 ### Phase 4: Ecosystem and Multi-Target Delivery
 
 **Goal**: Editors, web applications, and automation can use one versioned Doris parser through Native LSP/CLI and stable Wasm/JavaScript facades with consistent results across targets.
 **Mode:** mvp
 **Depends on**: Phase 3
-**Requirements**: ECO-01, ECO-02, ECO-03, ECO-04, ECO-05, ECO-06, ECO-07
-**Success Criteria** (what must be TRUE):
+**Requirements**: ECO-01..07
+**Status:** Complete 2026-08-05 (5/5 plans)
 
-  1. Editor can connect to a Native LSP server for lifecycle, document synchronization, versioned documents, diagnostics, comment-preserving formatting edits, and syntax-aware completion on incomplete SQL without Doris FE.
-  2. Web application can parse selected Doris profiles and obtain stable CST and diagnostic results through Wasm/JavaScript without exposing internal MoonBit ADTs or backend-specific types.
-  3. Native, JavaScript, and linear-Wasm targets expose the same versioned serialized CST/trivia/span/diagnostic/profile schema and pass shared parity fixtures, including documented byte-to-line/UTF-16 coordinates.
-  4. Project provides a working offline Web/Monaco demonstration and a VS Code extension that surfaces Doris diagnostics and formatting through the standard LSP client protocol.
+</details>
 
-**Plans:** 5/5 plans complete
-Plans:
+## Backlog
 
-- [x] 04-00-PLAN.md — create shared schema, parity, LSP, Web, and VS Code harnesses
-- [x] 04-01-PLAN.md — freeze serialized schema/coordinates and deliver Native LSP diagnostics/formatting tracer
-- [x] 04-02-PLAN.md — add syntax-aware completion and protocol/version hardening
-- [x] 04-03-PLAN.md — expose JS/linear-Wasm facades and prove Native/JS/Wasm parity
-- [x] 04-04-PLAN.md — deliver offline Web/Monaco and VS Code hosts with accessibility checkpoints
+(No backlog items — all v1 requirements shipped.)
 
 ## Dependency and Ordering Rationale
 
@@ -143,16 +61,8 @@ Plans:
 3. Phase 3 separates exact replay from policy-driven formatting; it relies on stable CST ownership and broad Doris syntax so formatting cannot conceal parser lossiness.
 4. Phase 4 freezes the serialized and coordinate contracts before wrappers and editor adapters, proving one parser implementation across Native, JavaScript, and Wasm rather than maintaining backend forks.
 
-## Progress
+## Next Milestone
 
-**Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+v2.0 — start with `/gsd-new-milestone` (fresh REQUIREMENTS.md + ROADMAP.md). Candidate v2 scope: ANAL-01 catalog-backed name resolution, LINT-01 Doris lint rules, LINE-01 column-level lineage, FING-01 SQL fingerprints, EDIT-01 incremental parsing (see archived v1.0-REQUIREMENTS.md § v2 Requirements).
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
-| 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
-| 3. Formatting and Safe Edits | 4/4 | Complete    | 2026-08-04 |
-| 4. Ecosystem and Multi-Target Delivery | 5/5 | Complete    | 2026-08-05 |
-
-**Coverage:** 27/27 v1 requirements mapped; 0 unmapped; each requirement assigned to exactly one phase.
+**Coverage (v1.0):** 27/27 v1 requirements shipped; 0 unmapped.

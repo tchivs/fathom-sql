@@ -159,11 +159,17 @@ Non-blocking boundaries retained in phase artifacts:
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and deferred at milestone close on 2026-08-05:
 
-| Category | Item | Status | Deferred At |
-|----------|------|--------|-------------|
-| *(none)* | | | |
+| Category | Item | Status |
+|----------|------|--------|
+| verification_override | Phase 01 VERIFICATION gaps_found (historical 9/11; disk-manifest gap closed by Phase 2 corpus_test.mbt embedded oracle; moon.mod label + unavailable-offline provenance remain documented boundaries) | override_closeout |
+| verification_override | Phase 04 ECO-07 human-hosted VS Code launch (04-04 Task 4, blocking-human; requires a machine with VS Code) | pending_human |
+| verification_override | Phase 04 ECO-06 rendered Monaco UI checkpoints (executor-documented 23/23 Chromium assertions; not independently reproducible in verifier env) | verified_by_executor |
+| differential | FE/Nereids differential script execution (D-20 manual; Java FE offline-unavailable) | deferred |
+| ci_recommendation | linear-Wasm runtime execution parity step before release | recommended |
+
+Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: override_closeout.
 
 ## Session Continuity
 
