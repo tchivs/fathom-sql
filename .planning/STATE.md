@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Ecosystem and Multi-Target Delivery
 status: planning
-stopped_at: Completed quick task 260805-df9-add-a-kotlin-gradle-jetbrains-intellij-p
-last_updated: "2026-08-05T02:02:48.319Z"
+stopped_at: Completed quick task 260805-e28-align-the-jetbrains-plugin-wrapper-and-d
+last_updated: "2026-08-05T02:11:13.738Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 03 complete, transitioned to Phase 04
 progress:
@@ -79,6 +79,7 @@ Progress: [██████████] 95%
 | Phase 03 P03-04 | 58 | 2 tasks | 6 files |
 | Phase 04 P03 | implementation session | 3 tasks | 10 files |
 | Phase 04 P04 | implementation session | 3 tasks | 18 files |
+| Phase quick-260805-e28 Palign-the-jetbrains-plugin-wrapper-and-docs | 5min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,7 @@ Recent decisions affecting current work:
 - [Phase ?]: Expose doris_parse_v1, doris_format_v1, doris_profile_v1, and doris_capabilities_v1 as primitive UTF-8 JSON Bytes exports.
 - [Phase ?]: Use inline-root-v1 JSON byte arrays for exact source transport and advertise only linear Wasm, not Wasm GC.
 - [Phase ?]: User approved pinned host dependencies: monaco-editor@0.56.0, vscode-languageclient@10.1.0, and @vscode/vsce@3.9.2 release-only.
+- [Phase ?]: Align the JetBrains wrapper and README to Gradle 9.0.0, the official minimum for IntelliJ Platform Gradle Plugin 2.x, while retaining plugin 2.9.0, Kotlin 2.2.0, and LSP4IJ 0.20.1.
 
 ### Pending Todos
 
@@ -164,6 +166,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-05T02:02:48.201Z
-Stopped at: Completed quick task 260805-df9-add-a-kotlin-gradle-jetbrains-intellij-p
+Last session: 2026-08-05T02:11:13.698Z
+Stopped at: Completed quick task 260805-e28-align-the-jetbrains-plugin-wrapper-and-d
 Resume file: None
