@@ -9,7 +9,7 @@ The MVP progresses from a source-faithful, recoverable Doris parsing kernel to v
 - [x] **Phase 1: Core Kernel** - Establish versioned, lossless, recoverable parsing for industrial Doris SELECT and expressions.
 - [x] **Phase 2: Doris Completeness and Corpus** - Expand Doris DML/DDL and make official, versioned corpus coverage auditable. (completed 2026-08-04)
 - [x] **Phase 3: Formatting and Safe Edits** - Provide exact replay, configurable canonical formatting, and a safe formatting CLI. (completed 2026-08-04)
-- [ ] **Phase 4: Ecosystem and Multi-Target Delivery** - Deliver Native LSP, stable Wasm/JavaScript APIs, and editor/web integrations.
+- [x] **Phase 4: Ecosystem and Multi-Target Delivery** - Deliver Native LSP, stable Wasm/JavaScript APIs, and editor/web integrations. (completed 2026-08-05)
 
 ## Phase Details
 
@@ -127,7 +127,7 @@ Plans:
   3. Native, JavaScript, and linear-Wasm targets expose the same versioned serialized CST/trivia/span/diagnostic/profile schema and pass shared parity fixtures, including documented byte-to-line/UTF-16 coordinates.
   4. Project provides a working offline Web/Monaco demonstration and a VS Code extension that surfaces Doris diagnostics and formatting through the standard LSP client protocol.
 
-**Plans:** 5/5 plans executed
+**Plans:** 5/5 plans complete
 Plans:
 
 - [x] 04-00-PLAN.md — create shared schema, parity, LSP, Web, and VS Code harnesses
@@ -153,6 +153,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Core Kernel | 4/4 | Complete | 2026-08-03 |
 | 2. Doris Completeness and Corpus | 6/6 | Complete    | 2026-08-04 |
 | 3. Formatting and Safe Edits | 4/4 | Complete    | 2026-08-04 |
-| 4. Ecosystem and Multi-Target Delivery | 5/5 | In Progress|  |
+| 4. Ecosystem and Multi-Target Delivery | 5/5 | Complete    | 2026-08-05 |
 
 **Coverage:** 27/27 v1 requirements mapped; 0 unmapped; each requirement assigned to exactly one phase.
