@@ -24,6 +24,9 @@ completed: 2026-08-06
 - `moon check --target native lsp`: passed with existing warnings only.
 - `moon build --target native --release lsp`: passed; `_build/native/release/build/lsp/lsp.exe` exists.
 
-## Release prerequisite
+## Release verification
 
-The workflow publishes assets when a `v*` tag is pushed or when manually dispatched with a tag. The first release still needs to be triggered so the downloader has a public `latest` release to consume.
+- GitHub Actions run `31077474356` passed all four build jobs and the publish job.
+- Public release `v0.1.0` is non-draft/non-prerelease and contains all four binaries plus `doris-lsp-manifest.json`.
+- Downloaded release assets locally and confirmed every binary SHA-256 equals the published manifest.
+- A later local Gradle rerun against unrelated uncommitted Kotlin `2.4.10`/IntelliJ Platform `2.18.1` updates failed because `kotlin-compiler-embeddable:2.4.10` was unavailable from the configured Maven cache; the committed plugin verification passed before those external updates.
