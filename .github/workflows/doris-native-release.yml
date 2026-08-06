@@ -108,9 +108,34 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  linear-wasm-parity:
+    name: linear-Wasm runtime execution parity (release gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      - name: Build linear-Wasm facade + parity runner
+        run: |
+          moon build --target wasm binding
+          moon build --target wasm parity
+
+      - name: Execute parity suite on linear-Wasm target
+        run: moon test --target wasm --package parity
+
+      - name: Execute parity suite on native target
+        run: moon test --target native --package parity
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build, linear-wasm-parity]
     runs-on: ubuntu-latest
     permissions:
       contents: write

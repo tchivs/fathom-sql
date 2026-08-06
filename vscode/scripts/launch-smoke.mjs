@@ -15,7 +15,7 @@ const [manifestText, extensionText, readmeText, distText] = await Promise.all([
 const manifest = JSON.parse(manifestText);
 assert.equal(manifest.main, './dist/extension.js', 'extension host must load compiled JS, not TS');
 assert.equal(manifest.scripts.compile, 'tsc -p .');
-assert.equal(manifest.devDependencies['typescript'], '5.9.3');
+assert.equal(manifest.devDependencies['typescript'], '7.0.2');
 assert.equal(manifest.dependencies['vscode-languageclient'], '10.1.0');
 assert.equal(manifest.devDependencies['@vscode/vsce'], '3.9.2');
 assert.deepEqual(manifest.contributes.languages[0].extensions, ['.sql']);
@@ -23,6 +23,7 @@ assert.match(distText, /require\("vscode-languageclient/, 'compiled entry must b
 assert.doesNotMatch(distText, /extension-contract\.ts/, 'compiled entry must not reference TS sources');
 assert.match(extensionText, /new LanguageClient/);
 assert.match(extensionText, /TransportKind\.stdio/);
+assert.match(extensionText, /createOutputChannel\([^)]*\{ log: true \}/, 'client requires a LogOutputChannel for vscode-languageclient@10');
 assert.match(extensionText, /initializationOptions: \{ profile: configuration\.profile \}/);
 assert.match(extensionText, /documentSelector: \[\{ scheme: 'file', language: 'doris' \}\]/);
 assert.match(extensionText, /current\.start\(\)/);

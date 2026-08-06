@@ -42,6 +42,12 @@ To explicitly select the Native target:
 moon test --target native
 ```
 
+> **Note (pinned toolchain):** bare `moon test` triggers MoonBit error 4219 because the
+> `binding` package is a `foreign_library` whose `#export_name` cannot appear in a
+> test-target build — a documented boundary since v1 (04-03). Run the per-package
+> invocation from DEVELOPMENT.md for the full behavioral suite, and
+> `moon test --target wasm --package parity` for the linear-Wasm runtime parity gate.
+
 `moon test` compiles and runs the `test/` test package. The current test code is divided by domain as follows:
 
 | File | Coverage |
@@ -161,7 +167,16 @@ For machine-readable or HTML reports, select a format supported by the MoonBit c
 
 ## CI Integration
 
-No `.github/workflows/` or other CI configuration was detected in the repository, so there are no push/PR triggers, job names, or automated test commands that can be confirmed from the codebase; there is also no configuration for automatic coverage uploads or automatic FE/Nereids differential testing. Before submitting, run at least the following from the repository root:
+`.github/workflows/ci.yml` runs on push to `master` and pull requests:
+
+- **check** — `moon fmt --check`; `moon check` for native, JS, and linear-Wasm targets.
+- **test** — `moon test` (native, full suite).
+- **linear-wasm-parity** — `moon build --target wasm binding` and `moon build --target wasm parity`, then `moon test --target wasm --package parity` (executes the parity corpus **on the linear-Wasm backend**) plus `moon test --target native --package parity` for the byte-parity cross-check.
+- **corpus** — `generate_corpus_report.py --check` and `check_keywords.py corpus/keywords.tsv`.
+
+`.github/workflows/doris-native-release.yml` gates the GitHub Release job on the same `linear-wasm-parity` step (in addition to the native multi-platform build), so a release cannot publish without the linear-Wasm runtime execution parity passing.
+
+There is no automatic coverage upload or automatic FE/Nereids differential testing (the FE script is deliberately manual-only, D-20). Before submitting, run at least the following from the repository root:
 
 ```bash
 moon check
@@ -175,4 +190,4 @@ If `corpus/keywords.tsv` was modified, also run:
 python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 ```
 
-Release or cross-backend validation requires an explicitly selected target and separately recorded result, such as `moon test --target native`; do not treat external-service or deployment-platform behavior not declared in repository CI as a test-pass condition.
+Release or cross-backend validation requires an explicitly selected target and separately recorded result, such as `moon test --target native` or the linear-Wasm parity job above; do not treat external-service or deployment-platform behavior not declared in repository CI as a test-pass condition.

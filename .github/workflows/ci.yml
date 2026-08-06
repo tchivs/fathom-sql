@@ -1,0 +1,118 @@
+name: CI — MoonBit cross-target and linear-Wasm parity
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Historical local toolchain was moon 0.1.20260724 (official v0.10.5 docs line).
+  # The installer no longer serves that archive, so CI pins `latest` and logs the
+  # exact version in every run (see moon.mod policy comment).
+  MOONBIT_INSTALL_VERSION: "latest"
+
+jobs:
+  check:
+    name: moon check + fmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      - name: moon fmt --check
+        run: moon fmt --check
+
+      - name: moon check (native)
+        run: moon check --target native
+
+      - name: moon check (js + linear wasm)
+        run: |
+          moon check --target js
+          moon check --target wasm
+
+  test:
+    name: moon test (native)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      - name: moon test (native)
+        # Bare `moon test` triggers MoonBit error 4219 (foreign_library binding
+        # #export_name in a test-target build) on the pinned toolchain — a known
+        # boundary since v1 (04-03). Run the per-package suites that cover the
+        # full behavioral surface instead.
+        run: |
+          moon test --target native \
+            --package test --package parity --package lsp --package api \
+            --package source --package token --package lexer --package parser \
+            --package printer --package syntax --package completion --package analyzer
+
+  linear-wasm-parity:
+    name: linear-Wasm runtime execution parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      # The linear-Wasm runtime execution step (CLOSE-02): build the foreign
+      # library facade and the parity runner for the linear Wasm backend, then
+      # RUN the parity corpus ON the wasm target. `moon test --target wasm`
+      # executes the same serialized-byte assertions the native target runs,
+      # catching runtime-only failures (memory, ABI, SIMD) that `moon build`
+      # alone cannot. The parity module has zero imports, so it stays portable.
+      - name: Build linear-Wasm facade + parity runner
+        run: |
+          moon build --target wasm binding
+          moon build --target wasm parity
+
+      - name: Execute parity suite on linear-Wasm target
+        run: moon test --target wasm --package parity
+
+      # Byte-parity cross-check: run the identical suite on native so a wasm-only
+      # regression cannot silently diverge from the reference target.
+      - name: Execute parity suite on native target
+        run: moon test --target native --package parity
+
+  corpus:
+    name: corpus report + keyword check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Corpus report --check
+        run: python3 corpus/tools/generate_corpus_report.py --check
+
+      - name: Keyword classification check
+        run: python3 corpus/tools/check_keywords.py corpus/keywords.tsv

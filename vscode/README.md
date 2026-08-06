@@ -25,7 +25,7 @@ network fallback.
 ## Local development
 
 The package manifest pins `vscode-languageclient@10.1.0`, the release-only
-`@vscode/vsce@3.9.2`, and `typescript@5.9.3` (build-only). Build/release
+`@vscode/vsce@3.9.2`, and `typescript@7.0.2` (build-only). Build/release
 tooling must keep the Native `doris-lsp` executable separate from this
 JavaScript client package.
 
@@ -42,5 +42,25 @@ extension can run or be packaged:
 The TypeScript devDependency resolves from the npm cache, so the build works
 offline (`npm ci --offline && npm run compile`).
 
-A final host checkpoint still requires a machine with VS Code and a local
-`doris-lsp`; this repository does not claim that manual checkpoint passed.
+## Host verification (ECO-07)
+
+`npm run host-verify` launches three real VS Code extension hosts via
+`@vscode/test-electron` against the local `doris-lsp` executable and asserts the
+full standard-client contract end to end:
+
+- **functional** (profile 4.x): structured diagnostics with stable code +
+  UTF-16 ranges in Problems, comment-preserving `Format Document` edits,
+  parser-known completion, and 4.x MERGE accepted.
+- **profile** (profile 2.1): MERGE rejected with `DORIS-PARSE-006` — proves the
+  configured profile reaches the server via `initialize`.
+- **fallback** (nonexistent server path): the document stays editable and the
+  fixed "Doris language server unavailable" message surfaces instead of a crash.
+
+Prerequisites: a display for VS Code (headless CI uses `xvfb-run`), `node` with
+the pinned devDependencies, and a local `doris-lsp` build. The VS Code binary is
+downloaded once into `.vscode-test/` by `@vscode/test-electron`.
+
+The client requires a **`LogOutputChannel`** (`createOutputChannel(name, { log: true })`)
+because `vscode-languageclient@10.1.0` calls `.error()`/`.trace()`/`onDidChangeLogLevel`
+on the channel it is given; a plain output channel makes server startup fail
+immediately (caught by this host checkpoint).

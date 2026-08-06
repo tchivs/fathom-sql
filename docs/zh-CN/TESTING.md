@@ -161,7 +161,16 @@ moon coverage report -f summary
 
 ## CI 集成
 
-仓库中未检测到 `.github/workflows/` 或其他 CI 配置文件，因此没有可从代码库确认的 push/PR 触发器、job 名称或自动测试命令；也没有配置自动上传覆盖率或自动运行 FE/Nereids 差分。提交前至少应在仓库根目录执行：
+`.github/workflows/ci.yml` 在 push 到 `master` 和 PR 时运行：
+
+- **check** — `moon fmt --check`;native、JS、线性 Wasm 目标的 `moon check`。
+- **test** — `moon test`(native,完整套件)。
+- **linear-wasm-parity** — `moon build --target wasm binding` 与 `moon build --target wasm parity`,然后 `moon test --target wasm --package parity`(在**线性 Wasm 后端**上执行 parity 语料)加 `moon test --target native --package parity` 做字节级 parity 交叉校验。
+- **corpus** — `generate_corpus_report.py --check` 与 `check_keywords.py corpus/keywords.tsv`。
+
+`.github/workflows/doris-native-release.yml` 将 GitHub Release job 门禁在相同的 `linear-wasm-parity` 步骤上(外加原生多平台构建),因此发布前必须通过线性 Wasm 运行时执行 parity。
+
+没有自动上传覆盖率或自动运行 FE/Nereids 差分(FE 脚本刻意保持手动,D-20)。提交前至少应在仓库根目录执行：
 
 ```bash
 moon check

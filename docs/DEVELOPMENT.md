@@ -74,10 +74,15 @@ After completing a syntax or formatting change, it is recommended to run at leas
 ```bash
 moon fmt --check
 moon check
-moon test
+moon test --target native --package test --package parity --package lsp --package api --package source --package token --package lexer --package parser --package printer --package syntax --package completion --package analyzer
 python3 corpus/tools/generate_corpus_report.py --check
 python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 ```
+
+> Bare `moon test` currently triggers MoonBit error 4219 (the `binding` `foreign_library`
+> `#export_name` in a test-target build) on the pinned toolchain — a documented boundary
+> since v1 (04-03). Use the per-package invocation above for the full behavioral suite;
+> run `moon test --target wasm --package parity` for the linear-Wasm runtime parity gate.
 
 If the change affects only MoonBit packages, the corpus Python checks can still serve as a complete pre-commit consistency check; if the change affects `corpus/manifest.tsv`, `corpus/coverage.tsv`, or `corpus/keywords.tsv`, the corresponding validation command must be run.
 
@@ -121,7 +126,7 @@ Do not depend on generated files in `_build/`, and do not have runtime tests imp
 
 ## Branch Conventions
 
-The repository has no `CONTRIBUTING.md`, pull request template, or CI configuration, so no branch-naming convention is documented. The currently checked-out branch is `master`, and recent commit titles use Conventional Commits-style prefixes such as `feat(...)` and `docs(...)`; these are practices observed in the current repository, not mandatory conventions.
+The repository has no `CONTRIBUTING.md` or pull request template, so no branch-naming convention is documented. CI gates live in `.github/workflows/ci.yml` (moon check/fmt, native test, linear-Wasm runtime execution parity, corpus checks) and `.github/workflows/doris-native-release.yml` (release). The currently checked-out branch is `master`, and recent commit titles use Conventional Commits-style prefixes such as `feat(...)` and `docs(...)`; these are practices observed in the current repository, not mandatory conventions.
 
 It is recommended to start new work from the latest `master` in a short-lived branch using a purpose-expressing prefix, for example:
 
@@ -134,7 +139,7 @@ If the project hosting platform or maintainers specify otherwise, follow their r
 
 ## Pull Request Process
 
-The repository currently has no project-specific PR template or CI gate. Before submitting a PR, prepare it using the following checklist:
+The repository has no project-specific PR template. PRs run `.github/workflows/ci.yml` (moon check/fmt, native tests, linear-Wasm runtime execution parity, corpus checks). Before submitting a PR, prepare it using the following checklist:
 
 1. Create a branch from the latest `master`, keep each commit focused on one behavior or documentation topic, and optionally follow the existing `feat(scope): ...`, `fix(scope): ...`, or `docs(scope): ...` title format.
 2. In the PR description, state the affected Doris profile (`2.1`, `3.x`, or `4.x`), parsing mode (`strict` or `editor`), and packages; when syntax coverage changes, identify the corresponding corpus fixture or released-docs source.

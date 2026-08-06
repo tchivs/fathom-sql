@@ -1,11 +1,14 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2024"],
     "module": "Node16",
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "outDir": "dist",
+    "rootDir": "src",
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true
   },

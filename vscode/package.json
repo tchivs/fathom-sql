@@ -60,13 +60,16 @@
   "scripts": {
     "compile": "tsc -p .",
     "build": "npm run compile",
-    "package": "npm run compile && vsce package"
+    "package": "npm run compile && vsce package",
+    "host-verify": "npm run compile && node scripts/host-verify.mjs"
   },
   "dependencies": {
     "vscode-languageclient": "10.1.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "3.9.2",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   }
 }

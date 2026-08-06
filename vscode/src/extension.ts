@@ -39,7 +39,9 @@ async function stopClient() {
 
 export async function activate(context) {
   const configuration = resolveDorisConfiguration(vscode.workspace.getConfiguration('doris'));
-  const outputChannel = vscode.window.createOutputChannel('Doris SQL Language Server');
+  // vscode-languageclient@10 requires a LogOutputChannel (`.error`/`.trace`/
+  // `onDidChangeLogLevel`), so the channel must be created with `{ log: true }`.
+  const outputChannel = vscode.window.createOutputChannel('Doris SQL Language Server', { log: true });
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusItem.text = `Doris ${configuration.profile}`;
   statusItem.tooltip = `Doris profile ${configuration.profile}; local stdio server`;

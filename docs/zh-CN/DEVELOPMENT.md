@@ -121,7 +121,7 @@ python3 corpus/tools/sqlglot_diff.py
 
 ## 分支约定
 
-仓库没有 `CONTRIBUTING.md`、Pull Request 模板或 CI 配置，因此没有已文档化的分支命名规范。当前检出的分支为 `master`，最近提交标题采用了 `feat(...)` 和 `docs(...)` 等 Conventional Commits 风格前缀；这些是当前仓库观察到的实践，不是强制规范。
+仓库没有 `CONTRIBUTING.md` 或 Pull Request 模板，因此没有已文档化的分支命名规范。CI 门禁位于 `.github/workflows/ci.yml`(moon check/fmt、native 测试、线性 Wasm 运行时执行 parity、corpus 检查)与 `.github/workflows/doris-native-release.yml`(发布)。当前检出的分支为 `master`，最近提交标题采用了 `feat(...)` 和 `docs(...)` 等 Conventional Commits 风格前缀；这些是当前仓库观察到的实践，不是强制规范。
 
 建议新工作从最新 `master` 创建短生命周期分支，并使用能表达目的的前缀，例如：
 
@@ -134,7 +134,7 @@ python3 corpus/tools/sqlglot_diff.py
 
 ## Pull Request 流程
 
-仓库当前没有项目专用的 PR 模板或 CI 门禁。提交 PR 前，建议按以下清单准备：
+仓库没有项目专用的 PR 模板。PR 会运行 `.github/workflows/ci.yml`(moon check/fmt、native 测试、线性 Wasm 运行时执行 parity、corpus 检查)。提交 PR 前，建议按以下清单准备：
 
 1. 从最新 `master` 创建分支，保持每个提交聚焦于一个行为或文档主题；提交标题可沿用现有的 `feat(scope): ...`、`fix(scope): ...` 或 `docs(scope): ...` 格式。
 2. 在 PR 描述中说明变更的 Doris profile（`2.1`、`3.x`、`4.x`）、解析模式（`strict` 或 `editor`）和受影响的包；若变更语法覆盖，注明对应的 corpus fixture 或 released-docs 来源。

@@ -4,3 +4,4 @@ _build/
 web/node_modules/
 vscode/node_modules/
 vscode/dist/
+vscode/.vscode-test/
