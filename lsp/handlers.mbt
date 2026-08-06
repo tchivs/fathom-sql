@@ -41,6 +41,10 @@ pub(all) struct ServerState {
   // Optional workspace/configuration pull correlation: the pending
   // server-to-client request id awaiting the settings response.
   pub mut pending_config_request : RpcId?
+  // Monotonically increasing id source for server-initiated requests
+  // (IN-04a): every server->client request gets a session-unique id so a
+  // future second server request cannot collide with the configuration pull.
+  pub mut next_server_request_id : Int
   pub mut initialized : Bool
   pub mut shutdown : Bool
   pub mut exited : Bool
@@ -53,6 +57,7 @@ pub fn ServerState::new() -> ServerState {
     default_profile: None,
     language_mapping: None,
     pending_config_request: None,
+    next_server_request_id: 1,
     initialized: false,
     shutdown: false,
     exited: false,
@@ -678,11 +683,13 @@ fn re_resolve_open_documents(state : ServerState) -> Array[Bytes] {
 
 /// The optional workspace/configuration pull (A2, option-c arm): the server
 /// may request the fathom settings section once after "initialized"; the
-/// correlated response applies like didChangeConfiguration.
-fn config_request() -> Bytes {
+/// correlated response applies like didChangeConfiguration. The id is the
+/// session-unique server request id minted by the caller (IN-04a) so the
+/// request JSON and the pending correlation can never diverge.
+fn config_request(id : Int) -> Bytes {
   let value : Json = {
     "jsonrpc": Json::string("2.0"),
-    "id": Json::number(0.0),
+    "id": Json::number(id.to_double()),
     "method": Json::string("workspace/configuration"),
     "params": { "items": Json::array([{ "section": Json::string("fathom") }]) },
   }
@@ -717,8 +724,10 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       // the fathom settings section once; the correlated response updates
       // the workspace default + language mapping like didChangeConfiguration.
       if state.pending_config_request.is_none() {
-        state.pending_config_request = Some(RpcId::IntId(value=0))
-        [config_request()]
+        let id = state.next_server_request_id
+        state.next_server_request_id = id + 1
+        state.pending_config_request = Some(RpcId::IntId(value=id))
+        [config_request(id)]
       } else {
         []
       }

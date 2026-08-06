@@ -204,7 +204,10 @@ test "workspace_configuration_pull_applies_settings_by_correlated_id" {
   let after_init = handle_message(state, message("{\"jsonrpc\":\"2.0\",\"method\":\"initialized\"}"))
   assert_eq(after_init.length(), 1)
   assert_true(@utf8.decode_lossy(after_init[0]).contains("workspace/configuration"))
-  let response = message("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"workspace/configuration\",\"params\":{\"fathom\":{\"dialect\":\"doris\",\"profile\":\"2.1\"}}}")
+  // IN-04a: the pull uses the session-unique server request id (1), not a
+  // hardcoded 0.
+  assert_true(@utf8.decode_lossy(after_init[0]).contains("\"id\":1"))
+  let response = message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"workspace/configuration\",\"params\":{\"fathom\":{\"dialect\":\"doris\",\"profile\":\"2.1\"}}}")
   let applied = handle_message(state, response)
   assert_eq(applied.length(), 0)
   assert_eq(state.default_dialect, Some("doris"))
