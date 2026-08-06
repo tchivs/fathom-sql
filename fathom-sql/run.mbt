@@ -208,7 +208,6 @@ pub fn usage_error_message(error : UsageError) -> String {
     UnknownFlag(flag~) => "unknown flag: \{flag}\n"
     MissingValue(flag~) => "missing value for flag: \{flag}\n"
     UnknownValue(flag~, value~) => "invalid value for \{flag}: \{value}\n"
-    MissingFile => "cannot read file\n"
   }
 }
 

@@ -19,7 +19,6 @@ pub enum UsageError {
   UnknownFlag(flag~ : String)
   MissingValue(flag~ : String)
   UnknownValue(flag~ : String, value~ : String)
-  MissingFile
 } derive(Eq, @debug.Debug)
 
 /// Parsed invocation. `subcommand` is one of "parse"|"format"|"lsp" (D-11);
