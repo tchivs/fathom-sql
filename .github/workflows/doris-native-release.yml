@@ -49,7 +49,13 @@ jobs:
           if [[ "${{ matrix.platform }}" == "macos-x86_64" ]]; then
             cat > "$RUNNER_TEMP/x86_64-apple-clang" <<'EOF'
           #!/bin/bash
-          exec clang -arch x86_64 "$@"
+          args=()
+          for arg in "$@"; do
+            if [[ "$arg" != "-DMOONBIT_USE_SIMDUTF" ]]; then
+              args+=("$arg")
+            fi
+          done
+          exec clang -arch x86_64 "${args[@]}"
           EOF
             chmod +x "$RUNNER_TEMP/x86_64-apple-clang"
             echo "MOON_CC=$RUNNER_TEMP/x86_64-apple-clang" >> "$GITHUB_ENV"
