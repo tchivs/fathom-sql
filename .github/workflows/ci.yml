@@ -131,6 +131,13 @@ jobs:
       - name: Baseline diff self-check (approved vs unexpected)
         run: python3 scripts/baseline_diff.py --left parity/__snapshot__ --right parity/__snapshot__ --approve .planning/phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
 
+      # T-09-03 provenance pin (MI-04): baseline-hashes.txt fixes the corpus
+      # files' SHA-256. Any corpus drift — even one that keeps manifest and
+      # keyword surfaces intact and so escapes the corpus job — fails CI here
+      # instead of silently expiring the pinned hashes.
+      - name: Baseline corpus hash pin (sha256sum -c)
+        run: sha256sum -c parity/baseline-hashes.txt
+
   corpus:
     name: corpus report + keyword check
     runs-on: ubuntu-latest
