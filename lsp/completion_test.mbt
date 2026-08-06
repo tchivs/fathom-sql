@@ -30,6 +30,33 @@ test "completion_uses_clause_contexts_and_stable_labels" {
   assert_true(where_result.items[0].label == "AND")
 }
 
+test "completion_is_dialect_aware_with_neutral_detail" {
+  // (a) doris-mode completion returns the same items as v1 for a
+  // representative prefix; the item detail is the dialect-neutral
+  // "SQL syntax keyword" (research row 27).
+  let select_result = match @completion.complete(b"SEL", "doris", "4.x", 3) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(select_result.items.length() > 0)
+  let mut has_select = false
+  for item in select_result.items {
+    assert_eq(item.detail, "SQL syntax keyword")
+    if item.label == "SELECT" && item.new_text == "SELECT" {
+      has_select = true
+    }
+  }
+  assert_true(has_select)
+  // (b) flink-mode completion returns the structured unsupported-profile
+  // error — Doris keyword items never leak into a flink request (Pitfall 6,
+  // T-09-10).
+  let flink = @completion.complete(b"SEL", "flink", "flink-2.3.0", 3)
+  assert_true(flink is Err(@completion.CompletionError::UnknownProfile(profile_id="flink-2.3.0")))
+  // (c) unknown dialect returns the structured UnknownDialect error.
+  let unknown = @completion.complete(b"SEL", "mysql", "4.x", 3)
+  assert_true(unknown is Err(@completion.CompletionError::UnknownDialect(dialect_id="mysql")))
+}
+
 test "completion_filters_profile_and_replaces_multibyte_prefix" {
   let old_profile = match @completion.complete(b"SELECT QUAL", "doris", "2.1", 11) {
     Ok(result) => result

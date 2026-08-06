@@ -189,7 +189,10 @@ pub fn complete(raw : Bytes, dialect_id : String, profile_id : String, cursor_by
         let label = @utf8.decode_lossy(entry.word)
         items.push({
           label: label,
-          detail: "Doris syntax keyword",
+          // Dialect-neutral detail (research row 27): the completion surface
+          // never names a dialect; the selection is carried by the request
+          // context, not by item text.
+          detail: "SQL syntax keyword",
           start_byte: replacement_start,
           end_byte: cursor_byte,
           new_text: label,
