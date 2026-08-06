@@ -79,8 +79,10 @@ EXCLUDED_DIRS = {
 
 # Generated build-output directories that are scanned by extension but must be
 # skipped as artifacts (research §7.2 / Runtime State Inventory): gradle
-# output under jetbrains/build and the tsc output under vscode/dist.
-BUILD_OUTPUT_DIRS = {"build", "dist"}
+# output under jetbrains/build, the tsc output under vscode/dist, and the
+# MoonBit build output target/ (IN-04b — local `moon build` runs leave
+# target/**/*.js that must never be treated as product source).
+BUILD_OUTPUT_DIRS = {"build", "dist", "target"}
 
 
 def is_scannable(path: Path) -> bool:
