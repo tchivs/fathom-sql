@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-08-06T15:12:17.146Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-08-06T15:38:37.659Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 43
 ---
 
 # Project State
@@ -29,8 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
+**Progress:** [██████--------] 43%
 Last activity: 2026-08-06 — Phase 9 execution started
 
 ## Performance Metrics
@@ -84,6 +85,7 @@ Last activity: 2026-08-06 — Phase 9 execution started
 | Phase quick-260805-e28 Palign-the-jetbrains-plugin-wrapper-and-docs | 5min | 3 tasks | 3 files |
 | Phase 09 P01 | 35 min | 3 tasks | 219 files |
 | Phase 09-dialect-boundary-and-neutral-naming P02 | 33 | 3 tasks | 163 files |
+| Phase 09 P03 | 25 | 2 tasks | 140 files |
 
 ## Accumulated Context
 
@@ -152,6 +154,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Adopted D-09/D-10 wire identity + A4 export order (Task 1 checkpoint option-a): fathom.*.v1 namespaces, FATHOM-* codes with dialect in fields, fathom_parse_v1(raw, dialect, profile, mode)
 - [Phase ?]: UnknownProfile message is dialect-neutral (unsupported profile: {id}) because the same error serves flink rejection
 - [Phase ?]: ParsedDocument.profile/profile_metadata removed: dead metadata not honestly derivable for Flink contexts
+- [Phase ?]: Dialect-first validation at the fathom_format_v1 export boundary: ParseOptions::new before option parsing, flink -> FATHOM-SCHEMA-003 for any option set (T-09-10)
+- [Phase ?]: format_result_json carries dialect/profile/exact_release metadata mirroring the parse envelope (DIALECT-04, D-09); exact_release derived from ParseOptions at each callsite
+- [Phase ?]: Export-level format assertions live in parity/export_smoke_test.mbt (test package cannot import binding: foreign_library E4219 on native test targets); refusal is a FATHOM-FORMAT-001 diagnostic inside the fathom.format.v1 envelope, not fathom.error.v1
+- [Phase ?]: Rule 3: parity/run_js.mbt + run_wasm.mbt migrated to fathom_*_v1 with dialect arg — js/wasm parity builds were broken since 09-02 (native-only gate could not compile target-scoped runners)
 
 ### Pending Todos
 
@@ -183,8 +189,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-06T15:12:17.122Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-08-06T15:38:37.635Z
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
