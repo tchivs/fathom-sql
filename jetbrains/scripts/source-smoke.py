@@ -101,7 +101,7 @@ allowed_remote_sources = {
 }
 
 for path in ROOT.rglob("*"):
-    if not path.is_file() or ".gradle" in path.parts or "build" in path.parts:
+    if not path.is_file() or ".gradle" in path.parts or ".intellijPlatform" in path.parts or "build" in path.parts:
         continue
     if path.name in {"source-smoke.py", "README.md", "gradlew", "gradlew.bat", "plugin.xml"}:
         continue
