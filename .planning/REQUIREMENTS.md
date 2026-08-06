@@ -76,35 +76,35 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DIALECT-01 | TBD | Pending |
-| DIALECT-02 | TBD | Pending |
-| DIALECT-03 | TBD | Pending |
-| DIALECT-04 | TBD | Pending |
-| FLINK-01 | TBD | Pending |
-| FLINK-02 | TBD | Pending |
-| FLINK-03 | TBD | Pending |
-| FLINK-04 | TBD | Pending |
-| FLINK-05 | TBD | Pending |
-| FLINK-06 | TBD | Pending |
-| CST-01 | TBD | Pending |
-| TOOL-01 | TBD | Pending |
-| TOOL-02 | TBD | Pending |
-| TOOL-03 | TBD | Pending |
-| TOOL-04 | TBD | Pending |
-| TOOL-05 | TBD | Pending |
-| NAME-01 | TBD | Pending |
-| NAME-02 | TBD | Pending |
-| NAME-03 | TBD | Pending |
-| NAME-04 | TBD | Pending |
-| CORPUS-01 | TBD | Pending |
-| PARITY-01 | TBD | Pending |
-| PARITY-02 | TBD | Pending |
-| PARITY-03 | TBD | Pending |
+| DIALECT-01 | Phase 9 | Pending |
+| DIALECT-02 | Phase 9 | Pending |
+| DIALECT-03 | Phase 9 | Pending |
+| DIALECT-04 | Phase 9 | Pending |
+| FLINK-01 | Phase 10 | Pending |
+| FLINK-02 | Phase 11 | Pending |
+| FLINK-03 | Phase 11 | Pending |
+| FLINK-04 | Phase 11 | Pending |
+| FLINK-05 | Phase 11 | Pending |
+| FLINK-06 | Phase 11 | Pending |
+| CST-01 | Phase 11 | Pending |
+| TOOL-01 | Phase 13 | Pending |
+| TOOL-02 | Phase 13 | Pending |
+| TOOL-03 | Phase 13 | Pending |
+| TOOL-04 | Phase 13 | Pending |
+| TOOL-05 | Phase 13 | Pending |
+| NAME-01 | Phase 9 | Pending |
+| NAME-02 | Phase 9 | Pending |
+| NAME-03 | Phase 9 | Pending |
+| NAME-04 | Phase 9 | Pending |
+| CORPUS-01 | Phase 12 | Pending |
+| PARITY-01 | Phase 12 | Pending |
+| PARITY-02 | Phase 12 | Pending |
+| PARITY-03 | Phase 12 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 24 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 24
+- Mapped to phases: 24 (Phases 9-13)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-06*

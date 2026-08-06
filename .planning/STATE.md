@@ -3,31 +3,32 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming"
 status: planning
-last_updated: "2026-08-06T06:43:38.943Z"
+last_updated: "2026-08-06T00:00:00Z"
 last_activity: 2026-08-06
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
+
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-03)
+See: .planning/PROJECT.md (updated 2026-08-06)
 
-**Core value:** 用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
-**Current focus:** Milestone v2.0 — Analysis and Intelligence
+**Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
+**Current focus:** Milestone v2.0 — Multi-Dialect: Flink SQL & Neutral Naming
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-08-06 — Milestone v2.0 started
+Phase: 9 — Dialect Boundary and Neutral Naming (first of 5 v2.0 phases)
+Plan: — (roadmap created; phase plans not yet defined)
+Status: Planning
+Last activity: 2026-08-06 — v2.0 roadmap created with Phases 9-13 and 24/24 requirement coverage
 
 ## Performance Metrics
 
@@ -41,13 +42,15 @@ Last activity: 2026-08-06 — Milestone v2.0 started
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Core Kernel | 0 | TBD | N/A |
-| 2. Doris Completeness and Corpus | 0 | TBD | N/A |
-| 3. Formatting and Safe Edits | 0 | TBD | N/A |
-| 4. Ecosystem and Multi-Target Delivery | 0 | TBD | N/A |
-| 02 | 6 | - | - |
-| 03 | 4 | - | - |
-| 04 | 5 | - | - |
+| 1. Core Kernel | 4 | 4 | historical |
+| 2. Doris Completeness and Corpus | 6 | 6 | historical |
+| 3. Formatting and Safe Edits | 4 | 4 | historical |
+| 4. Ecosystem and Multi-Target Delivery | 5 | 5 | historical |
+| 9. Dialect Boundary and Neutral Naming | 0 | TBD | N/A |
+| 10. Flink Release Profiles and Lexical Core | 0 | TBD | N/A |
+| 11. Flink Grammar and Recoverable CST | 0 | TBD | N/A |
+| 12. Cross-Dialect Corpus and Parity Gates | 0 | TBD | N/A |
+| 13. Toolchain and Editor Packaging | 0 | TBD | N/A |
 
 **Recent Trend:**
 
