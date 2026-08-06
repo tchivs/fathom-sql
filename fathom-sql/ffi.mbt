@@ -1,4 +1,4 @@
-/// Native-only libc FFI for the doris-sql CLI (D-37). This is the ONLY file in
+/// Native-only libc FFI for the fathom-sql CLI (D-37). This is the ONLY file in
 /// the module allowed to touch libc — formatter/ and api/ stay backend-neutral
 /// (Wasm/JS targets, CLAUDE.md single-core constraint).
 ///

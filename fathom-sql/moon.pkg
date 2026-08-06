@@ -1,0 +1,17 @@
+// Executable CLI package (D-37/D-38): the package dir name fathom-sql/ builds
+// the binary fathom-sql.exe (probe-verified on moon 0.1.20260724). The CLI is
+// a thin adapter — imports the api core plus lsp (shared serve_stdio seam,
+// D-01), binding (fathom.parse.v1 envelope serialization), and
+// env/buffer/utf8/debug; no core formatter import and no FFI anywhere outside
+// this package (the formatter and api stay backend-neutral for the Wasm/JS
+// targets).
+pkgtype(kind: "executable")
+import {
+  "fathom/sql/api" @api,
+  "fathom/sql/binding" @binding,
+  "fathom/sql/lsp" @lsp,
+  "moonbitlang/core/buffer" @buffer,
+  "moonbitlang/core/debug" @debug,
+  "moonbitlang/core/env" @env,
+  "moonbitlang/core/encoding/utf8" @utf8,
+}

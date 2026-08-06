@@ -4,13 +4,27 @@
 pub(all) struct ServerState {
   pub mut docs :  DocumentStore
   pub mut profile : String
+  // Workspace/session explicit defaults (D-01 seam): set by serve_stdio from
+  // the CLI's --dialect/--profile (or None for the standalone fathom-lsp
+  // binary). Consumed by the 09-06 selection-resolution logic; until then the
+  // existing profile field and handler logic stay untouched.
+  pub mut default_dialect : String?
+  pub mut default_profile : String?
   pub mut initialized : Bool
   pub mut shutdown : Bool
   pub mut exited : Bool
 }
 
 pub fn ServerState::new() -> ServerState {
-  { docs:  DocumentStore::new(), profile: "", initialized: false, shutdown: false, exited: false }
+  {
+    docs:  DocumentStore::new(),
+    profile: "",
+    default_dialect: None,
+    default_profile: None,
+    initialized: false,
+    shutdown: false,
+    exited: false,
+  }
 }
 
 fn severity_value(severity : String) -> Int {

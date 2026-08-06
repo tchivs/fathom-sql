@@ -1,4 +1,7 @@
-pkgtype(kind: "executable")
+// Library package (09-04): the stdio server loop lives in serve.mbt and is
+// shared by the fathom-sql CLI `lsp` subcommand and the standalone fathom-lsp
+// executable (D-01 seam). No executable main remains here.
+pkgtype(kind: "library")
 import {
   "fathom/sql/api" @api,
   "fathom/sql/binding" @binding,

@@ -1,0 +1,9 @@
+// Standalone LSP server executable (NAME-01/D-06): the package dir name
+// fathom-lsp/ builds the binary fathom-lsp.exe. Thin wrapper — the entire
+// server loop lives in lsp/serve.mbt (serve_stdio, D-01 seam); this main only
+// starts it with None defaults (no workspace default selection — missing
+// selection is a configuration error per D-02 once 09-06 resolves it).
+pkgtype(kind: "executable")
+import {
+  "fathom/sql/lsp" @lsp,
+}

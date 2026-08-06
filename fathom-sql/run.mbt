@@ -1,9 +1,12 @@
 /// Pure CLI logic home (D-37/D-38): maps a parsed Command plus stdin bytes to
 /// an exact CliOutcome { exit_code, stdout, stderr } (D-39). This is the ONLY
 /// logic in the CLI package — no format logic lives here; the single core call
-/// is @api.format_with_ids (the shared Phase 4 LSP entry, D-38). Pure and
-/// moon-testable (D-40): no process spawn, no shared state, no temp files —
-/// parallel or interrupted invocations cannot corrupt each other.
+/// is @api.format_with_ids (the shared Phase 4 LSP entry, D-38) for format and
+/// @api.parse_with_ids for parse. Pure and moon-testable (D-40): no process
+/// spawn, no shared state, no temp files — parallel or interrupted invocations
+/// cannot corrupt each other. run_lsp delegates to the shared
+/// @lsp.serve_stdio loop (single server implementation, T-09-15) with the
+/// parsed dialect/profile as workspace defaults.
 
 pub(all) struct CliOutcome {
   exit_code : Int
@@ -15,12 +18,13 @@ const DEFAULT_INDENT : Int = 2
 const DEFAULT_LINE_WIDTH : Int = 100
 
 /// D-39 exit mapping:
-/// 0 = accepted — stdout carries the formatted SQL, stderr empty;
+/// 0 = accepted — stdout carries the formatted SQL / serialized parse
+///     envelope / (lsp) the server loop ran to completion, stderr empty;
 /// 1 = parse failure or format refusal — stdout empty, diagnostics on stderr
 ///     (the api core prepends the parse diagnostics, so the FATHOM-FORMAT-001
 ///     refusal never masks them, T-03-20);
-/// 2 = usage error (missing file, bad option value, unknown profile) —
-///     stderr message only, no SQL output.
+/// 2 = usage error (missing/unknown dialect, missing file, bad option value,
+///     unknown profile) — stderr message only, no SQL output.
 pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   let keyword_case = match command.keyword_case {
     Some(id) => match @api.KeywordCase::from_id(id) {
@@ -76,7 +80,7 @@ pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
     }
     _ => stdin_bytes
   }
-  let result = match @api.format_with_ids(input, "doris", command.profile, "strict", format_options) {
+  let result = match @api.format_with_ids(input, command.dialect, command.profile, "strict", format_options) {
     Ok(result) => result
     Err(error) => return parse_error_outcome(error)
   }
@@ -85,6 +89,37 @@ pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   } else {
     { exit_code: 1, stdout: b"", stderr: render_diagnostics(result.diagnostics) }
   }
+}
+
+/// Serialized parse envelope (fathom.parse.v1, D-09) on stdout, exit 0.
+/// Parse failures exit 1 with the api core's structured diagnostics on
+/// stderr; selection errors exit 2 via parse_error_outcome (defense-in-depth
+/// — parse_args already validated dialect/profile).
+pub fn run_parse(command : Command, stdin_bytes : Bytes) -> CliOutcome {
+  let input = match command.file {
+    Some(path) if path != "-" => match read_file(path) {
+      Some(bytes) => bytes
+      None => return usage_error("cannot read file: \{path}")
+    }
+    _ => stdin_bytes
+  }
+  let result = match @api.parse_with_ids(input, command.dialect, command.profile, "strict") {
+    Ok(result) => result
+    Err(error) => return parse_error_outcome(error)
+  }
+  {
+    exit_code: 0,
+    stdout: @utf8.encode(@binding.parse_result_json(result) + "\n"),
+    stderr: b"",
+  }
+}
+
+/// LSP subcommand: run the shared stdio server loop with the parsed
+/// --dialect/--profile as workspace defaults (D-01 seam). The loop returns
+/// only after the client's exit notification; exit 0.
+pub fn run_lsp(command : Command) -> CliOutcome {
+  @lsp.serve_stdio(Some(command.dialect), Some(command.profile))
+  { exit_code: 0, stdout: b"", stderr: b"" }
 }
 
 fn bad_value(flag : String, value : String) -> CliOutcome {
@@ -99,12 +134,15 @@ fn usage_error(message : String) -> CliOutcome {
   }
 }
 
-/// Maps a ParseError from the api core. UnknownProfile is defense-in-depth
-/// (parse_args already validates the profile -> exit 2); everything else is an
-/// input/processing failure -> exit 1 (T-03-23: InputTooLarge exits 1 with the
-/// message, never a crash).
+/// Maps a ParseError from the api core. UnknownProfile/UnknownDialect are
+/// defense-in-depth (parse_args already validates both -> exit 2); everything
+/// else is an input/processing failure -> exit 1 (T-03-23: InputTooLarge exits
+/// 1 with the message, never a crash).
 fn parse_error_outcome(error : @api.ParseError) -> CliOutcome {
   match error {
+    @api.ParseError::UnknownDialect(dialect_id~) => {
+      usage_error("unknown dialect: \{dialect_id} (expected doris or flink)")
+    }
     @api.ParseError::UnknownProfile(profile_id~) => {
       usage_error("unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)")
     }
@@ -141,14 +179,16 @@ pub fn render_diagnostics(diagnostics : Array[@api.FormatDiagnostic]) -> Bytes {
 
 /// --help text (printed to stdout, exit 0).
 pub fn usage_text() -> String {
-  "usage: doris-sql format --profile <2.1|3.x|4.x> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline] [--help] [file|-]\n"
+  "usage: fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline] [--help] [file|-]\n"
 }
 
 /// Usage-error message for exit 2 (stderr only, no SQL output).
 pub fn usage_error_message(error : UsageError) -> String {
   match error {
-    MissingSubcommand => "missing subcommand (expected: format)\n"
-    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: format)\n"
+    MissingSubcommand => "missing subcommand (expected: parse, format, or lsp)\n"
+    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, or lsp)\n"
+    MissingDialect => "missing required flag: --dialect <doris|flink>\n"
+    UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id} (expected doris or flink)\n"
     MissingProfile => "missing required flag: --profile <2.1|3.x|4.x>\n"
     UnknownProfile(profile_id~) => "unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)\n"
     UnknownFlag(flag~) => "unknown flag: \{flag}\n"
@@ -160,6 +200,8 @@ pub fn usage_error_message(error : UsageError) -> String {
 
 test "run_format_stdin_happy_path" {
   let command : Command = {
+    subcommand: "format",
+    dialect: "doris",
     profile: "4.x",
     keyword_case: None,
     indent: None,
@@ -172,5 +214,24 @@ test "run_format_stdin_happy_path" {
   let outcome = run_format(command, b"select 1")
   assert_eq(outcome.exit_code, 0)
   assert_eq(outcome.stdout, b"SELECT 1\n")
+  assert_eq(outcome.stderr.length(), 0)
+}
+
+test "run_parse_stdin_happy_path" {
+  let command : Command = {
+    subcommand: "parse",
+    dialect: "doris",
+    profile: "4.x",
+    keyword_case: None,
+    indent: None,
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+  }
+  let outcome = run_parse(command, b"SELECT 1")
+  assert_eq(outcome.exit_code, 0)
+  assert_true(outcome.stdout.to_string().contains("fathom.parse.v1"))
   assert_eq(outcome.stderr.length(), 0)
 }

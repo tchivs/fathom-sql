@@ -86,14 +86,14 @@ else:
     require(workflow_path, r"verifyPlugin", "Plugin Verifier CI step")
     require(workflow_path, r"buildPlugin", "plugin packaging CI step")
 
-native_workflow_path = PROJECT_ROOT / ".github/workflows/doris-native-release.yml"
+native_workflow_path = PROJECT_ROOT / ".github/workflows/fathom-native-release.yml"
 if not native_workflow_path.exists():
-    errors.append(".github/workflows/doris-native-release.yml: Native release workflow missing")
+    errors.append(".github/workflows/fathom-native-release.yml: Native release workflow missing")
 else:
     require(native_workflow_path, r"linux-x86_64", "Linux Native asset")
     require(native_workflow_path, r"macos-aarch64", "macOS arm64 Native asset")
     require(native_workflow_path, r"windows-x86_64", "Windows Native asset")
-    require(native_workflow_path, r"doris-lsp-manifest\.json", "Native SHA-256 manifest")
+    require(native_workflow_path, r"fathom-lsp-manifest\.json", "Native SHA-256 manifest")
 
 allowed_remote_sources = {
     ROOT / "src/main/kotlin/fathom/jetbrains/doris/DorisNativeDownloader.kt",

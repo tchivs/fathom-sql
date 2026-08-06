@@ -1,13 +1,19 @@
-/// CLI argument parsing (D-38/D-39). Hand-rolled on purpose: @argparse owns
-/// help/exit behavior, and D-39's exit semantics must be fully explicit.
+/// CLI argument parsing (D-38/D-39/D-11). Hand-rolled on purpose: @argparse
+/// owns help/exit behavior, and D-39's exit semantics must be fully explicit.
 /// Mirrors the string-id -> enum -> structured-error convention of
 /// ParseOptions::new (api.mbt:64-84): every bad flag or value is a named
 /// UsageError that main maps to exit 2 (stderr message only, no SQL output).
+///
+/// D-11 explicit-selection contract: `--dialect <doris|flink>` and
+/// `--profile <id>` are REQUIRED for every subcommand (parse|format|lsp);
+/// missing or unknown values exit 2 — the CLI never defaults a dialect.
 
 /// Usage errors map to exit 2 (D-39).
 pub enum UsageError {
   MissingSubcommand
   UnknownSubcommand(sub~ : String)
+  MissingDialect
+  UnknownDialect(dialect_id~ : String)
   MissingProfile
   UnknownProfile(profile_id~ : String)
   UnknownFlag(flag~ : String)
@@ -16,12 +22,16 @@ pub enum UsageError {
   MissingFile
 } derive(Eq, @debug.Debug)
 
-/// Parsed format invocation. `file` None or "-" means stdin; trailing_newline
-/// defaults true and --no-trailing-newline clears it. `pub(all)` so the
-/// black-box cli_test.mbt module can construct test Commands (moon 0.1.20260724
-/// rejects pub-struct literals cross-package without it — 03-01 lesson).
+/// Parsed invocation. `subcommand` is one of "parse"|"format"|"lsp" (D-11);
+/// `dialect` and `profile` are always set by parse_args. `file` None or "-"
+/// means stdin; trailing_newline defaults true and --no-trailing-newline
+/// clears it. `pub(all)` so the black-box cli_test.mbt module can construct
+/// test Commands (moon 0.1.20260724 rejects pub-struct literals
+/// cross-package without it — 03-01 lesson).
 pub(all) struct Command {
-  profile : String
+  pub subcommand : String
+  pub dialect : String
+  pub profile : String
   keyword_case : String?
   indent : Int?
   line_width : Int?
@@ -31,15 +41,21 @@ pub(all) struct Command {
   file : String?
 }
 
-/// Flag surface (flagged assumption, research Open Q2 RESOLVED):
-/// `format --profile <2.1|3.x|4.x> [--keyword-case upper|lower] [--indent N]
-/// [--line-width N] [--comma-style trailing|leading] [--newline-style
-/// follow|lf|crlf] [--no-trailing-newline] [--help] [file|-]`.
-/// --profile is REQUIRED: missing -> MissingProfile -> exit 2 (CORE-01 — no
-/// silent default profile). --help is handled in main before parse_args.
+/// Flag surface (D-11, research Open Q2 RESOLVED):
+/// `fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id>
+/// [--keyword-case upper|lower] [--indent N] [--line-width N] [--comma-style
+/// trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline]
+/// [--help] [file|-]`.
+/// --dialect and --profile are REQUIRED: missing -> MissingDialect /
+/// MissingProfile -> exit 2 (D-11 — no silent default dialect). --help is
+/// handled in main before parse_args.
 pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   if args.length() == 0 { return Err(MissingSubcommand) }
-  if args[0] != "format" { return Err(UnknownSubcommand(sub=args[0])) }
+  let subcommand = args[0]
+  if subcommand != "parse" && subcommand != "format" && subcommand != "lsp" {
+    return Err(UnknownSubcommand(sub=subcommand))
+  }
+  let mut dialect : String? = None
   let mut profile : String? = None
   let mut keyword_case : String? = None
   let mut indent : Int? = None
@@ -51,12 +67,16 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   let mut index = 1
   while index < args.length() {
     let arg = args[index]
-    if arg == "--profile" {
+    if arg == "--dialect" {
+      index = index + 1
+      if index >= args.length() { return Err(MissingValue(flag="--dialect")) }
+      let value = args[index]
+      if value != "doris" && value != "flink" { return Err(UnknownDialect(dialect_id=value)) }
+      dialect = Some(value)
+    } else if arg == "--profile" {
       index = index + 1
       if index >= args.length() { return Err(MissingValue(flag="--profile")) }
-      let value = args[index]
-      if !is_valid_profile(value) { return Err(UnknownProfile(profile_id=value)) }
-      profile = Some(value)
+      profile = Some(args[index])
     } else if arg == "--keyword-case" || arg == "--comma-style" || arg == "--newline-style" ||
       arg == "--indent" || arg == "--line-width" {
       index = index + 1
@@ -107,30 +127,49 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
     }
     index = index + 1
   }
-  match profile {
-    Some(profile_value) => Ok({
-      profile: profile_value,
-      keyword_case: keyword_case,
-      indent: indent,
-      line_width: line_width,
-      comma_style: comma_style,
-      newline_style: newline_style,
-      trailing_newline: trailing_newline,
-      file: file,
-    })
-    None => Err(MissingProfile)
+  let dialect_value = match dialect {
+    Some(value) => value
+    None => return Err(MissingDialect)
+  }
+  let profile_value = match profile {
+    Some(value) => value
+    None => return Err(MissingProfile)
+  }
+  // Dialect-first validation (Pitfall 6): the profile is checked per dialect;
+  // flink rejects every profile in Phase 9 (A1/OQ1).
+  if !is_valid_dialect_profile(dialect_value, profile_value) {
+    return Err(UnknownProfile(profile_id=profile_value))
+  }
+  Ok({
+    subcommand: subcommand,
+    dialect: dialect_value,
+    profile: profile_value,
+    keyword_case: keyword_case,
+    indent: indent,
+    line_width: line_width,
+    comma_style: comma_style,
+    newline_style: newline_style,
+    trailing_newline: trailing_newline,
+    file: file,
+  })
+}
+
+/// Explicit dialect+profile validation (D-11, mirrors binding's
+/// validate_dialect_profile): doris accepts 2.1/3.x/4.x; flink accepts no
+/// profile in Phase 9.
+pub fn is_valid_dialect_profile(dialect : String, id : String) -> Bool {
+  match dialect {
+    "doris" => id == "2.1" || id == "3.x" || id == "4.x"
+    _ => false
   }
 }
 
-fn is_valid_profile(id : String) -> Bool {
-  id == "2.1" || id == "3.x" || id == "4.x"
-}
-
 /// Hand-rolled optional-sign integer parse (no @strconv import — the CLI
-/// dependency surface stays at api/env/buffer/utf8/debug). "4" -> Some(4),
-/// "-1" -> Some(-1), "abc" -> None. Negative values reach FormatOptions::new,
-/// which rejects them with InvalidIndent/InvalidLineWidth (exit 2). The
-/// magnitude bound keeps the accumulator far below Int overflow.
+/// dependency surface stays at api/lsp/binding/env/buffer/utf8/debug). "4" ->
+/// Some(4), "-1" -> Some(-1), "abc" -> None. Negative values reach
+/// FormatOptions::new, which rejects them with InvalidIndent/InvalidLineWidth
+/// (exit 2). The magnitude bound keeps the accumulator far below Int
+/// overflow.
 fn parse_int_arg(value : String) -> Int? {
   let chars = value.to_array()
   if chars.length() == 0 { return None }

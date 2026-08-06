@@ -1,4 +1,4 @@
-name: Doris Native Release
+name: Fathom Native Release
 
 on:
   push:
@@ -87,14 +87,14 @@ jobs:
       - name: Build Native LSP
         shell: bash
         run: |
-          moon check --target native lsp
-          moon build --target native --release lsp
+          moon check --target native fathom-lsp
+          moon build --target native --release fathom-lsp
           mkdir -p dist
           if [[ "${{ matrix.platform }}" == "windows-x86_64" ]]; then
-            cp _build/native/release/build/lsp/lsp.exe "dist/doris-lsp-${{ matrix.platform }}.exe"
+            cp _build/native/release/build/fathom-lsp/fathom-lsp.exe "dist/fathom-lsp-${{ matrix.platform }}.exe"
           else
-            asset="dist/doris-lsp-${{ matrix.platform }}"
-            cp _build/native/release/build/lsp/lsp.exe "$asset"
+            asset="dist/fathom-lsp-${{ matrix.platform }}"
+            cp _build/native/release/build/fathom-lsp/fathom-lsp.exe "$asset"
             chmod +x "$asset"
             if [[ "${{ matrix.platform }}" == "macos-x86_64" ]]; then
               test "$(lipo -archs "$asset")" = "x86_64"
@@ -104,7 +104,7 @@ jobs:
       - name: Upload Native asset
         uses: actions/upload-artifact@v7
         with:
-          name: doris-lsp-${{ matrix.platform }}
+          name: fathom-lsp-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
 
@@ -145,7 +145,7 @@ jobs:
       - name: Download Native assets
         uses: actions/download-artifact@v8
         with:
-          pattern: doris-lsp-*
+          pattern: fathom-lsp-*
           path: dist
           merge-multiple: true
 
@@ -161,10 +161,10 @@ jobs:
           tag = os.environ["RELEASE_TAG"]
           dist = Path("dist")
           platforms = {
-              "linux-x86_64": "doris-lsp-linux-x86_64",
-              "macos-x86_64": "doris-lsp-macos-x86_64",
-              "macos-aarch64": "doris-lsp-macos-aarch64",
-              "windows-x86_64": "doris-lsp-windows-x86_64.exe",
+              "linux-x86_64": "fathom-lsp-linux-x86_64",
+              "macos-x86_64": "fathom-lsp-macos-x86_64",
+              "macos-aarch64": "fathom-lsp-macos-aarch64",
+              "windows-x86_64": "fathom-lsp-windows-x86_64.exe",
           }
           assets = {}
           for key, name in platforms.items():
@@ -174,12 +174,12 @@ jobs:
               digest = hashlib.sha256(path.read_bytes()).hexdigest()
               assets[key] = {"name": name, "sha256": digest}
           manifest = {"schemaVersion": 1, "tag": tag, "assets": assets}
-          (dist / "doris-lsp-manifest.json").write_text(
+          (dist / "fathom-lsp-manifest.json").write_text(
               json.dumps(manifest, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
           PY
-          cat dist/doris-lsp-manifest.json
+          cat dist/fathom-lsp-manifest.json
 
       - name: Create or update GitHub Release
         env:

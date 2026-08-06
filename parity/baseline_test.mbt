@@ -321,10 +321,13 @@ fn format_json(id : String) -> String {
   )
 }
 
-/// CLI homomorph (D-37/D-38): the doris-sql format CLI is a thin wrapper over
-/// @api.format_with_ids mapped to CliOutcome; its stdout envelope is
-/// @binding.format_result_json, frozen here via the same call chain. The
-/// envelope carries dialect/profile/exact_release metadata (DIALECT-04).
+/// CLI homomorph (D-37/D-38, D-11): the fathom-sql format CLI is a thin
+/// wrapper over @api.format_with_ids mapped to CliOutcome; its stdout envelope
+/// is @binding.format_result_json, frozen here via the same call chain. The
+/// envelope carries dialect/profile/exact_release metadata (DIALECT-04). The
+/// CLI now threads Command.dialect ("doris" for every current invocation) into
+/// format_with_ids — this homomorph passes the identical dialect argument, so
+/// the frozen bytes are unchanged (09-04 approved-changes.md item 10).
 fn cli_format_json(id : String) -> String {
   let fixture = baseline_fixture(id)
   let options = match @api.FormatOptions::new(
