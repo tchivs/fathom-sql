@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-08-06T14:10:14.226Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-08-06T15:12:17.146Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 1
-  percent: 14
+  completed_plans: 2
+  percent: 0
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 9 execution started
 
@@ -83,6 +83,7 @@ Last activity: 2026-08-06 — Phase 9 execution started
 | Phase 04 P04 | implementation session | 3 tasks | 18 files |
 | Phase quick-260805-e28 Palign-the-jetbrains-plugin-wrapper-and-docs | 5min | 3 tasks | 3 files |
 | Phase 09 P01 | 35 min | 3 tasks | 219 files |
+| Phase 09-dialect-boundary-and-neutral-naming P02 | 33 | 3 tasks | 163 files |
 
 ## Accumulated Context
 
@@ -148,6 +149,9 @@ Recent decisions affecting current work:
 - [Phase ?]: D-08 snapshot gate: parity/baseline_test.mbt 213 snapshots + baseline_diff.py + approved-changes.md register; moon test --update only with a pre-committed register entry
 - [Phase ?]: Embedded-raw provenance: baseline_test.mbt embeds exact corpus .sql bytes; baseline-hashes.txt pins them; verified byte-identical for all 44 fixtures
 - [Phase ?]: Cross-target equality: shared cross-target snapshot file verified byte-identical on native/js/wasm; CI enforces native+linear-wasm
+- [Phase ?]: Adopted D-09/D-10 wire identity + A4 export order (Task 1 checkpoint option-a): fathom.*.v1 namespaces, FATHOM-* codes with dialect in fields, fathom_parse_v1(raw, dialect, profile, mode)
+- [Phase ?]: UnknownProfile message is dialect-neutral (unsupported profile: {id}) because the same error serves flink rejection
+- [Phase ?]: ParsedDocument.profile/profile_metadata removed: dead metadata not honestly derivable for Flink contexts
 
 ### Pending Todos
 
@@ -179,8 +183,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-06T14:10:04.689Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-08-06T15:12:17.122Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
