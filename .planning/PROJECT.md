@@ -67,7 +67,7 @@ Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项�
 - **代码规模:** ~15.5k 行 MoonBit(7 核心包 + lsp/binding/parity/completion/analyzer/formatter/doris-sql)+ ~1.3k 行 TS/Py/MJS(web demo、vscode 扩展、corpus 工具);257 文件,52 个 feat commits,2 天交付。
 - **测试:** 188/188 MoonBit 测试(test/parity/doris-sql/lsp)+ node 7/7 + 23/23 Chromium 断言(executor 实测)+ 全部 --check 绿。
 - **能力:** 无损 CST round-trip、SELECT+DML/DDL 覆盖(2.1/3.x/4.x profile 门控)、44 行官方语料 manifest、配置化格式化(6 维)+ CLI(exit 0/1/2)、Native LSP(诊断/格式化/补全,utf-16)、JS ESM + linear Wasm facade、离线 Monaco 演示、VS Code 扩展。
-- **已知边界:** ECO-07 人工 VS Code 宿主验证待做;FE/Nereids 差分脚本待人工执行;linear-Wasm CI 运行时步骤建议;9/44 manifest 行经 formatter harness 覆盖(对应关系手工维护)。
+- **已知边界:** ECO-07 已在真实 VS Code 1.132.0 宿主验证通过(2026-08-06,3 模式扩展宿主测试);linear-Wasm CI 运行时执行步骤已加入 `.github/workflows/ci.yml` 与发布门禁;FE/Nereids 差分脚本待人工执行;9/44 manifest 行经 formatter harness 覆盖(对应关系手工维护)。
 
 ## Current Milestone: v2.0 Analysis and Intelligence
 

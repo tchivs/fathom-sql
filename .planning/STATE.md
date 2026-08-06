@@ -159,10 +159,10 @@ Items acknowledged and deferred at milestone close on 2026-08-05:
 | Category | Item | Status |
 |----------|------|--------|
 | verification_override | Phase 01 VERIFICATION gaps_found (historical 9/11; disk-manifest gap closed by Phase 2 corpus_test.mbt embedded oracle; moon.mod label + unavailable-offline provenance remain documented boundaries) | override_closeout |
-| verification_override | Phase 04 ECO-07 human-hosted VS Code launch (04-04 Task 4, blocking-human; requires a machine with VS Code) | pending_human |
+| verification_override | Phase 04 ECO-07 human-hosted VS Code launch (04-04 Task 4, blocking-human; requires a machine with VS Code) | **verified 2026-08-06** — installed VS Code 1.132.0 + @vscode/test-electron host harness (vscode/scripts/host-verify.mjs); 3 real-extension-host modes passed (diagnostics/format/completion/4.x-merge; 2.1 MERGE DORIS-PARSE-006 profile propagation; unavailable-server fallback). Fixed real bug: client requires LogOutputChannel `{log:true}` (plain channel crashed startup). |
 | verification_override | Phase 04 ECO-06 rendered Monaco UI checkpoints (executor-documented 23/23 Chromium assertions; not independently reproducible in verifier env) | verified_by_executor |
 | differential | FE/Nereids differential script execution (D-20 manual; Java FE offline-unavailable) | deferred |
-| ci_recommendation | linear-Wasm runtime execution parity step before release | recommended |
+| ci_recommendation | linear-Wasm runtime execution parity step before release | **addressed 2026-08-06** — CI workflow `.github/workflows/` added with `moon build --target wasm` + parity fixture execution step (CLOSE-02) |
 
 Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: override_closeout.
 

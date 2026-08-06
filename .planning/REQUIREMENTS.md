@@ -9,8 +9,8 @@ Requirements for the v2.0 milestone (Analysis and Intelligence). Each maps to ex
 
 ### Closeout (v1.0 收尾)
 
-- [ ] **CLOSE-01**: User can verify the shipped VS Code extension (ECO-07, 04-04 Task 4) on a machine with VS Code — the compiled extension connects to the Native LSP over the standard client protocol and exposes Doris diagnostics, comment-preserving formatting, and completion, with the documented position-encoding (single-string) behavior.
-- [ ] **CLOSE-02**: Release gate includes a linear-Wasm runtime execution step in CI — the `--target wasm` build runs the parity fixture suite and produces byte-identical serialized output to the Native and JS targets (ECO-05 runtime parity, currently recommended-not-run).
+- [x] **CLOSE-01**: User can verify the shipped VS Code extension (ECO-07, 04-04 Task 4) on a machine with VS Code — the compiled extension connects to the Native LSP over the standard client protocol and exposes Doris diagnostics, comment-preserving formatting, and completion, with the documented position-encoding (single-string) behavior. — **VERIFIED 2026-08-06**: `vscode/scripts/host-verify.mjs` launched real VS Code 1.132.0 extension hosts; 3 modes passed (diagnostics/format/completion/4.x-merge, 2.1 MERGE profile propagation, unavailable-server fallback). Fixed the client's `LogOutputChannel` requirement bug.
+- [x] **CLOSE-02**: Release gate includes a linear-Wasm runtime execution step in CI — the `--target wasm` build runs the parity fixture suite and produces byte-identical serialized output to the Native and JS targets (ECO-05 runtime parity, currently recommended-not-run). — **VERIFIED 2026-08-06**: `.github/workflows/ci.yml` + release gate run `moon test --target wasm --package parity` (12/12, linear-Wasm runtime execution) + native cross-check.
 
 ### Analysis and Resolution
 
@@ -61,8 +61,8 @@ Populated during v2.0 roadmap creation. Each requirement maps to exactly one pha
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLOSE-01 | Phase 5 | Pending |
-| CLOSE-02 | Phase 5 | Pending |
+| CLOSE-01 | Phase 5 | Complete (verified 2026-08-06) |
+| CLOSE-02 | Phase 5 | Complete (verified 2026-08-06) |
 | ANAL-01 | Phase 5 | Pending |
 | LINT-01 | Phase 6 | Pending |
 | FING-01 | Phase 6 | Pending |
