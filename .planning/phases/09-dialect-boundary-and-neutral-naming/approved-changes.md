@@ -275,3 +275,26 @@ prefix: doris-lsp -> fathom-lsp
 prefix: doris -> fathom
 field: dialect
 field: profile
+
+## 13. Review-fix (MI-05): `3.x-unsupported-profile` restored to profile 2.1
+
+The frozen fixture `3.x-unsupported-profile` (raw `SELECT k FROM t QUALIFY k > 0`)
+was drifted to profile `3.x` during the v1 freeze while its corpus manifest row
+and CORPUS-REPORT.md stayed `2.1` (unsupported-version, expected-error). Under
+`3.x` QUALIFY is legal (DorisFeature::Qualify is introduced in 3.x), so the
+frozen snapshot reported `valid: true` with zero diagnostics — contradicting
+the fixture's negative intent, its `expected_valid: false` metadata, and the
+manifest row. Restored to profile `2.1`, where QUALIFY is a version negative
+(FATHOM-PARSE-006) — matching the manifest and the fixture's name.
+
+| Old (v1 baseline) | New (approved) |
+|--------------------|----------------|
+| `3.x-unsupported-profile.3.x.strict.json` (valid: true, zero diagnostics) | `3.x-unsupported-profile.2.1.strict.json` (valid: false, FATHOM-PARSE-006) |
+| `3.x-unsupported-profile.3.x.editor.json` (editor-mode equivalent) | `3.x-unsupported-profile.2.1.editor.json` (editor-mode equivalent) |
+
+The snapshot FILES are renamed (the profile is embedded in the filename); the
+2.1 parse bytes are the version-negative golden already pinned by the corpus
+replay oracle. This entry is the D-08 pre-declaration for the single approved
+`moon test --update --package parity` run that materializes the rename.
+(No machine-readable pattern applies: baseline_diff.py has no file-level
+approve mechanism, and the committed-tree self-check reports zero diffs.)
