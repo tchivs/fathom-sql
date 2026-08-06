@@ -121,13 +121,14 @@ fn publish_diagnostics(uri : String, version : Int, raw : Bytes, diagnostics : J
   })
 }
 
-/// D-03 version guard: publish diagnostics for `document` only when the
-/// current stored version still matches. A stale async result computed under
-/// an old version or an old selection is dropped — the publish path never
-/// overwrites newer diagnostics.
+/// D-03 publication guard: publish diagnostics for `document` only when the
+/// current stored document still matches on version AND selection. A stale
+/// async result computed under an old version or an old dialect/profile
+/// context is dropped — the publish path never overwrites newer diagnostics
+/// or an old selection's diagnostics over the current context.
 fn publish_diagnostics_current(state : ServerState, document :  Document, diagnostics : Json) -> Array[Bytes] {
   match state.docs.get(document.uri) {
-    Some(current) if current.version == document.version => {
+    Some(current) if current.version == document.version && current.dialect == document.dialect && current.profile == document.profile => {
       [publish_diagnostics(document.uri, document.version, document.text, diagnostics)]
     }
     _ => []
@@ -614,9 +615,11 @@ fn re_resolve_document(state : ServerState, document :  Document) -> Result[(Dia
 
 /// D-03 re-resolution on a settings change: every open document whose
 /// selection did NOT come from document-level explicit config is re-resolved
-/// and its stored context updated. Task 4 adds the reparse-and-publish half
-/// (dialect-switch reparse + version-guarded stale drop); this arm stores and
-/// resolves so later parse/format/completion calls use the new context.
+/// under the new workspace default / language mapping, its stored context
+/// updated, and the CURRENT stored revision re-parsed and published through
+/// the version guard (dialect-switch reparse — stale results are dropped, and
+/// a document that became unresolvable gets the FATHOM-SCHEMA-007 config
+/// diagnostic at its current version, D-02).
 fn re_resolve_open_documents(state : ServerState) -> Array[Bytes] {
   let responses : Array[Bytes] = []
   for document in state.docs.documents() {
@@ -624,8 +627,16 @@ fn re_resolve_open_documents(state : ServerState) -> Array[Bytes] {
     match re_resolve_document(state, document) {
       Ok((selection, source)) => {
         ignore(state.docs.update_selection(document.uri, selection.dialect, selection.profile, source))
+        match state.docs.get(document.uri) {
+          Some(current) => {
+            for response in parse_document(state, current) { responses.push(response) }
+          }
+          None => ()
+        }
       }
-      Err(_) => ()
+      Err(error) => {
+        responses.push(config_diagnostic(document.uri, document.version, selection_error_message(error)))
+      }
     }
   }
   responses

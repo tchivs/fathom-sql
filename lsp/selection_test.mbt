@@ -160,3 +160,55 @@ test "workspace_configuration_pull_applies_settings_by_correlated_id" {
   assert_eq(uncorrelated.length(), 1)
   assert_true(@utf8.decode_lossy(uncorrelated[0]).contains("-32601"))
 }
+
+test "did_change_configuration_dialect_switch_reparses_flink" {
+  // (h) D-03: a workspace-default dialect switch re-parses the current
+  // revision under the new context and publishes the flink not-implemented
+  // diagnostics (FATHOM-PARSE-008) — never Doris acceptance, never a silent
+  // empty result.
+  let state = ServerState::new()
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")))
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///switch.sql\",\"version\":1,\"text\":\"SELECT 1\"}}}")
+  let opened = handle_message(state, open)
+  assert_eq(opened.length(), 1)
+  assert_true(!@utf8.decode_lossy(opened[0]).contains("FATHOM-PARSE-008"))
+  let config = message("{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeConfiguration\",\"params\":{\"settings\":{\"fathom\":{\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}}")
+  let switched = handle_message(state, config)
+  assert_eq(switched.length(), 1)
+  let body = @utf8.decode_lossy(switched[0])
+  assert_true(body.contains("publishDiagnostics"))
+  assert_true(body.contains("FATHOM-PARSE-008"))
+  assert_true(body.contains("\"source\":\"fathom\""))
+  assert_true(body.contains("flink grammar is not yet implemented in this release"))
+  let document = match state.docs.get("file:///switch.sql") {
+    Some(document) => document
+    None => panic()
+  }
+  assert_eq(document.dialect, "flink")
+  assert_eq(document.profile, "flink-2.3.0")
+  assert_eq(document.selection_source, "workspace")
+}
+
+test "flink_document_format_and_completion_reject_without_doris_policy" {
+  // (j) T-09-23: a flink-selected document's parse publishes FATHOM-PARSE-008,
+  // while formatting and completion return the structured rejection (the api
+  // unsupported-profile error) — no Doris policy leak on any surface.
+  let state = ServerState::new()
+  state.initialized = true
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
+  let opened = handle_message(state, open)
+  assert_eq(opened.length(), 1)
+  let parse_body = @utf8.decode_lossy(opened[0])
+  assert_true(parse_body.contains("FATHOM-PARSE-008"))
+  assert_true(parse_body.contains("\"source\":\"fathom\""))
+  let format = message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\"}}}")
+  let edits = handle_message(state, format)
+  assert_eq(edits.length(), 1)
+  let format_body = @utf8.decode_lossy(edits[0])
+  assert_true(format_body.contains("\"result\":[]"))
+  assert_true(!format_body.contains("newText"))
+  let completion = message("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":7}}}")
+  let completion_responses = handle_message(state, completion)
+  assert_eq(completion_responses.length(), 1)
+  assert_true(@utf8.decode_lossy(completion_responses[0]).contains("-32602"))
+}
