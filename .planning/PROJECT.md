@@ -1,14 +1,14 @@
-# Doris SQL Parser SDK
+# Fathom SQL Parser SDK
 
 ## What This Is
 
-Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项目，提供独立、完整、可嵌入的解析与工具链能力。它以官方文档语法和示例为覆盖基准，使用 MoonBit 构建同一套核心代码，并输出 Native CLI/LSP 与 WebAssembly/JavaScript SDK，服务编辑器、Web 工具和自动化流水线。
+Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设施项目，首批支持 Apache Doris SQL 与 Flink SQL。它提供独立、完整、可嵌入的解析与工具链能力，以各方言的锁定官方文档和源码为覆盖基准，使用 MoonBit 构建同一套核心代码，并输出 Native CLI/LSP 与 WebAssembly/JavaScript SDK，服务编辑器、Web 工具和自动化流水线。
 
-项目的核心差异化是无损 CST：解析树保留注释、空白、换行和源码位置，使格式化、诊断与编辑器能力能够 round-trip 而不破坏用户源码；在此基础上逐步提供格式化、Lint、列级血缘和 SQL 指纹等分析能力。
+项目的核心差异化是无损 CST：解析树保留注释、空白、换行和源码位置，使格式化、诊断与编辑器能力能够 round-trip 而不破坏用户源码；在此基础上按方言提供格式化、Lint、列级血缘和 SQL 指纹等分析能力。
 
 ## Core Value
 
-用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
+用户可以对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、Flink cluster、数据库、商业闭源 GSP 或通用方言静默回退。
 
 ## Requirements
 
@@ -34,7 +34,7 @@ Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项�
 ## Context
 
 - 当前目录是绿地项目；没有既有应用代码、包清单或 GSD 规划文档。
-- 目标域是 Apache Doris SQL 工具链。现有 sqlglot Doris 方言存在注释/格式丢失与方言覆盖偏薄的问题；Doris FE 的 g4 语法不适合作为独立、完整发布的 SDK；GSP 是商业闭源方案；当前生态缺少 Doris LSP。
+- 目标域是可独立发布的多方言 SQL 工具链，首批覆盖 Apache Doris 与 Apache Flink SQL。现有 sqlglot/通用 SQL 方案存在注释/格式丢失、方言覆盖偏薄或验证宽松的问题；Doris FE 与 Flink runtime 都不作为 SDK 的运行时依赖。
 - 目标语言为 MoonBit。核心代码应保持纯数据、低依赖，使用 enum、struct ADT 和模式匹配表达 AST/CST；不可变 trivia 结构适合跨 Native 与 Wasm 后端复用。
 - 建议的五层边界是：Lexer（保留 trivia）→ Parser（递归下降 + Pratt）→ 无损 CST/AST → Pretty Printer → 应用与分析层（CLI、LSP、Wasm/JS SDK、Lint、血缘、指纹）。
 - 可持续覆盖依赖官方文档语料库：按 Doris 版本标记 2.1/3.0/4.0，覆盖官方 SQL 示例，并用 golden/snapshot 测试与 CI 追踪语法演进。

@@ -1,79 +1,111 @@
-# Requirements: Doris SQL Parser SDK
+# Requirements: Fathom SQL Parser SDK
 
-**Defined:** 2026-08-05
-**Core Value:** 用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
+**Defined:** 2026-08-06
+**Milestone:** v2.0 Multi-Dialect: Flink SQL & Neutral Naming
+**Core Value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
 
 ## v2.0 Requirements
 
-Requirements for the v2.0 milestone (Analysis and Intelligence). Each maps to exactly one roadmap phase. The five analysis requirements are carried forward from the archived v1.0-REQUIREMENTS.md § v2 Requirements; the two closeout requirements fold in v1.0 deferred verification items (user-selected to enter Phase 1).
+Requirements for the v2.0 milestone. Each requirement maps to exactly one roadmap phase after roadmap creation.
 
-### Closeout (v1.0 收尾)
+### Dialect Contract
 
-- [x] **CLOSE-01**: User can verify the shipped VS Code extension (ECO-07, 04-04 Task 4) on a machine with VS Code — the compiled extension connects to the Native LSP over the standard client protocol and exposes Doris diagnostics, comment-preserving formatting, and completion, with the documented position-encoding (single-string) behavior. — **VERIFIED 2026-08-06**: `vscode/scripts/host-verify.mjs` launched real VS Code 1.132.0 extension hosts; 3 modes passed (diagnostics/format/completion/4.x-merge, 2.1 MERGE profile propagation, unavailable-server fallback). Fixed the client's `LogOutputChannel` requirement bug.
-- [x] **CLOSE-02**: Release gate includes a linear-Wasm runtime execution step in CI — the `--target wasm` build runs the parity fixture suite and produces byte-identical serialized output to the Native and JS targets (ECO-05 runtime parity, currently recommended-not-run). — **VERIFIED 2026-08-06**: `.github/workflows/ci.yml` + release gate run `moon test --target wasm --package parity` (12/12, linear-Wasm runtime execution) + native cross-check.
+- [ ] **DIALECT-01**: Consumer can explicitly select `doris` or `flink` and its profile through the public API, CLI, LSP, JS/Wasm facade, Web, VS Code, and IntelliJ; missing, unknown, or conflicting selection returns a structured configuration error with no automatic dialect detection or generic fallback.
+- [ ] **DIALECT-02**: Parser uses independent Doris and Flink lexical/keyword policies for reserved, non-reserved, and contextual words, quoted identifiers, comments, literals, operators, and feature metadata; no global union of dialect keyword rows can affect identifier acceptance.
+- [ ] **DIALECT-03**: Shared source, token, CST, Pratt, and recovery mechanics route statement and clause grammar explicitly by dialect; Doris-only syntax is rejected in Flink mode and Flink-only syntax is rejected in Doris mode with localized diagnostics rather than try-all parsing.
+- [ ] **DIALECT-04**: Parse, format, completion, LSP, and serialized results carry dialect, profile, and exact-release metadata; strict/editor mode, byte spans, statement identity, and structured `FATHOM-*` diagnostics remain stable across the public boundary.
 
-### Analysis and Resolution
+### Flink SQL Language Coverage
 
-- [ ] **ANAL-01**: User receives catalog-backed name resolution and type diagnostics for Doris tables, columns, functions, and scopes (qualified/unqualified refs, aliases, CTEs, subqueries, star expansion with catalog), with case-insensitive identifier matching matching Doris semantics and source spans preserved on every binding.
+- [ ] **FLINK-01**: Consumer can select pinned Flink release profiles with auditable source and parser contracts: `flink-2.3.0` as the primary profile plus `flink-2.1.3` and `flink-1.20.5` regression profiles; each profile records its actual release Calcite version/config, and unsupported profiles are rejected explicitly.
+- [ ] **FLINK-02**: Consumer can parse Flink core queries and everyday statements including SELECT, CTE, JOIN, aggregation, set operations, expressions, types, INSERT, UPDATE, DELETE, EXPLAIN, SHOW, DESCRIBE, and ANALYZE with recoverable diagnostics.
+- [ ] **FLINK-03**: Consumer can parse Flink Catalog and DDL entry points including CREATE/ALTER/DROP CATALOG, DATABASE, TABLE, VIEW, and FUNCTION as structured CST statement families.
+- [ ] **FLINK-04**: Consumer can parse Flink CREATE TABLE physical, metadata, and computed columns; WATERMARK; PRIMARY KEY NOT ENFORCED; PARTITIONED BY; distribution; WITH connector options; LIKE; and AS forms while retaining token spelling, trivia, and spans.
+- [ ] **FLINK-05**: Consumer can parse Window TVF forms for TUMBLE, HOP, CUMULATE, and SESSION, including TABLE/DESCRIPTOR arguments, interval literals, named arguments, and window output columns.
+- [ ] **FLINK-06**: Consumer can inspect syntax-level MATCH_RECOGNIZE CST and diagnostics covering PATTERN, DEFINE, MEASURES, skip policy, pattern variables, and quantifiers; the SDK does not claim planner or execution equivalence.
 
-### Lint
+### Lossless CST and Toolchain
 
-- [ ] **LINT-01**: User can run a Doris-specific lint rule set with configurable severity and safe autofixes (stable rule codes, per-rule enable/disable + severity; autofix preserves comments/trivia/formatting and refuses unsafe edits on error trees, per formatter D-33 refusal principle).
+- [ ] **CST-01**: Consumer can parse Flink input in strict or editor mode into a recoverable lossless CST where comments, whitespace, newlines, unknown material, error nodes, missing nodes, skipped material, source bytes, and spans round-trip without loss.
+- [ ] **TOOL-01**: Consumer can format supported Flink CST using the existing refusal-first contract: canonical formatting is separate from lossless replay, and trees containing unsafe error/missing/skipped material produce an explicit refusal without partial output.
+- [ ] **TOOL-02**: Consumer can request bounded Flink syntax completion for keywords, DDL, WATERMARK, Window TVF, and MATCH_RECOGNIZE contexts and receive safe source-range edits based on the selected dialect/profile.
+- [ ] **TOOL-03**: Consumer can run the syntax-only analyzer for Flink with an optional catalog to resolve supported table, column, and identifier references; parser validity is independent of catalog, connector, planner, or execution semantics.
+- [ ] **TOOL-04**: Consumer can use the neutral CLI and Native LSP end to end for Flink, including `fathom-sql parse|format|lsp --dialect flink`, `fathom-lsp`, diagnostics, formatting, completion, UTF-16 positions, and document-level dialect selection.
+- [ ] **TOOL-05**: Consumer can use the same dialect-aware API/schema/LSP from JS and linear Wasm, Web/Monaco, VS Code, and IntelliJ; hosts select Doris or Flink per file/session without maintaining a second parser implementation.
 
-### Lineage
+### Product Identity Neutralization
 
-- [ ] **LINE-01**: User can inspect column-level data lineage across supported queries and views (SELECT/INSERT/CTE/set operations and view expansion), where unresolved refs and `*` expansion without catalog metadata produce explicit "requires catalog" gaps rather than fabricated edges.
+- [ ] **NAME-01**: Consumer-facing module imports, Native binaries, and public exports complete a clean cutover to `fathom/sql`, `fathom-sql`, and `fathom-lsp`; no old public aliases remain.
+- [ ] **NAME-02**: Machine-readable wire contracts use `fathom.parse.v1`, `fathom.format.v1`, `fathom.error.v1`, and `fathom.capabilities.v1`, with `FATHOM-*` diagnostics and explicit dialect/profile fields.
+- [ ] **NAME-03**: VS Code, IntelliJ, Web/npm, CI/release assets, configuration keys, LSP server identity, README, and project documentation use neutral product naming; Doris remains only as a dialect/profile/corpus/provenance semantic identifier.
+- [ ] **NAME-04**: CI includes a naming inventory/allowlist gate that rejects product-level remnants of `doris-sql`, `doris-lsp`, `doris.*`, and `DORIS-*`; the allowlist is limited to Doris dialect semantics and provenance.
 
-### Fingerprint
+### Corpus and Parity Gates
 
-- [ ] **FING-01**: User can generate stable SQL fingerprints and normalized forms for supported Doris statements (stable across whitespace, keyword case, and comment changes; preserves identifier spelling, literal content, and quote style; hash is `UInt64`-based so fingerprints are identical across Native, JS, and linear-Wasm targets).
-
-### Incremental Editing
-
-- [ ] **EDIT-01**: Editor can use bounded incremental parsing and targeted CST refactors without reparsing the full document — **only when `moon bench` benchmarks demonstrate whole-document reparse is a measurable latency bottleneck**; incremental output must be byte-identical to whole-document reparse on the same input (`print_lossless(parse_incremental(x)) == print_lossless(parse_full(x))`).
+- [ ] **CORPUS-01**: Maintainer can inspect a release-pinned Flink corpus whose manifest records release/tag/commit, Calcite version/config, URL, heading, retrieval date, hash, expected status, and categories for positive, negative, recovery, known limitation, catalog prerequisite, and planner prerequisite cases.
+- [ ] **PARITY-01**: Doris 2.1, 3.x, and 4.x valid/invalid/recovery/CST/span/diagnostic/formatter/completion behavior remains equal to a frozen baseline after dialect and naming refactors, unless an intentional change is explicitly recorded.
+- [ ] **PARITY-02**: The same fixture produces byte-identical serialized results, diagnostics, spans, and lossless replay across Native, JavaScript, and linear-Wasm targets.
+- [ ] **PARITY-03**: CI and release checks run from pinned offline artifacts without Doris FE, Flink cluster, database, or network access, and coverage reports distinguish parser acceptance from engine semantic support across both dialects.
 
 ## Future Requirements
 
-Deferred beyond v2.0. Tracked but not in the current roadmap.
+Deferred until the v2.0 parser and public contracts are stable:
 
-### Analysis and Intelligence (extended)
-
-- **ANAL-02**: User receives full Doris type inference and function/privilege validation equivalent to FE semantics (replaced by FE; out of scope for the parser SDK).
-- **LINT-02**: Enterprise lint rule marketplace / rule plugins from outside the SDK.
-- **LINE-02**: Cross-database / cross-catalog lineage federation.
-- **EDIT-02**: Structural refactor operations beyond what EDIT-01's targeted edits cover (broad renames with cross-file updates).
-- **WASM-GC**: Wasm GC target as a first-class supported backend.
+- **FLINK-FUTURE-01**: Full Flink planner/catalog/type-inference/execution equivalence, connector validation, and stream/batch semantic checking.
+- **TOOL-FUTURE-01**: Catalog-backed completion, hover, semantic tokens, symbols, and richer LSP intelligence beyond syntax-only candidates.
+- **DIALECT-FUTURE-01**: Third-party dialect/plugin marketplace and open runtime dialect registry.
+- **EDIT-FUTURE-01**: Benchmark-gated incremental CST reuse and broad structural refactors.
+- **TARGET-FUTURE-01**: Wasm GC as a first-class compatibility promise.
+- **CONVERT-FUTURE-01**: Explicit opt-in SQL conversion/transpilation between dialects, with source/target diagnostics and refusal rules.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Full semantic/type/execution replacement for Doris FE (optimizer, `EXPLAIN` equivalence) | Requires engine runtime, catalog, session, privilege, optimizer semantics; not the parser SDK's core value |
-| Runtime Doris FE or database dependency | Breaks standalone Native/Wasm/JS portability and offline editor use |
-| Multi-dialect support / silent MySQL fallback | Product is explicitly Doris-profile driven (CORE-01) |
-| Commercial GSP compatibility or redistribution | Closed-source; not an open compatibility contract |
-| Lineage through `*` without catalog metadata (fabricated edges) | Unsound; must be reported as an explicit gap (LINE-01) |
-| Incremental parsing without benchmark justification | Premature complexity that risks lossless CST fidelity (EDIT-01 gate) |
+| Default automatic dialect detection or first-success parsing | SQL syntax is ambiguous across dialects; silent selection makes diagnostics and formatting untrustworthy. |
+| Generic MySQL/ANSI fallback for unsupported Doris or Flink syntax | Generic acceptance does not prove engine acceptance and would undermine explicit dialect validity. |
+| Formatter silently converting Doris SQL to Flink SQL or vice versa | Conversion can change connector options, quoted identifiers, watermarks, windows, and semantics; conversion must be a separate future API. |
+| Flink planner, runtime, catalog, connector, or execution dependency | Breaks standalone Native/JS/Wasm and parser/analyzer separation. |
+| Backward-compatibility aliases for old product names | The product is not formally released; this milestone intentionally performs a clean naming cutover. |
+| Network-dependent corpus or CI execution | Release/source evidence must be pinned and checked into reproducible artifacts. |
+| Unbounded recovery or formatter output on unsafe trees | Editor tolerance must not become false validity or destructive formatting. |
 
 ## Traceability
 
-Populated during v2.0 roadmap creation. Each requirement maps to exactly one phase.
+Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLOSE-01 | Phase 5 | Complete (verified 2026-08-06) |
-| CLOSE-02 | Phase 5 | Complete (verified 2026-08-06) |
-| ANAL-01 | Phase 5 | Pending |
-| LINT-01 | Phase 6 | Pending |
-| FING-01 | Phase 6 | Pending |
-| LINE-01 | Phase 7 | Pending |
-| EDIT-01 | Phase 8 | Pending |
+| DIALECT-01 | TBD | Pending |
+| DIALECT-02 | TBD | Pending |
+| DIALECT-03 | TBD | Pending |
+| DIALECT-04 | TBD | Pending |
+| FLINK-01 | TBD | Pending |
+| FLINK-02 | TBD | Pending |
+| FLINK-03 | TBD | Pending |
+| FLINK-04 | TBD | Pending |
+| FLINK-05 | TBD | Pending |
+| FLINK-06 | TBD | Pending |
+| CST-01 | TBD | Pending |
+| TOOL-01 | TBD | Pending |
+| TOOL-02 | TBD | Pending |
+| TOOL-03 | TBD | Pending |
+| TOOL-04 | TBD | Pending |
+| TOOL-05 | TBD | Pending |
+| NAME-01 | TBD | Pending |
+| NAME-02 | TBD | Pending |
+| NAME-03 | TBD | Pending |
+| NAME-04 | TBD | Pending |
+| CORPUS-01 | TBD | Pending |
+| PARITY-01 | TBD | Pending |
+| PARITY-02 | TBD | Pending |
+| PARITY-03 | TBD | Pending |
 
 **Coverage:**
-- v2.0 requirements: 7 total
-- Mapped to phases: 7
-- Unmapped: 0 ✓
+- v2.0 requirements: 24 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 24
 
 ---
-*Requirements defined: 2026-08-05*
-*Last updated: 2026-08-05 after v2.0 milestone start*
+*Requirements defined: 2026-08-06*
+*Last updated: 2026-08-06 after research synthesis*
