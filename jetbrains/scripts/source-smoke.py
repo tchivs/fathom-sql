@@ -78,7 +78,7 @@ workflow_path = PROJECT_ROOT / ".github/workflows/jetbrains-plugin.yml"
 if not workflow_path.exists():
     errors.append(".github/workflows/jetbrains-plugin.yml: CI workflow missing")
 else:
-    require(workflow_path, r"setup-java@v4", "JDK setup")
+    require(workflow_path, r"setup-java@v[45]", "JDK setup")
     require(workflow_path, r"verifyPlugin", "Plugin Verifier CI step")
     require(workflow_path, r"buildPlugin", "plugin packaging CI step")
 

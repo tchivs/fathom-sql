@@ -29,7 +29,7 @@ jobs:
           - platform: linux-x86_64
             runner: ubuntu-latest
           - platform: macos-x86_64
-            runner: macos-13
+            runner: macos-15-intel
           - platform: macos-aarch64
             runner: macos-14
           - platform: windows-x86_64
@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install MoonBit on Unix
         if: runner.os != 'Windows'
@@ -84,7 +84,7 @@ jobs:
           fi
 
       - name: Upload Native asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: doris-lsp-${{ matrix.platform }}
           path: dist/*
@@ -100,7 +100,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - name: Download Native assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: doris-lsp-*
           path: dist
