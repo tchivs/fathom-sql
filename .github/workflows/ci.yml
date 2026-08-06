@@ -99,6 +99,38 @@ jobs:
       - name: Execute parity suite on native target
         run: moon test --target native --package parity
 
+  parity-gate:
+    name: v1 baseline parity gate (no --update)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # D-08 byte-level gate: moon test --package parity WITHOUT --update fails
+      # on ANY snapshot difference (T-09-01). NEVER add --update to this job —
+      # the only sanctioned snapshot writer is a moon test --update run whose
+      # change is already pre-declared in approved-changes.md (single-use
+      # approval path, research §9.3).
+      - name: Baseline snapshot gate (byte-level)
+        run: moon test --package parity
+
+      # Self-diff must report zero unexpected: the committed snapshot tree is
+      # the frozen baseline, so left == right is the steady state (D-08).
+      - name: Baseline diff self-check (approved vs unexpected)
+        run: python3 scripts/baseline_diff.py --left parity/__snapshot__ --right parity/__snapshot__ --approve .planning/phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
+
   corpus:
     name: corpus report + keyword check
     runs-on: ubuntu-latest
