@@ -2,7 +2,7 @@
 /// The shared `has_kind` tree probe lives in recovery_test.mbt (same package).
 
 fn parse_dml(raw : Bytes, profile : String, mode : String) -> @api.ParseResult {
-  match @api.parse_with_ids(raw, profile, mode) {
+  match @api.parse_with_ids(raw, "doris", profile, mode) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -114,7 +114,7 @@ test "doris03_insert_script_localizes_bad_statement" {
   let bad = result.diagnostics[0]
   assert_true(bad.start_byte <= bad.end_byte)
   assert_eq(bad.statement_id, 1U)
-  assert_eq(bad.code, "DORIS-PARSE-007")
+  assert_eq(bad.code, "FATHOM-PARSE-007")
   assert_true(result.all_spans_in_bounds())
 }
 
@@ -125,7 +125,7 @@ test "unknown_statement_starters_are_explicit_unsupported_nodes" {
       let result = parse_dml(raw, "4.x", mode)
       assert_true(!result.valid)
       assert_eq(result.diagnostics.length(), 1)
-      assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007")
+      assert_eq(result.diagnostics[0].code, "FATHOM-PARSE-007")
       assert_eq(result.diagnostics[0].statement_id, 0U)
       assert_true(has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
@@ -245,7 +245,7 @@ test "doris03_dml_script_localizes_bad_statement" {
   assert_true(!result.valid)
   let bad = result.diagnostics[0]
   assert_eq(bad.statement_id, 1U)
-  assert_eq(bad.code, "DORIS-PARSE-007")
+  assert_eq(bad.code, "FATHOM-PARSE-007")
   assert_true(result.all_spans_in_bounds())
 }
 
@@ -289,7 +289,7 @@ test "malformed_insert_recovers_losslessly" {
 test "unclosed_paren_dml_recovery_is_bounded_by_recovery_steps" {
   let limits = @api.ParseLimits::new(8 * 1024 * 1024, 1000, 128, 4, 8)
   let options = @api.ParseOptions::for_profile_with_limits(
-    @token.DorisProfile::V4_X,
+    @dialect.DorisProfile::V4_X,
     @api.ParseMode::Editor,
     limits,
   )
@@ -323,19 +323,19 @@ test "insert_statement_flood_stays_bounded_and_replays" {
 
 test "dml_keywords_do_not_leak_into_shared_clause_set" {
   for raw in [b"VALUES", b"SET", b"WHEN", b"INSERT", b"UPDATE", b"DELETE", b"MERGE"] {
-    assert_true(!@token.is_clause_keyword(raw))
+    assert_true(!@dialect.is_clause_keyword(doris_context("4.x"), raw))
   }
 }
 
 test "merge_feature_metadata_marks_4x_introduction" {
-  let metadata = @token.DorisFeature::MergeInto.metadata()
+  let metadata = @dialect.DorisFeature::MergeInto.metadata()
   assert_eq(metadata.name, "MERGE")
   assert_eq(metadata.keyword, b"MERGE")
   assert_eq(metadata.introduced_profile, "4.x")
-  assert_eq(metadata.diagnostic_code, "DORIS-PARSE-006")
-  assert_true(!@token.DorisProfile::V2_1.supports(@token.DorisFeature::MergeInto))
-  assert_true(!@token.DorisProfile::V3_X.supports(@token.DorisFeature::MergeInto))
-  assert_true(@token.DorisProfile::V4_X.supports(@token.DorisFeature::MergeInto))
+  assert_eq(metadata.diagnostic_code, "FATHOM-PARSE-006")
+  assert_true(!@dialect.DorisProfile::V2_1.supports(@dialect.DorisFeature::MergeInto))
+  assert_true(!@dialect.DorisProfile::V3_X.supports(@dialect.DorisFeature::MergeInto))
+  assert_true(@dialect.DorisProfile::V4_X.supports(@dialect.DorisFeature::MergeInto))
 }
 
 test "merge_into_parses_under_4x_with_all_clause_forms" {
@@ -365,7 +365,7 @@ test "merge_is_gated_to_4x_released_profiles" {
     for mode in ["strict", "editor"] {
       let result = parse_dml(raw, profile, mode)
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
       assert_true(has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -409,7 +409,7 @@ test "unsupported_statement_starters_emit_one_007_each" {
       let result = parse_dml(raw, "4.x", mode)
       assert_true(!result.valid)
       assert_eq(result.diagnostics.length(), 1)
-      assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007")
+      assert_eq(result.diagnostics[0].code, "FATHOM-PARSE-007")
       assert_eq(result.diagnostics[0].statement_id, 0U)
       assert_true(has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
@@ -431,7 +431,7 @@ test "doris03_merge_and_unsupported_keep_later_statements" {
   assert_eq(@printer.print_result(alter_result), alter_raw)
   assert_eq(alter_result.root.children.length(), 3)
   assert_true(!alter_result.valid)
-  assert_eq(alter_result.diagnostics[0].code, "DORIS-PARSE-007")
+  assert_eq(alter_result.diagnostics[0].code, "FATHOM-PARSE-007")
   assert_eq(alter_result.diagnostics[0].statement_id, 0U)
   assert_true(alter_result.all_spans_in_bounds())
 
@@ -441,6 +441,6 @@ test "doris03_merge_and_unsupported_keep_later_statements" {
   assert_eq(script_result.root.children.length(), 3)
   assert_true(!script_result.valid)
   assert_eq(script_result.diagnostics[0].statement_id, 1U)
-  assert_eq(script_result.diagnostics[0].code, "DORIS-PARSE-007")
+  assert_eq(script_result.diagnostics[0].code, "FATHOM-PARSE-007")
   assert_true(script_result.all_spans_in_bounds())
 }

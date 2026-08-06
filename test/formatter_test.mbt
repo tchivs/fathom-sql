@@ -28,7 +28,7 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
     Some(opts) => opts
     None => @formatter.FormatOptions::default()
   }
-  let formatted = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
+  let formatted = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
     Ok(result) => result
     Err(_) => return false
   }
@@ -37,7 +37,7 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
       return false
     }
     // D-34: idempotence — formatting the formatted output is byte-identical.
-    let again = match @api.format_with_ids(formatted.output, fixture.profile, fixture.mode, options) {
+    let again = match @api.format_with_ids(formatted.output, "doris", fixture.profile, fixture.mode, options) {
       Ok(result) => result
       Err(_) => return false
     }
@@ -45,7 +45,7 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
       return false
     }
     // D-35: the formatted output reparses cleanly with zero diagnostics.
-    let reparsed = match @api.parse_with_ids(formatted.output, fixture.profile, fixture.mode) {
+    let reparsed = match @api.parse_with_ids(formatted.output, "doris", fixture.profile, fixture.mode) {
       Ok(result) => result
       Err(_) => return false
     }
@@ -193,11 +193,11 @@ test "formatter_options_default_and_validation" {
 }
 
 test "formatter_refusal_never_masks_parse_diagnostics" {
-  // Threat T-03-01: format_text converts DORIS-PARSE-* diagnostics and
+  // Threat T-03-01: format_text converts FATHOM-PARSE-* diagnostics and
   // prepends them so DORIS-FORMAT-001 never masks parse errors.
   let raw = b"MERGE INTO t USING s ON a=b WHEN MATCHED THEN UPDATE SET x=1"
   let options = @formatter.FormatOptions::default()
-  let parse_options = match @api.ParseOptions::new("2.1", "strict") {
+  let parse_options = match @api.ParseOptions::new("doris", "2.1", "strict") {
     Ok(options) => options
     Err(_) => panic()
   }
@@ -208,8 +208,8 @@ test "formatter_refusal_never_masks_parse_diagnostics" {
   assert_true(!result.accepted)
   assert_eq(result.output.length(), 0)
   assert_true(result.diagnostics.length() >= 2)
-  assert_true(result.diagnostics[0].code.has_prefix("DORIS-PARSE-"))
-  assert_true(result.diagnostics[0].code == "DORIS-PARSE-006")
+  assert_true(result.diagnostics[0].code.has_prefix("FATHOM-PARSE-"))
+  assert_true(result.diagnostics[0].code == "FATHOM-PARSE-006")
   // Exactly one DORIS-FORMAT-001, and it comes after the parse diagnostics.
   let mut format_count = 0
   for diagnostic in result.diagnostics {
@@ -243,7 +243,7 @@ test "formatter_from_id_maps_cli_string_ids" {
 
 test "formatter_statement_offsets_index_into_output" {
   let options = @formatter.FormatOptions::default()
-  let result = match @api.format_with_ids(b"select 1; select 2", "4.x", "strict", options) {
+  let result = match @api.format_with_ids(b"select 1; select 2", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -261,7 +261,7 @@ test "formatter_statement_offsets_index_into_output" {
   // trailing semicolon, so neither does the output.
   assert_eq(result.output, b"SELECT 1;\nSELECT 2\n")
   // Empty documents yield an empty offsets array.
-  let empty = match @api.format_with_ids(b"", "4.x", "strict", options) {
+  let empty = match @api.format_with_ids(b"", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -274,12 +274,13 @@ test "formatter_metadata_and_ids_agree_on_output" {
   // same formatted output — metadata propagation is irrelevant to formatting.
   let raw = b"select /*+ SET_VAR(enable_vectorized_engine=true) */ a, /* keep */ b -- trailing\nfrom t"
   let options = @formatter.FormatOptions::default()
-  let via_ids = match @api.format_with_ids(raw, "4.x", "strict", options) {
+  let via_ids = match @api.format_with_ids(raw, "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
   let via_metadata = match @api.format_with_metadata(
     raw,
+    "doris",
     "4.x",
     "4.x",
     "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
@@ -301,7 +302,7 @@ test "formatter_determinism_pure_function_backstop" {
   // diagnostics, with no shared mutable state or IO.
   let raw = b"select user_id, user_name, user_email, user_phone, user_address, user_status, user_created_at, user_updated_at from user_profile where user_status = 'active' group by user_id order by user_created_at"
   let options = @formatter.FormatOptions::default()
-  let parse_options = match @api.ParseOptions::new("3.x", "strict") {
+  let parse_options = match @api.ParseOptions::new("doris", "3.x", "strict") {
     Ok(options) => options
     Err(_) => panic()
   }
@@ -486,7 +487,7 @@ test "formatter_unknown_family_falls_back_to_flat_emission" {
     Some(node) => node
     None => panic()
   }
-  let result = @formatter.format(root, source, @formatter.FormatOptions::default())
+  let result = @formatter.format(root, source, @formatter.FormatOptions::default(), doris_context("4.x"))
   assert_true(result.accepted)
   // Flat emission: `(1, 2)` with the canonical single trailing newline — the
   // ValueList family has no clause table, so no break is forced anywhere and
@@ -744,7 +745,7 @@ test "formatter_03_02_script_layout_and_comment_attachment" {
   // statement_offsets stay correct under the per-line loop: the second
   // statement's offset points at the separator byte (len("SELECT 1;")).
   let options = @formatter.FormatOptions::default()
-  let result = match @api.format_with_ids(b"select 1; select 2;", "4.x", "strict", options) {
+  let result = match @api.format_with_ids(b"select 1; select 2;", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -964,7 +965,7 @@ test "formatter_03_03_all_six_dimensions_functional" {
 /// body carries `TABLET (1001)` after the aliased subquery `AS d`;
 /// the parser accepts TABLET only on unaliased table refs (probe:
 /// `FROM t TABLET (1001)` valid, `FROM t AS d TABLET (1001)`
-/// invalid with DORIS-PARSE-001 trailing recovery), so the
+/// invalid with FATHOM-PARSE-001 trailing recovery), so the
 /// embedded raw drops the TABLET clause to keep the manifest's
 /// supported status and the D-35 zero-diagnostic reparse gate.
 let formatter_corpus_fixtures : Array[FormatterFixture] = [
@@ -1378,7 +1379,7 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
     Some(opts) => opts
     None => @formatter.FormatOptions::default()
   }
-  let formatted = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
+  let formatted = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
     Ok(result) => result
     Err(_) => return fixture.fixture_id + ": api Err"
   }
@@ -1394,14 +1395,14 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
         return fixture.fixture_id + ": statement offset out of bounds"
       }
     }
-    let again = match @api.format_with_ids(formatted.output, fixture.profile, fixture.mode, options) {
+    let again = match @api.format_with_ids(formatted.output, "doris", fixture.profile, fixture.mode, options) {
       Ok(result) => result
       Err(_) => return fixture.fixture_id + ": idempotence api Err"
     }
     if again.output != formatted.output {
       return fixture.fixture_id + ": not idempotent"
     }
-    let reparsed = match @api.parse_with_ids(formatted.output, fixture.profile, fixture.mode) {
+    let reparsed = match @api.parse_with_ids(formatted.output, "doris", fixture.profile, fixture.mode) {
       Ok(result) => result
       Err(_) => return fixture.fixture_id + ": reparse api Err"
     }
@@ -1451,11 +1452,11 @@ fn formatter_matrix_check(
   options : @formatter.FormatOptions,
   profile : String,
 ) -> String {
-  let first = match @api.format_with_ids(raw, profile, "strict", options) {
+  let first = match @api.format_with_ids(raw, "doris", profile, "strict", options) {
     Ok(result) => result
     Err(_) => return label + ": format api Err"
   }
-  let again = match @api.format_with_ids(first.output, profile, "strict", options) {
+  let again = match @api.format_with_ids(first.output, "doris", profile, "strict", options) {
     Ok(result) => result
     Err(_) => return label + ": idempotence api Err"
   }
@@ -1464,7 +1465,7 @@ fn formatter_matrix_check(
   }
   // Determinism (probe FMT-01 backstop): a second run from the original raw
   // must be byte-identical to the first.
-  let second = match @api.format_with_ids(raw, profile, "strict", options) {
+  let second = match @api.format_with_ids(raw, "doris", profile, "strict", options) {
     Ok(result) => result
     Err(_) => return label + ": determinism api Err"
   }
@@ -1557,7 +1558,7 @@ test "formatter_03_03_option_matrix_idempotence_and_determinism" {
 test "formatter_03_03_never_panic_boundary_suite" {
   let options = @formatter.FormatOptions::default()
   // Empty document: accepted, empty output, no diagnostics, no offsets.
-  let empty = match @api.format_with_ids(b"", "4.x", "strict", options) {
+  let empty = match @api.format_with_ids(b"", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1566,7 +1567,7 @@ test "formatter_03_03_never_panic_boundary_suite" {
   assert_eq(empty.diagnostics.length(), 0)
   assert_eq(empty.statement_offsets.length(), 0)
   // Whitespace-only: same shape, nothing fabricated.
-  let ws = match @api.format_with_ids(b"   \n", "4.x", "strict", options) {
+  let ws = match @api.format_with_ids(b"   \n", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1575,7 +1576,7 @@ test "formatter_03_03_never_panic_boundary_suite" {
   assert_eq(ws.statement_offsets.length(), 0)
   // Comment-only document: the comment is preserved verbatim, no fabricated
   // statements, and the trailing-newline policy applies (on -> exactly one).
-  let comment = match @api.format_with_ids(b"-- only a comment", "4.x", "strict", options) {
+  let comment = match @api.format_with_ids(b"-- only a comment", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1595,7 +1596,7 @@ test "formatter_03_03_never_panic_boundary_suite" {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let comment_nt = match @api.format_with_ids(b"-- only a comment", "4.x", "strict", no_trailing) {
+  let comment_nt = match @api.format_with_ids(b"-- only a comment", "doris", "4.x", "strict", no_trailing) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1604,7 +1605,7 @@ test "formatter_03_03_never_panic_boundary_suite" {
   // max_bytes boundary: the input is rejected before parsing with a
   // structured InputTooLarge ParseError — never a panic or partial output.
   let tight = @api.ParseOptions::for_profile_with_limits(
-    @token.DorisProfile::V4_X,
+    @dialect.DorisProfile::V4_X,
     @api.ParseMode::Strict,
     @api.ParseLimits::new(8, 1000, 8, 8, 8),
   )
@@ -1615,14 +1616,14 @@ test "formatter_03_03_never_panic_boundary_suite" {
   // asserts the results; this loop is the explicit no-crash assertion.
   for i in 0..<formatter_corpus_fixtures.length() {
     let fixture = formatter_corpus_fixtures[i]
-    let _ = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
+    let _ = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
       Ok(result) => result
       Err(_) => panic()
     }
   }
   let boundary_inputs = [b"", b"   \n", b"-- only a comment", b"/* block only */"]
   for i in 0..<boundary_inputs.length() {
-    let _ = match @api.format_with_ids(boundary_inputs[i], "4.x", "strict", options) {
+    let _ = match @api.format_with_ids(boundary_inputs[i], "doris", "4.x", "strict", options) {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -1642,7 +1643,7 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
       Some(opts) => opts
       None => @formatter.FormatOptions::default()
     }
-    let result = match @api.format_with_ids(fixture.raw, fixture.profile, fixture.mode, options) {
+    let result = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
       Ok(result) => result
       Err(_) => panic()
     }

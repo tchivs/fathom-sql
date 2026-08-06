@@ -62,7 +62,7 @@ pub fn print_result(result : @api.ParseResult) -> Bytes {
 
 test "printer_replays_the_complete_parser_api_path" {
   let raw = b"\xef\xbb\xbfSELECT x + 1\r\n"
-  let parsed = match @api.parse_with_ids(raw, "4.x", "editor") {
+  let parsed = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -94,7 +94,12 @@ test "printer_replays_unicode_crlf_invalid_unknown_and_incomplete_bytes" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let stream = @lexer.lex(source, @token.DorisProfile::V4_X)
+  let stream = @lexer.lex(source, ({
+    dialect: @dialect.Dialect::Doris,
+    profile_id: "4.x",
+    exact_release: "4.x",
+    feature_introduction: "",
+  } : @dialect.DialectContext))
   let leaves : Array[@syntax.SyntaxElement] = []
   for token in stream.tokens {
     let kind = if token.is_error() {

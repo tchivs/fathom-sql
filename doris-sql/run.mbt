@@ -76,7 +76,7 @@ pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
     }
     _ => stdin_bytes
   }
-  let result = match @api.format_with_ids(input, command.profile, "strict", format_options) {
+  let result = match @api.format_with_ids(input, "doris", command.profile, "strict", format_options) {
     Ok(result) => result
     Err(error) => return parse_error_outcome(error)
   }

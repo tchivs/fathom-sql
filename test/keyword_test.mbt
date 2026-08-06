@@ -2,13 +2,13 @@
 /// version-gate metadata, TSV correspondence, and cross-profile audit.
 
 fn parse_kw(raw : Bytes, profile : String, mode : String) -> @api.ParseResult {
-  match @api.parse_with_ids(raw, profile, mode) {
+  match @api.parse_with_ids(raw, "doris", profile, mode) {
     Ok(result) => result
     Err(_) => panic()
   }
 }
 
-fn classification_id(kind : @token.ClassificationKind) -> String {
+fn classification_id(kind : @dialect.ClassificationKind) -> String {
   match kind {
     Reserved => "reserved"
     NonReserved => "non-reserved"
@@ -175,7 +175,7 @@ test "classification_table_mirrors_embedded_tsv_rows" {
   // Forward: every embedded TSV row resolves through classification_of with
   // matching classification / introduced_profile / source.
   for row in tsv_rows() {
-    match @token.classification_of(row.0) {
+    match @dialect.classification_of(doris_context("4.x"), row.0) {
       Some(entry) => {
         assert_eq(classification_id(entry.classification), row.1)
         assert_eq(entry.introduced_profile, row.2)
@@ -186,12 +186,10 @@ test "classification_table_mirrors_embedded_tsv_rows" {
   }
   // Reverse: every runtime row is represented in the embedded TSV table, so
   // the checked-in audit artifact cannot drift from the runtime table.
+  let entries = @dialect.classification_entries(doris_context("4.x"))
   let mut index = 0
-  while index < @token.classification_entry_count() {
-    let entry = match @token.classification_entry_at(index) {
-      Some(entry) => entry
-      None => panic()
-    }
+  while index < entries.length() {
+    let entry = entries[index]
     let mut found = false
     for row in tsv_rows() {
       if bytes_equal_ci(entry.word, row.0) {
@@ -207,26 +205,26 @@ test "classification_table_mirrors_embedded_tsv_rows" {
 }
 
 test "classification_of_is_case_insensitive_and_returns_metadata" {
-  let select = match @token.classification_of(b"SELECT") {
+  let select = match @dialect.classification_of(doris_context("4.x"), b"SELECT") {
     Some(entry) => entry
     None => panic()
   }
   assert_eq(classification_id(select.classification), "reserved")
   assert_eq(select.introduced_profile, "2.1")
   assert_true(select.source.has_prefix("https://doris.apache.org/"))
-  let mixed = match @token.classification_of(b"seLeCt") {
+  let mixed = match @dialect.classification_of(doris_context("4.x"), b"seLeCt") {
     Some(entry) => entry
     None => panic()
   }
   assert_eq(mixed.word, b"SELECT")
   assert_eq(mixed, select)
-  let tablet = match @token.classification_of(b"tablet") {
+  let tablet = match @dialect.classification_of(doris_context("4.x"), b"tablet") {
     Some(entry) => entry
     None => panic()
   }
   assert_eq(classification_id(tablet.classification), "contextual")
   assert_eq(tablet.introduced_profile, "3.x")
-  assert_true(@token.classification_of(b"not_a_keyword") is None)
+  assert_true(@dialect.classification_of(doris_context("4.x"), b"not_a_keyword") is None)
 }
 
 test "phase1_reserved_answers_are_preserved_by_the_table" {
@@ -246,15 +244,15 @@ test "phase1_reserved_answers_are_preserved_by_the_table" {
     b"FOLLOWING", b"OFFSET", b"OUTFILE",
   ]
   for raw in phase1_reserved {
-    assert_true(@token.is_reserved_word(raw))
-    assert_true(!@token.is_unquoted_identifier(raw))
+    assert_true(@dialect.is_reserved_word(doris_context("4.x"), raw))
+    assert_true(!@dialect.is_unquoted_identifier(doris_context("4.x"), raw))
   }
   for raw in [b"select", b"winDow", b"As", b"SeLeCt"] {
-    assert_true(@token.is_reserved_word(raw))
+    assert_true(@dialect.is_reserved_word(doris_context("4.x"), raw))
   }
-  assert_true(!@token.is_reserved_word(b"TABLET"))
-  assert_true(@token.is_unquoted_identifier(b"TABLET"))
-  assert_true(@token.is_unquoted_identifier(b"user_name"))
+  assert_true(!@dialect.is_reserved_word(doris_context("4.x"), b"TABLET"))
+  assert_true(@dialect.is_unquoted_identifier(doris_context("4.x"), b"TABLET"))
+  assert_true(@dialect.is_unquoted_identifier(doris_context("4.x"), b"user_name"))
 }
 
 test "dml_words_do_not_enter_the_shared_clause_set" {
@@ -265,7 +263,7 @@ test "dml_words_do_not_enter_the_shared_clause_set" {
     b"VALUES", b"SET", b"WHEN", b"OVERWRITE", b"MERGE", b"INSERT",
     b"UPDATE", b"DELETE", b"MATCHED", b"THEN", b"CREATE", b"BUCKETS",
   ] {
-    assert_true(!@token.is_clause_keyword(raw))
+    assert_true(!@dialect.is_clause_keyword(doris_context("4.x"), raw))
   }
 }
 
@@ -304,7 +302,7 @@ test "non_reserved_and_contextual_dml_ddl_words_are_usable_identifiers" {
 }
 
 test "reserved_dml_ddl_words_require_backticks_as_identifiers" {
-  // Reserved words must be rejected as unquoted identifiers (DORIS-PARSE-002)
+  // Reserved words must be rejected as unquoted identifiers (FATHOM-PARSE-002)
   // and accepted backticked; the shared clause set is untouched.
   let words = [
     b"INSERT", b"UPDATE", b"DELETE", b"OVERWRITE", b"VALUES", b"SET",
@@ -316,7 +314,7 @@ test "reserved_dml_ddl_words_require_backticks_as_identifiers" {
     for profile in ["2.1", "3.x", "4.x"] {
       let alias_result = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
       assert_true(!alias_result.valid)
-      assert_true(alias_result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(alias_result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(alias_result), b"SELECT a AS " + word + b" FROM t")
       let property = parse_kw(
         b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
@@ -324,7 +322,7 @@ test "reserved_dml_ddl_words_require_backticks_as_identifiers" {
         "strict",
       )
       assert_true(!property.valid)
-      assert_true(property.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(property.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(
         @printer.print_result(property),
         b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
@@ -338,13 +336,13 @@ test "reserved_dml_ddl_words_require_backticks_as_identifiers" {
 }
 
 test "version_invalid_keyword_use_emits_006_through_feature_gates" {
-  // MERGE is 4.x-doc-only (D-09): 2.1/3.x must emit DORIS-PARSE-006 through
+  // MERGE is 4.x-doc-only (D-09): 2.1/3.x must emit FATHOM-PARSE-006 through
   // the DorisFeature::MergeInto gate — never silent acceptance (D-15).
   let merge = b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v"
   for profile in ["2.1", "3.x"] {
     let result = parse_kw(merge, profile, "strict")
     assert_true(!result.valid)
-    assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+    assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
     assert_eq(@printer.print_result(result), merge)
     assert_true(result.all_spans_in_bounds())
   }
@@ -354,10 +352,10 @@ test "version_invalid_keyword_use_emits_006_through_feature_gates" {
   // QUALIFY and TABLET are 3.x-gated words (DorisFeature rows).
   let qualify = parse_kw(b"SELECT a FROM t QUALIFY a = 1", "2.1", "strict")
   assert_true(!qualify.valid)
-  assert_true(qualify.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+  assert_true(qualify.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
   let tablet = parse_kw(b"SELECT a FROM t TABLET (1)", "2.1", "strict")
   assert_true(!tablet.valid)
-  assert_true(tablet.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+  assert_true(tablet.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
   // MATCHED carries "4.x" introduced_profile metadata but no standalone word
   // gate: outside the (4.x-gated) MERGE production it remains an identifier —
   // the word-level classification gate and the DorisFeature production gate
@@ -426,21 +424,19 @@ test "full_classification_table_audit_across_profiles" {
   // Audits every row of the runtime table across 2.1/3.x/4.x (DORIS-04,
   // D-15): (a) case-insensitive lookup, (b) NonReserved/Contextual words are
   // unquoted identifiers and property keys, (c) Reserved words are rejected
-  // unquoted (DORIS-PARSE-002) but accepted backticked, (d) gated words emit
-  // DORIS-PARSE-006 under older profiles while non-gated words with newer
+  // unquoted (FATHOM-PARSE-002) but accepted backticked, (d) gated words emit
+  // FATHOM-PARSE-006 under older profiles while non-gated words with newer
   // introduced_profile metadata remain identifiers — the word-level gate and
   // the DorisFeature production gate are distinct layers.
+  let entries = @dialect.classification_entries(doris_context("4.x"))
   let mut index = 0
-  while index < @token.classification_entry_count() {
-    let entry = match @token.classification_entry_at(index) {
-      Some(entry) => entry
-      None => panic()
-    }
+  while index < entries.length() {
+    let entry = entries[index]
     let word = entry.word
     // (a) classification_of is case-insensitive: a lower-case variant of the
     // canonical spelling resolves to the same row.
     let lower = to_lower_bytes(word)
-    match @token.classification_of(lower) {
+    match @dialect.classification_of(doris_context("4.x"), lower) {
       Some(resolved) => assert_eq(resolved.word, word)
       None => panic()
     }
@@ -463,11 +459,11 @@ test "full_classification_table_audit_across_profiles" {
         assert_true(property.valid)
         assert_eq(property.diagnostics.length(), 0)
       } else {
-        // (c) rejected as an unquoted identifier (DORIS-PARSE-002-class) both
+        // (c) rejected as an unquoted identifier (FATHOM-PARSE-002-class) both
         // as an alias and as a property key, and accepted backticked.
         let alias_result = parse_kw(b"SELECT a AS " + word + b" FROM t", profile, "strict")
         assert_true(!alias_result.valid)
-        assert_true(alias_result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+        assert_true(alias_result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
         assert_eq(@printer.print_result(alias_result), b"SELECT a AS " + word + b" FROM t")
         let property = parse_kw(
           b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
@@ -475,7 +471,7 @@ test "full_classification_table_audit_across_profiles" {
           "strict",
         )
         assert_true(!property.valid)
-        assert_true(property.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+        assert_true(property.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
         assert_eq(
           @printer.print_result(property),
           b"CREATE TABLE t (a INT) PROPERTIES (" + word + b" = \"1\")",
@@ -487,7 +483,7 @@ test "full_classification_table_audit_across_profiles" {
       }
     }
     // (d) introduced_profile "3.x"/"4.x" words: gated features reject older
-    // profiles with DORIS-PARSE-006; non-gated words remain identifiers.
+    // profiles with FATHOM-PARSE-006; non-gated words remain identifiers.
     if entry.introduced_profile == "3.x" || entry.introduced_profile == "4.x" {
       match gated_statement(word) {
         Some(stmt) => {
@@ -495,7 +491,7 @@ test "full_classification_table_audit_across_profiles" {
             let result = parse_kw(stmt, profile, "strict")
             if profile_rank(profile) < profile_rank(entry.introduced_profile) {
               assert_true(!result.valid)
-              assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+              assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
             } else {
               assert_true(result.valid)
               assert_eq(result.diagnostics.length(), 0)

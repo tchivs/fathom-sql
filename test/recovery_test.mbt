@@ -1,3 +1,10 @@
+/// Shared Doris test context helper (same package as the parse helpers):
+/// profile ids are the validated surface; metadata strings are audit metadata
+/// only for classification/feature gates.
+fn doris_context(profile_id : String) -> @dialect.DialectContext {
+  { dialect: @dialect.Dialect::Doris, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
+}
+
 fn has_kind(node : @api.PrimitiveNode, wanted : String) -> Bool {
   if node.kind == wanted {
     true
@@ -14,7 +21,7 @@ fn has_kind(node : @api.PrimitiveNode, wanted : String) -> Bool {
 
 fn parse_with_limits(raw : Bytes, limits : @api.ParseLimits) -> @api.ParseResult {
   let options = @api.ParseOptions::for_profile_with_limits(
-    @token.DorisProfile::V4_X,
+    @dialect.DorisProfile::V4_X,
     @api.ParseMode::Editor,
     limits,
   )
@@ -34,7 +41,7 @@ test "caps_emit_resource_diagnostic_and_retain_bounded_remainder" {
   assert_true(has_kind(result.root, "skipped"))
   let mut resource = false
   for diagnostic in result.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-004" {
+    if diagnostic.code == "FATHOM-PARSE-004" {
       resource = true
       assert_eq(diagnostic.expected_class, "resource")
     }
@@ -44,7 +51,7 @@ test "caps_emit_resource_diagnostic_and_retain_bounded_remainder" {
 
 test "max_bytes_is_rejected_before_source_parse_and_limits_are_structured" {
   let options = @api.ParseOptions::for_profile_with_limits(
-    @token.DorisProfile::V4_X,
+    @dialect.DorisProfile::V4_X,
     @api.ParseMode::Editor,
     @api.ParseLimits::new(8, 1000, 8, 8, 8),
   )
@@ -53,7 +60,7 @@ test "max_bytes_is_rejected_before_source_parse_and_limits_are_structured" {
   let invalid = @api.parse(
     b"SELECT 1",
     @api.ParseOptions::for_profile_with_limits(
-      @token.DorisProfile::V4_X,
+      @dialect.DorisProfile::V4_X,
       @api.ParseMode::Editor,
       @api.ParseLimits::new(-1, 1000, 8, 8, 8),
     ),
@@ -68,7 +75,7 @@ test "max_tokens_stops_lexer_work_and_retains_remainder" {
   )
   assert_true(!result.valid)
   assert_true(has_kind(result.root, "skipped"))
-  assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+  assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-004"))
   assert_eq(@printer.print_result(result), b"SELECT 1; SELECT 2; SELECT 3")
 }
 test "max_recursion_depth_remains_bounded" {
@@ -87,7 +94,7 @@ test "max_recursion_depth_remains_bounded" {
   assert_true(!nested.valid)
   let mut resource = false
   for diagnostic in nested.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-004" { resource = true }
+    if diagnostic.code == "FATHOM-PARSE-004" { resource = true }
   }
   assert_true(resource)
 }
@@ -98,11 +105,11 @@ test "diagnostic_caps_preserve_first_error_and_emit_one_resource" {
     let result = parse_with_limits(raw, @api.ParseLimits::new(8 * 1024 * 1024, 1000, 128, 100, cap))
     assert_true(result.diagnostics.length() <= cap)
     assert_true(result.diagnostics.length() > 0)
-    if cap == 1 { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-004") }
-    else { assert_eq(result.diagnostics[0].code, "DORIS-PARSE-007") }
+    if cap == 1 { assert_eq(result.diagnostics[0].code, "FATHOM-PARSE-004") }
+    else { assert_eq(result.diagnostics[0].code, "FATHOM-PARSE-007") }
     let mut resources = 0
     for diagnostic in result.diagnostics {
-      if diagnostic.code == "DORIS-PARSE-004" { resources = resources + 1 }
+      if diagnostic.code == "FATHOM-PARSE-004" { resources = resources + 1 }
     }
     assert_eq(resources, 1)
   }
@@ -115,8 +122,8 @@ test "malformed_lexical_material_uses_stable_code_and_replays" {
   assert_eq(@printer.print_result(result), raw)
   let mut found = false
   for diagnostic in result.diagnostics {
-    assert_true(diagnostic.code.has_prefix("DORIS-PARSE-"))
-    if diagnostic.code == "DORIS-PARSE-003" {
+    assert_true(diagnostic.code.has_prefix("FATHOM-PARSE-"))
+    if diagnostic.code == "FATHOM-PARSE-003" {
       found = true
       assert_true(diagnostic.start_byte < diagnostic.end_byte)
     }
@@ -132,7 +139,7 @@ test "closed_lexical_material_preserves_invalid_utf8_diagnostic" {
     assert_eq(@printer.print_result(result), raw)
     let mut found = false
     for diagnostic in result.diagnostics {
-      if diagnostic.code == "DORIS-PARSE-003" {
+      if diagnostic.code == "FATHOM-PARSE-003" {
         found = true
         assert_true(diagnostic.start_byte < diagnostic.end_byte)
       }
@@ -144,7 +151,7 @@ test "closed_lexical_material_preserves_invalid_utf8_diagnostic" {
 test "lexical_diagnostics_follow_nonempty_statement_segments" {
   let raw = b"SELECT 1;; -- middle\n; SELECT \xff"
   for mode in ["strict", "editor"] {
-    let result = match @api.parse_with_ids(raw, "4.x", mode) {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -152,7 +159,7 @@ test "lexical_diagnostics_follow_nonempty_statement_segments" {
     assert_eq(@printer.print_result(result), raw)
     let mut lexical = 0
     for diagnostic in result.diagnostics {
-      if diagnostic.code == "DORIS-PARSE-003" {
+      if diagnostic.code == "FATHOM-PARSE-003" {
         lexical = lexical + 1
         assert_eq(diagnostic.statement_id, 1U)
         assert_true(diagnostic.start_byte < diagnostic.end_byte)
@@ -170,7 +177,7 @@ test "resource_diagnostics_use_nonempty_segment_identity" {
   assert_eq(@printer.print_result(result), raw)
   let mut resources = 0
   for diagnostic in result.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-004" {
+    if diagnostic.code == "FATHOM-PARSE-004" {
       resources = resources + 1
       assert_eq(diagnostic.statement_id, 1U)
     }
@@ -186,13 +193,13 @@ test "byte_cap_resource_diagnostics_follow_nonempty_segment_identity" {
   }
   let parsed = @parser.parse_with_limits(
     source,
-    @token.DorisProfile::V4_X,
+    doris_context("4.x"),
     @parser.ParseMode::Editor,
     @parser.ParserLimits::new(14, 1000, 128, 100, 8),
   )
   let mut found = false
   for diagnostic in parsed.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-004" {
+    if diagnostic.code == "FATHOM-PARSE-004" {
       found = true
       assert_eq(diagnostic.statement_id, 1U)
       assert_true(diagnostic.span.start_byte < diagnostic.span.end_byte)
@@ -206,13 +213,13 @@ test "byte_cap_resource_diagnostics_follow_nonempty_segment_identity" {
   }
   let empty = @parser.parse_with_limits(
     empty_source,
-    @token.DorisProfile::V4_X,
+    doris_context("4.x"),
     @parser.ParseMode::Editor,
     @parser.ParserLimits::new(1, 1000, 128, 100, 8),
   )
   let mut empty_found = false
   for diagnostic in empty.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-004" {
+    if diagnostic.code == "FATHOM-PARSE-004" {
       empty_found = true
       assert_eq(diagnostic.statement_id, 0U)
       assert_true(diagnostic.span.start_byte < diagnostic.span.end_byte)
@@ -231,7 +238,7 @@ test "api_rejects_every_negative_parser_limit_before_parse" {
   ]
   for limits in invalids {
     let options = @api.ParseOptions::for_profile_with_limits(
-      @token.DorisProfile::V4_X,
+      @dialect.DorisProfile::V4_X,
       @api.ParseMode::Strict,
       limits,
     )
@@ -243,7 +250,7 @@ test "quoted_comment_token_split_cap_emits_resource_diagnostic" {
     let result = parse_with_limits(raw, @api.ParseLimits::new(8 * 1024 * 1024, 3, 128, 100, 8))
     assert_true(!result.valid)
     assert_true(result.recovered)
-    assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+    assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-004"))
     assert_eq(@printer.print_result(result), raw)
   }
 }

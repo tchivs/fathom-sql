@@ -1,18 +1,18 @@
 test "diagnostics_and_formatting_contract" {
-  let schemas = ["doris.parse.v1", "doris.format.v1"]
-  let expected_schemas = ["doris.parse.v1", "doris.format.v1"]
+  let schemas = ["fathom.parse.v1", "doris.format.v1"]
+  let expected_schemas = ["fathom.parse.v1", "doris.format.v1"]
   assert_eq(schemas, expected_schemas)
-  assert_eq(schemas[0], "doris.parse.v1")
+  assert_eq(schemas[0], "fathom.parse.v1")
   assert_eq(schemas[1], "doris.format.v1")
   let source = b"select 1"
   let refusal_fields = ["schema_version", "source_bytes", "diagnostics", "formatted"]
   assert_eq(refusal_fields, ["schema_version", "source_bytes", "diagnostics", "formatted"])
-  let parsed = match @api.parse_with_ids(source, "4.x", "editor") {
+  let parsed = match @api.parse_with_ids(source, "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
-  assert_true(@binding.parse_result_json(parsed).contains("doris.parse.v1"))
-  let formatted = match @api.format_with_ids(source, "4.x", "strict", @api.FormatOptions::default()) {
+  assert_true(@binding.parse_result_json(parsed).contains("fathom.parse.v1"))
+  let formatted = match @api.format_with_ids(source, "doris", "4.x", "strict", @api.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => panic()
   }

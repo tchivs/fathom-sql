@@ -76,7 +76,7 @@ fn publish_diagnostics(uri : String, version : Int, raw : Bytes, diagnostics : J
 }
 
 fn parse_document(state : ServerState, document :  Document) -> Bytes {
-  let diagnostics = match @api.parse_with_ids(document.text, state.profile, "editor") {
+  let diagnostics = match @api.parse_with_ids(document.text, "doris", state.profile, "editor") {
     Ok(result) => parse_diagnostics_json(document.text, result)
     Err(_) => Json::array([{ 
       "range": { "start": { "line": Json::number(0.0), "character": Json::number(0.0) }, "end": { "line": Json::number(0.0), "character": Json::number(0.0) } },
@@ -166,7 +166,7 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
     Some(document) => document
     None => return [ response(id, Json::array([]))]
   }
-  let result = match @api.format_with_ids(document.text, state.profile, "strict", @api.FormatOptions::default()) {
+  let result = match @api.format_with_ids(document.text, "doris", state.profile, "strict", @api.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => return [ response(id, Json::array([]))]
   }
@@ -266,7 +266,7 @@ fn completion_result(state : ServerState, params : Json, id : RpcId) -> Array[By
     Ok(offset) => offset
     Err(_) => return [error_response(id, -32602, "completion position is outside the current document")]
   }
-  let result = match @completion.complete(document.text, state.profile, cursor_byte) {
+  let result = match @completion.complete(document.text, "doris", state.profile, cursor_byte) {
     Ok(result) => result
     Err(_) => return [error_response(id, -32602, "completion request could not be evaluated")]
   }
@@ -300,13 +300,13 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
         Some(profile) => profile
         None => return [ error_response(id, -32602, "initialize requires initializationOptions.profile")]
       }
-      match @binding.validate_profile(profile) {
+      match @binding.validate_dialect_profile("doris", profile) {
         Ok(_) => {
           state.profile = profile
           state.initialized = true
           [ response(id, initialize_result())]
         }
-        Err(_) => [ error_response(id, -32602, "unsupported Doris profile")]
+        Err(_) => [ error_response(id, -32602, "unsupported profile for dialect doris")]
       }
     }
     "initialized" => []

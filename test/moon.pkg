@@ -7,4 +7,5 @@ import {
   "fathom/doris-sql/syntax" @syntax,
   "fathom/doris-sql/token" @token,
   "fathom/doris-sql/formatter" @formatter,
+  "fathom/doris-sql/dialect" @dialect,
 }

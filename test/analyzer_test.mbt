@@ -50,14 +50,14 @@ test "analyzer_catalog_trait_dispatches_to_static_catalog" {
 
 test "analyzer_syntax_only_path_is_unchanged_by_catalog" {
   let raw = b"INSERT INTO t VALUES (1); SELECT * FROM t"
-  let first = match @api.parse_with_ids(raw, "4.x", "strict") {
+  let first = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
   // Building a catalog and looking tables up must never touch the parser.
   let catalog = @analyzer.StaticCatalog::new([{ name: "t", columns: [{ name: "id", data_type: "INT" }] }])
   assert_true(@analyzer.StaticCatalog::lookup(catalog, "t") is Some(_))
-  let second = match @api.parse_with_ids(raw, "4.x", "strict") {
+  let second = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -75,7 +75,7 @@ test "analyzer_syntax_only_path_is_unchanged_by_catalog" {
 // ---------------------------------------------------------------------------
 
 test "analyzer_statement_accessors_isolate_nodes_and_diagnostics_by_id" {
-  let result = match @api.parse_with_ids(b"INSERT INTO t VALUES (1); bad; SELECT b", "4.x", "strict") {
+  let result = match @api.parse_with_ids(b"INSERT INTO t VALUES (1); bad; SELECT b", "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -103,17 +103,17 @@ test "analyzer_statement_accessors_isolate_nodes_and_diagnostics_by_id" {
     None => panic()
   }
   assert_true(result.statement(3U) is None)
-  // The bad statement's diagnostic is isolated by id (DORIS-PARSE-007).
+  // The bad statement's diagnostic is isolated by id (FATHOM-PARSE-007).
   let bad_diagnostics = result.statement_diagnostics(1U)
   assert_eq(bad_diagnostics.length(), 1)
-  assert_eq(bad_diagnostics[0].code, "DORIS-PARSE-007")
+  assert_eq(bad_diagnostics[0].code, "FATHOM-PARSE-007")
   assert_eq(bad_diagnostics[0].statement_id, 1U)
   assert_eq(result.statement_diagnostics(0U).length(), 0)
   assert_eq(result.statement_diagnostics(2U).length(), 0)
 }
 
 test "analyzer_statement_accessors_on_empty_document" {
-  let result = match @api.parse_with_ids(b"", "2.1", "strict") {
+  let result = match @api.parse_with_ids(b"", "doris", "2.1", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -122,11 +122,11 @@ test "analyzer_statement_accessors_on_empty_document" {
 }
 
 test "analyzer_statement_diagnostics_stay_ordered_by_source_position" {
-  // "SELECT 1 +" yields two DORIS-PARSE-002 diagnostics at the statement end
+  // "SELECT 1 +" yields two FATHOM-PARSE-002 diagnostics at the statement end
   // (existing parser behavior); each "bad" statement yields exactly one
-  // DORIS-PARSE-007. Per-statement slices must keep emission/source order and
+  // FATHOM-PARSE-007. Per-statement slices must keep emission/source order and
   // stay monotonic across statement ids.
-  let result = match @api.parse_with_ids(b"SELECT 1 +; bad; bad2", "4.x", "strict") {
+  let result = match @api.parse_with_ids(b"SELECT 1 +; bad; bad2", "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -136,10 +136,10 @@ test "analyzer_statement_diagnostics_stay_ordered_by_source_position" {
   assert_eq(stmt0.length(), 2)
   assert_eq(stmt1.length(), 1)
   assert_eq(stmt2.length(), 1)
-  assert_eq(stmt0[0].code, "DORIS-PARSE-002")
-  assert_eq(stmt0[1].code, "DORIS-PARSE-002")
-  assert_eq(stmt1[0].code, "DORIS-PARSE-007")
-  assert_eq(stmt2[0].code, "DORIS-PARSE-007")
+  assert_eq(stmt0[0].code, "FATHOM-PARSE-002")
+  assert_eq(stmt0[1].code, "FATHOM-PARSE-002")
+  assert_eq(stmt1[0].code, "FATHOM-PARSE-007")
+  assert_eq(stmt2[0].code, "FATHOM-PARSE-007")
   assert_true(stmt0[0].start_byte <= stmt0[1].start_byte)
   assert_true(stmt0[1].start_byte < stmt1[0].start_byte)
   assert_true(stmt1[0].start_byte < stmt2[0].start_byte)
@@ -159,7 +159,7 @@ test "analyzer_resolve_table_references_against_injected_catalog" {
   }
   let parsed = @parser.parse_with_limits(
     source,
-    @token.DorisProfile::V4_X,
+    doris_context("4.x"),
     @parser.ParseMode::Strict,
     @parser.ParserLimits::default(),
   )
@@ -179,7 +179,7 @@ test "analyzer_resolve_table_references_against_injected_catalog" {
   // results — the analyzer consumes, never modifies, and is never required.
   let parsed_again = @parser.parse_with_limits(
     source,
-    @token.DorisProfile::V4_X,
+    doris_context("4.x"),
     @parser.ParseMode::Strict,
     @parser.ParserLimits::default(),
   )
@@ -198,7 +198,7 @@ test "analyzer_resolve_table_references_empty_catalog_and_no_statements" {
   }
   let parsed = @parser.parse_with_limits(
     source,
-    @token.DorisProfile::V4_X,
+    doris_context("4.x"),
     @parser.ParseMode::Strict,
     @parser.ParserLimits::default(),
   )
@@ -214,7 +214,7 @@ test "analyzer_resolve_table_references_empty_catalog_and_no_statements" {
   }
   let empty_parsed = @parser.parse_with_limits(
     empty_source,
-    @token.DorisProfile::V4_X,
+    doris_context("4.x"),
     @parser.ParseMode::Strict,
     @parser.ParserLimits::default(),
   )

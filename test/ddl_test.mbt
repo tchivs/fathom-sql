@@ -3,7 +3,7 @@
 /// recovery_test.mbt (same package).
 
 fn parse_ddl(raw : Bytes, profile : String, mode : String) -> @api.ParseResult {
-  match @api.parse_with_ids(raw, profile, mode) {
+  match @api.parse_with_ids(raw, "doris", profile, mode) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -29,7 +29,7 @@ test "create_table_order_by_is_gated_below_4x" {
     for mode in ["strict", "editor"] {
       let result = parse_ddl(raw, profile, mode)
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
       assert_true(has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -94,14 +94,14 @@ test "create_table_non_reserved_grammar_words_work_as_column_names" {
 
 test "ddl_grammar_words_stay_out_of_shared_reserved_set" {
   for raw in [b"BUCKETS", b"PROPERTIES", b"COMMENT", b"AGGREGATE", b"ENGINE"] {
-    assert_true(!@token.is_reserved_word(raw))
-    assert_true(@token.is_unquoted_identifier(raw))
+    assert_true(!@dialect.is_reserved_word(doris_context("4.x"), raw))
+    assert_true(@dialect.is_unquoted_identifier(doris_context("4.x"), raw))
   }
   // ORDER and ROLLUP are in the shared clause/reserved set (Phase 1 SELECT
   // contract: ORDER BY / GROUPING SETS), so they require backticks as
   // identifiers — the shared set is untouched by this plan.
-  assert_true(@token.is_reserved_word(b"ORDER"))
-  assert_true(@token.is_reserved_word(b"ROLLUP"))
+  assert_true(@dialect.is_reserved_word(doris_context("4.x"), b"ORDER"))
+  assert_true(@dialect.is_reserved_word(doris_context("4.x"), b"ROLLUP"))
 }
 
 test "create_table_partition_variants_parse_with_replay" {
@@ -149,20 +149,20 @@ test "create_table_modifier_and_qualified_name_forms" {
 test "create_dispatch_replaces_the_unsupported_path" {
   let result = parse_ddl(b"CREATE TABLE t (a INT)", "4.x", "strict")
   assert_true(result.valid)
-  assert_true(!result.diagnostics.any(d => d.code == "DORIS-PARSE-007"))
+  assert_true(!result.diagnostics.any(d => d.code == "FATHOM-PARSE-007"))
   assert_true(has_kind(result.root, "create_table"))
 }
 
 test "bare_create_forms_report_incomplete_statement" {
   // WR-01 regression: CREATE / CREATE TEMPORARY / CREATE EXTERNAL at EOF
   // used to pass the valid gate with zero diagnostics; they now report the
-  // same DORIS-PARSE-002 incomplete-statement diagnostic as every other
+  // same FATHOM-PARSE-002 incomplete-statement diagnostic as every other
   // statement family, and finish_statement pushes the Missing node.
   for raw in [b"CREATE", b"CREATE TEMPORARY", b"CREATE EXTERNAL"] {
     for mode in ["strict", "editor"] {
       let result = parse_ddl(raw, "4.x", mode)
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
       assert_true(has_kind(result.root, "missing"))
@@ -213,7 +213,7 @@ test "doris03_unclosed_create_table_keeps_later_statements" {
   assert_true(!result.valid)
   let bad = result.diagnostics[0]
   assert_eq(bad.statement_id, 0U)
-  assert_true(bad.code.has_prefix("DORIS-PARSE-"))
+  assert_true(bad.code.has_prefix("FATHOM-PARSE-"))
   assert_true(result.all_spans_in_bounds())
 }
 
@@ -248,7 +248,7 @@ test "create_table_deep_parens_stay_bounded" {
   let deep_raw = b"CREATE TABLE t (c1 INT AS " + deep_expr + b")"
   let limits = @api.ParseLimits::new(8 * 1024 * 1024, 1000, 128, 4, 8)
   let options = @api.ParseOptions::for_profile_with_limits(
-    @token.DorisProfile::V4_X,
+    @dialect.DorisProfile::V4_X,
     @api.ParseMode::Editor,
     limits,
   )
@@ -279,7 +279,7 @@ test "create_table_deep_generic_nesting_stays_bounded" {
   let raw = b"CREATE TABLE t (c " + deep + b")"
   let result = parse_ddl(raw, "4.x", "strict")
   assert_true(!result.valid)
-  assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+  assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-004"))
   assert_eq(@printer.print_result(result), raw)
   assert_true(result.all_spans_in_bounds())
   assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
@@ -303,7 +303,7 @@ test "create_table_deep_generic_nesting_stays_bounded" {
   // 0..2 are legal, the 4th bracket level recurses to depth 3).
   let limits = @api.ParseLimits::new(8 * 1024 * 1024, 1000, 2, 4, 8)
   let options = @api.ParseOptions::for_profile_with_limits(
-    @token.DorisProfile::V4_X,
+    @dialect.DorisProfile::V4_X,
     @api.ParseMode::Editor,
     limits,
   )
@@ -313,7 +313,7 @@ test "create_table_deep_generic_nesting_stays_bounded" {
     Err(_) => panic()
   }
   assert_true(!tiny.valid)
-  assert_true(tiny.diagnostics.any(d => d.code == "DORIS-PARSE-004"))
+  assert_true(tiny.diagnostics.any(d => d.code == "FATHOM-PARSE-004"))
   assert_eq(@printer.print_result(tiny), tiny_raw)
   assert_true(tiny.all_spans_in_bounds())
 }

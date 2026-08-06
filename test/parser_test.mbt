@@ -1,12 +1,12 @@
 fn parse_strict(raw : Bytes) -> @api.ParseResult {
-  match @api.parse_with_ids(raw, "3.x", "strict") {
+  match @api.parse_with_ids(raw, "doris", "3.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
 }
 
 fn parse_editor_parser(raw : Bytes) -> @api.ParseResult {
-  match @api.parse_with_ids(raw, "3.x", "editor") {
+  match @api.parse_with_ids(raw, "doris", "3.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -37,18 +37,18 @@ test "strict_and_editor_share_shape_but_not_validity" {
 test "malformed_expression_and_window_create_explicit_recovery_nodes" {
   let raws = [b"SELECT 1 +", b"SELECT SUM(x) OVER ("]
   for raw in raws {
-    let strict = match @api.parse_with_ids(raw, "4.x", "strict") {
+    let strict = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
       Ok(result) => result
       Err(_) => panic()
     }
-    let editor = match @api.parse_with_ids(raw, "4.x", "editor") {
+    let editor = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
       Ok(result) => result
       Err(_) => panic()
     }
     for result in [strict, editor] {
       assert_true(!result.valid)
       assert_true(result.diagnostics.length() > 0)
-      assert_eq(result.diagnostics[0].code, "DORIS-PARSE-002")
+      assert_eq(result.diagnostics[0].code, "FATHOM-PARSE-002")
       assert_eq(result.diagnostics[0].statement_id, 0U)
       assert_eq(result.diagnostics[0].start_byte, raw.length())
       assert_eq(result.diagnostics[0].end_byte, raw.length())
@@ -73,7 +73,7 @@ test "diagnostic_identity_resets_for_each_snapshot" {
 test "join_modifiers_require_join_and_condition" {
   let malformed = [b"SELECT a FROM t LEFT", b"SELECT a FROM t LEFT JOIN u", b"SELECT a FROM t INNER JOIN u"]
   for raw in malformed {
-    let result = match @api.parse_with_ids(raw, "4.x", "strict") {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -82,7 +82,7 @@ test "join_modifiers_require_join_and_condition" {
     assert_eq(@printer.print_result(result), raw)
   }
   for raw in [b"SELECT a FROM t CROSS JOIN u", b"SELECT a FROM t NATURAL JOIN u"] {
-    let result = match @api.parse_with_ids(raw, "4.x", "strict") {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -99,7 +99,7 @@ test "projection_aliases_support_implicit_explicit_and_quoted_forms" {
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -118,7 +118,7 @@ test "natural_directional_joins_are_conditionless_and_case_insensitive" {
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -133,7 +133,7 @@ test "natural_directional_joins_are_conditionless_and_case_insensitive" {
 
 test "projection_trailing_comma_is_explicitly_missing" {
   for raw in [b"SELECT a, FROM t", b"SELECT a, UNION SELECT b", b"SELECT a,)"] {
-    let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -146,7 +146,7 @@ test "projection_trailing_comma_is_explicitly_missing" {
 
 test "empty_grouping_productions_are_rejected" {
   for raw in [b"SELECT a FROM t GROUP BY GROUPING SETS ()", b"SELECT a FROM t GROUP BY ROLLUP ()", b"SELECT a FROM t GROUP BY CUBE ()"] {
-    let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -158,7 +158,7 @@ test "empty_grouping_productions_are_rejected" {
 
 test "industrial_select_covers_cte_join_window_grouping_and_union" {
   let raw = b"WITH recent AS (SELECT /*+ SET_VAR(exec_mem_limit=1G) */ DISTINCT f.k, SUM(f.v) OVER (PARTITION BY f.k ORDER BY f.ts ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS total FROM fact PARTITION(p0) SAMPLE(10) f LEFT OUTER JOIN dim d ON f.k = d.k WHERE f.v IN (1, 2) AND d.active IS NOT NULL GROUP BY GROUPING SETS ((f.k), (f.k, d.kind)) HAVING SUM(f.v) > 0) SELECT k, total FROM recent ORDER BY total DESC LIMIT 10 UNION ALL SELECT k, total FROM recent"
-  let result = match @api.parse_with_ids(raw, "3.x", "strict") {
+  let result = match @api.parse_with_ids(raw, "doris", "3.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -177,13 +177,13 @@ test "released_tablet_tablesample_repeatable_forms_keep_profile_gate" {
   for raw in raws {
     for profile in ["2.1", "3.x", "4.x"] {
       for mode in ["strict", "editor"] {
-        let result = match @api.parse_with_ids(raw, profile, mode) {
+        let result = match @api.parse_with_ids(raw, "doris", profile, mode) {
           Ok(result) => result
           Err(_) => panic()
         }
         if profile == "2.1" {
           assert_true(!result.valid)
-          assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+          assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
           if mode == "editor" { assert_true(result.recovered) }
         } else {
           assert_true(result.valid)
@@ -198,20 +198,20 @@ test "released_tablet_tablesample_repeatable_forms_keep_profile_gate" {
 
 test "released_profiles_gate_qualify_without_generic_fallback" {
   let raw = b"SELECT row_number() OVER (ORDER BY k) AS rn FROM t QUALIFY rn = 1"
-  let old = match @api.parse_with_ids(raw, "2.1", "strict") {
+  let old = match @api.parse_with_ids(raw, "doris", "2.1", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
-  let released = match @api.parse_with_ids(raw, "4.x", "strict") {
+  let released = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_true(!old.valid)
   assert_true(old.diagnostics.length() > 0)
-  assert_eq(old.diagnostics[0].code, "DORIS-PARSE-006")
+  assert_eq(old.diagnostics[0].code, "FATHOM-PARSE-006")
   assert_eq(old.diagnostics[0].statement_id, 0U)
   assert_eq(old.diagnostics[0].end_byte - old.diagnostics[0].start_byte, 7)
-  let editor = match @api.parse_with_ids(raw, "2.1", "editor") {
+  let editor = match @api.parse_with_ids(raw, "doris", "2.1", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -227,7 +227,7 @@ test "released_projection_star_except_is_explicit_and_lossless" {
   let raw = b"SELECT * EXCEPT(age) FROM student"
   for profile in ["2.1", "3.x", "4.x"] {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, profile, mode) {
+      let result = match @api.parse_with_ids(raw, "doris", profile, mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -242,7 +242,7 @@ test "released_projection_star_except_is_explicit_and_lossless" {
     let editor = parse_editor_parser(raw)
     for result in [strict, editor] {
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
@@ -252,14 +252,14 @@ test "released_projection_star_except_is_explicit_and_lossless" {
 
 test "version_gate_diagnostic_spans_offending_tablet_keyword" {
   let raw = b"SELECT k FROM t TABLET (1)"
-  let result = match @api.parse_with_ids(raw, "2.1", "strict") {
+  let result = match @api.parse_with_ids(raw, "doris", "2.1", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_true(!result.valid)
   let mut found = false
   for diagnostic in result.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-006" {
+    if diagnostic.code == "FATHOM-PARSE-006" {
       found = true
       assert_eq(diagnostic.end_byte - diagnostic.start_byte, 6)
     }
@@ -268,11 +268,11 @@ test "version_gate_diagnostic_spans_offending_tablet_keyword" {
 }
 test "version_invalid_features_share_metadata_gate_and_editor_shape" {
   let raw = b"SELECT k FROM t TABLET (1)"
-  let strict = match @api.parse_with_ids(raw, "2.1", "strict") {
+  let strict = match @api.parse_with_ids(raw, "doris", "2.1", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
-  let editor = match @api.parse_with_ids(raw, "2.1", "editor") {
+  let editor = match @api.parse_with_ids(raw, "doris", "2.1", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -280,7 +280,7 @@ test "version_invalid_features_share_metadata_gate_and_editor_shape" {
   assert_true(!editor.valid)
   assert_true(editor.recovered)
   assert_eq(strict.diagnostics.length(), editor.diagnostics.length())
-  assert_eq(strict.diagnostics[0].code, @token.DorisFeature::Tablet.metadata().diagnostic_code)
+  assert_eq(strict.diagnostics[0].code, @dialect.DorisFeature::Tablet.metadata().diagnostic_code)
   assert_eq(strict.diagnostics[0].start_byte, editor.diagnostics[0].start_byte)
   assert_eq(strict.diagnostics[0].end_byte, editor.diagnostics[0].end_byte)
   assert_eq(strict.diagnostics[0].statement_id, editor.diagnostics[0].statement_id)
@@ -292,7 +292,7 @@ test "gated_feature_spellings_are_contextual_outside_productions" {
   let raws = [b"SELECT tablet FROM t", b"SELECT k AS tablet FROM t"]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "2.1", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "2.1", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -310,7 +310,7 @@ test "tablet_table_alias_is_contextual_without_option_parenthesis" {
   for raw in aliases {
     for profile in ["2.1", "3.x", "4.x"] {
       for mode in ["strict", "editor"] {
-        let result = match @api.parse_with_ids(raw, profile, mode) {
+        let result = match @api.parse_with_ids(raw, "doris", profile, mode) {
           Ok(result) => result
           Err(_) => panic()
         }
@@ -328,13 +328,13 @@ test "tablet_option_parenthesis_retains_profile_gate" {
   let raw = b"SELECT a FROM t TaBlEt (1)"
   for profile in ["2.1", "3.x", "4.x"] {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, profile, mode) {
+      let result = match @api.parse_with_ids(raw, "doris", profile, mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       if profile == "2.1" {
         assert_true(!result.valid)
-        assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+        assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
         if mode == "editor" { assert_true(has_kind(result.root, "error")) }
       } else {
         assert_true(result.valid)
@@ -354,12 +354,12 @@ test "mixed_case_gated_productions_keep_invalid_events_source_backed" {
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "2.1", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "2.1", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
       assert_true(has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -369,24 +369,24 @@ test "mixed_case_gated_productions_keep_invalid_events_source_backed" {
 
 
 test "projection_clause_boundary_is_case_insensitive" {
-  let malformed = match @api.parse_with_ids(b"SELECT a, from", "4.x", "strict") {
+  let malformed = match @api.parse_with_ids(b"SELECT a, from", "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_true(!malformed.valid)
-  assert_true(malformed.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+  assert_true(malformed.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
   assert_true(has_kind(malformed.root, "missing"))
   assert_eq(@printer.print_result(malformed), b"SELECT a, from")
-  let mixed = match @api.parse_with_ids(b"SELECT a, FrOm", "4.x", "editor") {
+  let mixed = match @api.parse_with_ids(b"SELECT a, FrOm", "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_true(!mixed.valid)
   assert_true(mixed.recovered)
-  assert_true(mixed.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+  assert_true(mixed.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
   assert_true(has_kind(mixed.root, "missing"))
   assert_eq(@printer.print_result(mixed), b"SELECT a, FrOm")
-  let valid = match @api.parse_with_ids(b"select a from t where b = 1", "4.x", "strict") {
+  let valid = match @api.parse_with_ids(b"select a from t where b = 1", "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -397,7 +397,7 @@ test "projection_clause_boundary_is_case_insensitive" {
 
 test "industrial_boundary_set_chains_and_contextual_identifiers" {
   let raw = b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3; SELECT `group`, `window` FROM `table`"
-  let result = match @api.parse_with_ids(raw, "2.1", "editor") {
+  let result = match @api.parse_with_ids(raw, "doris", "2.1", "editor") {
 
     Ok(result) => result
     Err(_) => panic()
@@ -409,7 +409,7 @@ test "industrial_boundary_set_chains_and_contextual_identifiers" {
 }
 test "trailing_trivia_after_semicolon_is_not_a_statement" {
   let raw = b"SELECT 1; -- trailing\n  "
-  let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+  let result = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -429,7 +429,7 @@ test "semicolon_trivia_segments_do_not_create_error_statements" {
     b"SELECT 1; /* middle */\n; SELECT 2",
   ]
   for raw in raws {
-    let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -446,7 +446,7 @@ test "semicolon_trivia_segments_do_not_create_error_statements" {
 }
 test "semicolon_trivia_preserves_following_statement_identity" {
   let raw = b"SELECT 1;; -- middle\n; bad"
-  let result = match @api.parse_with_ids(raw, "4.x", "editor") {
+  let result = match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -473,6 +473,7 @@ struct EmbeddedManifestFixture {
 fn metadata_fixture_replay_ok(fixture : EmbeddedManifestFixture) -> Bool {
   let result = match @api.parse_with_metadata(
     fixture.raw,
+    "doris",
     fixture.profile,
     fixture.exact_release,
     fixture.feature_introduction,
@@ -488,7 +489,7 @@ fn metadata_fixture_replay_ok(fixture : EmbeddedManifestFixture) -> Bool {
     return false
   }
   for diagnostic in result.diagnostics {
-    if !diagnostic.code.has_prefix("DORIS-PARSE-") || diagnostic.start_byte > diagnostic.end_byte {
+    if !diagnostic.code.has_prefix("FATHOM-PARSE-") || diagnostic.start_byte > diagnostic.end_byte {
       return false
     }
   }
@@ -552,20 +553,20 @@ test "released_manifest_metadata_drives_deterministic_parse_replay" {
 
 test "metadata_mismatch_unknown_and_unsupported_rows_are_rejected_before_parse" {
   assert_true(@api.parse_with_metadata(
-    b"SELECT 1", "2.1", "2.0", "2.1 baseline SELECT; DML/DDL released", "strict",
+    b"SELECT 1", "doris", "2.1", "2.0", "2.1 baseline SELECT; DML/DDL released", "strict",
   ) is Err(@api.ParseError::ProfileMetadataMismatch(..)))
   assert_true(@api.parse_with_metadata(
-    b"SELECT 1", "2.1", "2.1", "3.x QUALIFY", "strict",
+    b"SELECT 1", "doris", "2.1", "2.1", "3.x QUALIFY", "strict",
   ) is Err(@api.ParseError::UnsupportedFeatureIntroduction(..)))
   assert_true(@api.parse_with_metadata(
-    b"SELECT 1", "2.1", "2.1", "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY", "strict",
+    b"SELECT 1", "doris", "2.1", "2.1", "2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY", "strict",
   ) is Err(@api.ParseError::ProfileMetadataMismatch(..)))
   assert_true(@api.parse_with_metadata(
-    b"SELECT 1", "5.x", "5.x", "5.x released SELECT", "strict",
+    b"SELECT 1", "doris", "5.x", "5.x", "5.x released SELECT", "strict",
   ) is Err(@api.ParseError::UnknownProfile(..)))
-  let canonical = @token.DorisProfile::V3_X.metadata()
+  let canonical = @dialect.DorisProfile::V3_X.metadata()
   let options = match @api.ParseOptions::for_profile_with_metadata(
-    @token.DorisProfile::V3_X,
+    @dialect.DorisProfile::V3_X,
     canonical,
     @api.ParseMode::Strict,
   ) {
@@ -579,7 +580,7 @@ test "metadata_mismatch_unknown_and_unsupported_rows_are_rejected_before_parse" 
 test "projection_modifiers_accept_all_except_and_distinctrow" {
   let raws = [b"SELECT ALL EXCEPT (secret) FROM fact", b"SELECT DISTINCTROW k FROM fact"]
   for raw in raws {
-    let result = match @api.parse_with_ids(raw, "2.1", "strict") {
+    let result = match @api.parse_with_ids(raw, "doris", "2.1", "strict") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -607,7 +608,7 @@ test "wildcards_are_scoped_to_projection_and_count_argument_contexts" {
     let editor = parse_editor_parser(raw)
     for result in [strict, editor] {
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_true(result.diagnostics.any(d => d.start_byte < d.end_byte))
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
@@ -627,7 +628,7 @@ test "wildcards_are_scoped_to_projection_and_count_argument_contexts" {
   ]
   for raw in valid {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -653,12 +654,12 @@ test "balanced_options_require_nonempty_payloads" {
   ]
   for raw in malformed {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
@@ -671,7 +672,7 @@ test "balanced_options_require_nonempty_payloads" {
     b"SELECT a FROM t JOIN u USING (k, v)",
   ]
   for raw in valid {
-    let result = match @api.parse_with_ids(raw, "4.x", "strict") {
+    let result = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -692,7 +693,7 @@ test "released_reserved_words_are_rejected_but_quoted_words_remain_identifiers" 
     let editor = parse_editor_parser(raw)
     for result in [strict, editor] {
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -705,7 +706,7 @@ test "released_reserved_words_are_rejected_but_quoted_words_remain_identifiers" 
   ]
   for raw in quoted {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -730,7 +731,7 @@ test "table_reference_dot_requires_following_identifier" {
     for result in [strict, editor] {
       assert_true(!result.valid)
       assert_true(result.diagnostics.length() > 0)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -767,7 +768,7 @@ test "window_required_nulls_and_frame_tokens_propagate_failure" {
     for result in [strict, editor] {
       assert_true(!result.valid)
       assert_true(result.diagnostics.length() > 0)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -784,7 +785,7 @@ test "window_required_nulls_and_frame_tokens_propagate_failure" {
   ]
   for raw in valid {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -802,7 +803,7 @@ test "window_order_items_consume_direction_and_nulls_per_item" {
   ]
   for raw in valid {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -817,7 +818,7 @@ test "window_order_items_consume_direction_and_nulls_per_item" {
     let editor = parse_editor_parser(raw)
     for result in [strict, editor] {
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
@@ -838,7 +839,7 @@ test "required_expression_and_window_productions_diagnose_and_recover" {
     for result in [strict, editor] {
       assert_true(!result.valid)
       assert_true(result.diagnostics.length() > 0)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_true(has_kind(result.root, "missing") || has_kind(result.root, "error"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -856,7 +857,7 @@ test "malformed_numeric_literals_are_lexically_diagnosed_and_replayed" {
     let editor = parse_editor_parser(raw)
     for result in [strict, editor] {
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-003"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-003"))
       assert_true(result.diagnostics.any(d => d.start_byte < d.end_byte))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
@@ -882,7 +883,7 @@ test "reserved_boolean_and_null_literals_are_expression_operands" {
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -900,12 +901,12 @@ test "window_definition_trailing_comma_is_recovered_and_invalid" {
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
@@ -918,12 +919,12 @@ test "grouping_sets_trailing_comma_is_recovered_and_invalid" {
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
@@ -932,17 +933,17 @@ test "grouping_sets_trailing_comma_is_recovered_and_invalid" {
 test "with_recursive_is_invalid_but_ordinary_cte_remains_valid" {
   let recursive_raw = b"WITH RECURSIVE cte AS (SELECT 1) SELECT 1"
   for mode in ["strict", "editor"] {
-    let result = match @api.parse_with_ids(recursive_raw, "4.x", mode) {
+    let result = match @api.parse_with_ids(recursive_raw, "doris", "4.x", mode) {
       Ok(result) => result
       Err(_) => panic()
     }
     assert_true(!result.valid)
-    assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-006"))
+    assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-006"))
     assert_eq(@printer.print_result(result), recursive_raw)
     assert_true(result.all_spans_in_bounds())
   }
   for mode in ["strict", "editor"] {
-    let result = match @api.parse_with_ids(b"WITH cte AS (SELECT 1) SELECT 1", "4.x", mode) {
+    let result = match @api.parse_with_ids(b"WITH cte AS (SELECT 1) SELECT 1", "doris", "4.x", mode) {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -953,12 +954,12 @@ test "with_recursive_is_invalid_but_ordinary_cte_remains_valid" {
 test "except_requires_all_and_preserves_star_exception" {
   for raw in [b"SELECT DISTINCT EXCEPT (secret) FROM t", b"SELECT DISTINCTROW EXCEPT (secret) FROM t"] {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }
@@ -973,7 +974,7 @@ test "except_requires_all_and_preserves_star_exception" {
 test "sample_options_are_single_value_but_tablet_accepts_list" {
   for raw in [b"SELECT * FROM t TABLET(1, 2)", b"SELECT * FROM t SAMPLE(10 ROWS) REPEATABLE(2)", b"SELECT * FROM t TABLESAMPLE(10 PERCENT) REPEATABLE 2"] {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
@@ -985,12 +986,12 @@ test "sample_options_are_single_value_but_tablet_accepts_list" {
   }
   for raw in [b"SELECT * FROM t SAMPLE(10, 20)", b"SELECT * FROM t TABLESAMPLE(10 ROWS, 20 ROWS)"] {
     for mode in ["strict", "editor"] {
-      let result = match @api.parse_with_ids(raw, "4.x", mode) {
+      let result = match @api.parse_with_ids(raw, "doris", "4.x", mode) {
         Ok(result) => result
         Err(_) => panic()
       }
       assert_true(!result.valid)
-      assert_true(result.diagnostics.any(d => d.code == "DORIS-PARSE-002"))
+      assert_true(result.diagnostics.any(d => d.code == "FATHOM-PARSE-002"))
       assert_eq(@printer.print_result(result), raw)
       assert_true(result.all_spans_in_bounds())
     }

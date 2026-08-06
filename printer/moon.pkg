@@ -5,4 +5,5 @@ import {
   "fathom/doris-sql/token" @token,
   "fathom/doris-sql/lexer" @lexer,
   "fathom/doris-sql/api" @api,
+  "fathom/doris-sql/dialect" @dialect,
 }

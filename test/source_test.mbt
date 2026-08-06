@@ -1,5 +1,5 @@
 fn parse_editor(raw : Bytes) -> @api.ParseResult {
-  match @api.parse_with_ids(raw, "4.x", "editor") {
+  match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }

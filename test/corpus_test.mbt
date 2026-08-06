@@ -1,7 +1,7 @@
 /// Embedded replay oracle mirroring every DML/DDL fixture row in
 /// corpus/manifest.tsv (CORP-02, D-18, research Pattern 4): each entry runs
 /// parse_with_metadata -> print_result == raw, all_spans_in_bounds,
-/// expected_valid, and a DORIS-PARSE- diagnostic prefix via the shared
+/// expected_valid, and a FATHOM-PARSE- diagnostic prefix via the shared
 /// metadata_fixture_replay_ok helper (defined in parser_test.mbt, same test
 /// package). Entries are committed per statement family together with the
 /// fixture SQL files, manifest rows, and coverage rows so every corpus row
@@ -323,7 +323,7 @@ test "script_multi_statement_fixture_keeps_statement_ids" {
   // five statements; the DORIS-03 variant (an unsupported statement between
   // valid ones) must keep later statements with distinct statement ids.
   let valid = b"CREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t;\nINSERT INTO t VALUES (2); SELECT b;\n"
-  let result = match @api.parse_with_ids(valid, "4.x", "strict") {
+  let result = match @api.parse_with_ids(valid, "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -338,7 +338,7 @@ test "script_multi_statement_fixture_keeps_statement_ids" {
   assert_true(result.all_spans_in_bounds())
 
   let raw = b"INSERT INTO t VALUES (1); bad; SELECT b"
-  let bad = match @api.parse_with_ids(raw, "4.x", "strict") {
+  let bad = match @api.parse_with_ids(raw, "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -351,6 +351,6 @@ test "script_multi_statement_fixture_keeps_statement_ids" {
   assert_true(!bad.valid)
   let diagnostic = bad.diagnostics[0]
   assert_eq(diagnostic.statement_id, 1U)
-  assert_eq(diagnostic.code, "DORIS-PARSE-007")
+  assert_eq(diagnostic.code, "FATHOM-PARSE-007")
   assert_true(bad.all_spans_in_bounds())
 }
