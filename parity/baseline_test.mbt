@@ -311,7 +311,7 @@ fn parse_json(id : String, mode : String) -> String {
 
 /// Default formatter options per D-29..D-32 (upper, 2, 100, trailing, follow,
 /// trailing newline on) — the same values the v1 parity harness calls
-/// doris_format_v1 with.
+/// fathom_format_v1 with.
 fn format_json(id : String) -> String {
   let fixture = baseline_fixture(id)
   @utf8.decode_lossy(
