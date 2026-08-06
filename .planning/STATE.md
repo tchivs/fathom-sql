@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
 status: executing
-stopped_at: Completed 09-05-PLAN.md
-last_updated: "2026-08-07T00:00:00.000Z"
+stopped_at: Completed 09-06-PLAN.md
+last_updated: "2026-08-06T16:59:28.569Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 0
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
-**Progress:** [███████░░░] 71%
+**Progress:** [█████████░] 86%
 Last activity: 2026-08-07 — Phase 9 execution started
 
 ## Performance Metrics
@@ -88,6 +88,7 @@ Last activity: 2026-08-07 — Phase 9 execution started
 | Phase 09 P03 | 25 | 2 tasks | 140 files |
 | Phase 09 P09-04 | 34 | 3 tasks | 35 files |
 | Phase 09 P05 | 38 | 2 tasks | 25 files |
+| Phase 09-dialect-boundary-and-neutral-naming P06 | 8 | 4 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -170,6 +171,9 @@ Recent decisions affecting current work:
 - [Phase ?]: fathom_dialect_v1(dialect) under fathom.dialect.v1 returns per-dialect profiles with exact_release/feature_introduction from DorisProfile metadata only (T-09-18 provenance); flink empty profile set in Phase 9 (A1); unknown dialect -> FATHOM-SCHEMA-007 error envelope
 - [Phase ?]: fathom_capabilities_v1() under fathom.capabilities.v1 returns the global dialect list with per-dialect profile availability (doris 2.1/3.x/4.x, flink empty)
 - [Phase ?]: Parity test callsites migrated in the Task 1 commit (Rule 3 — the export rename blocks parity compilation; same-commit rule Pitfall 8); web facade wire references + docs/README code strings migrated per 09-03 deferral; lsp-tracer.json + lsp identity + vscode host assertions + offline-smoke.mjs deferred to 09-06/09-07 (deferred-items.md)
+- [Phase ?]: LSP D-01 selection transport locked (option-a): document-level config rides didOpen/didChange extension fields, workspace default from initializationOptions/serve_stdio, languageId mapping only when user-configured; missing everywhere -> FATHOM-SCHEMA-007
+- [Phase ?]: flink is a legal LSP selection in Phase 9 (A1): parse routes via new @api.parse_flink_not_implemented -> FATHOM-PARSE-008, never Doris; format/completion reject with the api unsupported-profile error
+- [Phase ?]: D-03 publication guard compares version AND selection (dialect/profile) against the stored document; stale async results dropped on either mismatch
 
 ### Pending Todos
 
@@ -201,8 +205,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-07T00:00:00.000Z
-Stopped at: Completed 09-05-PLAN.md
+Last session: 2026-08-06T16:59:28.545Z
+Stopped at: Completed 09-06-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

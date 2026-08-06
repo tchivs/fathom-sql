@@ -18,8 +18,8 @@ surface of a later plan:
 
 | Category | Item | Owning wave | Status |
 |----------|------|-------------|--------|
-| deferred | `parity/fixtures/lsp-tracer.json` still carries `doris.parse.v1`/`doris.format.v1` (schema strings + the `dialect` field belong with the LSP output shape) | 09-06 (plan context) | open |
-| deferred | `lsp/handlers.mbt:98` still emits `DORIS-LSP-001` (plus `source: "doris"`, `serverInfo.name: "doris-lsp"` at lines 99/174) | 09-06 (LSP identity) | open |
+| deferred | `parity/fixtures/lsp-tracer.json` still carries `doris.parse.v1`/`doris.format.v1` (schema strings + the `dialect` field belong with the LSP output shape) | 09-06 (plan context) | **closed 2026-08-07** — migrated to `fathom.parse.v1`/`fathom.format.v1` + `"dialect":"doris"` (09-06 Task 2, commit 1d23a04) |
+| deferred | `lsp/handlers.mbt:98` still emits `DORIS-LSP-001` (plus `source: "doris"`, `serverInfo.name: "doris-lsp"` at lines 99/174) | 09-06 (LSP identity) | **closed 2026-08-07** — `FATHOM-LSP-001` + `source: "fathom"` + `serverInfo.name: "fathom-lsp"` (09-06 Task 2, commit 1d23a04) |
 | deferred | `web/scripts/offline-smoke.mjs:21,26` still asserts `DORIS-FORMAT-001` in its refusal contract-copy smoke; file also carries another agent's uncommitted monaco 0.56.0 bump WIP, so it cannot be cleanly committed this wave | 09-07 (web host sweep) | open |
 | deferred | `vscode/src/host-test.ts` + `vscode/README.md` still assert `DORIS-PARSE-006` (stale since 09-02 renamed the parser codes; host integration surface) | 09-07 (hosts) | open |
 | exempt | `corpus/**` provenance rows keep `DORIS-PARSE`-referencing notes and `parity/baseline_test.mbt` embedded fixture bytes keep their verbatim corpus comment headers | D-04 provenance (plan grep exempt) | closed — intentional |
