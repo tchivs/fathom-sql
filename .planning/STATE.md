@@ -89,7 +89,7 @@ Last activity: 2026-08-07 — Phase 9 execution started
 | Phase 09 P09-04 | 34 | 3 tasks | 35 files |
 | Phase 09 P05 | 38 | 2 tasks | 25 files |
 | Phase 09-dialect-boundary-and-neutral-naming P06 | 8 | 4 tasks | 12 files |
-| Phase 09-dialect-boundary-and-neutral-naming P07 | 15 | 4 tasks | 47 files |
+| Phase 09-dialect-boundary-and-neutral-naming P07 | unknown | 4 tasks | 47 files |
 
 ## Accumulated Context
 
