@@ -3,7 +3,7 @@
 /// (DorisProfile/DorisFeature/ValidatedProfileContext/ProfileMetadata/
 /// FeatureMetadata) — only their file location moves from token/ to dialect/
 /// (09-RESEARCH.md §4.1). The feature-gate diagnostic code is FATHOM-PARSE-006
-/// (D-10: DORIS- -> FATHOM-).
+/// (D-10: legacy code prefixes -> FATHOM-).
 
 /// Explicit released Doris profile metadata and source-backed lexical leaves.
 pub(all) enum DorisProfile {

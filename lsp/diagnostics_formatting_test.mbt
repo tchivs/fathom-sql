@@ -39,9 +39,9 @@ test "lsp_publishes_diagnostics_and_one_full_document_edit" {
   assert_true(published_body.contains("publishDiagnostics"))
   // The valid document's publish carries no diagnostics, but the server
   // identity is neutral in the notification shape itself (NAME-03).
-  assert_true(!published_body.contains("doris-lsp"))
+  assert_true(!published_body.contains("doris"))
   // A document with a parse error publishes neutral FATHOM-* diagnostics with
-  // source fathom — never doris / DORIS-* (NAME-03, D-10).
+  // source fathom — the legacy doris identity never appears (NAME-03, D-10).
   let bad_open = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///broken.sql\",\"version\":1,\"text\":\"SELEC 1\"}}}")) {
     Ok(message) => message
     Err(_) => panic()
@@ -52,7 +52,7 @@ test "lsp_publishes_diagnostics_and_one_full_document_edit" {
   assert_true(bad_body.contains("\"source\":\"fathom\""))
   assert_true(bad_body.contains("FATHOM-PARSE-"))
   assert_true(!bad_body.contains("\"source\":\"doris\""))
-  assert_true(!bad_body.contains("DORIS-"))
+  assert_true(!bad_body.contains("doris"))
   let format = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///tracer.sql\"}}}")) {
     Ok(message) => message
     Err(_) => panic()
