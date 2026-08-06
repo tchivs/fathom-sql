@@ -13,7 +13,7 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 - [ ] **DIALECT-01**: Consumer can explicitly select `doris` or `flink` and its profile through the public API, CLI, LSP, JS/Wasm facade, Web, VS Code, and IntelliJ; missing, unknown, or conflicting selection returns a structured configuration error with no automatic dialect detection or generic fallback.
 - [ ] **DIALECT-02**: Parser uses independent Doris and Flink lexical/keyword policies for reserved, non-reserved, and contextual words, quoted identifiers, comments, literals, operators, and feature metadata; no global union of dialect keyword rows can affect identifier acceptance.
 - [ ] **DIALECT-03**: Shared source, token, CST, Pratt, and recovery mechanics route statement and clause grammar explicitly by dialect; Doris-only syntax is rejected in Flink mode and Flink-only syntax is rejected in Doris mode with localized diagnostics rather than try-all parsing.
-- [ ] **DIALECT-04**: Parse, format, completion, LSP, and serialized results carry dialect, profile, and exact-release metadata; strict/editor mode, byte spans, statement identity, and structured `FATHOM-*` diagnostics remain stable across the public boundary.
+- [x] **DIALECT-04**: Parse, format, completion, LSP, and serialized results carry dialect, profile, and exact-release metadata; strict/editor mode, byte spans, statement identity, and structured `FATHOM-*` diagnostics remain stable across the public boundary.
 
 ### Flink SQL Language Coverage
 
@@ -79,7 +79,7 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | DIALECT-01 | Phase 9 | Pending |
 | DIALECT-02 | Phase 9 | Pending |
 | DIALECT-03 | Phase 9 | Pending |
-| DIALECT-04 | Phase 9 | Pending |
+| DIALECT-04 | Phase 9 | Complete |
 | FLINK-01 | Phase 10 | Pending |
 | FLINK-02 | Phase 11 | Pending |
 | FLINK-03 | Phase 11 | Pending |
@@ -102,6 +102,7 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | PARITY-03 | Phase 12 | Pending |
 
 **Coverage:**
+
 - v2.0 requirements: 24 total
 - Mapped to phases: 24 (Phases 9-13)
 - Unmapped: 0

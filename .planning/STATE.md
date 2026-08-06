@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
 status: executing
-stopped_at: Phase 9 context gathered
-last_updated: "2026-08-06T13:31:35.122Z"
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-08-06T14:10:14.226Z"
 last_activity: 2026-08-06
-last_activity_desc: v2.0 roadmap created with Phases 9-13 and 24/24 requirement coverage
+last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 14
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Milestone v2.0 — Multi-Dialect: Flink SQL & Neutral Naming
+**Current focus:** Phase 9 — Dialect Boundary and Neutral Naming
 
 ## Current Position
 
-Phase: 9 — Dialect Boundary and Neutral Naming (first of 5 v2.0 phases)
-Plan: — (roadmap created; phase plans not yet defined)
+Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-08-06 — v2.0 roadmap created with Phases 9-13 and 24/24 requirement coverage
+Last activity: 2026-08-06 — Phase 9 execution started
 
 ## Performance Metrics
 
@@ -82,6 +82,7 @@ Last activity: 2026-08-06 — v2.0 roadmap created with Phases 9-13 and 24/24 re
 | Phase 04 P03 | implementation session | 3 tasks | 10 files |
 | Phase 04 P04 | implementation session | 3 tasks | 18 files |
 | Phase quick-260805-e28 Palign-the-jetbrains-plugin-wrapper-and-docs | 5min | 3 tasks | 3 files |
+| Phase 09 P01 | 35 min | 3 tasks | 219 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Use inline-root-v1 JSON byte arrays for exact source transport and advertise only linear Wasm, not Wasm GC.
 - [Phase ?]: User approved pinned host dependencies: monaco-editor@0.55.1 (installed offline from the npm cache), vscode-languageclient@10.1.0, and @vscode/vsce@3.9.2 release-only.
 - [Phase ?]: Align the JetBrains wrapper and README to Gradle 9.0.0, the official minimum for IntelliJ Platform Gradle Plugin 2.x, while retaining plugin 2.9.0, Kotlin 2.2.0, and LSP4IJ 0.20.1.
+- [Phase ?]: D-07 baseline freeze scope: FULL public behavior locked (all nine output categories byte-level; baseline is the Phase 12 PARITY-01 comparison basis, one-way)
+- [Phase ?]: D-08 snapshot gate: parity/baseline_test.mbt 213 snapshots + baseline_diff.py + approved-changes.md register; moon test --update only with a pre-committed register entry
+- [Phase ?]: Embedded-raw provenance: baseline_test.mbt embeds exact corpus .sql bytes; baseline-hashes.txt pins them; verified byte-identical for all 44 fixtures
+- [Phase ?]: Cross-target equality: shared cross-target snapshot file verified byte-identical on native/js/wasm; CI enforces native+linear-wasm
 
 ### Pending Todos
 
@@ -174,9 +179,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-06T11:32:18.154Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-dialect-boundary-and-neutral-naming/09-CONTEXT.md
+Last session: 2026-08-06T14:10:04.689Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None
 
 ## Quick Tasks Completed
 
