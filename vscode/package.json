@@ -1,7 +1,7 @@
 {
-  "name": "doris-sql-language-client",
-  "displayName": "Doris SQL Language Client",
-  "description": "Standard VS Code client for the local Doris SQL language server",
+  "name": "fathom-sql-language-client",
+  "displayName": "Fathom SQL Language Client",
+  "description": "Standard VS Code client for the local Fathom SQL language server",
   "version": "0.1.0",
   "private": true,
   "publisher": "fathom",
@@ -13,16 +13,16 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:doris",
-    "onCommand:doris.restartLanguageServer"
+    "onLanguage:sql",
+    "onCommand:fathom.restartLanguageServer"
   ],
   "contributes": {
     "languages": [
       {
-        "id": "doris",
+        "id": "sql",
         "aliases": [
-          "Doris SQL",
-          "doris-sql"
+          "SQL",
+          "Fathom SQL"
         ],
         "extensions": [
           ".sql"
@@ -31,29 +31,36 @@
       }
     ],
     "configuration": {
-      "title": "Doris SQL",
+      "title": "Fathom SQL",
       "properties": {
-        "doris.profile": {
+        "fathom.dialect": {
+          "type": "string",
+          "enum": [
+            "doris",
+            "flink"
+          ],
+          "description": "Explicit SQL dialect sent to fathom-lsp. No default: a missing selection is an explicit configuration error (D-02)."
+        },
+        "fathom.profile": {
           "type": "string",
           "enum": [
             "2.1",
             "3.x",
             "4.x"
           ],
-          "default": "4.x",
-          "description": "Explicit Doris release profile sent to doris-lsp."
+          "description": "Explicit dialect release profile sent to fathom-lsp. No default: a missing selection is an explicit configuration error (D-02)."
         },
-        "doris.serverPath": {
+        "fathom.serverPath": {
           "type": "string",
-          "default": "doris-lsp",
-          "description": "Local doris-lsp executable path. No remote fallback is used."
+          "default": "fathom-lsp",
+          "description": "Local fathom-lsp executable path. No remote fallback is used."
         }
       }
     },
     "commands": [
       {
-        "command": "doris.restartLanguageServer",
-        "title": "Doris SQL: Restart Language Server"
+        "command": "fathom.restartLanguageServer",
+        "title": "Fathom SQL: Restart Language Server"
       }
     ]
   },

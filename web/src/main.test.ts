@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ARTIFACT_FAILURE,
+  MISSING_SELECTION,
   ParserAdapter,
   byteToPosition,
   diagnosticRange,
@@ -30,7 +31,7 @@ function fakeArtifact(calls) {
   };
 }
 
-test('adapter loads one relative artifact and propagates serialized profile/source', async () => {
+test('adapter loads one relative artifact and propagates explicit dialect/profile/source', async () => {
   const calls = [];
   const artifact = fakeArtifact(calls);
   const relativeUrl = new URL('../../_build/js/debug/build/binding/binding.js', import.meta.url);
@@ -40,23 +41,26 @@ test('adapter loads one relative artifact and propagates serialized profile/sour
     return artifact;
   });
   const source = 'SELECT 1';
-  const result = await adapter.parse(source, '3.x');
+  const result = await adapter.parse(source, 'doris', '3.x');
   assert.equal(result.schema_version, 'fathom.parse.v1');
+  assert.equal(result.dialect, 'doris');
   assert.equal(result.profile, '3.x');
   assert.deepEqual(result.source_bytes, [...utf8Bytes(source)]);
-  const formatted = await adapter.format(source, '3.x');
+  const formatted = await adapter.format(source, 'doris', '3.x');
   assert.equal(formatted.output, 'SELECT 1;\n');
   assert.deepEqual(calls.map((call) => call.operation), ['parse', 'format']);
   assert.equal(calls[0].mode, 'editor');
   assert.equal(calls[1].mode, 'strict');
   assert.equal(calls[0].dialect, 'doris');
   assert.equal(calls[1].dialect, 'doris');
+  assert.equal(calls[0].profile, '3.x');
 });
 
-test('adapter rejects unsupported automatic or generic profiles before artifact calls', async () => {
+test('adapter rejects a missing or unsupported selection before artifact calls (D-02)', async () => {
   const adapter = new ParserAdapter(new URL('file:///local/binding.js'), async () => { throw new Error('must not load'); });
-  await assert.rejects(() => adapter.parse('SELECT 1', 'Auto'), /supported Doris profile/);
-  await assert.rejects(() => adapter.format('SELECT 1', 'mysql'), /supported Doris profile/);
+  await assert.rejects(() => adapter.parse('SELECT 1', '', ''), new RegExp(MISSING_SELECTION));
+  await assert.rejects(() => adapter.parse('SELECT 1', 'Auto', '2.1'), new RegExp(MISSING_SELECTION));
+  await assert.rejects(() => adapter.format('SELECT 1', 'doris', 'mysql'), new RegExp(MISSING_SELECTION));
 });
 
 test('UTF-16 diagnostic ranges are derived from authoritative UTF-8 bytes', () => {

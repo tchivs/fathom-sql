@@ -1,23 +1,27 @@
-# Doris SQL Language Client
+# Fathom SQL Language Client
 
 This extension is a thin standard `vscode-languageclient` host for the local Native
-`doris-lsp` executable. It does not start a service, connect to Doris FE, use a
-database, or provide a remote fallback.
+`fathom-lsp` executable. It does not start a service, connect to a database, or
+provide a remote fallback.
 
 ## Configuration
 
-Set these explicit settings before opening a Doris SQL document:
+Set these explicit settings before opening a SQL document:
 
-- `doris.profile`: `2.1`, `3.x`, or `4.x` (default `4.x`; there is no automatic profile).
-- `doris.serverPath`: local executable path (default `doris-lsp`).
+- `fathom.dialect`: `doris` or `flink` (no default; a missing selection is an
+  explicit configuration error — there is no implicit fallback).
+- `fathom.profile`: `2.1`, `3.x`, or `4.x` (no default; a missing selection is an
+  explicit configuration error).
+- `fathom.serverPath`: local executable path (default `fathom-lsp`).
 
-The selected profile is passed as `initializationOptions.profile` during standard
-LSP initialization. Doris files use the `doris` language selector and receive
-native Problems diagnostics, `Format Document`, and syntax-aware completion.
+The selected dialect and profile are passed as `initializationOptions.dialect`
+and `initializationOptions.profile` during standard LSP initialization. SQL files
+use the `sql` language selector and receive native Problems diagnostics,
+`Format Document`, and syntax-aware completion.
 
 If the executable is missing or exits, the client shows:
 
-> Doris language server unavailable. Check the local executable path and try again.
+> Fathom SQL language server unavailable. Check the local executable path and try again.
 
 The document remains an ordinary editable text document; there is no HTTP or
 network fallback.
@@ -26,7 +30,7 @@ network fallback.
 
 The package manifest pins `vscode-languageclient@10.1.0`, the release-only
 `@vscode/vsce@3.9.2`, and `typescript@7.0.2` (build-only). Build/release
-tooling must keep the Native `doris-lsp` executable separate from this
+tooling must keep the Native `fathom-lsp` executable separate from this
 JavaScript client package.
 
 ## Build
@@ -45,19 +49,21 @@ offline (`npm ci --offline && npm run compile`).
 ## Host verification (ECO-07)
 
 `npm run host-verify` launches three real VS Code extension hosts via
-`@vscode/test-electron` against the local `doris-lsp` executable and asserts the
+`@vscode/test-electron` against the local `fathom-lsp` executable and asserts the
 full standard-client contract end to end:
 
-- **functional** (profile 4.x): structured diagnostics with stable code +
-  UTF-16 ranges in Problems, comment-preserving `Format Document` edits,
+- **functional** (dialect doris, profile 4.x): structured diagnostics with stable
+  code + UTF-16 ranges in Problems, comment-preserving `Format Document` edits,
   parser-known completion, and 4.x MERGE accepted.
-- **profile** (profile 2.1): MERGE rejected with `DORIS-PARSE-006` — proves the
-  configured profile reaches the server via `initialize`.
+- **profile** (dialect doris, profile 2.1): MERGE rejected with
+  `FATHOM-PARSE-006` — proves the configured profile reaches the server via
+  `initialize`.
 - **fallback** (nonexistent server path): the document stays editable and the
-  fixed "Doris language server unavailable" message surfaces instead of a crash.
+  fixed "Fathom SQL language server unavailable" message surfaces instead of a
+  crash.
 
 Prerequisites: a display for VS Code (headless CI uses `xvfb-run`), `node` with
-the pinned devDependencies, and a local `doris-lsp` build. The VS Code binary is
+the pinned devDependencies, and a local `fathom-lsp` build. The VS Code binary is
 downloaded once into `.vscode-test/` by `@vscode/test-electron`.
 
 The client requires a **`LogOutputChannel`** (`createOutputChannel(name, { log: true })`)

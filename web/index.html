@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Offline Doris SQL diagnostics and formatting demo">
+  <meta name="description" content="Offline Fathom SQL diagnostics and formatting demo">
   <link rel="icon" href="data:,">
-  <title>Doris SQL — offline parser demo</title>
+  <title>Fathom SQL — offline parser demo</title>
   <link rel="stylesheet" href="./src/styles.css">
   <script type="importmap">
     {
@@ -20,27 +20,31 @@
     <header class="page-header">
       <div>
         <p class="eyebrow">Offline parser workspace</p>
-        <h1>Doris SQL diagnostics</h1>
+        <h1>Fathom SQL diagnostics</h1>
       </div>
-      <p id="profile-metadata" class="metadata">Doris profile 4.x</p>
+      <p id="profile-metadata" class="metadata">No dialect or profile selected</p>
     </header>
     <section class="toolbar" aria-label="Parser controls">
       <div class="control-group">
-        <label for="profile">Doris profile</label>
+        <label for="dialect">Dialect</label>
+        <select id="dialect" name="dialect" required></select>
+      </div>
+      <div class="control-group">
+        <label for="profile">Profile</label>
         <select id="profile" name="profile" required></select>
       </div>
       <button id="format" class="primary-action" type="button" disabled>Format document</button>
       <p id="result-message" class="result-message" aria-live="polite"></p>
     </section>
     <p id="parser-status" class="status" role="status" aria-live="polite">Loading parser artifact…</p>
-    <section class="workspace" aria-label="Doris SQL editor workspace">
+    <section class="workspace" aria-label="Fathom SQL editor workspace">
       <article class="editor-pane">
         <h2>SQL source</h2>
-        <div id="editor" class="editor" aria-label="Doris SQL source editor"></div>
+        <div id="editor" class="editor" aria-label="Fathom SQL source editor"></div>
       </article>
       <aside id="diagnostics" class="diagnostics-pane" aria-labelledby="diagnostics-heading">
         <h2 id="diagnostics-heading">No diagnostics</h2>
-        <p>Type or paste Doris SQL to see diagnostics here.</p>
+        <p>Type or paste SQL to see diagnostics here.</p>
       </aside>
     </section>
     <section id="artifact-error" class="artifact-error" role="alert" hidden>

@@ -1,7 +1,9 @@
 const DEFAULT_ARTIFACT_URL = new URL('../../_build/js/debug/build/binding/binding.js', import.meta.url);
 
+export const DIALECTS = Object.freeze(['doris', 'flink']);
 export const PROFILES = Object.freeze(['2.1', '3.x', '4.x']);
 export const ARTIFACT_FAILURE = 'The local parser artifact could not be loaded. Reload the demo; no network or database connection is required.';
+export const MISSING_SELECTION = 'Choose a dialect and a supported profile before parsing.';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -85,17 +87,25 @@ export class ParserAdapter {
     return this.module;
   }
 
-  async parse(source, profile) {
-    if (!PROFILES.includes(profile)) throw new Error('Choose a supported Doris profile.');
-    const module = await this.load();
-    return decodeResult(module.fathom_parse_v1(utf8Bytes(source), 'doris', profile, 'editor'));
+  // D-02: no implicit selection. Both dialect and profile must be chosen
+  // explicitly; a missing or unsupported value is an error, never a default.
+  validateSelection(dialect, profile) {
+    if (!DIALECTS.includes(dialect) || !PROFILES.includes(profile)) {
+      throw new Error(MISSING_SELECTION);
+    }
   }
 
-  async format(source, profile) {
-    if (!PROFILES.includes(profile)) throw new Error('Choose a supported Doris profile.');
+  async parse(source, dialect, profile) {
+    this.validateSelection(dialect, profile);
+    const module = await this.load();
+    return decodeResult(module.fathom_parse_v1(utf8Bytes(source), dialect, profile, 'editor'));
+  }
+
+  async format(source, dialect, profile) {
+    this.validateSelection(dialect, profile);
     const module = await this.load();
     const result = decodeResult(module.fathom_format_v1(
-      utf8Bytes(source), 'doris', profile, 'strict', 'upper', 2, 100, 'trailing', 'follow', true,
+      utf8Bytes(source), dialect, profile, 'strict', 'upper', 2, 100, 'trailing', 'follow', true,
     ));
     return { ...result, output: result.formatted ? decodeUtf8(result.formatted) : '' };
   }

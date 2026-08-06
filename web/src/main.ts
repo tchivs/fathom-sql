@@ -1,6 +1,7 @@
 import * as monaco from 'monaco-editor';
 import {
   ARTIFACT_FAILURE,
+  DIALECTS,
   PROFILES,
   ParserAdapter,
   byteToPosition,
@@ -9,6 +10,7 @@ import {
 } from './monaco-adapter.ts';
 
 const SAMPLE = 'SELECT /*+ SET_VAR(query_timeout=1000) */\n  id, -- keep this comment\n  name\nFROM demo_table\nWHERE id > 10;';
+const dialectSelect = document.querySelector('#dialect');
 const profileSelect = document.querySelector('#profile');
 const formatButton = document.querySelector('#format');
 const editorHost = document.querySelector('#editor');
@@ -19,20 +21,27 @@ const resultMessage = document.querySelector('#result-message');
 const reloadButton = document.querySelector('#reload');
 const artifactError = document.querySelector('#artifact-error');
 
-if (!profileSelect || !formatButton || !editorHost || !diagnosticsHost || !status || !profileMetadata || !resultMessage || !reloadButton || !artifactError) {
-  throw new Error('Doris demo markup is incomplete.');
+if (!dialectSelect || !profileSelect || !formatButton || !editorHost || !diagnosticsHost || !status || !profileMetadata || !resultMessage || !reloadButton || !artifactError) {
+  throw new Error('Fathom demo markup is incomplete.');
 }
 
+// D-02: neither dialect nor profile is preselected — the demo surfaces the
+// missing-selection error until the user chooses explicitly.
+for (const dialect of DIALECTS) {
+  const option = document.createElement('option');
+  option.value = dialect;
+  option.textContent = dialect;
+  dialectSelect.append(option);
+}
 for (const profile of PROFILES) {
   const option = document.createElement('option');
   option.value = profile;
   option.textContent = profile;
   profileSelect.append(option);
 }
-profileSelect.value = '4.x';
 
-monaco.languages.register({ id: 'doris' });
-const model = monaco.editor.createModel(SAMPLE, 'doris');
+monaco.languages.register({ id: 'sql' });
+const model = monaco.editor.createModel(SAMPLE, 'sql');
 const editor = monaco.editor.create(editorHost, {
   model,
   automaticLayout: true,
@@ -59,6 +68,7 @@ function announce(message, mode = 'polite') {
 }
 
 function setReadyControls(enabled) {
+  dialectSelect.disabled = !enabled;
   profileSelect.disabled = !enabled;
   formatButton.disabled = !enabled || formatting;
   editor.updateOptions({ readOnly: !enabled });
@@ -82,7 +92,7 @@ function diagnosticText(diagnostic, sourceBytes) {
 
 function renderDiagnostics(diagnostics, sourceBytes) {
   lastDiagnostics = diagnostics;
-  monaco.editor.setModelMarkers(model, 'doris', diagnostics.map((diagnostic) => {
+  monaco.editor.setModelMarkers(model, 'sql', diagnostics.map((diagnostic) => {
     const [label, glyph, severity] = severityLabel(diagnostic.severity);
     const range = diagnosticText(diagnostic, sourceBytes).range;
     return {
@@ -104,7 +114,7 @@ function renderDiagnostics(diagnostics, sourceBytes) {
   diagnosticsHost.append(heading);
   if (diagnostics.length === 0) {
     const empty = document.createElement('p');
-    empty.textContent = 'Type or paste Doris SQL to see diagnostics here.';
+    empty.textContent = 'Type or paste SQL to see diagnostics here.';
     diagnosticsHost.append(empty);
     return;
   }
@@ -153,9 +163,9 @@ async function parseNow() {
   const source = model.getValue();
   const sourceBytes = utf8Bytes(source);
   try {
-    const result = await adapter.parse(source, profileSelect.value);
+    const result = await adapter.parse(source, dialectSelect.value, profileSelect.value);
     if (generation !== parseGeneration) return;
-    profileMetadata.textContent = `Doris profile ${result.profile ?? profileSelect.value}`;
+    profileMetadata.textContent = `dialect ${result.dialect ?? dialectSelect.value}; profile ${result.profile ?? profileSelect.value}`;
     renderDiagnostics(result.diagnostics ?? [], sourceBytes);
     if (result.recovered) {
       announce('Parser ready; incomplete SQL is recoverable.');
@@ -183,11 +193,11 @@ async function formatDocument() {
   const source = model.getValue();
   const originalBytes = utf8Bytes(source);
   try {
-    const result = await adapter.format(source, profileSelect.value);
+    const result = await adapter.format(source, dialectSelect.value, profileSelect.value);
     if (result.accepted) {
       const output = result.output;
       if (output !== source) {
-        editor.executeEdits('doris-format', [{
+        editor.executeEdits('fathom-format', [{
           range: model.getFullModelRange(),
           text: output,
         }]);
@@ -218,7 +228,7 @@ async function load() {
     await adapter.load();
     ready = true;
     setReadyControls(true);
-    profileMetadata.textContent = `Doris profile ${profileSelect.value}`;
+    profileMetadata.textContent = 'No dialect or profile selected';
     announce('Parser ready');
     scheduleParse();
   } catch {
@@ -230,10 +240,13 @@ async function load() {
   }
 }
 
-profileSelect.addEventListener('change', () => {
-  profileMetadata.textContent = `Doris profile ${profileSelect.value}`;
+function selectionChanged() {
+  profileMetadata.textContent = `dialect ${dialectSelect.value}; profile ${profileSelect.value}`;
   scheduleParse();
-});
+}
+
+dialectSelect.addEventListener('change', selectionChanged);
+profileSelect.addEventListener('change', selectionChanged);
 formatButton.addEventListener('click', formatDocument);
 model.onDidChangeContent(scheduleParse);
 reloadButton.addEventListener('click', () => window.location.reload());
