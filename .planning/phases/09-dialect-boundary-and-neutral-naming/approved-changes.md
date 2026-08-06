@@ -110,6 +110,21 @@ file, and both are gated).
    regression: `scripts/baseline_diff.py` exits 1, and the diff must be
    reverted (never absorbed by another `--update`).
 
+## 9. 09-03 (format/completion dialect-awareness)
+
+The format and completion wire surfaces move to the neutral identity in
+this plan. Sections 1-3 already approve the schema-namespace swap
+(`doris.format.v1` -> `fathom.format.v1`), the `FATHOM-FORMAT-*` code
+family, and the `dialect`/`exact_release` fields; the one NEW byte change
+this plan mints is the completion item detail string (research row 27):
+
+| Old (v1 baseline) | New (approved) |
+|--------------------|----------------|
+| completion item `detail`: `Doris syntax keyword` | `SQL syntax keyword` (dialect-neutral; affects the 27 completion snapshots) |
+
+Machine-readable pattern (the format half of sections 1-3 is already
+registered above):
+
 ---
 
 ## Machine-Readable Approved Patterns
@@ -136,6 +151,7 @@ prefix: doris_capabilities_v1 -> fathom_capabilities_v1
 prefix: doris-lsp -> fathom-lsp
 prefix: doris-sql -> fathom-sql
 prefix: doris -> fathom
+key:detail: Doris syntax keyword -> SQL syntax keyword
 field: dialect
 field: exact_release
 field: profile
