@@ -15,7 +15,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity p
 - **Structured diagnostics**: Diagnostics include stable `DORIS-PARSE-*` codes, messages, severity levels, byte ranges, and statement IDs.
 - **CST formatting**: The formatter supports keyword case, indentation, line width, comma style, newline style, and trailing-newline policy; when it encounters an error tree, it refuses to emit a partial result.
 - **Optional name resolution**: The `analyzer` package resolves DML/DDL target tables through a caller-injected `Catalog`, keeping metadata dependencies out of syntax parsing.
-- **Library and CLI**: Core parsing capabilities are provided as MoonBit library packages, while `doris-sql/` contains the native CLI adapter; the repository has no deployment service.
+- **Library and CLI**: Core parsing capabilities are provided as MoonBit library packages, while `fathom-sql/` contains the native CLI adapter; the repository has no deployment service.
 
 ## Installation
 
@@ -44,7 +44,7 @@ The module has no additional MoonBit dependencies to download; `moon check` buil
    moon check
    ```
 
-3. Import `fathom/doris-sql/api` into your own MoonBit package, then call `parse_with_ids` or `format_with_ids` (see the examples below).
+3. Import `fathom/sql/api` into your own MoonBit package, then call `parse_with_ids` or `format_with_ids` (see the examples below).
 
 ## Usage Examples
 
@@ -54,7 +54,7 @@ The `api` facade accepts raw `Bytes` and returns a `ParseResult` containing a pr
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
+  "fathom/sql/api" @api,
 }
 
 let parsed = @api.parse_with_ids(b"SELECT 1", "4.x", "strict")
@@ -78,8 +78,8 @@ For expressions that have not yet been completed, use `editor` mode to preserve 
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/printer" @printer,
+  "fathom/sql/api" @api,
+  "fathom/sql/printer" @printer,
 }
 
 let parsed = @api.parse_with_ids(b"SELECT 1 +", "4.x", "editor")
@@ -103,8 +103,8 @@ The default formatting options are uppercase keywords, 2-space indentation, a 10
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/formatter" @formatter,
+  "fathom/sql/api" @api,
+  "fathom/sql/formatter" @formatter,
 }
 
 let options = @formatter.FormatOptions::default()

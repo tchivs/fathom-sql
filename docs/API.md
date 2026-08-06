@@ -2,7 +2,7 @@
 English | [简体中文](zh-CN/API.md)
 # API Reference
 
-Fathom is a MoonBit library, not an HTTP service. The `api/` directory is the `fathom/doris-sql/api` library package, providing a facade for parsing and formatting Doris SQL; callers pass source bytes, a Doris profile, mode, and limits through function parameters, so no server, Doris FE connection, or authentication credentials are required.
+Fathom is a MoonBit library, not an HTTP service. The `api/` directory is the `fathom/sql/api` library package, providing a facade for parsing and formatting Doris SQL; callers pass source bytes, a Doris profile, mode, and limits through function parameters, so no server, Doris FE connection, or authentication credentials are required.
 
 ## Authentication
 
@@ -10,7 +10,7 @@ Not applicable. This repository has no HTTP service, middleware, API key, JWT, O
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
+  "fathom/sql/api" @api,
 }
 ```
 
@@ -22,13 +22,13 @@ This project has no HTTP endpoints, HTTP base URL, request routes, or deployment
 
 | Entry point | Package | Purpose | Authentication |
 |---|---|---|---|
-| `parse` | `fathom/doris-sql/api` | Parse raw SQL bytes using an already constructed `ParseOptions` | Not required |
-| `parse_with_ids` | `fathom/doris-sql/api` | Construct options from profile/mode strings and parse | Not required |
-| `parse_with_metadata` | `fathom/doris-sql/api` | Validate the profile’s release and feature metadata, then parse | Not required |
-| `format_text` | `fathom/doris-sql/api` | Parse and format SQL according to `FormatOptions` | Not required |
-| `format_with_ids` | `fathom/doris-sql/api` | Format using profile/mode strings as a shortcut | Not required |
-| `format_with_metadata` | `fathom/doris-sql/api` | Validate profile metadata, then format | Not required |
-| `resolve_table_references` | `fathom/doris-sql/analyzer` | Resolve target table names for supported DML/DDL using the caller’s catalog | Not required |
+| `parse` | `fathom/sql/api` | Parse raw SQL bytes using an already constructed `ParseOptions` | Not required |
+| `parse_with_ids` | `fathom/sql/api` | Construct options from profile/mode strings and parse | Not required |
+| `parse_with_metadata` | `fathom/sql/api` | Validate the profile’s release and feature metadata, then parse | Not required |
+| `format_text` | `fathom/sql/api` | Parse and format SQL according to `FormatOptions` | Not required |
+| `format_with_ids` | `fathom/sql/api` | Format using profile/mode strings as a shortcut | Not required |
+| `format_with_metadata` | `fathom/sql/api` | Validate profile metadata, then format | Not required |
+| `resolve_table_references` | `fathom/sql/analyzer` | Resolve target table names for supported DML/DDL using the caller’s catalog | Not required |
 
 ## Request and Response Formats
 
@@ -246,12 +246,12 @@ pub(all) struct FormatResult {
 
 ### Lossless Printing
 
-For exact input replay, use `fathom/doris-sql/printer`:
+For exact input replay, use `fathom/sql/printer`:
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/printer" @printer,
+  "fathom/sql/api" @api,
+  "fathom/sql/printer" @printer,
 }
 
 let parsed = @api.parse_with_ids(b"-- note\r\nselect 1", "4.x", "editor")
@@ -268,7 +268,7 @@ The printer also provides `print_transport(ParseResult)` (directly reads `source
 
 ### Optional Name-Resolution API
 
-`fathom/doris-sql/analyzer` is not part of the syntax-validity path. It consumes only `syntax.SyntaxNode`, caller-provided source bytes, and a catalog:
+`fathom/sql/analyzer` is not part of the syntax-validity path. It consumes only `syntax.SyntaxNode`, caller-provided source bytes, and a catalog:
 
 ```moonbit
 pub(all) struct ColumnInfo {
@@ -361,9 +361,9 @@ To prevent a single untrusted input from consuming unlimited resources, the pars
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/formatter" @formatter,
-  "fathom/doris-sql/printer" @printer,
+  "fathom/sql/api" @api,
+  "fathom/sql/formatter" @formatter,
+  "fathom/sql/printer" @printer,
 }
 
 fn main {

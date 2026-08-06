@@ -16,7 +16,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 - **结构化诊断**：诊断包含稳定的 `DORIS-PARSE-*` code、消息、严重级别、字节范围和 statement id。
 - **CST 格式化**：格式化器支持关键字大小写、缩进、行宽、逗号风格、换行风格和尾部换行策略；遇到错误树时拒绝输出部分结果。
 - **可选名字解析**：`analyzer` 包通过调用方注入的 `Catalog` 解析 DML/DDL 目标表，不把元数据依赖带入语法解析。
-- **库与 CLI**：核心解析能力以 MoonBit library packages 提供，`doris-sql/` 包含 native CLI 适配器；仓库没有部署服务。
+- **库与 CLI**：核心解析能力以 MoonBit library packages 提供，`fathom-sql/` 包含 native CLI 适配器；仓库没有部署服务。
 
 ## 安装
 
@@ -45,7 +45,7 @@ moon check
    moon check
    ```
 
-3. 在自己的 MoonBit package 中导入 `fathom/doris-sql/api`，然后调用 `parse_with_ids` 或 `format_with_ids`（示例见下文）。
+3. 在自己的 MoonBit package 中导入 `fathom/sql/api`，然后调用 `parse_with_ids` 或 `format_with_ids`（示例见下文）。
 
 ## 使用示例
 
@@ -55,7 +55,7 @@ moon check
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
+  "fathom/sql/api" @api,
 }
 
 let parsed = @api.parse_with_ids(b"SELECT 1", "4.x", "strict")
@@ -79,8 +79,8 @@ match parsed {
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/printer" @printer,
+  "fathom/sql/api" @api,
+  "fathom/sql/printer" @printer,
 }
 
 let parsed = @api.parse_with_ids(b"SELECT 1 +", "4.x", "editor")
@@ -104,8 +104,8 @@ match parsed {
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/formatter" @formatter,
+  "fathom/sql/api" @api,
+  "fathom/sql/formatter" @formatter,
 }
 
 let options = @formatter.FormatOptions::default()

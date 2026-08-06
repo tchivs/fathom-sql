@@ -1,4 +1,4 @@
 pkgtype(kind: "library")
 import {
-  "fathom/doris-sql/source" @source,
+  "fathom/sql/source" @source,
 }

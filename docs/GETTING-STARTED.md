@@ -2,7 +2,7 @@
 English | [简体中文](zh-CN/GETTING-STARTED.md)
 # Getting Started with Fathom
 
-Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-byte preservation, diagnostics, and formatting capabilities for editors, formatting tools, and automation pipelines. The current repository provides library packages and a `doris-sql/` native CLI adapter; it does not provide an HTTP service that needs to be started.
+Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-byte preservation, diagnostics, and formatting capabilities for editors, formatting tools, and automation pipelines. The current repository provides library packages and a `fathom-sql/` native CLI adapter; it does not provide an HTTP service that needs to be started.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-byte prese
 - **Python 3**: Required only for running corpus report or differential tools under `corpus/`. The parser itself does not require a Python runtime.
 - **Optional Python dependencies**: `corpus/requirements.txt` pins the differential comparison tool `sqlglot==30.14.0`; install it only when using that differential tool.
 
-The repository has no Node.js dependencies, database, `.env` file, or deployment service. The MoonBit module identity and preferred build target are recorded in the root `moon.mod`: the module name is `fathom/doris-sql`, the version is `0.1.0`, and the preferred target is `native`.
+The repository has no Node.js dependencies, database, `.env` file, or deployment service. The MoonBit module identity and preferred build target are recorded in the root `moon.mod`: the module name is `fathom/sql`, the version is `0.1.0`, and the preferred target is `native`.
 
 ## Installation
 
@@ -46,7 +46,7 @@ moon check
 
 This command checks the root package and library packages such as `api`, `parser`, `lexer`, `syntax`, `printer`, `formatter`, and `analyzer`. In the current repository, `moon check` has been verified to complete successfully; it may emit warnings about deprecations, redundant modifiers, or unused items. These warnings do not indicate that the check failed.
 
-Fathom currently has no HTTP service, but it provides the `doris-sql/` native CLI adapter. Library callers can import `fathom/doris-sql/api` from their own MoonBit package. The CLI entry point is `doris-sql/main.mbt`; for the shortest library example, see the “Usage examples” section of [README.md](../README.md).
+Fathom currently has no HTTP service, but it provides the `fathom-sql/` native CLI adapter. Library callers can import `fathom/sql/api` from their own MoonBit package. The CLI entry point is `fathom-sql/main.mbt`; for the shortest library example, see the “Usage examples” section of [README.md](../README.md).
 
 ## Common Setup Issues
 
@@ -63,7 +63,7 @@ Do not use environment variables as a substitute for switching versions; the rep
 
 ### Starting the library as a service or CLI
 
-The repository has no HTTP service, but it includes an executable `doris-sql` package. To run the CLI, use the package's `format` entry point. To use the library API, import `fathom/doris-sql/api` from the caller's MoonBit package. The parsing entry point requires an explicit Doris profile (`2.1`, `3.x`, or `4.x`) and mode (`strict` or `editor`).
+The repository has no HTTP service, but it includes an executable `fathom-sql` package. To run the CLI, use the package's `format` entry point. To use the library API, import `fathom/sql/api` from the caller's MoonBit package. The parsing entry point requires an explicit Doris profile (`2.1`, `3.x`, or `4.x`) and mode (`strict` or `editor`).
 
 ### `moon test` reports snapshot placeholders or fails
 

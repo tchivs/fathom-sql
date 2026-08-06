@@ -5,7 +5,7 @@
 // api stay backend-neutral for the Wasm/JS targets).
 pkgtype(kind: "executable")
 import {
-  "fathom/doris-sql/api" @api,
+  "fathom/sql/api" @api,
   "moonbitlang/core/buffer" @buffer,
   "moonbitlang/core/debug" @debug,
   "moonbitlang/core/env" @env,
