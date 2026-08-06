@@ -131,6 +131,10 @@ def exempted(path: Path) -> bool:
 # the exact corpus .sql bytes pinned by parity/baseline-hashes.txt;
 # test/formatter_test.mbt embeds the same fixtures). These two files are
 # exempt from the DORIS- pattern ONLY; all other patterns still apply.
+# The exemption is deliberately file-scoped and coarse (IN-03): any NEW
+# DORIS- text added OUTSIDE fixture literals in these files would silently
+# pass, so the files' headers carry an explicit NAMING-GATE CONSTRAINT
+# comment — keep that constraint in force when editing them.
 EMBEDDED_FIXTURE_FILES = {
     "parity/baseline_test.mbt",
     "test/formatter_test.mbt",

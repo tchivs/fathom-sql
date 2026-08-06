@@ -9,6 +9,12 @@
 /// plus the manifest's inline rows (STATE.md convention), and
 /// parity/baseline-hashes.txt pins the corpus files (T-09-03).
 ///
+/// NAMING-GATE CONSTRAINT (IN-03): scripts/check_naming.py exempts this file
+/// from the DORIS- pattern (EMBEDDED_FIXTURE_FILES) ONLY because its DORIS-
+/// text lives inside frozen, hash-pinned embedded fixture bytes. Do NOT add
+/// DORIS- text (comments, messages, identifiers) OUTSIDE embedded fixture
+/// literals here — the exemption is file-scoped, so the gate cannot see it.
+///
 /// Cross-target byte equality (PARITY-02 foundation, research §9.2 step 5):
 /// the shared cross-target snapshot file is written by whichever target runs
 /// the parity suite, and every other target must reproduce the identical

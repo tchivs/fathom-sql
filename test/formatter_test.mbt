@@ -2,6 +2,12 @@
 /// EmbeddedManifestFixture convention (test/parser_test.mbt:463-505). Runtime
 /// tests never load the disk — raw bytes and goldens are embedded (STATE.md).
 ///
+/// NAMING-GATE CONSTRAINT (IN-03): scripts/check_naming.py exempts this file
+/// from the DORIS- pattern (EMBEDDED_FIXTURE_FILES) ONLY because its DORIS-
+/// text lives inside frozen embedded fixture/golden bytes. Do NOT add DORIS-
+/// text (comments, messages, identifiers) OUTSIDE embedded fixture literals
+/// here — the exemption is file-scoped, so the gate cannot see it.
+///
 /// Contracts under test:
 /// - byte-exact idempotence format(format(x)) == format(x) (D-34, Pitfall 6:
 ///   full Bytes equality, no trimming);
