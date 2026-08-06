@@ -479,7 +479,7 @@ fn parse_segment(
 
 | 输出类别 | 来源（现状 inventory） | 比较维度 |
 |----------|------------------------|----------|
-| corpus fixtures | `corpus/manifest.tsv`（46 行）、`corpus/doris-2.1|3.x|4.x/` SQL 文件、`corpus/keywords.tsv` | 字节一致 + sha256 记录 |
+| corpus fixtures | `corpus/manifest.tsv`（45 行含 header，44 数据行；实测 `wc -l` = 45）、`corpus/doris-2.1|3.x|4.x/` SQL 文件、`corpus/keywords.tsv` | 字节一致 + sha256 记录 |
 | CST 形状/span | `test/corpus_test.mbt`（embedded oracle，357 行）、`parser_test.mbt`、`ddl_test.mbt`、`dml_test.mbt`、`keyword_test.mbt`、`recovery_test.mbt`、`source_test.mbt` | 序列化 `ParseResult.root` 的 normalized view（kind/start_byte/end_byte/text_len）+ `print_lossless(parse(x)) == x` |
 | diagnostics | 上述测试 + `api/api.mbt` 内嵌测试（`:520-575`） | code/span/statement_id/severity/message/expected_class |
 | strict/editor 双模式 | `api/api.mbt:552-563`（modes share shape）、recovery_test | 同输入两模式形状一致 |
@@ -662,42 +662,52 @@ ALLOWLIST_PATTERNS = (r"Dialect::Doris", r"DorisProfile", r"DorisFeature",
 | A6 | `DorisProfile`/`DorisFeature`/`ValidatedProfileContext` 类型名保留在 `dialect/doris.mbt`，`ClassificationKind` 保留在 token 或 dialect 公共层 | §4.1（D-05） | D-05 已锁定类型名；仅「放哪个文件/包」是自由度 |
 | A7 | baseline 快照放入 `parity/` 包扩展（而非新 `baseline/` 包） | §9.2 | 放置位置是工程选择；若放在新包需新增 moon.pkg + CI 包列表 |
 | A8 | `moon.mod` version 保持 `0.1.0` 或按 v2.0 里程碑决定 bump | §6.1、Open Question 7 | SemVer 决定 npm/GitHub release 兼容语义；需在发布前确认 |
-| A9 | 命名 gate 的 `scripts/check_naming.py` 只扫描 product 文件（源码/配置/CI/扩展/文档），`.planning/**` 与 `corpus/**` 全豁免 | §7.2（D-04） | 若评审要求 gate 也覆盖 `.planning`（除 milestones 外），需调整豁免清单；D-04 原文只豁免归档 |
+| A9 | 命名 gate 的 `scripts/check_naming.py` 只扫描 product 文件（源码/配置/CI/扩展/文档）；豁免按 §7.2 细粒度列表（`corpus/**` provenance、`milestones/v1.0-*`、`.planning/milestones/**`、`.planning/research/**`、`.planning/phases/**` 历史文档、ROADMAP/REQUIREMENTS 归档段、构建产物），不整目录豁免 `.planning`（D-04 只豁免归档） | §7.2（D-04） | 已按 checker I-2 收窄：ALLOWLIST_PATHS 与 §7.2 一致，现行（非归档）`.planning` 内容按 product 规则扫描；A9 原「`.planning/**` 全豁免」表述作废 |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> 全部 8 个开放问题已在规划中解决（adoption 位置见各条 RESOLVED 标记）：OQ1→09-02 Task 1/2（FATHOM-PARSE-008）、OQ2→09-02（A4 参数序）、OQ3→09-02/09-05/09-06（FATHOM-SCHEMA-007）、OQ4→09-05（fathom_dialect_v1）、OQ5→09-02（context 化）、OQ6→09-06/09-07（sql languageId）、OQ7→09-04（version 0.1.0）、OQ8→09-04/09-07（仓库名保留）。
 
 1. **Flink 在 Phase 9 的 profile/grammar 表面**
    - What we know: DIALECT-01 要求 flink 可选；D-05 要求新增 `FlinkProfile`；Phase 10 才锁定 `flink-2.3.0`/`2.1.3`/`1.20.5`；Phase 11 才实现 grammar。
    - What's unclear: Phase 9 的 `flink` 请求返回什么——(a) 所有 profile 结构化拒绝（推荐，A1）；(b) 接受 `flink-dev` 占位 profile；(c) 空 enum `FlinkProfile`（MoonBit 空 enum 的匹配语义需 probe）。
    - Recommendation: (a)。`flink` 作为合法 dialect 值全链可传，profile 校验全部拒绝直到 Phase 10；`parse_flink_segment` 返回稳定 `FATHOM-PARSE-00N` not-implemented 诊断。planner 需在 Wave 0 定 code 号（建议预留 `FATHOM-PARSE-008`）。
+   - **RESOLVED:** (a) 采纳 — 09-02 Task 1 checkpoint 确认 + Task 2 tracer 实现 `FATHOM-PARSE-008`（09-01 approved-changes.md 已记录 mint）；flink profile 校验 Phase 9 全部拒绝。
 2. **`fathom_parse_v1` 等 binding export 的 dialect 参数位置**
    - What we know: 现状 `doris_parse_v1(raw, profile, mode)`（`binding/exports.mbt:26`）。
    - What's unclear: `(raw, dialect, profile, mode)`（推荐，与 CLI 顺序一致）还是 `(raw, profile, dialect, mode)`。
    - Recommendation: dialect 紧跟 raw 之后；与 `ParseOptions::new(dialect_id, profile_id, mode_id)`、CLI `--dialect ... --profile ...` 全链一致（A4）。
+   - **RESOLVED:** A4 参数序采纳 — `fathom_parse_v1(raw, dialect, profile, mode)`，dialect 紧跟 raw；09-02 Task 1 checkpoint option-a + Task 2 tracer，api/CLI/binding 全链一致。
 3. **冲突选择的错误变体形态（D-01 同源冲突）**
    - What we know: `ParseError` 现有 `UnknownProfile`/`UnknownMode`（`api/api.mbt:48-62`）；LSP/CLI 各自的错误面存在。
    - What's unclear: 冲突（如 document 配置 `doris` vs languageId 映射 `flink` 同一来源）是新增 `ParseError::ConflictingSelection` 变体，还是复用 schema 的 `FATHOM-SCHEMA-00N` code + 消息。
    - Recommendation: 在 `api` 增 `ConflictingSelection`（结构化字段带两个来源），binding 映射新 code（如 `FATHOM-SCHEMA-007`）；LSP 在 initialize/didChange 拒绝并返回结构化错误。
+   - **RESOLVED:** `ParseError::ConflictingSelection` + `FATHOM-SCHEMA-007` 采纳 — 09-02 Task 2（api 变体）、09-05 Task 1（code 映射）、09-06 Task 3（LSP 错误面）。
 4. **`doris_profile_v1` 的去留（D-09 只列 parse/format/error/capabilities）**
    - What we know: `doris_profile_v1`（`binding/exports.mbt:74-75`）现返回 `doris.profile.v1`（`schema.mbt:154`）。
    - What's unclear: 改成 `fathom_dialect_v1`（返回 dialect 列表 + per-dialect profiles）还是并入 `fathom_capabilities_v1`。
    - Recommendation: 改为 `fathom_dialect_v1(dialect)`（返回该 dialect 的可用 profiles + 版本元数据），capabilities 返回全局列表；ARCHITECTURE.md 也建议 `fathom_dialect_v1`。
+   - **RESOLVED:** `fathom_dialect_v1(dialect)`（per-dialect）+ `fathom_capabilities_v1()`（全局列表）采纳 — 09-05 Task 1。
 5. **parser 层 Doris 便捷入口的去留**
    - What we know: `parse(source, profile : DorisProfile, mode)` / `parse_with_limits(source, profile, ...)`（`parser/parser.mbt:3531-3556`）被 test 包大量调用（`ValidatedProfileContext|DorisProfile` 共 93 处引用，集中在 token/parser/api）。
    - What's unclear: 全部改 context（推荐，Pitfall 1 要求无参数公共查询消失）还是保留 Doris-only 便捷重载。
    - Recommendation: 全部改为 `context : DialectContext`；test 包调用同步更新。D-05 保留的是类型名，不是 profile 参数形态。
+   - **RESOLVED:** 全部 context 化采纳 — 09-02 Task 2（parser/api 入口）+ Task 3（test 包调用点 sweep，含 lsp/handlers.mbt 机械更新）。
 6. **VS Code/IntelliJ 语言 ID 与 dialect 的关系**
    - What we know: 现状 languageId `doris` + `.sql` 扩展（`vscode/package.json:20-32`）；D-01/D-02 禁止 languageId 隐式兜底。
    - What's unclear: 中立后是单一 `sql` languageId + 显式配置选 dialect，还是 `doris`/`flink` 两个 languageId（用户显式映射时 languageId 才参与）。
    - Recommendation: 单一中立 languageId（如 `sql`）+ `fathom.dialect` 配置 + 可选的 languageId→dialect 显式映射表；真实宿主 smoke 确认（Phase 13 验证）。
+   - **RESOLVED:** 单一中立 `sql` languageId + `fathom.dialect` 配置 + 可选显式映射采纳 — 09-06 Task 3（language_mapping 仅用户配置时参与）、09-07 Task 1 checkpoint + Task 2（vscode/web）；真实宿主 smoke 延后 Phase 13。
 7. **module version bump（v2.0 发布语义）**
    - What we know: `moon.mod` version `0.1.0`；schema namespace 从 `doris.*.v1` → `fathom.*.v1` 是破坏性公共契约变更（D-06/D-09 one-way）。
    - What's unclear: 是否 bump `0.2.0`/`1.0.0`，以及 CLI/扩展 version 对齐。
    - Recommendation: 与 release 规划一起决定；至少 module/CLI/extension version 保持一致并记录在发布 manifest。
+   - **RESOLVED:** 本阶段 version 保持 `0.1.0`，bump 交由 release 规划决定 — 09-04 Task 1 checkpoint（为 release manifest 记录）。
 8. **GitHub release 仓库名 `tchivs/doris-sql-parser-sdk`（`DorisNativeDownloader.kt:268`）**
    - What we know: JetBrains 下载器按该 repository 名拉取 release 资产；仓库重命名会改变 URL 路径。
    - What's unclear: 是否随产品改名为 `tchivs/fathom-sql-parser-sdk`（GitHub 重命名会 301 旧 URL，旧 release 资产保留）。
    - Recommendation: 与用户确认仓库重命名；若改名，`DEFAULT_REPOSITORY` 与 README 同步更新，旧 URL 301 兜底。
+   - **RESOLVED:** 本阶段仓库名 `tchivs/doris-sql-parser-sdk` 保持不变（GitHub 重命名是用户操作），命名 gate 将其 allowlist 为仓库标识 — 09-04 Task 1 checkpoint + 09-07 Task 4。
 
 ## Environment Availability
 
