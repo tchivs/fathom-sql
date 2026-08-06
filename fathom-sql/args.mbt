@@ -168,8 +168,10 @@ pub fn is_valid_dialect_profile(dialect : String, id : String) -> Bool {
 /// dependency surface stays at api/lsp/binding/env/buffer/utf8/debug). "4" ->
 /// Some(4), "-1" -> Some(-1), "abc" -> None. Negative values reach
 /// FormatOptions::new, which rejects them with InvalidIndent/InvalidLineWidth
-/// (exit 2). The magnitude bound keeps the accumulator far below Int
-/// overflow.
+/// (exit 2). The pre-multiply magnitude cap (values up to ~1e9 are accepted)
+/// is a value-range sanity gate for --indent/--line-width, not an overflow
+/// guard: Int64 arithmetic cannot overflow here, and FormatOptions::new
+/// applies the authoritative bounds (indent 0..64).
 fn parse_int_arg(value : String) -> Int? {
   let chars = value.to_array()
   if chars.length() == 0 { return None }
