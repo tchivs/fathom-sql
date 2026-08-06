@@ -7,10 +7,11 @@ import kotlin.test.assertTrue
 
 class DorisSettingsTest {
     @Test
-    fun defaultsUseLocalDorisServerAndLatestProfile() {
+    fun defaultsUseManagedGitHubReleaseServerAndLatestProfile() {
         val defaults = DorisSettings.State()
         assertEquals("doris-lsp", defaults.executablePath)
         assertEquals("4.x", defaults.profile)
+        assertTrue(defaults.useGitHubReleases)
     }
 
     @Test
@@ -36,22 +37,24 @@ class DorisSettingsTest {
     }
 
     @Test
-    fun invalidPersistedValuesNeverSelectGenericProfile() {
+    fun invalidPersistedValuesKeepTheManagedServerDefault() {
         val settings = DorisSettings()
         settings.loadState(DorisSettings.State(" ", "generic"))
         assertEquals(DorisSettings.DEFAULT_EXECUTABLE, settings.snapshot().executablePath)
         assertEquals(DorisSettings.DEFAULT_PROFILE, settings.snapshot().profile)
+        assertTrue(settings.snapshot().useGitHubReleases)
     }
 
     @Test
     fun settingsUpdateAffectsOnlyTheNextConfigurationSnapshot() {
         val settings = DorisSettings()
         val first = settings.snapshot()
-        settings.update("custom-doris-lsp", "2.1")
+        settings.update("custom-doris-lsp", "2.1", useGitHubReleases = false)
         val second = settings.snapshot()
         assertEquals("doris-lsp", first.executablePath)
         assertEquals("4.x", first.profile)
         assertEquals("custom-doris-lsp", second.executablePath)
         assertEquals("2.1", second.profile)
+        assertTrue(!second.useGitHubReleases)
     }
 }

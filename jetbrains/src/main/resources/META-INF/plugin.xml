@@ -5,15 +5,15 @@
     <vendor email="maintainers@fathom.dev">Fathom</vendor>
     <idea-version since-build="252"/>
     <description><![CDATA[
-        Doris SQL language support backed by the repository's local doris-lsp Native server.
-        LSP transport and protocol integration are provided by LSP4IJ.
+        Doris SQL language support backed by the repository's Native doris-lsp server.
+        LSP transport and protocol integration are provided by LSP4IJ. Managed binaries are downloaded from the public GitHub Releases repository with SHA-256 verification and a configured local-command fallback.
     ]]></description>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.redhat.devtools.lsp4ij</depends>
 
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
         <server id="doris" name="Doris SQL" factoryClass="fathom.jetbrains.doris.DorisLanguageServerFactory">
-            <description><![CDATA[Local doris-lsp Native server over stdio.]]></description>
+            <description><![CDATA[Native doris-lsp server over stdio; managed GitHub Releases download with local executable fallback.]]></description>
         </server>
         <fileNamePatternMapping patterns="*.sql" serverId="doris" languageId="doris"/>
     </extensions>

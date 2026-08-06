@@ -8,12 +8,13 @@ Build the plugin ZIP with `./gradlew buildPlugin`, then install it from **Settin
 
 Configure **Settings | Tools | Doris SQL**:
 
-- **doris-lsp executable**: local executable path or command name; defaults to `doris-lsp`.
+- **doris-lsp executable**: local executable path or command name; defaults to `doris-lsp` and is used as the fallback when a managed release cannot be downloaded.
 - **Doris profile**: exactly `2.1`, `3.x`, or `4.x`; defaults to `4.x`.
+- **Download managed doris-lsp binaries from GitHub Releases**: enabled by default. Disable it to use only the configured executable.
 
 Settings are read when a new LSP4IJ server connection starts. Applying settings does not mutate an already-running process; restart the server for changes to take effect. SQL files are mapped by filename (`*.sql`) and receive language id `doris`.
 
-The current ZIP uses the explicit local-executable path contract. Automatic download from GitHub Releases is a release follow-up and must not be enabled until the public repository owner/name, release asset names, and SHA-256 manifest are fixed. No remote fallback is used.
+When managed downloads are enabled, the plugin detects Linux x64, macOS x64, macOS arm64, and Windows x64, downloads the matching `doris-lsp-*` asset from the latest release of `tchivs/doris-sql-parser-sdk`, verifies the SHA-256 listed in `doris-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms, missing releases, and hash mismatches fall back to the configured executable.
 
 ## Build and verification
 
@@ -27,6 +28,19 @@ python3 scripts/source-smoke.py
 ```
 
 The resulting ZIP is written to `build/distributions/`. The CI workflow runs the source smoke, Kotlin tests, Plugin Verifier, and packaging, then uploads the ZIP as a workflow artifact.
+
+## Native release assets
+
+The root workflow `.github/workflows/doris-native-release.yml` builds the `lsp/` executable on four runners and publishes these exact assets:
+
+| Platform key | Release asset |
+| --- | --- |
+| `linux-x86_64` | `doris-lsp-linux-x86_64` |
+| `macos-x86_64` | `doris-lsp-macos-x86_64` |
+| `macos-aarch64` | `doris-lsp-macos-aarch64` |
+| `windows-x86_64` | `doris-lsp-windows-x86_64.exe` |
+
+Every release also contains `doris-lsp-manifest.json` with `schemaVersion`, the exact release `tag`, and the SHA-256 for each binary. Tag pushes (`v*`) and manual dispatches publish through the `tchivs/doris-sql-parser-sdk` repository.
 
 ## Marketplace release preparation
 
@@ -45,9 +59,9 @@ After the first manual upload is accepted by JetBrains Marketplace, a signed rel
 ./gradlew --no-daemon signPlugin verifyPluginSignature publishPlugin
 ```
 
-The first Marketplace publication must be uploaded manually. Before that upload, complete a fresh-IDE check with LSP4IJ installed, verify diagnostics/formatting/completion/profile propagation, and publish compatible `doris-lsp` Native binaries separately for Linux x64, macOS x64, macOS arm64, and Windows x64. The automatic GitHub Releases downloader remains blocked until the public repository coordinates and release manifest are supplied.
+The first Marketplace publication must be uploaded manually. Before that upload, complete a fresh-IDE check with LSP4IJ installed and verify diagnostics, formatting, completion, profile propagation, and managed Native fallback behavior. Native release assets are published separately by the root GitHub Actions workflow.
 
-The final Marketplace metadata must use the real public project homepage and a monitored vendor contact; the source repository currently has no configured remote, so no repository URL is fabricated here.
+The Marketplace metadata uses the public project homepage `https://github.com/tchivs/doris-sql-parser-sdk` and the monitored vendor contact `maintainers@fathom.dev`.
 
 ## CI
 
@@ -59,7 +73,7 @@ The final Marketplace metadata must use the real public project homepage and a m
 4. IntelliJ Plugin Verifier compatibility checks;
 5. plugin ZIP packaging and artifact upload.
 
-Publishing is intentionally not automatic in CI until the first Marketplace listing, signing secrets, and Native release source are approved.
+`.github/workflows/doris-native-release.yml` runs on `v*` tag pushes or manual dispatch, builds and verifies the four Native assets, generates the signed-by-hash manifest, and uploads the release assets. Marketplace publishing remains manual until the first listing and signing secrets are approved.
 
 ## External release links
 

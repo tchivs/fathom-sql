@@ -1,0 +1,153 @@
+name: Doris Native Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag/release name to build (for example v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  MOONBIT_INSTALL_VERSION: "0.1.20260724"
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+          - platform: macos-x86_64
+            runner: macos-13
+          - platform: macos-aarch64
+            runner: macos-14
+          - platform: windows-x86_64
+            runner: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install MoonBit on Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      - name: Install MoonBit on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $moonHome = Join-Path $env:USERPROFILE ".moon"
+          $moonBin = Join-Path $moonHome "bin"
+          New-Item -ItemType Directory -Force -Path $moonBin | Out-Null
+          $archive = Join-Path $env:RUNNER_TEMP "moonbit.zip"
+          $uri = "https://cli.moonbitlang.com/binaries/$env:MOONBIT_INSTALL_VERSION/moonbit-windows-x86_64.zip"
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $moonHome -Force
+          $moon = Get-ChildItem -Path $moonHome -Filter "moon.exe" -Recurse | Select-Object -First 1
+          if ($null -eq $moon) { throw "moon.exe was not found after extraction" }
+          $moon.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $coreArchive = Join-Path $env:RUNNER_TEMP "moonbit-core.tar.gz"
+          $coreUri = "https://cli.moonbitlang.com/cores/core-$env:MOONBIT_INSTALL_VERSION.tar.gz"
+          Invoke-WebRequest -Uri $coreUri -OutFile $coreArchive
+          New-Item -ItemType Directory -Force -Path (Join-Path $moonHome "lib") | Out-Null
+          tar.exe -xf $coreArchive -C (Join-Path $moonHome "lib")
+          & $moon.FullName -C (Join-Path $moonHome "lib/core") bundle --warn-list -a --all
+          & $moon.FullName -C (Join-Path $moonHome "lib/core") bundle --warn-list -a --target wasm-gc --quiet
+          & $moon.FullName version
+
+      - name: Build Native LSP
+        shell: bash
+        run: |
+          moon check --target native lsp
+          moon build --target native --release lsp
+          mkdir -p dist
+          if [[ "${{ matrix.platform }}" == "windows-x86_64" ]]; then
+            cp _build/native/release/build/lsp/lsp.exe "dist/doris-lsp-${{ matrix.platform }}.exe"
+          else
+            cp _build/native/release/build/lsp/lsp.exe "dist/doris-lsp-${{ matrix.platform }}"
+            chmod +x "dist/doris-lsp-${{ matrix.platform }}"
+          fi
+
+      - name: Upload Native asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: doris-lsp-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Download Native assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: doris-lsp-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA-256 manifest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          dist = Path("dist")
+          platforms = {
+              "linux-x86_64": "doris-lsp-linux-x86_64",
+              "macos-x86_64": "doris-lsp-macos-x86_64",
+              "macos-aarch64": "doris-lsp-macos-aarch64",
+              "windows-x86_64": "doris-lsp-windows-x86_64.exe",
+          }
+          assets = {}
+          for key, name in platforms.items():
+              path = dist / name
+              if not path.is_file():
+                  raise SystemExit(f"missing Native asset: {path}")
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assets[key] = {"name": name, "sha256": digest}
+          manifest = {"schemaVersion": 1, "tag": tag, "assets": assets}
+          (dist / "doris-lsp-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          cat dist/doris-lsp-manifest.json
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
