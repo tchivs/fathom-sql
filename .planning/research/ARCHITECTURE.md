@@ -358,3 +358,72 @@ All sources below were read on 2026-08-03. Confidence reflects direct primary/of
 ---
 *Architecture research for: Doris SQL Parser SDK*
 *Researched: 2026-08-03*
+
+---
+
+# v2 Analysis Features — Architecture Integration
+
+**Researched:** 2026-08-05 (v2.0 milestone)
+**Focus:** How ANAL-01/LINT-01/LINE-01/FING-01/EDIT-01 integrate with the existing lossless CST architecture
+**Confidence:** HIGH (grounded in existing repo structure read this session: `analyzer/`, `formatter/`, `binding/schema.mbt`, `api/api.mbt`, parser CST shape)
+
+## Guiding Boundaries (from v1, MUST be preserved)
+
+- **D-21**: `parser/` never imports `analyzer/` — parser core stays syntax-only.
+- **D-27**: `formatter/` consumes only `source/token/syntax` + core buffer — one-way dependency.
+- **D-22**: `Catalog` is an open trait with `ColumnInfo`/`TableInfo`; `StaticCatalog` case-sensitive keys (documented).
+- **D-33**: refusal is absolute for error/missing/skipped material — formatter/analysis must refuse unsafe transforms.
+- **D-31**: advertise only linear Wasm; JS ESM + linear Wasm facades; serialized JSON schema (`inline-root-v1`) at the boundary.
+
+## New / Modified Components
+
+| Component | New or Extend | Dependency | Purpose |
+|-----------|--------------|------------|---------|
+| `analyzer/` resolution engine | **Extend** (exists, D-21/D-22/D-24) | `syntax` + optional `Catalog` | ANAL-01: scopes, table/column/function binding, star expansion, targeted type diagnostics |
+| `lint/` package | **New** | CST + `formatter/` safe-edit path (D-27) | LINT-01: rule registry, severity config, safe autofix (reuse refuse-on-unsafe, D-33) |
+| `lineage/` package | **New** | `analyzer/` (resolution) | LINE-01: column-level source→target graph with source spans |
+| `fingerprint/` package | **New** | CST | FING-01: normalized canonical form + stable `UInt64` hash |
+| `incremental/` (EDIT-01) | **New, benchmark-gated** | CST + `source` revisions | EDIT-01: bounded reparse reuse, span invalidation — only if `moon bench` justifies |
+| `binding/` schema | **Extend** | serialized JSON (v2 schema bump) | New analysis result types: resolutions, lint findings, lineage edges, fingerprints |
+| `api/` | **Extend** | all above | `analyze_text`, `lint_text`, `lineage_text`, `fingerprint_text` serialized entry points |
+
+## Data Flow
+
+```
+parse_text/format_text (existing)  ──>  lossless CST
+                                            │
+        ┌───────────────────────────────────┼───────────────────────┐
+        │                                   │                       │
+   fingerprint/ (CST→canonical→UInt64)  lint/ (CST walk)     analyzer/ (CST + Catalog)
+        │                                   │                       │
+        │                                   │ (safe edits via       │ (resolution, spans)
+        │                                   │  formatter path)      │
+        │                                   │                       │
+        └───────────────► api/ serialized results ◄────────────────┘
+                                  │
+                    binding/ JSON v2 ──► LSP / JS ESM / linear Wasm / CLI
+```
+
+## Key Architecture Decisions
+
+1. **`lineage/` depends on `analyzer/`, not on parser** — keeps parser core syntax-only (D-21). Lineage edges reference resolved bindings + source spans.
+2. **`lint/` autofix must go through the formatter-safe edit path** — never direct token surgery. Reuse the same refusal logic (D-33): if a fix would touch comments/trivia or sit on an error tree, emit a diagnostic without auto-edit.
+3. **`fingerprint/` normalizes the CST, not the serialized JSON** — walk syntax nodes, fold whitespace/case of keywords (not identifiers), then hash a canonical byte form with `UInt64`. This keeps fingerprints stable and independent of schema-version drift.
+4. **EDIT-01 lives behind a benchmark gate** — implement whole-document reparse first (already the v1 behavior), measure with `moon bench`, and only then design span-based invalidation over the lossless CST. The existing `source` revisions + LineIndex already provide the coordinate foundation.
+5. **Analysis results serialize via a schema v2 bump** — `binding/schema.mbt` gains new result kinds; `api` exposes stable primitive entry points (bytes/JSON), preserving the FFI-stable boundary.
+
+## Suggested Build Order
+
+1. **Phase A (closeout + foundation):** ECO-07 human VS Code verification; linear-Wasm CI execution parity; extend `analyzer/` resolution engine (ANAL-01 core).
+2. **Phase B:** FING-01 fingerprinting (independent) + LINT-01 rule engine (parallelizable).
+3. **Phase C:** LINE-01 column lineage (requires ANAL-01).
+4. **Phase D:** EDIT-01 incremental — benchmark first, adopt only if justified.
+
+## Sources
+
+- Existing repo: `analyzer/analyzer.mbt`, `formatter/`, `binding/schema.mbt`, `api/api.mbt`, `parser/parser.mbt` (read this session)
+- v1 ARCHITECTURE.md (five-layer model, incremental deferral rationale)
+- STATE.md decisions D-21/D-22/D-24/D-27/D-31/D-33
+
+---
+*Architecture research (v2 additions) for: Doris SQL Parser SDK — analysis features*

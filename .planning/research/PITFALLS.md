@@ -573,3 +573,62 @@ MoonBit 工具链更新后导出名、package kind 或 host import 改变，消�
 ---
 *Pitfalls research for: Doris SQL Parser SDK*  
 *Researched: 2026-08-03*
+
+---
+
+# v2 Analysis Features — Pitfalls
+
+**Researched:** 2026-08-05 (v2.0 milestone)
+**Focus:** Adding ANAL-01/LINT-01/LINE-01/FING-01/EDIT-01 to an EXISTING lossless-CST parser
+**Confidence:** MEDIUM (engineering inferences grounded in v1 pitfalls + verified MoonBit facts; each must become a focused test/bench)
+
+## Pitfall V1: Catalog case-sensitivity mismatch breaks resolution
+
+- **What goes wrong:** `StaticCatalog` is case-sensitive (D-22 documented), but Doris identifiers are case-insensitive in most contexts. A resolution engine that does exact-match against a case-sensitive catalog flags valid `SELECT col FROM Tbl` as unresolved.
+- **Warning signs:** resolution false-negatives on differently-cased identifiers; tests only use lowercase.
+- **Prevention:** ANAL-01 uses `equal_ignore_ascii_case` for lookup against the injected catalog while preserving the source spelling and span. Document the case policy explicitly (matches Doris behavior). Quoted identifiers keep exact case.
+- **Phase:** ANAL-01.
+
+## Pitfall V2: Lint autofix corrupts comments/trivia — violates the lossless core value
+
+- **What goes wrong:** A naive "replace token range" fix rewrites or drops leading/trailing comments, hint text, or newline style.
+- **Warning signs:** autofix output differs from `format(format(x))`; comment moves relative to the edited token; round-trip test fails after fix.
+- **Prevention:** route all autofix through the formatter-safe edit path (D-27/D-33); refuse unsafe transforms (error tree, comment overlap) and emit a diagnostic instead of a bad edit. Add round-trip assertions for every fix.
+- **Phase:** LINT-01.
+
+## Pitfall V3: Lineage breaks through views/CTEs/INSERT INTO SELECT
+
+- **What goes wrong:** Column edges are computed per-statement but views/CTEs/`INSERT INTO ... SELECT` need cross-statement expansion; `*` expansion without catalog is unsound.
+- **Warning signs:** lineage reports only direct `SELECT a FROM t` edges; view references produce no edges or incorrect column mappings.
+- **Prevention:** LINE-01 builds on ANAL-01 resolution; expand CTEs and views with resolved bindings; `*` requires catalog, otherwise emit an explicit "requires catalog" gap diagnostic (consistent with v1 honesty policy, D-17-style provenance).
+- **Phase:** LINE-01 (after ANAL-01).
+
+## Pitfall V4: Fingerprint instability across backends (Int width) and semantic folding
+
+- **What goes wrong (cross-backend):** Using `Int`-based hashing yields different fingerprints on JS (`number`) vs Wasm/Native (32-bit) — silently breaks parity. Using a normalization that folds quoted identifiers or string literal content changes semantics.
+- **Warning signs:** fingerprint differs between `moon build --target js` and `--target wasm` on identical input; two semantically different queries (different quoted identifier case, different literal) produce the same fingerprint.
+- **Prevention:** FING-01 hashes with `UInt64` (fixed 64-bit everywhere — verified FFI fact this session); normalize only syntactic trivia (whitespace, keyword case) and preserve identifier spelling, literal content, and quote style. Add a cross-target parity test for fingerprints.
+- **Phase:** FING-01.
+
+## Pitfall V5: Incremental parsing invalidation drift (stale spans, trivia)
+
+- **What goes wrong (EDIT-01):** Reusing a prior CST with a naive "span unchanged ⇒ node valid" rule leaves stale spans/trivia after an edit; comment-attachment and token boundaries drift, producing wrong diagnostics or lossy output.
+- **Warning signs:** incremental parse output differs from whole-doc reparse on the same input; a comment inserted mid-edit attaches to the wrong node.
+- **Prevention:** EDIT-01 is benchmark-gated — only adopt when whole-doc reparse measurably fails (v1 Pitfall 6). When adopted: reuse the `source` revisions + LineIndex, invalidate by span overlap with the edited region, and verify `print_lossless(parse_incremental(x)) == print_lossless(parse_full(x))` on every edit fixture.
+- **Phase:** EDIT-01 (after benchmark).
+
+## Pitfall V6: Analysis results leak across schema versions
+
+- **What goes wrong:** New resolution/lint/lineage/fingerprint result types appended to `binding/schema.mbt` without a version bump break existing LSP/JS/Wasm consumers that pinned `inline-root-v1`.
+- **Warning signs:** schema-tag mismatch errors on older consumers; parity fixtures fail after adding a result kind.
+- **Prevention:** schema v2 bump with explicit result-kind enum; keep `inline-root-v1` parseable by treating new kinds as optional/unknown; parity fixtures updated together.
+- **Phase:** all v2 analysis phases (binding/).
+
+## Sources
+
+- v1 PITFALLS.md (Pitfall 6 incremental, Pitfall 8 ABI, Pitfall 15 stable API, Pitfall 12 boundary pollution)
+- Verified MoonBit FFI fact (Int vs UInt64 width) — this session
+- Project decisions D-22/D-27/D-31/D-33/D-17
+
+---
+*Pitfalls research (v2 additions) for: Doris SQL Parser SDK — analysis features*

@@ -183,3 +183,55 @@ Phases with standard patterns (skip broad research-phase):
 ---
 *Research completed: 2026-08-03*  
 *Ready for roadmap: yes*
+
+---
+
+# v2 Research Summary — Analysis and Intelligence
+
+**Milestone:** v2.0 | **Researched:** 2026-08-05 | **Confidence:** MEDIUM-HIGH
+
+## Key Findings
+
+### Stack: no new dependencies required
+All five v2 features (ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01) build on the already-pinned `moonbitlang/core` + local modules. Verified facts that shape design:
+- `Map` is a **LinkedHashMap** (deterministic iteration → stable serialized output); core has `sorted_map`/`hashmap`/`json`/`immut` but **no `hash` package**.
+- **`Int` is 32-bit on Wasm/C but `number` on JS; `UInt64` is fixed 64-bit everywhere** → FING-01 fingerprints MUST use `UInt64` for cross-backend parity.
+- `String::equal_ignore_ascii_case` exists → ANAL-01 case-insensitive catalog lookup.
+- `@bench` + `moon bench --target native|js|wasm|all` → the EDIT-01 benchmark gate.
+- `moonbitlang/x@0.4.47` has experimental `crypto` (SHA-256) — edge-only, keep out of core.
+
+### Features
+- **ANAL-01** (HIGH): scopes/table/column/function binding + star expansion with catalog; extends existing `analyzer/` (D-21/D-22/D-24). Case-insensitive identifiers, profile-gated.
+- **LINT-01** (MEDIUM-HIGH): SQLFluff-style rule registry (stable codes, bundles, severity config) + **safe lossless autofix** through the formatter-safe path (D-27/D-33 refuse).
+- **LINE-01** (HIGH): column lineage **depends on ANAL-01**; view/CTE/`INSERT INTO SELECT` expansion; `*` requires catalog else explicit gap.
+- **FING-01** (LOW-MEDIUM): normalize CST (whitespace/keyword case only, preserve identifiers/literals/quoting) → canonical bytes → `UInt64` hash; independent of catalog.
+- **EDIT-01** (VERY HIGH, benchmark-gated): only adopt when whole-doc reparse measurably fails; reuse `source` revisions + LineIndex; span-overlap invalidation; `parse_incremental == parse_full` invariant.
+
+### Architecture
+- `analyzer/` extended (ANAL-01); new `lint/`, `lineage/`, `fingerprint/` packages; `incremental/` only if benchmarks pass.
+- `lineage/` imports `analyzer/` (never parser); `lint/` uses formatter-safe edits; `fingerprint/` walks CST directly.
+- `binding/schema.mbt` needs a **v2 schema bump** for new result kinds; `api/` gains `analyze_text`/`lint_text`/`lineage_text`/`fingerprint_text`.
+- Build order: **A** closeout (ECO-07 VS Code host + linear-Wasm CI) + ANAL-01 foundation → **B** FING-01 + LINT-01 (parallel) → **C** LINE-01 → **D** EDIT-01 (benchmark first).
+
+### Pitfalls to encode as tests
+1. Catalog case-sensitivity mismatch (false-negatives) — ANAL-01.
+2. Autofix corrupting comments/trivia — LINT-01 (D-33 refuse).
+3. Lineage breaks through views/CTEs/`*` — LINE-01 (needs catalog, honest gaps).
+4. Fingerprint cross-backend drift (Int width) and semantic folding — FING-01 (UInt64).
+5. Incremental span invalidation/trivia drift — EDIT-01 (benchmark-gated).
+6. Schema-version leaks across consumers — binding/ v2 bump.
+
+## Implications for v2 Roadmap
+
+- **Phase 1** should fold the two v1 closeout items (ECO-07 human VS Code host verification; linear-Wasm CI runtime execution parity) plus the ANAL-01 resolution engine foundation — the user chose "纳入首个阶段".
+- ANAL-01 before LINE-01 (dependency); FING-01 and LINT-01 are parallelizable; EDIT-01 is a gated decision phase, not a guaranteed deliverable.
+- Cross-backend parity tests must extend to fingerprints (UInt64) and the new serialized analysis results.
+- No new runtime dependencies; no catalog runtime; lossless round-trip stays the invariant every new feature must preserve.
+
+## Sources
+
+- This session: MoonBit FFI docs (`Int` width), MoonBit commands (`moon bench`), mooncakes core/x package metadata, SQLFluff rules reference, SQLGlot API docs.
+- Project v1: STATE.md decisions D-21/D-22/D-24/D-27/D-31/D-33, milestone audit (ECO-07/linear-Wasm CI), v1 research baseline.
+
+---
+*Research synthesized: 2026-08-05 — v2.0 milestone*

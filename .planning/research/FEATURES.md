@@ -159,3 +159,87 @@ The first four milestones should be vertical enough to prove this chain without 
 * GSP's detailed Doris percentages are vendor-published measurements against its own corpus. They are useful evidence of a commercial coverage-reporting pattern, but not an independent market-wide benchmark.
 * The checked `sqls` and `sql-language-server` repositories do not list Doris. This supports the opportunity statement that Doris LSP support is underserved, but it is **not** proof that no other Doris editor plugin or private integration exists.
 * The official Doris current docs identify the `dev`/current branch as unreleased and link separate 2.1, 3.x, and 4.x documentation. A roadmap should therefore treat documentation versioning and fixture provenance as product features, not release-note chores.
+
+---
+
+# v2 Analysis Features — Feature Landscape
+
+**Researched:** 2026-08-05 (v2.0 milestone)
+**Focus:** ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01 + v1 closeout items
+**Confidence:** MEDIUM-HIGH (ecosystem patterns verified against SQLFluff/SQLGlot docs this session; Doris-specific scope grounded in v1 validated capabilities)
+
+## Table Stakes for a Doris SDK
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| ANAL-01 name resolution | Editors/analysts expect unresolved refs flagged; catalog injection already promised by ANLY-01 boundary | HIGH | Needs scopes (SELECT/CTE/subquery/alias), table+column+function binding, star expansion with catalog |
+| LINT-01 lint rules | SQL tooling standard (SQLFluff model) | MEDIUM | Rule registry with stable codes + bundles; severity config; **safe autofix** (text edits must stay lossless — D-33 refusal principle) |
+| LINE-01 column lineage | Analyst demand for data provenance | HIGH | Column-level source→target edges across SELECT/INSERT/CTE/set ops/views |
+| FING-01 SQL fingerprints | Caching/diff/CI use cases | LOW-MEDIUM | Stable across whitespace/case/comment; normalized form + stable hash (`UInt64` cross-backend) |
+| EDIT-01 incremental parsing | Editor latency at scale | VERY HIGH | **Benchmark-gated**: only adopt when whole-doc reparse measurably fails (v1 research explicitly deferred this) |
+
+## Differentiators (Doris-specific)
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| ANAL-01 | **Lossless** name resolution: every binding carries source spans and trivia-faithful refs, unlike SQLGlot's AST regeneration | HIGH | Profile-gated (2.1/3.x/4.x); case policy matches Doris (case-insensitive identifiers, `equal_ignore_ascii_case`) |
+| LINT-01 | **Doris-aware rule set** with version gates + safe lossless autofix | MEDIUM-HIGH | Rules keyed to Doris profile; autofix reuses formatter-safe edit path (D-27/D-33) |
+| LINE-01 | Column lineage **with source positions** and view/CTE expansion | HIGH | Builds on ANAL-01 resolution; Doris views/CTEs are first-class |
+| FING-01 | Stable **cross-backend** fingerprint (same hash on Native/JS/Wasm) | LOW-MEDIUM | UInt64 hash; normalized CST→canonical form |
+| EDIT-01 | Bounded incremental reuse of the **existing lossless CST** | VERY HIGH | Only after `moon bench` proves necessity |
+
+## Anti-Features (Defer / Avoid in v2)
+
+| Feature | Why Problematic | Alternative |
+|---------|-----------------|-------------|
+| Full type inference / optimizer equivalence | Replaces FE semantics; explodes scope; violates ANLY-01 boundary | ANAL-01 = resolution + targeted type diagnostics only |
+| Lint rule engine without severity config | Team adoption blockers | SQLFluff-style per-rule severity + enable/disable |
+| Autofix that touches comments/trivia | Violates lossless core value | Refuse unsafe transforms (D-33); only trivia-safe edits |
+| Lineage through `*` without catalog | Unsound (cannot know expanded columns) | Require catalog; report unknown columns as explicit gaps |
+| Fingerprint normalization that changes semantics | Case-folded quoted identifiers, string-literal folding break correctness | Normalize only syntactic trivia; preserve identifier spelling |
+| EDIT-01 without benchmark evidence | Premature complexity (v1 research Pitfall 6) | `moon bench` gate first |
+
+## Feature Dependencies
+
+```
+FING-01 (fingerprint) — independent of catalog
+    └──requires──> stable CST (v1) ✓
+
+ANAL-01 (name resolution)
+    └──requires──> stable CST + analyzer boundary (v1 ANLY-01) ✓
+                    └──enables──> LINE-01 (column lineage needs resolved refs)
+
+LINT-01 (lint rules)
+    └──requires──> CST traversal (v1) + formatter-safe edit path (v1 D-27/D-33)
+                    └──autofix──> reuse formatter/refuse principles
+
+LINE-01
+    └──requires──> ANAL-01 (name resolution)
+                    └──enhances──> LINT-01 (lineage-aware lint rules, optional later)
+
+EDIT-01
+    └──gated──> benchmark evidence (moon bench)
+```
+
+### Dependency Notes
+
+- **LINE-01 depends on ANAL-01** — lineage edges need resolved column refs. Roadmap must order ANAL-01 before LINE-01.
+- **LINT-01 and FING-01 are largely independent** of ANAL-01 and can proceed in parallel after CST/analyzer basics.
+- **EDIT-01 is the riskiest and must be gated** on measurements; roadmap should treat it as a "benchmark then decide" phase, not a guaranteed deliverable.
+
+## v1 Closeout Items (fold into v2 Phase 1)
+
+| Item | Source | Acceptance |
+|------|--------|------------|
+| ECO-07 human-hosted VS Code launch (04-04 Task 4) | v1 milestone audit, `pending_human` | Run the compiled extension on a machine with VS Code; confirm diagnostics/formatting/positionEncoding |
+| linear-Wasm CI runtime execution parity step | v1 milestone audit, `ci_recommendation` | Add CI job that builds `--target wasm` and executes the parity fixture suite, comparing byte output with Native/JS |
+
+## Sources
+
+- [SQLFluff Rules Reference](https://docs.sqlfluff.com/en/stable/reference/rules.html) — verified this session (rule registry, bundles, `core` group, per-rule config, `sqlfluff fix` compatibility)
+- [SQLGlot API docs](https://sqlglot.com/sqlglot.html) — verified this session (`find_all`, `qualify`/`annotate_types` need schema, AST regeneration loses formatting)
+- v1 FEATURES.md (baseline landscape, 2026-08-03)
+- Project v1 milestone audit (ECO-07 pending, linear-Wasm CI recommendation)
+
+---
+*Feature research (v2 additions) for: Doris SQL Parser SDK — analysis features*

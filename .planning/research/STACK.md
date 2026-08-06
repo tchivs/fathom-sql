@@ -207,3 +207,51 @@ The exported wrappers should use `#export_name` and stable primitive arguments/r
 - **MEDIUM:** The recommendation to expose serialized primitive wrappers rather than CST objects is a conservative design response to the official FFI ABI warning; final signatures require a small cross-target prototype.
 - **MEDIUM:** The recommendation to implement a native LSP adapter in MoonBit is compatible with the official protocol but is not evidence that a ready-made MoonBit LSP framework exists. Validate framing, UTF-16 positions, cancellation, and incremental document updates during the LSP phase.
 - **Open:** Confirm the exact production browser/runtime matrix for linear Wasm versus Wasm GC, and confirm whether the chosen JSON codec meets size, Unicode, and malformed-input requirements before making it a public dependency.
+
+---
+
+# v2 Analysis Features — Stack Research
+
+**Researched:** 2026-08-05 (v2.0 milestone)
+**Focus:** ANAL-01 name resolution, LINT-01 lint rules, LINE-01 column lineage, FING-01 SQL fingerprints, EDIT-01 bounded incremental parsing
+**Confidence:** HIGH for MoonBit core facts (verified against downloaded `moonbitlang/core@0.1.20260728+5e7afb0c0` source this session); MEDIUM for benchmark thresholds (needs project-specific measurements)
+
+## Verdict: No New Runtime Dependencies
+
+The v2 analysis features can be implemented **entirely with the already-pinned `moonbitlang/core` stack and local modules**. No third-party MoonBit package is required in the parser core or the analysis packages. This preserves the single-core Native/Wasm/JS constraint and the dependency-light core.
+
+## Key Verified MoonBit Facts (from core source, this session)
+
+| Fact | Evidence | Implication |
+|------|----------|-------------|
+| `Map` is a **LinkedHashMap** — insertion order preserved, deterministic iteration | `builtin/linked_hash_map.mbt` | Catalog lookups and analysis results serialize deterministically; no separate ordered-map dependency needed |
+| Core has **no `hash` package**; `Hasher` is **xxHash32** | `builtin/hash.mbt`, `builtin/hash_fn.mbt` | FING-01 fingerprint hashing must be implemented locally (or use `UInt64` from a stable algorithm); don't assume a core hash module exists |
+| **`Int` is 32-bit on Wasm/WasmGC/C, `number` on JS; `UInt64` is fixed 64-bit everywhere** | `docs/moonbitlang.com/en/latest/language/ffi.html` (read this session) | **Cross-backend fingerprint stability REQUIRES `UInt64`** for the hash output; `Int`-based hashes would differ between JS and Wasm/Native |
+| `String` has `to_lower`, `equal_ignore_ascii_case`, `replace_all`; **no** `to_lowercase`/`to_uppercase` | `builtin/string_methods.mbt` | ANAL-01 case-insensitive catalog matching uses `equal_ignore_ascii_case` (documented case-insensitive policy, not byte case-folding) |
+| `@bench` attribute + `moon bench` CLI (`--target native|js|wasm|all`) with JSON summaries | `bench/` package, official commands doc | EDIT-01's "benchmarks justify the complexity" gate uses `moon bench`; `keep()` prevents dead-code elimination |
+| `moonbitlang/x@0.4.47` (experimental) has `crypto` with SHA-256 | Mooncakes x manifest + `x/crypto/package_data.json` | Optional stronger hash for FING-01 at the **adapter/edge**; keep out of parser core per existing policy |
+| Core has `sorted_map`, `hashmap`, `json`, `immut` packages | `module_index.json` | Catalog index (hashmap), ordered iteration (sorted_map), serialized results (json) all available |
+
+## What NOT to Add
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| `moonbitlang/x` in parser core or analysis packages | Experimental; violates dependency-light core policy | Local hash/fingerprint implementation; `x/crypto` only if a strong hash is later needed at the JS/Wasm facade edge |
+| Any third-party incremental-parsing framework (e.g., a tree-sitter port) | Would fork the single-core implementation and abandon lossless CST control | Local bounded incremental reuse over the existing CST (EDIT-01), gated by `moon bench` evidence |
+| A database or catalog runtime | Breaks offline/standalone use | `Catalog` trait already injectable (D-22); StaticCatalog/JSON-backed catalog for tests |
+| Wasm GC as a v2 default target | Only linear Wasm is advertised in v1 (D-31); Wasm GC remains optional | Keep linear Wasm + JS facade; re-evaluate Wasm GC only if a consumer requires it |
+
+## Version Pinning
+
+- **`moonbitlang/core`**: keep pinned `0.1.20260728+5e7afb0c0` (matches `moon.mod` / lock).
+- **`moonbitlang/x`**: if any v2 edge feature needs SHA-256, pin `0.4.47` explicitly and keep it at the binding/adapter boundary only; never import from `analyzer/`, `lint/`, `lineage/`, or `fingerprint/` core logic.
+
+## Sources
+
+- [MoonBit FFI docs — Int width portability](https://docs.moonbitlang.com/en/latest/language/ffi.html) — verified this session
+- [MoonBit commands — `moon bench`](https://docs.moonbitlang.com/en/latest/toolchain/moon/commands.html) — verified this session
+- Mooncakes `moonbitlang/core@0.1.20260728+5e7afb0c0` source archive (downloaded and read this session) — hash/hasher, linked_hash_map, string_methods, bench package
+- [Mooncakes `moonbitlang/x@0.4.47` module index](https://assets.mooncakes.io/assets/moonbitlang/x@0.4.47/module_index.json) — crypto package presence
+
+---
+*Stack research (v2 additions) for: Doris SQL Parser SDK — analysis features*
