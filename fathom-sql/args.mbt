@@ -15,7 +15,7 @@ pub enum UsageError {
   MissingDialect
   UnknownDialect(dialect_id~ : String)
   MissingProfile
-  UnknownProfile(profile_id~ : String)
+  UnknownProfile(profile_id~ : String, dialect_id~ : String)
   UnknownFlag(flag~ : String)
   MissingValue(flag~ : String)
   UnknownValue(flag~ : String, value~ : String)
@@ -136,9 +136,10 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
     None => return Err(MissingProfile)
   }
   // Dialect-first validation (Pitfall 6): the profile is checked per dialect;
-  // flink rejects every profile in Phase 9 (A1/OQ1).
+  // flink rejects every profile in Phase 9 (A1/OQ1). The dialect travels with
+  // the error so the exit-2 message can say so (MI-02).
   if !is_valid_dialect_profile(dialect_value, profile_value) {
-    return Err(UnknownProfile(profile_id=profile_value))
+    return Err(UnknownProfile(profile_id=profile_value, dialect_id=dialect_value))
   }
   Ok({
     subcommand: subcommand,

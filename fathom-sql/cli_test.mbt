@@ -114,8 +114,8 @@ test "cli_usage_errors_are_named_usage_error_variants" {
   assert_true(parse_args(["format", "--dialect", "mysql"]) is Err(UnknownDialect(dialect_id="mysql")))
   assert_true(parse_args(["format", "--dialect", "doris"]) is Err(MissingProfile))
   // Dialect-first validation: flink rejects every profile in Phase 9.
-  assert_true(parse_args(["format", "--dialect", "flink", "--profile", "4.x"]) is Err(UnknownProfile(profile_id="4.x")))
-  assert_true(parse_args(["format", "--dialect", "doris", "--profile", "mysql"]) is Err(UnknownProfile(profile_id="mysql")))
+  assert_true(parse_args(["format", "--dialect", "flink", "--profile", "4.x"]) is Err(UnknownProfile(profile_id="4.x", dialect_id="flink")))
+  assert_true(parse_args(["format", "--dialect", "doris", "--profile", "mysql"]) is Err(UnknownProfile(profile_id="mysql", dialect_id="doris")))
   assert_true(parse_args(["format", "--dialect", "doris", "--profile", "4.x", "--indent"]) is Err(MissingValue(flag="--indent")))
   assert_true(parse_args(["format", "--dialect", "doris", "--profile", "4.x", "--unknown-flag"]) is Err(UnknownFlag(flag="--unknown-flag")))
   assert_true(parse_args(["format", "--dialect", "doris", "--profile", "4.x", "--comma-style", "sideways"]) is Err(UnknownValue(flag="--comma-style", value="sideways")))
@@ -129,8 +129,14 @@ test "cli_d11_exit_2_matrix_through_usage_error_message" {
   // Unknown dialect -> exit 2 naming the value.
   assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "oracle"])).contains("unknown dialect"))
   assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "oracle"])).contains("oracle"))
-  // flink rejects every profile in Phase 9 -> exit 2 (A1/OQ1).
-  assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "flink", "--profile", "4.x"])).contains("unknown --profile value: 4.x"))
+  // flink rejects every profile in Phase 9 -> exit 2 (A1/OQ1). The message
+  // must not advertise doris values: it says "no released profiles yet" and
+  // still names the offending value.
+  let flink_message = usage_error_message(parse_error_of(["parse", "--dialect", "flink", "--profile", "4.x"]))
+  assert_true(flink_message.contains("unknown --profile value: 4.x"))
+  assert_true(flink_message.contains("flink has no released profiles yet (Phase 9)"))
+  // doris keeps the released-value hint (MI-02).
+  assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "doris", "--profile", "mysql"])).contains("expected 2.1, 3.x, or 4.x"))
   // Missing --profile after a valid dialect -> exit 2.
   assert_true(usage_error_message(parse_error_of(["format", "--dialect", "doris"])).contains("missing required flag: --profile"))
   // Unknown subcommand names the full surface.
