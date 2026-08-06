@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic source-level contract checks for the Doris IntelliJ plugin."""
+"""Deterministic source-level contract checks for the Fathom IntelliJ plugin."""
 from __future__ import annotations
 
 import re
@@ -41,37 +41,41 @@ if re.search(r"ideaVersion\s*\{[^}]*untilBuild", build):
 
 plugin_path = ROOT / "src/main/resources/META-INF/plugin.xml"
 plugin = plugin_path.read_text(encoding="utf-8")
-require(plugin_path, r"<id>fathom\.doris\.sql</id>", "stable Marketplace plugin ID")
+require(plugin_path, r"<id>fathom\.sql</id>", "stable Marketplace plugin ID")
 require(plugin_path, r"<depends>com\.redhat\.devtools\.lsp4ij</depends>", "LSP4IJ plugin dependency")
-require(plugin_path, r'<server\s+id="doris"[^>]*factoryClass="fathom\.jetbrains\.doris\.DorisLanguageServerFactory"', "Doris server factory")
-require(plugin_path, r'<fileNamePatternMapping\s+patterns="\*\.sql"\s+serverId="doris"\s+languageId="doris"', "SQL filename mapping")
-require(plugin_path, r'applicationConfigurable[^>]*instance="fathom\.jetbrains\.doris\.DorisSettingsConfigurable"', "application settings configurable")
+require(plugin_path, r'<server\s+id="fathom-sql"[^>]*factoryClass="fathom\.jetbrains\.sql\.FathomLanguageServerFactory"', "Fathom server factory")
+require(plugin_path, r'<fileNamePatternMapping\s+patterns="\*\.sql"\s+serverId="fathom-sql"\s+languageId="sql"', "SQL filename mapping")
+require(plugin_path, r'applicationConfigurable[^>]*instance="fathom\.jetbrains\.sql\.FathomSettingsConfigurable"', "application settings configurable")
 if re.search(r"until-build=", plugin):
     errors.append("plugin.xml: upper IDE bound must remain open")
 
 for source in (
-    "src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt",
-    "src/main/kotlin/fathom/jetbrains/doris/DorisSettingsConfigurable.kt",
-    "src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt",
-    "src/main/kotlin/fathom/jetbrains/doris/DorisNativeDownloader.kt",
+    "src/main/kotlin/fathom/jetbrains/sql/FathomSettings.kt",
+    "src/main/kotlin/fathom/jetbrains/sql/FathomSettingsConfigurable.kt",
+    "src/main/kotlin/fathom/jetbrains/sql/FathomLanguageServerFactory.kt",
+    "src/main/kotlin/fathom/jetbrains/sql/FathomNativeDownloader.kt",
 ):
     source_path = ROOT / source
     if not source_path.exists():
         errors.append(f"{source}: source file missing")
 
-factory_path = ROOT / "src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt"
+factory_path = ROOT / "src/main/kotlin/fathom/jetbrains/sql/FathomLanguageServerFactory.kt"
 require(factory_path, r"LanguageServerFactory", "LanguageServerFactory API")
 require(factory_path, r"createConnectionProvider\(project:\s*Project\)", "createConnectionProvider(Project)")
 require(factory_path, r"OSProcessStreamConnectionProvider", "stdio process provider")
 require(factory_path, r"GeneralCommandLine", "GeneralCommandLine")
 require(factory_path, r"getInitializationOptions\(rootUri:\s*VirtualFile\)", "initialization options override")
+require(factory_path, r'"dialect"', "dialect initialization key")
 require(factory_path, r'"profile"', "profile initialization key")
 require(factory_path, r"resolveExecutable", "managed executable resolution")
-settings_path = ROOT / "src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt"
-require(settings_path, r'DEFAULT_EXECUTABLE\s*=\s*"doris-lsp"', "default executable")
-require(settings_path, r'DEFAULT_PROFILE\s*=\s*"4\.x"', "default profile")
+settings_path = ROOT / "src/main/kotlin/fathom/jetbrains/sql/FathomSettings.kt"
+require(settings_path, r'DEFAULT_EXECUTABLE\s*=\s*"fathom-lsp"', "default executable")
+require(settings_path, r'@State\(name\s*=\s*"FathomSettings",\s*storages\s*=\s*\[Storage\("fathom\.xml"\)\]\)', "FathomSettings state + fathom.xml storage")
+require(settings_path, r"ALLOWED_DIALECTS: List<String> = listOf\(\"doris\", \"flink\"\)", "dialect set")
 require(settings_path, r"DEFAULT_USE_GITHUB_RELEASES\s*=\s*true", "managed Native default")
 require(settings_path, r'listOf\("2\.1",\s*"3\.x",\s*"4\.x"\)', "released profile set")
+if re.search(r"DEFAULT_PROFILE\s*=", settings_path.read_text(encoding="utf-8")):
+    errors.append("FathomSettings.kt: DEFAULT_PROFILE must not exist (D-02, no default profile)")
 license_path = PROJECT_ROOT / "LICENSE"
 if not license_path.exists():
     errors.append("LICENSE: Apache-2.0 license file missing")
@@ -96,8 +100,8 @@ else:
     require(native_workflow_path, r"fathom-lsp-manifest\.json", "Native SHA-256 manifest")
 
 allowed_remote_sources = {
-    ROOT / "src/main/kotlin/fathom/jetbrains/doris/DorisNativeDownloader.kt",
-    ROOT / "src/test/kotlin/fathom/jetbrains/doris/DorisNativeDownloaderTest.kt",
+    ROOT / "src/main/kotlin/fathom/jetbrains/sql/FathomNativeDownloader.kt",
+    ROOT / "src/test/kotlin/fathom/jetbrains/sql/FathomNativeDownloaderTest.kt",
 }
 
 for path in ROOT.rglob("*"):

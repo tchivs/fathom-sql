@@ -1,4 +1,4 @@
-package fathom.jetbrains.doris
+package fathom.jetbrains.sql
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -17,21 +17,21 @@ import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.util.Locale
 
-internal enum class DorisNativePlatform(
+internal enum class FathomNativePlatform(
     val key: String,
     val assetName: String,
 ) {
-    LINUX_X86_64("linux-x86_64", "doris-lsp-linux-x86_64"),
-    MACOS_X86_64("macos-x86_64", "doris-lsp-macos-x86_64"),
-    MACOS_AARCH64("macos-aarch64", "doris-lsp-macos-aarch64"),
-    WINDOWS_X86_64("windows-x86_64", "doris-lsp-windows-x86_64.exe"),
+    LINUX_X86_64("linux-x86_64", "fathom-lsp-linux-x86_64"),
+    MACOS_X86_64("macos-x86_64", "fathom-lsp-macos-x86_64"),
+    MACOS_AARCH64("macos-aarch64", "fathom-lsp-macos-aarch64"),
+    WINDOWS_X86_64("windows-x86_64", "fathom-lsp-windows-x86_64.exe"),
     ;
 
     companion object {
         fun detect(
             osName: String = System.getProperty("os.name"),
             architecture: String = System.getProperty("os.arch"),
-        ): DorisNativePlatform {
+        ): FathomNativePlatform {
             val os = osName.lowercase(Locale.ROOT)
             val arch = architecture.lowercase(Locale.ROOT)
             val isX86_64 = arch == "amd64" || arch == "x86_64" || arch == "x86-64"
@@ -41,7 +41,7 @@ internal enum class DorisNativePlatform(
                 os.contains("linux") && isX86_64 -> LINUX_X86_64
                 (os.contains("mac") || os.contains("darwin")) && isX86_64 -> MACOS_X86_64
                 (os.contains("mac") || os.contains("darwin")) && isAarch64 -> MACOS_AARCH64
-                else -> throw IllegalStateException("Unsupported doris-lsp platform: $osName/$architecture")
+                else -> throw IllegalStateException("Unsupported fathom-lsp platform: $osName/$architecture")
             }
         }
     }
@@ -52,9 +52,9 @@ internal fun interface NativeHttpTransport {
     fun get(url: String): ByteArray
 }
 
-internal class DorisNativeDownloader(
+internal class FathomNativeDownloader(
     private val cacheDirectory: Path = defaultCacheDirectory(),
-    private val platform: DorisNativePlatform = DorisNativePlatform.detect(),
+    private val platform: FathomNativePlatform = FathomNativePlatform.detect(),
     private val transport: NativeHttpTransport = UrlConnectionTransport(),
     private val clockMillis: () -> Long = { System.currentTimeMillis() },
     private val cacheTtlMillis: Long = CACHE_TTL_MILLIS,
@@ -271,7 +271,7 @@ internal class DorisNativeDownloader(
 
     companion object {
         const val DEFAULT_REPOSITORY = "tchivs/doris-sql-parser-sdk"
-        const val MANIFEST_ASSET_NAME = "doris-lsp-manifest.json"
+        const val MANIFEST_ASSET_NAME = "fathom-lsp-manifest.json"
         const val MANIFEST_SCHEMA_VERSION = 1
         const val METADATA_FILE_NAME = "latest.json"
         const val CACHE_TTL_MILLIS: Long = 24L * 60L * 60L * 1000L
@@ -284,10 +284,10 @@ internal class DorisNativeDownloader(
             val os = System.getProperty("os.name").lowercase(Locale.ROOT)
             return when {
                 os.contains("windows") -> Paths.get(System.getenv("LOCALAPPDATA") ?: home.resolve("AppData/Local").toString())
-                    .resolve("Fathom/doris-sql")
-                os.contains("mac") || os.contains("darwin") -> home.resolve("Library/Caches/Fathom/doris-sql")
+                    .resolve("Fathom/fathom-sql")
+                os.contains("mac") || os.contains("darwin") -> home.resolve("Library/Caches/Fathom/fathom-sql")
                 else -> Paths.get(System.getenv("XDG_CACHE_HOME") ?: home.resolve(".cache").toString())
-                    .resolve("fathom/doris-sql")
+                    .resolve("fathom/fathom-sql")
             }
         }
 
@@ -318,7 +318,7 @@ internal class DorisNativeDownloader(
                 connectTimeout = 15_000
                 readTimeout = 120_000
                 setRequestProperty("Accept", "application/json, application/octet-stream")
-                setRequestProperty("User-Agent", "Fathom-Doris-IntelliJ/0.1")
+                setRequestProperty("User-Agent", "Fathom-IntelliJ/0.1")
             }
             try {
                 val status = connection.responseCode

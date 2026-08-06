@@ -11,4 +11,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "fathom-doris-intellij"
+rootProject.name = "fathom-sql-intellij"

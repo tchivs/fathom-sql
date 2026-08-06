@@ -1,4 +1,4 @@
-package fathom.jetbrains.doris
+package fathom.jetbrains.sql
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -9,59 +9,59 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-class DorisNativeDownloaderTest {
+class FathomNativeDownloaderTest {
     @Test
     fun detectsTheFourPublishedPlatformKeys() {
         assertEquals(
-            DorisNativePlatform.LINUX_X86_64,
-            DorisNativePlatform.detect("Linux", "amd64"),
+            FathomNativePlatform.LINUX_X86_64,
+            FathomNativePlatform.detect("Linux", "amd64"),
         )
         assertEquals(
-            DorisNativePlatform.MACOS_X86_64,
-            DorisNativePlatform.detect("Mac OS X", "x86_64"),
+            FathomNativePlatform.MACOS_X86_64,
+            FathomNativePlatform.detect("Mac OS X", "x86_64"),
         )
         assertEquals(
-            DorisNativePlatform.MACOS_AARCH64,
-            DorisNativePlatform.detect("Darwin", "arm64"),
+            FathomNativePlatform.MACOS_AARCH64,
+            FathomNativePlatform.detect("Darwin", "arm64"),
         )
         assertEquals(
-            DorisNativePlatform.WINDOWS_X86_64,
-            DorisNativePlatform.detect("Windows 11", "amd64"),
+            FathomNativePlatform.WINDOWS_X86_64,
+            FathomNativePlatform.detect("Windows 11", "amd64"),
         )
         assertFailsWith<IllegalStateException> {
-            DorisNativePlatform.detect("Linux", "aarch64")
+            FathomNativePlatform.detect("Linux", "aarch64")
         }
     }
 
     @Test
     fun downloadsVerifiesAndThenReusesTheCachedBinary() {
-        val binary = "doris-lsp-test-binary".toByteArray(StandardCharsets.UTF_8)
+        val binary = "fathom-lsp-test-binary".toByteArray(StandardCharsets.UTF_8)
         val sha256 = sha256(binary)
         val tag = "v0.1.0"
-        val repository = DorisNativeDownloader.DEFAULT_REPOSITORY
+        val repository = FathomNativeDownloader.DEFAULT_REPOSITORY
         val apiUrl = "https://api.github.com/repos/$repository/releases/latest"
-        val manifestUrl = "https://github.com/$repository/releases/download/$tag/${DorisNativeDownloader.MANIFEST_ASSET_NAME}"
-        val binaryUrl = "https://github.com/$repository/releases/download/$tag/doris-lsp-linux-x86_64"
+        val manifestUrl = "https://github.com/$repository/releases/download/$tag/${FathomNativeDownloader.MANIFEST_ASSET_NAME}"
+        val binaryUrl = "https://github.com/$repository/releases/download/$tag/fathom-lsp-linux-x86_64"
         val transport = FakeTransport(
             mapOf(
                 apiUrl to """
                     {"tag_name":"$tag","assets":[
-                      {"name":"${DorisNativeDownloader.MANIFEST_ASSET_NAME}","browser_download_url":"$manifestUrl"},
-                      {"name":"doris-lsp-linux-x86_64","browser_download_url":"$binaryUrl"}
+                      {"name":"${FathomNativeDownloader.MANIFEST_ASSET_NAME}","browser_download_url":"$manifestUrl"},
+                      {"name":"fathom-lsp-linux-x86_64","browser_download_url":"$binaryUrl"}
                     ]}
                 """.trimIndent().toByteArray(StandardCharsets.UTF_8),
                 manifestUrl to """
                     {"schemaVersion":1,"tag":"$tag","assets":{
-                      "linux-x86_64":{"name":"doris-lsp-linux-x86_64","sha256":"$sha256"}
+                      "linux-x86_64":{"name":"fathom-lsp-linux-x86_64","sha256":"$sha256"}
                     }}
                 """.trimIndent().toByteArray(StandardCharsets.UTF_8),
                 binaryUrl to binary,
             ),
         )
-        val cache = Files.createTempDirectory("doris-native-downloader")
-        val downloader = DorisNativeDownloader(
+        val cache = Files.createTempDirectory("fathom-native-downloader")
+        val downloader = FathomNativeDownloader(
             cacheDirectory = cache,
-            platform = DorisNativePlatform.LINUX_X86_64,
+            platform = FathomNativePlatform.LINUX_X86_64,
             transport = transport,
             cacheTtlMillis = Long.MAX_VALUE,
         )
@@ -79,29 +79,29 @@ class DorisNativeDownloaderTest {
     @Test
     fun rejectsAReleaseWhoseBinaryHashDoesNotMatchTheManifest() {
         val tag = "v0.1.0"
-        val repository = DorisNativeDownloader.DEFAULT_REPOSITORY
+        val repository = FathomNativeDownloader.DEFAULT_REPOSITORY
         val apiUrl = "https://api.github.com/repos/$repository/releases/latest"
-        val manifestUrl = "https://github.com/$repository/releases/download/$tag/${DorisNativeDownloader.MANIFEST_ASSET_NAME}"
-        val binaryUrl = "https://github.com/$repository/releases/download/$tag/doris-lsp-linux-x86_64"
+        val manifestUrl = "https://github.com/$repository/releases/download/$tag/${FathomNativeDownloader.MANIFEST_ASSET_NAME}"
+        val binaryUrl = "https://github.com/$repository/releases/download/$tag/fathom-lsp-linux-x86_64"
         val transport = FakeTransport(
             mapOf(
                 apiUrl to """
                     {"tag_name":"$tag","assets":[
-                      {"name":"${DorisNativeDownloader.MANIFEST_ASSET_NAME}","browser_download_url":"$manifestUrl"},
-                      {"name":"doris-lsp-linux-x86_64","browser_download_url":"$binaryUrl"}
+                      {"name":"${FathomNativeDownloader.MANIFEST_ASSET_NAME}","browser_download_url":"$manifestUrl"},
+                      {"name":"fathom-lsp-linux-x86_64","browser_download_url":"$binaryUrl"}
                     ]}
                 """.trimIndent().toByteArray(StandardCharsets.UTF_8),
                 manifestUrl to """
                     {"schemaVersion":1,"tag":"$tag","assets":{
-                      "linux-x86_64":{"name":"doris-lsp-linux-x86_64","sha256":"${"0".repeat(64)}"}
+                      "linux-x86_64":{"name":"fathom-lsp-linux-x86_64","sha256":"${"0".repeat(64)}"}
                     }}
                 """.trimIndent().toByteArray(StandardCharsets.UTF_8),
                 binaryUrl to "not-the-expected-binary".toByteArray(StandardCharsets.UTF_8),
             ),
         )
-        val downloader = DorisNativeDownloader(
-            cacheDirectory = Files.createTempDirectory("doris-native-hash-test"),
-            platform = DorisNativePlatform.LINUX_X86_64,
+        val downloader = FathomNativeDownloader(
+            cacheDirectory = Files.createTempDirectory("fathom-native-hash-test"),
+            platform = FathomNativePlatform.LINUX_X86_64,
             transport = transport,
             cacheTtlMillis = Long.MAX_VALUE,
         )
@@ -111,16 +111,16 @@ class DorisNativeDownloaderTest {
 
     @Test
     fun managedResolutionFallsBackToTheConfiguredCommandWhenDownloadFails() {
-        val configuration = DorisSettings.Configuration("local-doris-lsp", "4.x", true)
-        val failingDownloader = DorisNativeDownloader(
-            cacheDirectory = Files.createTempDirectory("doris-native-fallback"),
-            platform = DorisNativePlatform.LINUX_X86_64,
+        val configuration = FathomSettings.Configuration("local-fathom-lsp", "doris", "2.1", true)
+        val failingDownloader = FathomNativeDownloader(
+            cacheDirectory = Files.createTempDirectory("fathom-native-fallback"),
+            platform = FathomNativePlatform.LINUX_X86_64,
             transport = NativeHttpTransport { error("network unavailable") },
         )
 
         assertEquals(
-            "local-doris-lsp",
-            DorisLanguageServerFactory.resolveExecutable(configuration, failingDownloader),
+            "local-fathom-lsp",
+            FathomLanguageServerFactory.resolveExecutable(configuration, failingDownloader),
         )
     }
 

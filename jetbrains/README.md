@@ -1,24 +1,25 @@
-# Doris SQL IntelliJ Plugin
+# Fathom SQL IntelliJ Plugin
 
-This directory contains a Kotlin/Gradle IntelliJ Platform plugin that connects the Doris SQL language server through [LSP4IJ](https://github.com/redhat-developer/lsp4ij). It does not contain a parser or a second LSP transport.
+This directory contains a Kotlin/Gradle IntelliJ Platform plugin that connects the Fathom SQL language server through [LSP4IJ](https://github.com/redhat-developer/lsp4ij). It does not contain a parser or a second LSP transport.
 
 ## Installation and settings
 
 Build the plugin ZIP with `./gradlew buildPlugin`, then install it from **Settings | Plugins | Gear | Install Plugin from Disk**. The plugin has a hard dependency on LSP4IJ `0.20.1`; install that dependency from JetBrains Marketplace first.
 
-Configure **Settings | Tools | Doris SQL**:
+Configure **Settings | Tools | Fathom SQL**:
 
-- **doris-lsp executable**: local executable path or command name; defaults to `doris-lsp` and is used as the fallback when a managed release cannot be downloaded.
-- **Doris profile**: exactly `2.1`, `3.x`, or `4.x`; defaults to `4.x`.
-- **Download managed doris-lsp binaries from GitHub Releases**: enabled by default. Disable it to use only the configured executable.
+- **fathom-lsp executable**: local executable path or command name; defaults to `fathom-lsp` and is used as the fallback when a managed release cannot be downloaded.
+- **Dialect**: `doris` or `flink`; no default — an explicit selection is required (D-02).
+- **Profile**: exactly `2.1`, `3.x`, or `4.x`; no default — an explicit selection is required.
+- **Download managed fathom-lsp binaries from GitHub Releases**: enabled by default. Disable it to use only the configured executable.
 
-Settings are read when a new LSP4IJ server connection starts. Applying settings does not mutate an already-running process; restart the server for changes to take effect. SQL files are mapped by filename (`*.sql`) and receive language id `doris`.
+Settings are read when a new LSP4IJ server connection starts. Applying settings does not mutate an already-running process; restart the server for changes to take effect. SQL files are mapped by filename (`*.sql`) and receive language id `sql`. The dialect and profile are forwarded as LSP `initializationOptions` (`{"dialect": ..., "profile": ...}`); an empty selection is surfaced as an explicit server-side configuration error, never an implicit fallback.
 
-When managed downloads are enabled, the plugin detects Linux x64, macOS x64, macOS arm64, and Windows x64, downloads the matching `doris-lsp-*` asset from the latest release of `tchivs/doris-sql-parser-sdk`, verifies the SHA-256 listed in `doris-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms, missing releases, and hash mismatches fall back to the configured executable.
+When managed downloads are enabled, the plugin detects Linux x64, macOS x64, macOS arm64, and Windows x64, downloads the matching `fathom-lsp-*` asset from the latest release of `tchivs/doris-sql-parser-sdk`, verifies the SHA-256 listed in `fathom-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms, missing releases, and hash mismatches fall back to the configured executable.
 
 ## Build and verification
 
-The project uses the checked-in Gradle 9.0.0 wrapper, IntelliJ Platform Gradle Plugin 2.9.0, Kotlin JVM 2.2.0, IntelliJ IDEA Community 2025.2 as the compile baseline, and JDK 21. The plugin descriptor leaves the upper IDE bound open; Plugin Verifier selects stable IntelliJ IDEA releases from build 252 through 261 for the current compatibility matrix.
+The project uses the checked-in Gradle 9.6.1 wrapper, IntelliJ Platform Gradle Plugin 2.18.1, Kotlin JVM 2.4.10, IntelliJ IDEA Community 2025.2 as the compile baseline, and JDK 21. The plugin descriptor leaves the upper IDE bound open; Plugin Verifier selects stable IntelliJ IDEA releases from build 252 through 261 for the current compatibility matrix.
 
 ```bash
 ./gradlew --no-daemon test
@@ -31,16 +32,16 @@ The resulting ZIP is written to `build/distributions/`. The CI workflow runs the
 
 ## Native release assets
 
-The root workflow `.github/workflows/doris-native-release.yml` builds the `lsp/` executable on four runners and publishes these exact assets:
+The root workflow `.github/workflows/fathom-native-release.yml` builds the `fathom-lsp/` executable on four runners and publishes these exact assets:
 
 | Platform key | Release asset |
 | --- | --- |
-| `linux-x86_64` | `doris-lsp-linux-x86_64` |
-| `macos-x86_64` | `doris-lsp-macos-x86_64` |
-| `macos-aarch64` | `doris-lsp-macos-aarch64` |
-| `windows-x86_64` | `doris-lsp-windows-x86_64.exe` |
+| `linux-x86_64` | `fathom-lsp-linux-x86_64` |
+| `macos-x86_64` | `fathom-lsp-macos-x86_64` |
+| `macos-aarch64` | `fathom-lsp-macos-aarch64` |
+| `windows-x86_64` | `fathom-lsp-windows-x86_64.exe` |
 
-Every release also contains `doris-lsp-manifest.json` with `schemaVersion`, the exact release `tag`, and the SHA-256 for each binary. Tag pushes (`v*`) and manual dispatches publish through the `tchivs/doris-sql-parser-sdk` repository.
+Every release also contains `fathom-lsp-manifest.json` with `schemaVersion`, the exact release `tag`, and the SHA-256 for each binary. Tag pushes (`v*`) and manual dispatches publish through the `tchivs/doris-sql-parser-sdk` repository.
 
 ## Marketplace release preparation
 
@@ -59,7 +60,7 @@ After the first manual upload is accepted by JetBrains Marketplace, a signed rel
 ./gradlew --no-daemon signPlugin verifyPluginSignature publishPlugin
 ```
 
-The first Marketplace publication must be uploaded manually. Before that upload, complete a fresh-IDE check with LSP4IJ installed and verify diagnostics, formatting, completion, profile propagation, and managed Native fallback behavior. Native release assets are published separately by the root GitHub Actions workflow.
+The first Marketplace publication must be uploaded manually. Before that upload, complete a fresh-IDE check with LSP4IJ installed and verify diagnostics, formatting, completion, dialect/profile propagation, and managed Native fallback behavior. Native release assets are published separately by the root GitHub Actions workflow.
 
 The Marketplace metadata uses the public project homepage `https://github.com/tchivs/doris-sql-parser-sdk` and the monitored vendor contact `maintainers@fathom.dev`.
 
@@ -73,7 +74,7 @@ The Marketplace metadata uses the public project homepage `https://github.com/tc
 4. IntelliJ Plugin Verifier compatibility checks;
 5. plugin ZIP packaging and artifact upload.
 
-`.github/workflows/doris-native-release.yml` runs on `v*` tag pushes or manual dispatch, builds and verifies the four Native assets, generates the signed-by-hash manifest, and uploads the release assets. Marketplace publishing remains manual until the first listing and signing secrets are approved.
+`.github/workflows/fathom-native-release.yml` runs on `v*` tag pushes or manual dispatch, builds and verifies the four Native assets, generates the signed-by-hash manifest, and uploads the release assets. Marketplace publishing remains manual until the first listing and signing secrets are approved.
 
 ## External release links
 

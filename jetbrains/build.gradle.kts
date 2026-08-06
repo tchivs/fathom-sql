@@ -2,8 +2,8 @@ import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.2.0"
-    id("org.jetbrains.intellij.platform") version "2.9.0"
+    id("org.jetbrains.kotlin.jvm") version "2.4.10"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
 group = "fathom.jetbrains"
@@ -26,7 +26,7 @@ intellijPlatform {
             sinceBuild = "252"
             // Leave the upper bound open; compatibility is checked by Plugin Verifier.
         }
-        changeNotes = "Initial Doris SQL LSP4IJ integration."
+        changeNotes = "Initial Fathom SQL LSP4IJ integration."
     }
     pluginVerification {
         ides {

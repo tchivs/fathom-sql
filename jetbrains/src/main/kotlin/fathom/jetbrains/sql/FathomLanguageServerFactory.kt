@@ -1,4 +1,4 @@
-package fathom.jetbrains.doris
+package fathom.jetbrains.sql
 
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.diagnostic.Logger
@@ -8,38 +8,38 @@ import com.redhat.devtools.lsp4ij.LanguageServerFactory
 import com.redhat.devtools.lsp4ij.server.OSProcessStreamConnectionProvider
 import com.redhat.devtools.lsp4ij.server.StreamConnectionProvider
 
-class DorisLanguageServerFactory : LanguageServerFactory {
+class FathomLanguageServerFactory : LanguageServerFactory {
     override fun createConnectionProvider(project: Project): StreamConnectionProvider {
-        val configuration = DorisSettings.getInstance().snapshot()
+        val configuration = FathomSettings.getInstance().snapshot()
         val executablePath = resolveExecutable(configuration)
-        return DorisConnectionProvider(configuration, executablePath)
+        return FathomConnectionProvider(configuration, executablePath)
     }
 
-    private class DorisConnectionProvider(
-        private val configuration: DorisSettings.Configuration,
+    private class FathomConnectionProvider(
+        private val configuration: FathomSettings.Configuration,
         executablePath: String,
     ) : OSProcessStreamConnectionProvider(GeneralCommandLine(executablePath)) {
         override fun getInitializationOptions(rootUri: VirtualFile): Any =
-            initializationOptions(configuration.profile)
+            initializationOptions(configuration.dialect, configuration.profile)
     }
 
     companion object {
-        private val LOG = Logger.getInstance(DorisLanguageServerFactory::class.java)
+        private val LOG = Logger.getInstance(FathomLanguageServerFactory::class.java)
 
         internal fun resolveExecutable(
-            configuration: DorisSettings.Configuration,
-            downloader: DorisNativeDownloader = DorisNativeDownloader(),
+            configuration: FathomSettings.Configuration,
+            downloader: FathomNativeDownloader = FathomNativeDownloader(),
         ): String {
             if (!configuration.useGitHubReleases) return configuration.executablePath
             return try {
                 downloader.resolve().toString()
             } catch (failure: Exception) {
-                LOG.warn("Unable to download managed doris-lsp; using configured executable", failure)
+                LOG.warn("Unable to download managed fathom-lsp; using configured executable", failure)
                 configuration.executablePath
             }
         }
 
-        fun initializationOptions(profile: String): Map<String, String> = mapOf("profile" to profile)
+        fun initializationOptions(dialect: String, profile: String): Map<String, String> =
+            mapOf("dialect" to dialect, "profile" to profile)
     }
 }
-
