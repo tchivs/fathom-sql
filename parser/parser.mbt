@@ -96,8 +96,6 @@ pub struct ParserDiagnostic {
 
 pub struct ParsedDocument {
   pub source : @source.SourceText
-  pub profile : @token.DorisProfile
-  pub profile_metadata : @token.ProfileMetadata
   pub mode : ParseMode
   pub root : @syntax.SyntaxNode
   pub diagnostics : Array[ParserDiagnostic]
@@ -118,7 +116,7 @@ struct Cursor {
 struct RecoveryState {
   diagnostics : Array[ParserDiagnostic]
   limits : ParserLimits
-  profile_context : @token.ValidatedProfileContext
+  context : @dialect.DialectContext
   feature_events : Array[FeatureEvent]
   mut recovery_steps : Int
   mut resource_emitted : Bool
@@ -186,7 +184,7 @@ fn resource_diagnostic(state : RecoveryState, span : @source.Span, statement_id 
     let limit = if state.limits.max_diagnostics <= 0 { 1 } else { state.limits.max_diagnostics }
     let diagnostic = {
       severity: "error",
-      code: "DORIS-PARSE-004",
+      code: "FATHOM-PARSE-004",
       message: "parser resource limit reached",
       expected_class: "resource",
       span: span,
@@ -280,7 +278,7 @@ fn is_word_token(cursor : Cursor) -> Bool {
     Some(token) if token.kind is @token.TokenKind::Quoted => true
     Some(token) if token.kind is @token.TokenKind::Identifier => {
       match raw_at(cursor) {
-        Some(raw) => @token.is_unquoted_identifier(raw)
+        Some(raw) => @dialect.is_unquoted_identifier(cursor.stream.context, raw)
         None => false
       }
     }
@@ -317,7 +315,7 @@ fn expect_word(
       Some(token) => token.span.start_byte
       None => source.byte_length()
     }
-    add_diagnostic(state, "DORIS-PARSE-002", message, "keyword", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", message, "keyword", make_span(source, at, at), statement_id)
     false
   }
 }
@@ -336,14 +334,21 @@ fn expect_symbol(
       Some(token) => token.span.start_byte
       None => source.byte_length()
     }
-    add_diagnostic(state, "DORIS-PARSE-002", message, "symbol", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", message, "symbol", make_span(source, at, at), statement_id)
     false
   }
 }
 
 
-fn feature_allowed(state : RecoveryState, feature : @token.DorisFeature) -> Bool {
-  state.profile_context.supports(feature)
+fn feature_allowed(state : RecoveryState, feature : @dialect.DorisFeature) -> Bool {
+  // Feature gates are Doris production availability (D-15): derive the
+  // DorisProfile from the validated context. A context whose profile_id is not
+  // a Doris profile (Flink contexts, which are rejected at the api boundary)
+  // allows nothing — never a silent Doris fallback.
+  match @dialect.DorisProfile::from_id(state.context.profile_id) {
+    Some(profile) => profile.supports(feature)
+    None => false
+  }
 }
 
 priv struct FeatureEvent {
@@ -356,7 +361,7 @@ fn record_feature_event(state : RecoveryState, span : @source.Span) -> Unit {
 
 fn add_feature_diagnostic(
   state : RecoveryState,
-  feature : @token.DorisFeature,
+  feature : @dialect.DorisFeature,
   span : @source.Span,
   statement_id : UInt,
 ) -> Unit {
@@ -391,7 +396,7 @@ fn is_identifier_candidate(cursor : Cursor) -> Bool {
     Some(token) if token.kind is @token.TokenKind::Quoted => true
     Some(token) if token.kind is @token.TokenKind::Identifier => {
       match raw_at(cursor) {
-        Some(raw) => @token.is_unquoted_identifier(raw)
+        Some(raw) => @dialect.is_unquoted_identifier(cursor.stream.context, raw)
         None => false
       }
     }
@@ -449,7 +454,7 @@ fn parse_expression_list_context(
       Some(raw) if raw == b"," => {
         saw_item = true
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected expression after comma", "expression", span, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after comma", "expression", span, statement_id)
         valid = false
         advance(cursor)
       }
@@ -479,7 +484,7 @@ fn parse_expression_list_context(
         if !consume_symbol(cursor, b",") {
           done = true
         } else if count_star {
-          add_diagnostic(state, "DORIS-PARSE-002", "COUNT(*) accepts exactly one argument", "expression", comma_span, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "COUNT(*) accepts exactly one argument", "expression", comma_span, statement_id)
           valid = false
           recover_expression(cursor, state, source, statement_id)
           while consume_symbol(cursor, b",") {
@@ -488,7 +493,7 @@ fn parse_expression_list_context(
           done = true
         } else if raw_at(cursor) is None || raw_at(cursor) is Some(b")") {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected expression after comma", "expression", make_span(source, at, at), statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after comma", "expression", make_span(source, at, at), statement_id)
           valid = false
           done = true
         }
@@ -497,7 +502,7 @@ fn parse_expression_list_context(
   }
   if !saw_item {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected expression", "expression", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected expression", "expression", make_span(source, at, at), statement_id)
     valid = false
   }
   any && valid
@@ -513,7 +518,7 @@ fn expect_window_nulls_order(
     true
   } else {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected FIRST or LAST after NULLS", "window-order", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected FIRST or LAST after NULLS", "window-order", make_span(source, at, at), statement_id)
     false
   }
 }
@@ -535,7 +540,7 @@ fn parse_window_frame_bound(
     let qualifier_ok = consume_word(cursor, b"PRECEDING") || consume_word(cursor, b"FOLLOWING")
     if !qualifier_ok {
       let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected PRECEDING or FOLLOWING in window frame", "window-frame", make_span(source, at, at), statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected PRECEDING or FOLLOWING in window frame", "window-frame", make_span(source, at, at), statement_id)
     }
     value_ok && qualifier_ok
   }
@@ -602,7 +607,7 @@ fn parse_expression_postfix(
             keep_going = false
           }
           _ => {
-            add_diagnostic(state, "DORIS-PARSE-002", "wildcard is only valid as a projection item or COUNT(*) argument", "expression", star_span, statement_id)
+            add_diagnostic(state, "FATHOM-PARSE-002", "wildcard is only valid as a projection item or COUNT(*) argument", "expression", star_span, statement_id)
             valid = false
             keep_going = false
           }
@@ -611,7 +616,7 @@ fn parse_expression_postfix(
         advance(cursor)
       } else {
         let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected qualified identifier", "identifier", make_span(source, at, at), statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected qualified identifier", "identifier", make_span(source, at, at), statement_id)
         valid = false
         keep_going = false
       }
@@ -628,14 +633,14 @@ fn parse_expression_postfix(
       if has_spec { valid = parse_window_spec(cursor, state, source, statement_id) && valid }
       else if has_name { advance(cursor) }
       else {
-        add_diagnostic(state, "DORIS-PARSE-002", "expected window name or specification", "window", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected window name or specification", "window", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
         valid = false
       }
       ()
     } else if consume_word(cursor, b"IS") {
       ignore(consume_word(cursor, b"NOT"))
       if !(consume_word(cursor, b"NULL") || consume_word(cursor, b"TRUE") || consume_word(cursor, b"FALSE") || consume_word(cursor, b"UNKNOWN")) {
-        add_diagnostic(state, "DORIS-PARSE-002", "expected NULL or boolean predicate", "predicate", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected NULL or boolean predicate", "predicate", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
         valid = false
       }
       ()
@@ -747,7 +752,7 @@ fn parse_expression_context(
           prefix_ok = true
         }
         ExpressionContext::Ordinary => {
-          add_diagnostic(state, "DORIS-PARSE-002", "wildcard is only valid as a projection item or COUNT(*) argument", "expression", current_span, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "wildcard is only valid as a projection item or COUNT(*) argument", "expression", current_span, statement_id)
         }
       }
     }
@@ -755,8 +760,8 @@ fn parse_expression_context(
       advance(cursor)
       prefix_ok = parse_expression_context(cursor, 6, depth + 1, state, source, statement_id, ExpressionContext::Ordinary)
     }
-    Some(token) => add_diagnostic(state, "DORIS-PARSE-002", "expected literal, identifier, or subquery expression", "expression", token.span, statement_id)
-    None => add_diagnostic(state, "DORIS-PARSE-002", "expected expression", "expression", current_span, statement_id)
+    Some(token) => add_diagnostic(state, "FATHOM-PARSE-002", "expected literal, identifier, or subquery expression", "expression", token.span, statement_id)
+    None => add_diagnostic(state, "FATHOM-PARSE-002", "expected expression", "expression", current_span, statement_id)
   }
   if !prefix_ok { false } else {
     let postfix = if wildcard_prefix {
@@ -768,7 +773,7 @@ fn parse_expression_context(
     let mut wildcard_complete = wildcard_prefix || postfix.wildcard_complete
     if wildcard_complete && wildcard_has_invalid_continuation(cursor) {
       let span = match token_at(cursor) { Some(token) => token.span; None => current_span }
-      add_diagnostic(state, "DORIS-PARSE-002", "wildcard must be a complete projection item or COUNT(*) argument", "expression", span, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "wildcard must be a complete projection item or COUNT(*) argument", "expression", span, statement_id)
       recover_expression(cursor, state, source, statement_id)
       valid = false
       wildcard_complete = false
@@ -804,7 +809,7 @@ fn parse_identifier_option(
   option : String,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
-    add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
     return false
   }
   parse_identifier_list_after_open(cursor, state, source, statement_id, option)
@@ -821,7 +826,7 @@ fn parse_identifier_list_after_open(
 ) -> Bool {
   if raw_at(cursor) is Some(b")") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " list", "option", span, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected non-empty " + option + " list", "option", span, statement_id)
     advance(cursor)
     return false
   }
@@ -834,7 +839,7 @@ fn parse_identifier_list_after_open(
       advance(cursor)
     } else {
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected identifier in " + option + " list", "identifier", span, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected identifier in " + option + " list", "identifier", span, statement_id)
       valid = false
       if raw_at(cursor) is Some(b")") { done = true } else { advance(cursor) }
     }
@@ -842,7 +847,7 @@ fn parse_identifier_list_after_open(
       if consume_symbol(cursor, b",") {
         if raw_at(cursor) is Some(b")") {
           let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected identifier after comma in " + option + " list", "identifier", span, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected identifier after comma in " + option + " list", "identifier", span, statement_id)
           valid = false
           done = true
         }
@@ -866,12 +871,12 @@ fn parse_table_value_option(
   allow_multiple : Bool,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
-    add_diagnostic(state, "DORIS-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected parenthesized " + option + " option", "option", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
     return false
   }
   if raw_at(cursor) is Some(b")") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected non-empty " + option + " value", "option", span, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected non-empty " + option + " value", "option", span, statement_id)
     advance(cursor)
     return false
   }
@@ -882,12 +887,12 @@ fn parse_table_value_option(
     if consume_symbol(cursor, b",") {
       if !allow_multiple {
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", option + " accepts a single value", "option", span, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", option + " accepts a single value", "option", span, statement_id)
         valid = false
       }
       if raw_at(cursor) is Some(b")") {
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected value after comma in " + option, "option", span, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected value after comma in " + option, "option", span, statement_id)
         valid = false
         done = true
       }
@@ -903,7 +908,7 @@ fn parse_table_value_option(
 
 fn parse_table_ref(
   cursor : Cursor,
-  profile : @token.DorisProfile,
+  context : @dialect.DialectContext,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
@@ -920,7 +925,7 @@ fn parse_table_ref(
       if consume_symbol(cursor, b".") {
         if !is_identifier_candidate(cursor) {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected table identifier after dot", "identifier", make_span(source, at, at), statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected table identifier after dot", "identifier", make_span(source, at, at), statement_id)
           valid = false
           break
         }
@@ -928,7 +933,7 @@ fn parse_table_ref(
     }
     if name_parts == 0 {
       let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected table reference", "table", make_span(source, at, at), statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected table reference", "table", make_span(source, at, at), statement_id)
       valid = false
     }
   }
@@ -936,8 +941,8 @@ fn parse_table_ref(
   while !option_done {
     if consume_word(cursor, b"PARTITION") {
       valid = parse_identifier_option(cursor, state, source, statement_id, "PARTITION") && valid
-    } else if raw_at(cursor) is Some(raw) && is_keyword(raw, @token.DorisFeature::Tablet.metadata().keyword) && peek_raw(cursor, 1) is Some(b"(") {
-      let feature = @token.DorisFeature::Tablet
+    } else if raw_at(cursor) is Some(raw) && is_keyword(raw, @dialect.DorisFeature::Tablet.metadata().keyword) && peek_raw(cursor, 1) is Some(b"(") {
+      let feature = @dialect.DorisFeature::Tablet
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
       advance(cursor)
       if !feature_allowed(state, feature) {
@@ -971,7 +976,7 @@ fn parse_table_ref(
   }
   if consume_word(cursor, b"AS") {
     let alias_ok = is_identifier_candidate(cursor)
-    if !alias_ok { add_diagnostic(state, "DORIS-PARSE-002", "expected table alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
+    if !alias_ok { add_diagnostic(state, "FATHOM-PARSE-002", "expected table alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
     else { advance(cursor) }
   } else {
     let alias_ok = is_identifier_candidate(cursor)
@@ -982,16 +987,16 @@ fn parse_table_ref(
 
 fn parse_from(
   cursor : Cursor,
-  profile : @token.DorisProfile,
+  context : @dialect.DialectContext,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
 ) -> Bool {
-  let mut valid = parse_table_ref(cursor, profile, state, source, statement_id)
+  let mut valid = parse_table_ref(cursor, context, state, source, statement_id)
   let mut done = false
   while !done {
     if consume_symbol(cursor, b",") {
-      valid = parse_table_ref(cursor, profile, state, source, statement_id) && valid
+      valid = parse_table_ref(cursor, context, state, source, statement_id) && valid
     } else {
       let modifier : String? = if consume_word(cursor, b"INNER") { ignore(consume_word(cursor, b"OUTER")); Some("INNER") }
       else if consume_word(cursor, b"LEFT") { ignore(consume_word(cursor, b"OUTER")); Some("LEFT") }
@@ -1015,13 +1020,13 @@ fn parse_from(
         match modifier {
           Some(_) => {
             let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-            add_diagnostic(state, "DORIS-PARSE-002", "expected JOIN after join modifier", "join", make_span(source, at, at), statement_id)
+            add_diagnostic(state, "FATHOM-PARSE-002", "expected JOIN after join modifier", "join", make_span(source, at, at), statement_id)
             valid = false
           }
           None => done = true
         }
       } else {
-        valid = parse_table_ref(cursor, profile, state, source, statement_id) && valid
+        valid = parse_table_ref(cursor, context, state, source, statement_id) && valid
         let requires_condition = match modifier {
           Some(name) => name != "CROSS" && name != "NATURAL" && name != "NATURAL_LEFT" && name != "NATURAL_RIGHT"
           None => true
@@ -1032,7 +1037,7 @@ fn parse_from(
           valid = parse_identifier_option(cursor, state, source, statement_id, "USING") && valid
         } else if requires_condition {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected ON or USING after JOIN", "join-condition", make_span(source, at, at), statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected ON or USING after JOIN", "join-condition", make_span(source, at, at), statement_id)
           valid = false
         }
       }
@@ -1049,12 +1054,12 @@ fn parse_grouping_arguments(
   name : String,
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
-    add_diagnostic(state, "DORIS-PARSE-002", "expected opening " + name + " parenthesis", "grouping", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected opening " + name + " parenthesis", "grouping", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
     return false
   }
   if raw_at(cursor) is Some(b")") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected expression in " + name + "", "grouping", span, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected expression in " + name + "", "grouping", span, statement_id)
     advance(cursor)
     false
   } else {
@@ -1079,7 +1084,7 @@ fn parse_group_by(
     if !valid { return false }
     if raw_at(cursor) is Some(b")") {
       let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected grouping set in GROUPING SETS", "grouping", span, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected grouping set in GROUPING SETS", "grouping", span, statement_id)
       advance(cursor)
       false
     } else {
@@ -1093,7 +1098,7 @@ fn parse_group_by(
         if consume_symbol(cursor, b",") {
           if raw_at(cursor) is Some(b")") {
             let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-            add_diagnostic(state, "DORIS-PARSE-002", "expected grouping set after comma", "grouping", span, statement_id)
+            add_diagnostic(state, "FATHOM-PARSE-002", "expected grouping set after comma", "grouping", span, statement_id)
             valid = false
             break
           }
@@ -1148,7 +1153,7 @@ fn parse_limit(
 
 fn parse_select_core(
   cursor : Cursor,
-  profile : @token.DorisProfile,
+  context : @dialect.DialectContext,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
@@ -1171,7 +1176,7 @@ fn parse_select_core(
     if modifier is Some("ALL") {
       valid = parse_identifier_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
     } else {
-      add_diagnostic(state, "DORIS-PARSE-002", "EXCEPT requires the ALL projection modifier", "projection", except_span, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "EXCEPT requires the ALL projection modifier", "projection", except_span, statement_id)
       valid = parse_identifier_option(cursor, state, source, statement_id, "EXCEPT") && valid
       valid = false
     }
@@ -1181,7 +1186,7 @@ fn parse_select_core(
   } else {
     valid = parse_expression_list_until_clause(cursor, state, source, statement_id) && valid
   }
-  if consume_word(cursor, b"FROM") { valid = parse_from(cursor, profile, state, source, statement_id) && valid }
+  if consume_word(cursor, b"FROM") { valid = parse_from(cursor, context, state, source, statement_id) && valid }
   if consume_word(cursor, b"WHERE") { valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid }
   if consume_word(cursor, b"GROUP") { valid = parse_group_by(cursor, state, source, statement_id) && valid }
   if consume_word(cursor, b"HAVING") { valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid }
@@ -1193,7 +1198,7 @@ fn parse_select_core(
       if consume_symbol(cursor, b",") {
         if !is_word_token(cursor) {
           let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected window name after comma", "identifier", span, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected window name after comma", "identifier", span, statement_id)
           valid = false
           break
         }
@@ -1204,7 +1209,7 @@ fn parse_select_core(
   }
   let qualify_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"QUALIFY") {
-    let feature = @token.DorisFeature::Qualify
+    let feature = @dialect.DorisFeature::Qualify
     if !feature_allowed(state, feature) {
       add_feature_diagnostic(state, feature, qualify_span, statement_id)
       valid = false
@@ -1216,13 +1221,13 @@ fn parse_select_core(
   if consume_word(cursor, b"INTO") {
     valid = expect_word(cursor, b"OUTFILE", state, source, statement_id, "expected OUTFILE after INTO") && valid
     let is_string = match token_at(cursor) { Some(token) => token.kind is @token.TokenKind::StringLiteral; None => false }
-    if !is_string { add_diagnostic(state, "DORIS-PARSE-002", "expected outfile string", "string", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
+    if !is_string { add_diagnostic(state, "FATHOM-PARSE-002", "expected outfile string", "string", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
     else { advance(cursor) }
   }
   valid
 }
-fn is_projection_boundary(raw : Bytes) -> Bool {
-  @token.is_clause_keyword(raw) || raw == b";" || raw == b")"
+fn is_projection_boundary(context : @dialect.DialectContext, raw : Bytes) -> Bool {
+  @dialect.is_clause_keyword(context, raw) || raw == b";" || raw == b")"
 }
 fn is_projection_alias_candidate(cursor : Cursor) -> Bool {
   if !is_identifier_candidate(cursor) { false }
@@ -1231,7 +1236,7 @@ fn is_projection_alias_candidate(cursor : Cursor) -> Bool {
       Some(raw) if bytes_equal_ci(raw, b"AS") || bytes_equal_ci(raw, b"OVER") => false
       Some(_) => match peek_raw(cursor, 1) {
         None => true
-        Some(next) => next == b"," || is_projection_boundary(next)
+        Some(next) => next == b"," || is_projection_boundary(cursor.stream.context, next)
       }
       None => false
     }
@@ -1250,7 +1255,7 @@ fn parse_projection_alias(
       advance(cursor)
       true
     } else {
-      add_diagnostic(state, "DORIS-PARSE-002", "expected projection alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected projection alias", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
       false
     }
   } else if is_projection_alias_candidate(cursor) {
@@ -1274,7 +1279,7 @@ fn parse_expression_list_until_clause(
   while !done {
     match raw_at(cursor) {
       None => done = true
-      Some(raw) if is_projection_boundary(raw) => done = true
+      Some(raw) if is_projection_boundary(cursor.stream.context, raw) => done = true
       Some(_) => {
         let before = cursor.position
         let item = if raw_at(cursor) is Some(b"*") && peek_raw(cursor, 1) is Some(raw) && is_keyword(raw, b"EXCEPT") {
@@ -1291,13 +1296,13 @@ fn parse_expression_list_until_clause(
         if consume_symbol(cursor, b",") {
           match raw_at(cursor) {
             None => {
-              add_diagnostic(state, "DORIS-PARSE-002", "expected expression after projection comma", "expression", make_span(source, source.byte_length(), source.byte_length()), statement_id)
+              add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after projection comma", "expression", make_span(source, source.byte_length(), source.byte_length()), statement_id)
               valid = false
               done = true
             }
-            Some(raw) if is_projection_boundary(raw) => {
+            Some(raw) if is_projection_boundary(cursor.stream.context, raw) => {
               let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-              add_diagnostic(state, "DORIS-PARSE-002", "expected expression after projection comma", "expression", make_span(source, at, at), statement_id)
+              add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after projection comma", "expression", make_span(source, at, at), statement_id)
               valid = false
               done = true
             }
@@ -1311,7 +1316,7 @@ fn parse_expression_list_until_clause(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected expression after SELECT", "expression", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after SELECT", "expression", make_span(source, at, at), statement_id)
   }
   any && valid
 }
@@ -1327,14 +1332,14 @@ fn parse_cte_prefix(
   let mut valid = true
   let recursive_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"RECURSIVE") {
-    add_diagnostic(state, "DORIS-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
     valid = false
   }
   let mut cte_done = false
   while !cte_done {
     let cte_name = is_identifier_candidate(cursor)
     if !cte_name {
-      add_diagnostic(state, "DORIS-PARSE-002", "expected CTE name", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected CTE name", "identifier", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
       valid = false
       break
     }
@@ -1344,7 +1349,7 @@ fn parse_cte_prefix(
     }
     valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in CTE") && valid
     if !consume_symbol(cursor, b"(") {
-      add_diagnostic(state, "DORIS-PARSE-002", "expected CTE query parenthesis", "subquery", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected CTE query parenthesis", "subquery", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id)
       valid = false
     } else {
       valid = parse_query(cursor, state, source, statement_id) && valid
@@ -1362,16 +1367,16 @@ fn parse_query(
   statement_id : UInt,
 ) -> Bool {
   if !depth_allowed(cursor, state, source, statement_id) { return false }
-  let profile = cursor.stream.profile
+  let context = cursor.stream.context
   let mut valid = true
   if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WITH") {
     valid = parse_cte_prefix(cursor, state, source, statement_id) && valid
   }
-  valid = parse_select_core(cursor, profile, state, source, statement_id) && valid
+  valid = parse_select_core(cursor, context, state, source, statement_id) && valid
   while consume_word(cursor, b"UNION") {
     ignore(consume_word(cursor, b"ALL"))
     ignore(consume_word(cursor, b"DISTINCT"))
-    valid = parse_select_core(cursor, profile, state, source, statement_id) && valid
+    valid = parse_select_core(cursor, context, state, source, statement_id) && valid
   }
   valid
 }
@@ -1391,7 +1396,7 @@ fn parse_qualified_name(
     if consume_symbol(cursor, b".") {
       if !is_identifier_candidate(cursor) {
         let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected identifier after dot in " + message, "identifier", make_span(source, at, at), statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected identifier after dot in " + message, "identifier", make_span(source, at, at), statement_id)
         valid = false
         break
       }
@@ -1401,7 +1406,7 @@ fn parse_qualified_name(
   }
   if parts == 0 {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected " + message, "identifier", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected " + message, "identifier", make_span(source, at, at), statement_id)
     valid = false
   }
   valid
@@ -1513,7 +1518,7 @@ fn parse_insert(
       valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected opening PARTITION parenthesis") && valid
     } else if raw_at(cursor) is Some(b"*") {
       let star_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      let feature = @token.DorisFeature::PartitionStar
+      let feature = @dialect.DorisFeature::PartitionStar
       if !feature_allowed(state, feature) {
         add_feature_diagnostic(state, feature, star_span, statement_id)
         valid = false
@@ -1530,7 +1535,7 @@ fn parse_insert(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected label after WITH LABEL", "identifier", make_span(source, at, at), statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected label after WITH LABEL", "identifier", make_span(source, at, at), statement_id)
       valid = false
     }
   }
@@ -1545,7 +1550,7 @@ fn parse_insert(
     valid = parse_query(cursor, state, source, statement_id) && valid
   } else {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected VALUES or query after INSERT", "insert-source", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected VALUES or query after INSERT", "insert-source", at, statement_id)
     valid = false
   }
   valid
@@ -1645,12 +1650,12 @@ fn parse_update(
     valid = set_ok && valid
   } else {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected SET clause in UPDATE", "clause", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected SET clause in UPDATE", "clause", at, statement_id)
     valid = false
     recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary)
   }
   if consume_word(cursor, b"FROM") {
-    let from_ok = parse_from(cursor, cursor.stream.profile, state, source, statement_id)
+    let from_ok = parse_from(cursor, cursor.stream.context, state, source, statement_id)
     if !from_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_update_clause_boundary) }
     valid = from_ok && valid
   }
@@ -1704,12 +1709,12 @@ fn parse_delete(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected partition name after PARTITION", "identifier", make_span(source, at, at), statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected partition name after PARTITION", "identifier", make_span(source, at, at), statement_id)
       valid = false
     }
   }
   if consume_word(cursor, b"USING") {
-    let using_ok = parse_from(cursor, cursor.stream.profile, state, source, statement_id)
+    let using_ok = parse_from(cursor, cursor.stream.context, state, source, statement_id)
     if !using_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_delete_clause_boundary) }
     valid = using_ok && valid
   }
@@ -1746,7 +1751,7 @@ fn parse_merge(
   if !consume_word(cursor, b"MERGE") {
     return valid
   }
-  let feature = @token.DorisFeature::MergeInto
+  let feature = @dialect.DorisFeature::MergeInto
   if !feature_allowed(state, feature) {
     add_feature_diagnostic(state, feature, merge_span, statement_id)
     // Consume the remainder losslessly; the version_invalid_node leaf
@@ -1767,7 +1772,7 @@ fn parse_merge(
   valid = expect_word(cursor, b"INTO", state, source, statement_id, "expected INTO after MERGE") && valid
   valid = parse_qualified_name(cursor, state, source, statement_id, "target table") && valid
   if consume_word(cursor, b"USING") {
-    let using_ok = parse_table_ref(cursor, cursor.stream.profile, state, source, statement_id)
+    let using_ok = parse_table_ref(cursor, cursor.stream.context, state, source, statement_id)
     if !using_ok { recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary) }
     valid = using_ok && valid
   } else {
@@ -1817,7 +1822,7 @@ fn parse_merge(
         }
       } else {
         let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected UPDATE, DELETE, or INSERT after THEN", "merge-action", make_span(source, at, at), statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected UPDATE, DELETE, or INSERT after THEN", "merge-action", make_span(source, at, at), statement_id)
         valid = false
         recover_to_clause_boundary(cursor, state, source, statement_id, is_merge_clause_boundary)
       }
@@ -1825,7 +1830,7 @@ fn parse_merge(
   }
   if when_count == 0 {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected WHEN MATCHED or WHEN NOT MATCHED clause in MERGE", "merge-clause", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected WHEN MATCHED or WHEN NOT MATCHED clause in MERGE", "merge-clause", make_span(source, at, at), statement_id)
     valid = false
   }
   valid
@@ -1877,7 +1882,7 @@ fn parse_create(
   // A2 decision (02-04 Task 2): the released 2.1/3.x/4.x docs document the
   // async materialized view family (page title "CREATE ASYNC MATERIALIZED
   // VIEW"; syntax CREATE MATERIALIZED VIEW with BUILD/REFRESH clauses), so
-  // the ASYNC prefix selects the async form instead of DORIS-PARSE-007.
+  // the ASYNC prefix selects the async form instead of FATHOM-PARSE-007.
   let mut async_mv = false
   match raw_at(cursor) {
     Some(raw) if bytes_equal_ci(raw, b"ASYNC") => {
@@ -1906,16 +1911,16 @@ fn parse_create(
     }
     Some(_) => {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
       valid = false
     }
     // WR-01: a bare CREATE / CREATE TEMPORARY / CREATE EXTERNAL at EOF must
     // not pass the valid gate silently — every other statement family reports
-    // the incomplete-statement diagnostic (DORIS-PARSE-002) and finish_statement
+    // the incomplete-statement diagnostic (FATHOM-PARSE-002) and finish_statement
     // pushes the Missing node because valid is false.
     None => {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected TABLE, VIEW, INDEX, or MATERIALIZED VIEW after CREATE", "create-form", at, statement_id)
       valid = false
     }
   }
@@ -1938,7 +1943,7 @@ fn parse_create_index(
   }
   if !is_identifier_candidate(cursor) {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected index name", "identifier", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected index name", "identifier", at, statement_id)
     valid = false
   } else {
     advance(cursor)
@@ -1951,7 +1956,7 @@ fn parse_create_index(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected index type after USING", "identifier", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected index type after USING", "identifier", at, statement_id)
       valid = false
     }
   }
@@ -1965,7 +1970,7 @@ fn parse_create_index(
     }
     if !is_stringish {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected index comment string after COMMENT", "string", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected index comment string after COMMENT", "string", at, statement_id)
       valid = false
     } else {
       advance(cursor)
@@ -2064,7 +2069,7 @@ fn parse_async_mv_clauses(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected IMMEDIATE or DEFERRED after BUILD", "build-mode", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected IMMEDIATE or DEFERRED after BUILD", "build-mode", at, statement_id)
       valid = false
     }
   }
@@ -2079,7 +2084,7 @@ fn parse_async_mv_clauses(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected COMPLETE or AUTO after REFRESH", "refresh-method", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected COMPLETE or AUTO after REFRESH", "refresh-method", at, statement_id)
       valid = false
     }
     if consume_word(cursor, b"ON") {
@@ -2094,14 +2099,14 @@ fn parse_async_mv_clauses(
         }
         if !is_number {
           let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected refresh interval number after EVERY", "number", at, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected refresh interval number after EVERY", "number", at, statement_id)
           valid = false
         } else {
           advance(cursor)
         }
         if !is_identifier_candidate(cursor) {
           let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected refresh unit (MINUTE/HOUR/DAY/WEEK) after interval", "refresh-unit", at, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected refresh unit (MINUTE/HOUR/DAY/WEEK) after interval", "refresh-unit", at, statement_id)
           valid = false
         } else {
           advance(cursor)
@@ -2113,7 +2118,7 @@ fn parse_async_mv_clauses(
           }
           if !is_stringish {
             let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-            add_diagnostic(state, "DORIS-PARSE-002", "expected start time string after STARTS", "string", at, statement_id)
+            add_diagnostic(state, "FATHOM-PARSE-002", "expected start time string after STARTS", "string", at, statement_id)
             valid = false
           } else {
             advance(cursor)
@@ -2123,7 +2128,7 @@ fn parse_async_mv_clauses(
         ()
       } else {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected MANUAL, SCHEDULE, or COMMIT after ON", "refresh-trigger", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected MANUAL, SCHEDULE, or COMMIT after ON", "refresh-trigger", at, statement_id)
         valid = false
       }
     }
@@ -2141,7 +2146,7 @@ fn parse_async_mv_clauses(
     }
     if !is_stringish {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected materialized view comment string after COMMENT", "string", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected materialized view comment string after COMMENT", "string", at, statement_id)
       valid = false
     } else {
       advance(cursor)
@@ -2160,14 +2165,14 @@ fn parse_async_mv_clauses(
   if consume_word(cursor, b"AS") {
     if !is_query_start(cursor) {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected query after AS in materialized view", "query", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected query after AS in materialized view", "query", at, statement_id)
       valid = false
     } else {
       valid = parse_query(cursor, state, source, statement_id) && valid
     }
   } else {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected AS query in materialized view", "query", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected AS query in materialized view", "query", at, statement_id)
     valid = false
     if is_query_start(cursor) {
       valid = parse_query(cursor, state, source, statement_id) && valid
@@ -2189,7 +2194,7 @@ fn parse_mv_query(
   if raw_at(cursor) is Some(b"(") {
     // Docs constraint: single base table, no subquery.
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "materialized view body requires a single base table (no subquery)", "sync materialized view body", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "materialized view body requires a single base table (no subquery)", "sync materialized view body", at, statement_id)
     valid = false
   } else {
     // Plain qualified name only: a JOIN/LATERAL VIEW after the name must stay
@@ -2210,7 +2215,7 @@ fn parse_mv_query(
   if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"JOIN") || bytes_equal_ci(raw, b"HAVING") ||
     bytes_equal_ci(raw, b"LIMIT") || bytes_equal_ci(raw, b"LATERAL")) {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "JOIN, HAVING, LIMIT, and LATERAL VIEW are not supported in a sync materialized view body", "sync materialized view body", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "JOIN, HAVING, LIMIT, and LATERAL VIEW are not supported in a sync materialized view body", "sync materialized view body", at, statement_id)
     valid = false
   }
   valid
@@ -2237,7 +2242,7 @@ fn parse_mv_column_list(
         if consume_symbol(cursor, b",") {
           if raw_at(cursor) is None || raw_at(cursor) is Some(b";") {
             let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-            add_diagnostic(state, "DORIS-PARSE-002", "expected column name after comma in " + what, "identifier", make_span(source, at, at), statement_id)
+            add_diagnostic(state, "FATHOM-PARSE-002", "expected column name after comma in " + what, "identifier", make_span(source, at, at), statement_id)
             valid = false
             done = true
           }
@@ -2247,7 +2252,7 @@ fn parse_mv_column_list(
       }
       Some(_) => {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected column name in " + what, "identifier", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected column name in " + what, "identifier", at, statement_id)
         valid = false
         done = true
       }
@@ -2255,7 +2260,7 @@ fn parse_mv_column_list(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one column in " + what, "identifier", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one column in " + what, "identifier", make_span(source, at, at), statement_id)
     valid = false
   }
   valid
@@ -2283,7 +2288,7 @@ fn parse_create_view(
   ignore(consume_word(cursor, b"AS"))
   if !is_query_start(cursor) {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected query after CREATE VIEW", "query", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected query after CREATE VIEW", "query", at, statement_id)
     valid = false
   } else {
     valid = parse_query(cursor, state, source, statement_id) && valid
@@ -2308,7 +2313,7 @@ fn parse_view_columns(
       any = true
       if !is_identifier_candidate(cursor) {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected view column name", "identifier", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected view column name", "identifier", at, statement_id)
         valid = false
       } else {
         advance(cursor)
@@ -2320,7 +2325,7 @@ fn parse_view_columns(
         }
         if !is_stringish {
           let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected view column comment string after COMMENT", "string", at, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected view column comment string after COMMENT", "string", at, statement_id)
           valid = false
         } else {
           advance(cursor)
@@ -2335,7 +2340,7 @@ fn parse_view_columns(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one view column", "view-column", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one view column", "view-column", make_span(source, at, at), statement_id)
     valid = false
   }
   valid
@@ -2457,7 +2462,7 @@ fn parse_create_table(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected engine type after ENGINE =", "identifier", make_span(source, at, at), statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected engine type after ENGINE =", "identifier", make_span(source, at, at), statement_id)
       valid = false
     }
   }
@@ -2468,7 +2473,7 @@ fn parse_create_table(
     let order_token = token_at(cursor)
     if consume_word(cursor, b"ORDER") {
       let order_span = match order_token { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      let feature = @token.DorisFeature::OrderByClause
+      let feature = @dialect.DorisFeature::OrderByClause
       if !feature_allowed(state, feature) {
         add_feature_diagnostic(state, feature, order_span, statement_id)
         valid = false
@@ -2484,7 +2489,7 @@ fn parse_create_table(
     }
     if !is_stringish {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected table comment string after COMMENT", "string", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected table comment string after COMMENT", "string", at, statement_id)
       valid = false
     } else {
       advance(cursor)
@@ -2506,7 +2511,7 @@ fn parse_create_table(
   if consume_word(cursor, b"AS") {
     if !is_query_start(cursor) {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected query after AS in CREATE TABLE", "query", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected query after AS in CREATE TABLE", "query", at, statement_id)
       valid = false
     } else {
       valid = parse_query(cursor, state, source, statement_id) && valid
@@ -2515,7 +2520,7 @@ fn parse_create_table(
     valid = parse_query(cursor, state, source, statement_id) && valid
   } else if !has_body {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected table body, LIKE, or query after CREATE TABLE", "table-body", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected table body, LIKE, or query after CREATE TABLE", "table-body", at, statement_id)
     valid = false
   }
   valid
@@ -2545,7 +2550,7 @@ fn parse_create_table_body(
       if consume_symbol(cursor, b",") {
         if raw_at(cursor) is Some(b")") {
           let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected column or index after comma", "table-body", make_span(source, at, at), statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected column or index after comma", "table-body", make_span(source, at, at), statement_id)
           valid = false
           done = true
         }
@@ -2556,7 +2561,7 @@ fn parse_create_table_body(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one column definition", "table-body", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one column definition", "table-body", make_span(source, at, at), statement_id)
     valid = false
   }
   valid
@@ -2571,7 +2576,7 @@ fn parse_column_definition(
   let mut valid = true
   if !is_identifier_candidate(cursor) {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected column name", "identifier", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected column name", "identifier", at, statement_id)
     return false
   }
   advance(cursor)
@@ -2600,7 +2605,7 @@ fn parse_column_definition(
       }
       if !is_start {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected AUTO_INCREMENT start value", "number", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected AUTO_INCREMENT start value", "number", at, statement_id)
         valid = false
       } else {
         advance(cursor)
@@ -2621,7 +2626,7 @@ fn parse_column_definition(
       }
       if !is_precision {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected precision after ON UPDATE CURRENT_TIMESTAMP (", "number", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected precision after ON UPDATE CURRENT_TIMESTAMP (", "number", at, statement_id)
         valid = false
       } else {
         advance(cursor)
@@ -2636,7 +2641,7 @@ fn parse_column_definition(
     }
     if !is_stringish {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected column comment string after COMMENT", "string", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected column comment string after COMMENT", "string", at, statement_id)
       valid = false
     } else {
       advance(cursor)
@@ -2656,7 +2661,7 @@ fn parse_column_type(
 ) -> Bool {
   if !is_identifier_candidate(cursor) {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected column type", "type", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected column type", "type", at, statement_id)
     return false
   }
   // Capture the enclosing type name before advancing so < ... > params can
@@ -2741,7 +2746,7 @@ fn parse_type_params(
       }
       Some(_) => {
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected type parameter", "type-parameter", span, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected type parameter", "type-parameter", span, statement_id)
         valid = false
         done = true
       }
@@ -2758,7 +2763,7 @@ fn parse_type_params(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected type parameter", "type-parameter", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected type parameter", "type-parameter", make_span(source, at, at), statement_id)
     valid = false
   }
   valid
@@ -2773,7 +2778,7 @@ fn parse_parenthesized_expression(
 ) -> Bool {
   if !consume_symbol(cursor, b"(") {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected ( for " + what, "symbol", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected ( for " + what, "symbol", at, statement_id)
     return false
   }
   let mut valid = parse_expression(cursor, 1, 1, state, source, statement_id)
@@ -2795,7 +2800,7 @@ fn parse_create_table_index(
   }
   if !is_identifier_candidate(cursor) {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected index name", "identifier", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected index name", "identifier", at, statement_id)
     valid = false
   } else {
     advance(cursor)
@@ -2806,7 +2811,7 @@ fn parse_create_table_index(
       advance(cursor)
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected index type after USING", "identifier", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected index type after USING", "identifier", at, statement_id)
       valid = false
     }
   }
@@ -2820,7 +2825,7 @@ fn parse_create_table_index(
     }
     if !is_stringish {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected index comment string after COMMENT", "string", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected index comment string after COMMENT", "string", at, statement_id)
       valid = false
     } else {
       advance(cursor)
@@ -2839,7 +2844,7 @@ fn parse_partitions_definition(
   let auto_token = token_at(cursor)
   if consume_word(cursor, b"AUTO") {
     let auto_span = match auto_token { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    let feature = @token.DorisFeature::AutoPartitionBy
+    let feature = @dialect.DorisFeature::AutoPartitionBy
     if !feature_allowed(state, feature) {
       add_feature_diagnostic(state, feature, auto_span, statement_id)
       valid = false
@@ -2852,7 +2857,7 @@ fn parse_partitions_definition(
       valid = parse_identifier_option(cursor, state, source, statement_id, "AUTO PARTITION BY LIST") && valid
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected RANGE or LIST after AUTO PARTITION BY", "partition-type", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected RANGE or LIST after AUTO PARTITION BY", "partition-type", at, statement_id)
       valid = false
     }
     valid = parse_origin_partitions(cursor, state, source, statement_id) && valid
@@ -2864,7 +2869,7 @@ fn parse_partitions_definition(
       ()
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected RANGE or LIST after PARTITION BY", "partition-type", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected RANGE or LIST after PARTITION BY", "partition-type", at, statement_id)
       valid = false
     }
     valid = parse_identifier_option(cursor, state, source, statement_id, "PARTITION BY") && valid
@@ -2914,7 +2919,7 @@ fn parse_one_partition_definition(
     }
     if !is_identifier_candidate(cursor) {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected partition name", "identifier", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected partition name", "identifier", at, statement_id)
       valid = false
     } else {
       advance(cursor)
@@ -2951,12 +2956,12 @@ fn parse_one_partition_definition(
         valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing VALUES range parenthesis") && valid
       } else {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected LESS THAN, IN, or range after VALUES", "partition-values", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected LESS THAN, IN, or range after VALUES", "partition-values", at, statement_id)
         valid = false
       }
     } else {
       let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-      add_diagnostic(state, "DORIS-PARSE-002", "expected VALUES after partition name", "partition-values", at, statement_id)
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected VALUES after partition name", "partition-values", at, statement_id)
       valid = false
     }
   } else if consume_word(cursor, b"FROM") {
@@ -2969,7 +2974,7 @@ fn parse_one_partition_definition(
     if is_identifier_candidate(cursor) { advance(cursor) }
   } else {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected PARTITION or FROM in partition definition", "partition", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected PARTITION or FROM in partition definition", "partition", at, statement_id)
     valid = false
   }
   valid
@@ -2989,7 +2994,7 @@ fn parse_distribution_clause(
     ()
   } else {
     let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected HASH or RANDOM after DISTRIBUTED BY", "distribution", at, statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected HASH or RANDOM after DISTRIBUTED BY", "distribution", at, statement_id)
     valid = false
   }
   if consume_word(cursor, b"BUCKETS") {
@@ -3002,7 +3007,7 @@ fn parse_distribution_clause(
           None => false
         }
         if is_auto {
-          let feature = @token.DorisFeature::BucketsAuto
+          let feature = @dialect.DorisFeature::BucketsAuto
           if !feature_allowed(state, feature) {
             add_feature_diagnostic(state, feature, token.span, statement_id)
             valid = false
@@ -3010,13 +3015,13 @@ fn parse_distribution_clause(
           advance(cursor)
         } else {
           let at = match token_at(cursor) { Some(t) => t.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-          add_diagnostic(state, "DORIS-PARSE-002", "expected bucket count or AUTO after BUCKETS", "bucket-count", at, statement_id)
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected bucket count or AUTO after BUCKETS", "bucket-count", at, statement_id)
           valid = false
         }
       }
       None => {
         let at = match token_at(cursor) { Some(t) => t.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected bucket count or AUTO after BUCKETS", "bucket-count", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected bucket count or AUTO after BUCKETS", "bucket-count", at, statement_id)
         valid = false
       }
     }
@@ -3039,7 +3044,7 @@ fn parse_rollup_definition(
     } else {
       if !is_identifier_candidate(cursor) {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected rollup name", "identifier", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected rollup name", "identifier", at, statement_id)
         valid = false
       } else {
         advance(cursor)
@@ -3083,7 +3088,7 @@ fn parse_properties_clause(
       if raw_at(cursor) is Some(b")") {
         done = true
       } else {
-        add_diagnostic(state, "DORIS-PARSE-002", "expected property key in " + what, "property-key", span, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected property key in " + what, "property-key", span, statement_id)
         valid = false
         done = true
       }
@@ -3098,7 +3103,7 @@ fn parse_properties_clause(
       }
       if !is_value2 {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "DORIS-PARSE-002", "expected property value in " + what, "property-value", at, statement_id)
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected property value in " + what, "property-value", at, statement_id)
         valid = false
       } else {
         advance(cursor)
@@ -3112,7 +3117,7 @@ fn parse_properties_clause(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "DORIS-PARSE-002", "expected at least one property in " + what, "property", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one property in " + what, "property", make_span(source, at, at), statement_id)
     valid = false
   }
   valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing " + what + " parenthesis") && valid
@@ -3146,7 +3151,7 @@ fn finish_statement(
       None => cursor.position = cursor.indices.length()
     }
   }
-  if trailing { add_diagnostic(state, "DORIS-PARSE-001", trailing_message, "statement", span, statement_id) }
+  if trailing { add_diagnostic(state, "FATHOM-PARSE-001", trailing_message, "statement", span, statement_id) }
   let children = segment_children_for_events(stream, start_index, end_index, state.feature_events)
   if !parsed || trailing { children.push(@syntax.SyntaxElement::ChildNode(require_node(@syntax.SyntaxNode::missing(span.end_byte, stream.source.byte_length())))) }
   let statement_node = require_node(@syntax.SyntaxNode::new(kind, span, children))
@@ -3154,7 +3159,7 @@ fn finish_statement(
 }
 
 // D-12: statements outside the supported profile become explicit Error nodes
-// with the stable DORIS-PARSE-007 diagnostic; never silent acceptance.
+// with the stable FATHOM-PARSE-007 diagnostic; never silent acceptance.
 fn unsupported_statement(
   stream : @token.TokenStream,
   start_index : Int,
@@ -3163,7 +3168,7 @@ fn unsupported_statement(
   state : RecoveryState,
   statement_id : UInt,
 ) -> @syntax.SyntaxNode {
-  add_diagnostic(state, "DORIS-PARSE-007", "unsupported statement in the selected profile", "statement", span, statement_id)
+  add_diagnostic(state, "FATHOM-PARSE-007", "unsupported statement in the selected profile", "statement", span, statement_id)
   let children = segment_children_for_profile(stream, start_index, end_index)
   let error = require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Error, span, children))
   require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
@@ -3312,7 +3317,7 @@ fn recover_expression(
   while !done {
     match raw_at(cursor) {
       None => done = true
-      Some(raw) if raw == b")" || raw == b"," || raw == b";" || @token.is_clause_keyword(raw) => done = true
+      Some(raw) if raw == b")" || raw == b"," || raw == b";" || @dialect.is_clause_keyword(cursor.stream.context, raw) => done = true
       Some(_) => {
         let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
         if consume_recovery_step(state, span, statement_id) { advance(cursor); consumed = true } else { done = true }
@@ -3320,16 +3325,39 @@ fn recover_expression(
     }
   }
   if !consumed && raw_at(cursor) is Some(_) {
-    match raw_at(cursor) { Some(raw) if raw == b")" || raw == b"," || raw == b";" || @token.is_clause_keyword(raw) => (); _ => advance(cursor) }
+    match raw_at(cursor) { Some(raw) if raw == b")" || raw == b"," || raw == b";" || @dialect.is_clause_keyword(cursor.stream.context, raw) => (); _ => advance(cursor) }
   }
 }
 
+/// Statement-level dialect router (DIALECT-03, Pitfall 2): the ONLY place in
+/// parser/ that branches on dialect. Doris runs the frozen v1 grammar
+/// byte-identically (baseline gate); Flink is an explicit not-implemented
+/// rejection for any input — never a fallback to Doris.
 fn parse_segment(
   stream : @token.TokenStream,
   start_index : Int,
   end_index : Int,
   statement_id : UInt,
   state : RecoveryState,
+  context : @dialect.DialectContext,
+) -> @syntax.SyntaxNode {
+  match context.dialect {
+    @dialect.Dialect::Doris => parse_doris_segment(stream, start_index, end_index, statement_id, state, context)
+    @dialect.Dialect::Flink => parse_flink_segment(stream, start_index, end_index, statement_id, state, context)
+  }
+}
+
+/// Doris statement grammar: the v1 parse_segment body verbatim (keyword-first
+/// dispatch on the first significant raw token). `context` is carried for
+/// signature symmetry; Doris policy state (feature gates) is read from
+/// RecoveryState.context.
+fn parse_doris_segment(
+  stream : @token.TokenStream,
+  start_index : Int,
+  end_index : Int,
+  statement_id : UInt,
+  state : RecoveryState,
+  context : @dialect.DialectContext,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
   let indices = significant_indices(stream, start_index, end_index)
@@ -3368,6 +3396,35 @@ fn parse_segment(
     }
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
+}
+
+/// Flink grammar is not implemented until Phase 11 (DIALECT-03, A1/OQ1): any
+/// input — including input that would be valid Doris — produces an explicit
+/// FATHOM-PARSE-008 not-implemented Statement node, source-backed with valid
+/// spans over the whole segment. No Doris parse runs; there is no fallback.
+fn parse_flink_segment(
+  stream : @token.TokenStream,
+  start_index : Int,
+  end_index : Int,
+  statement_id : UInt,
+  state : RecoveryState,
+  context : @dialect.DialectContext,
+) -> @syntax.SyntaxNode {
+  let span = segment_span(stream, start_index, end_index)
+  add_diagnostic(
+    state,
+    "FATHOM-PARSE-008",
+    "flink grammar is not yet implemented in this release",
+    "statement",
+    span,
+    statement_id,
+  )
+  let error = require_node(@syntax.SyntaxNode::new(
+    @syntax.SyntaxKind::Error,
+    span,
+    segment_children(stream, start_index, end_index),
+  ))
+  require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
 }
 
 
@@ -3429,18 +3486,17 @@ fn append_trivia_segment(
 
 pub fn parse_with_limits_context(
   source : @source.SourceText,
-  context : @token.ValidatedProfileContext,
+  context : @dialect.DialectContext,
   mode : ParseMode,
   limits : ParserLimits,
 ) -> ParsedDocument {
-  let profile = context.profile()
   let limits = limits.normalized()
-  let stream = @lexer.lex_with_limit(source, profile, limits.max_tokens)
+  let stream = @lexer.lex_with_limit(source, context, limits.max_tokens)
   let root_span = make_span(source, 0, source.byte_length())
   let state = RecoveryState::{
     diagnostics: [],
     limits: limits,
-    profile_context: context,
+    context: context,
     feature_events: [],
     recovery_steps: 0,
     resource_emitted: false,
@@ -3468,7 +3524,7 @@ pub fn parse_with_limits_context(
     if is_semicolon {
       let segment_end = index + 1
       if has_statement_content(stream, segment_start, segment_end) {
-        let segment = parse_segment(stream, segment_start, segment_end, statement_id, state)
+        let segment = parse_segment(stream, segment_start, segment_end, statement_id, state, context)
         if segment.span().length() > 0 {
           root_children.push(@syntax.SyntaxElement::ChildNode(segment))
           statement_id = statement_id + 1U
@@ -3485,7 +3541,7 @@ pub fn parse_with_limits_context(
     if indices.length() == 0 {
       append_trivia_segment(root_children, stream, segment_start, parse_end)
     } else {
-      let segment = parse_segment(stream, segment_start, parse_end, statement_id, state)
+      let segment = parse_segment(stream, segment_start, parse_end, statement_id, state, context)
       if segment.span().length() > 0 {
         root_children.push(@syntax.SyntaxElement::ChildNode(segment))
         statement_id = statement_id + 1U
@@ -3508,7 +3564,7 @@ pub fn parse_with_limits_context(
     if token.is_error() || token.diagnostic_code is Some(_) {
       add_diagnostic(
         state,
-        "DORIS-PARSE-003",
+        "FATHOM-PARSE-003",
         "invalid source encoding or unterminated lexical material",
         "lexical material",
         token.span,
@@ -3519,8 +3575,6 @@ pub fn parse_with_limits_context(
   let valid = state.diagnostics.length() == 0
   {
     source: source,
-    profile: profile,
-    profile_metadata: context.metadata(),
     mode: mode,
     root: require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Document, root_span, root_children)),
     diagnostics: state.diagnostics,
@@ -3530,19 +3584,50 @@ pub fn parse_with_limits_context(
 }
 pub fn parse_with_limits(
   source : @source.SourceText,
-  profile : @token.DorisProfile,
+  context : @dialect.DialectContext,
   mode : ParseMode,
   limits : ParserLimits,
 ) -> ParsedDocument {
-  parse_with_limits_context(source, @token.ValidatedProfileContext::canonical(profile), mode, limits)
+  parse_with_limits_context(source, context, mode, limits)
 }
 
 pub fn parse(
   source : @source.SourceText,
-  profile : @token.DorisProfile,
+  context : @dialect.DialectContext,
   mode : ParseMode,
 ) -> ParsedDocument {
-  parse_with_limits_context(source, @token.ValidatedProfileContext::canonical(profile), mode, ParserLimits::default())
+  parse_with_limits_context(source, context, mode, ParserLimits::default())
+}
+
+/// Doris test context helper: profile ids are the validated surface; the
+/// metadata strings are only audit metadata for classification/feature gates.
+fn test_doris_context(profile_id : String) -> @dialect.DialectContext {
+  { dialect: @dialect.Dialect::Doris, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
+}
+
+test "parser_flink_context_rejects_every_input_as_not_implemented" {
+  // DIALECT-03 (A1/OQ1): a directly constructed Flink context parses to an
+  // explicit FATHOM-PARSE-008 Statement node — no Doris grammar runs, no
+  // fallback, no silent success.
+  let source = match @source.SourceText::new(b"SELECT 1") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let context : @dialect.DialectContext = {
+    dialect: @dialect.Dialect::Flink,
+    profile_id: "flink-2.3.0",
+    exact_release: "flink-2.3.0",
+    feature_introduction: "",
+  }
+  let parsed = parse(source, context, ParseMode::Strict)
+  assert_true(!parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 1)
+  assert_eq(parsed.diagnostics[0].code, "FATHOM-PARSE-008")
+  assert_eq(parsed.diagnostics[0].message, "flink grammar is not yet implemented in this release")
+  assert_true(parsed.root.children().length() >= 1)
+  let statements = parsed.root.children()
+  assert_true(statements[0].span().start_byte == 0)
+  assert_true(statements[0].span().end_byte == source.byte_length())
 }
 
 test "parser_select_pratt_and_statement_identity" {
@@ -3550,7 +3635,7 @@ test "parser_select_pratt_and_statement_identity" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let parsed = parse(source, @token.DorisProfile::V4_X, ParseMode::Strict)
+  let parsed = parse(source, test_doris_context("4.x"), ParseMode::Strict)
   assert_true(parsed.root.kind() is @syntax.SyntaxKind::Document)
   assert_eq(parsed.root.children().length(), 2)
   assert_true(parsed.valid)
@@ -3562,10 +3647,10 @@ test "parser_reports_incomplete_without_losing_source" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let parsed = parse(source, @token.DorisProfile::V2_1, ParseMode::Editor)
+  let parsed = parse(source, test_doris_context("2.1"), ParseMode::Editor)
   assert_true(!parsed.valid)
   assert_true(parsed.recovered)
-  assert_eq(parsed.diagnostics[0].code, "DORIS-PARSE-002")
+  assert_eq(parsed.diagnostics[0].code, "FATHOM-PARSE-002")
   assert_eq(parsed.diagnostics[0].statement_id, 0U)
   assert_true(parsed.root.leaf_count() > 0)
 }
@@ -3575,7 +3660,7 @@ test "parser_statement_and_select_spans_are_source_ordered" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let parsed = parse(source, @token.DorisProfile::V3_X, ParseMode::Strict)
+  let parsed = parse(source, test_doris_context("3.x"), ParseMode::Strict)
   let statements = parsed.root.children()
   assert_eq(statements.length(), 2)
   assert_true(statements[0].span().end_byte <= statements[1].span().start_byte)
@@ -3589,7 +3674,7 @@ test "parser_unknown_and_invalid_material_remains_source_backed" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let parsed = parse(source, @token.DorisProfile::V4_X, ParseMode::Editor)
+  let parsed = parse(source, test_doris_context("4.x"), ParseMode::Editor)
   assert_true(!parsed.valid)
   assert_true(parsed.recovered)
   assert_true(parsed.root.span().end_byte == raw.length())
@@ -3602,10 +3687,10 @@ test "parser_lexical_diagnostic_keeps_statement_identity" {
     Ok(source) => source
     Err(_) => panic()
   }
-  let parsed = parse(source, @token.DorisProfile::V4_X, ParseMode::Editor)
+  let parsed = parse(source, test_doris_context("4.x"), ParseMode::Editor)
   let mut found_second_statement = false
   for diagnostic in parsed.diagnostics {
-    if diagnostic.code == "DORIS-PARSE-003" {
+    if diagnostic.code == "FATHOM-PARSE-003" {
       assert_eq(diagnostic.statement_id, 1)
       found_second_statement = true
     }
@@ -3626,7 +3711,7 @@ test "parser_limits_retain_a_source_backed_skipped_remainder" {
     max_recovery_steps: defaults.max_recovery_steps,
     max_diagnostics: defaults.max_diagnostics,
   }
-  let parsed = parse_with_limits(source, @token.DorisProfile::V4_X, ParseMode::Editor, limits)
+  let parsed = parse_with_limits(source, test_doris_context("4.x"), ParseMode::Editor, limits)
   assert_true(!parsed.valid)
   assert_true(parsed.recovered)
   assert_true(parsed.diagnostics.length() > 0)
@@ -3640,7 +3725,7 @@ test "parser_low_level_negative_limits_normalize_without_panic" {
   }
   let empty = parse_with_limits(
     empty_source,
-    @token.DorisProfile::V4_X,
+    test_doris_context("4.x"),
     ParseMode::Strict,
     ParserLimits::new(-1, -1, -1, -1, -1),
   )
@@ -3653,7 +3738,7 @@ test "parser_low_level_negative_limits_normalize_without_panic" {
   }
   let nonempty = parse_with_limits(
     nonempty_source,
-    @token.DorisProfile::V4_X,
+    test_doris_context("4.x"),
     ParseMode::Editor,
     ParserLimits::new(-1, -1, -1, -1, -1),
   )

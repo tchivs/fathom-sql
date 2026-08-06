@@ -1,36 +1,40 @@
 // Deterministic schema contract fixtures for Phase 4 adapters.
 fn schema_fixture_has_frozen_fields() -> Unit raise {
-  let fields = ["schema_version", "source_transport", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
-  let expected = ["schema_version", "source_transport", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
-  assert_eq(fields.length(), 10)
+  let fields = ["schema_version", "source_transport", "dialect", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
+  let expected = ["schema_version", "source_transport", "dialect", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
+  assert_eq(fields.length(), 11)
   assert_eq(fields, expected)
   assert_eq(fields[0], "schema_version")
   assert_eq(fields[1], "source_transport")
-  assert_eq(fields[2], "profile")
-  assert_eq(fields[3], "mode")
-  assert_eq(fields[4], "valid")
-  assert_eq(fields[5], "recovered")
-  assert_eq(fields[6], "source_bytes")
-  assert_eq(fields[7], "source_byte_length")
-  assert_eq(fields[8], "root")
-  assert_eq(fields[9], "diagnostics")
+  assert_eq(fields[2], "dialect")
+  assert_eq(fields[3], "profile")
+  assert_eq(fields[4], "mode")
+  assert_eq(fields[5], "valid")
+  assert_eq(fields[6], "recovered")
+  assert_eq(fields[7], "source_bytes")
+  assert_eq(fields[8], "source_byte_length")
+  assert_eq(fields[9], "root")
+  assert_eq(fields[10], "diagnostics")
 }
 
 test "schema_fixture_has_frozen_fields" { schema_fixture_has_frozen_fields() }
 
 test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
-  let result = match @api.parse_with_ids(b"SELECT /* note */ 1", "4.x", "editor") {
+  let result = match @api.parse_with_ids(b"SELECT /* note */ 1", "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
   let encoded = @binding.parse_result_json(result)
-  assert_true(encoded.contains("doris.parse.v1"))
+  assert_true(encoded.contains("fathom.parse.v1"))
   assert_true(encoded.contains("inline-root-v1"))
   assert_true(encoded.contains("source_bytes"))
   assert_true(encoded.contains("trivia"))
-  assert_true(@binding.validate_schema_version("doris.parse.v1") is Ok(_))
-  assert_true(@binding.validate_schema_version("doris.parse.v9") is Err(@binding.SchemaError::UnsupportedSchemaVersion(..)))
-  assert_true(@binding.validate_profile("mysql") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(@binding.validate_schema_version("fathom.parse.v1") is Ok(_))
+  assert_true(@binding.validate_schema_version("fathom.parse.v9") is Err(@binding.SchemaError::UnsupportedSchemaVersion(..)))
+  assert_true(@binding.validate_dialect_profile("mysql", "4.x") is Err(@binding.SchemaError::UnknownDialect(..)))
+  assert_true(@binding.validate_dialect_profile("doris", "mysql") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3.0") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(@binding.validate_dialect_profile("doris", "4.x") is Ok(_))
 }
 
 test "schema_fixture_requires_leaf_kinds_and_half_open_spans" {

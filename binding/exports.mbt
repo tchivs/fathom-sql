@@ -2,9 +2,11 @@
 ///
 /// Every result is UTF-8 encoded JSON bytes. The only input bytes are the raw
 /// SQL source; no MoonBit ADT, object handle, or host memory address crosses
-/// this boundary. `doris_parse_v1` and `doris_format_v1` are the ABI surface;
-/// the metadata exports let hosts negotiate profiles and capabilities without
-/// parsing an SQL document first.
+/// this boundary. `fathom_parse_v1` and `fathom_format_v1` are the ABI surface
+/// (dialect right after raw, consistent with ParseOptions::new and the CLI,
+/// A4); the metadata exports let hosts negotiate profiles and capabilities
+/// without parsing an SQL document first. `fathom_dialect_v1` replaces
+/// `doris_profile_v1` in 09-05.
 
 fn json_bytes(value : String) -> Bytes {
   @utf8.encode(value)
@@ -22,17 +24,18 @@ fn format_error_bytes(error : @api.FormatError) -> Bytes {
   json_bytes(format_error_json(error))
 }
 
-#export_name("doris_parse_v1")
-pub fn doris_parse_v1(raw : Bytes, profile : String, mode : String) -> Bytes {
-  match @api.parse_with_ids(raw, profile, mode) {
+#export_name("fathom_parse_v1")
+pub fn fathom_parse_v1(raw : Bytes, dialect : String, profile : String, mode : String) -> Bytes {
+  match @api.parse_with_ids(raw, dialect, profile, mode) {
     Ok(result) => json_bytes(parse_result_json(result))
     Err(error) => parse_error_bytes(error)
   }
 }
 
-#export_name("doris_format_v1")
-pub fn doris_format_v1(
+#export_name("fathom_format_v1")
+pub fn fathom_format_v1(
   raw : Bytes,
+  dialect : String,
   profile : String,
   mode : String,
   keyword_case : String,
@@ -65,7 +68,7 @@ pub fn doris_format_v1(
     Ok(options) => options
     Err(error) => return format_error_bytes(error)
   }
-  match @api.format_with_ids(raw, profile, mode, options) {
+  match @api.format_with_ids(raw, dialect, profile, mode, options) {
     Ok(result) => json_bytes(format_result_json(raw, result, profile))
     Err(error) => parse_error_bytes(error)
   }

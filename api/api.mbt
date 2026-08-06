@@ -40,12 +40,13 @@ pub fn ParseLimits::new(
 }
 
 pub struct ParseOptions {
-  profile_context : @token.ValidatedProfileContext
+  dialect_context : @dialect.DialectContext
   mode : ParseMode
   limits : ParseLimits
 }
 
 pub enum ParseError {
+  UnknownDialect(dialect_id~ : String)
   UnknownProfile(profile_id~ : String)
   UnknownMode(mode_id~ : String)
   ProfileMetadataMismatch(
@@ -56,82 +57,165 @@ pub enum ParseError {
     actual_feature_introduction~ : String,
   )
   UnsupportedFeatureIntroduction(feature_introduction~ : String)
+  ConflictingSelection(selection_a~ : String, selection_b~ : String)
   InputTooLarge(requested_bytes~ : Int, max_bytes~ : Int)
   InvalidLimit(limit_name~ : String, value~ : Int)
   InvalidSyntaxTree
 } derive(Eq, @debug.Debug)
 
-pub fn ParseOptions::new(profile_id : String, mode_id : String) -> Result[ParseOptions, ParseError] {
-  let profile = match @token.DorisProfile::from_id(profile_id) {
-    Some(profile) => profile
-    None => return Err(UnknownProfile(profile_id~))
+/// Validate the dialect FIRST, then the profile for that dialect (Pitfall 6,
+/// T-09-05): unknown dialects are rejected before any profile lookup, and
+/// flink is a legal dialect whose profiles are ALL rejected until Phase 10
+/// (A1/OQ1). Missing/unknown/conflicting selections are structured errors —
+/// never a silent default (D-01/D-02).
+fn dialect_from_id(dialect_id : String) -> Result[@dialect.Dialect, ParseError] {
+  match dialect_id {
+    "doris" => Ok(@dialect.Dialect::Doris)
+    "flink" => Ok(@dialect.Dialect::Flink)
+    _ => Err(UnknownDialect(dialect_id~))
+  }
+}
+
+pub fn ParseOptions::new(dialect_id : String, profile_id : String, mode_id : String) -> Result[ParseOptions, ParseError] {
+  let dialect = match dialect_from_id(dialect_id) {
+    Ok(dialect) => dialect
+    Err(error) => return Err(error)
+  }
+  let dialect_context : @dialect.DialectContext = match dialect {
+    @dialect.Dialect::Doris => {
+      let profile = match @dialect.DorisProfile::from_id(profile_id) {
+        Some(profile) => profile
+        None => return Err(UnknownProfile(profile_id~))
+      }
+      let metadata = profile.metadata()
+      {
+        dialect: dialect,
+        profile_id: profile_id,
+        exact_release: metadata.exact_release,
+        feature_introduction: metadata.feature_introduction,
+      }
+    }
+    @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
   }
   let mode = match mode_id {
     "strict" => ParseMode::Strict
     "editor" => ParseMode::Editor
     _ => return Err(UnknownMode(mode_id~))
   }
-  Ok({ profile_context: @token.ValidatedProfileContext::canonical(profile), mode: mode, limits: ParseLimits::default() })
+  Ok({ dialect_context: dialect_context, mode: mode, limits: ParseLimits::default() })
 }
 
 pub fn ParseOptions::for_profile_with_metadata(
-  profile : @token.DorisProfile,
-  metadata : @token.ProfileMetadata,
+  profile : @dialect.DorisProfile,
+  metadata : @dialect.ProfileMetadata,
   mode : ParseMode,
 ) -> Result[ParseOptions, ParseError] {
   let context = match profile.validate_metadata(metadata) {
     Ok(context) => context
-    Err(@token.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
+    Err(@dialect.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
       return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
     }
-    Err(@token.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
-    Err(@token.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
+    Err(@dialect.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+    Err(@dialect.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
   }
-  Ok({ profile_context: context, mode: mode, limits: ParseLimits::default() })
+  Ok({
+    dialect_context: ({
+      dialect: @dialect.Dialect::Doris,
+      profile_id: context.profile().id(),
+      exact_release: context.metadata().exact_release,
+      feature_introduction: context.metadata().feature_introduction,
+    } : @dialect.DialectContext),
+    mode: mode,
+    limits: ParseLimits::default(),
+  })
 }
 
 pub fn ParseOptions::from_manifest(
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
   mode_id : String,
 ) -> Result[ParseOptions, ParseError] {
+  let dialect = match dialect_from_id(dialect_id) {
+    Ok(dialect) => dialect
+    Err(error) => return Err(error)
+  }
   let mode = match mode_id {
     "strict" => ParseMode::Strict
     "editor" => ParseMode::Editor
     _ => return Err(UnknownMode(mode_id~))
   }
-  let context = match @token.ProfileMetadata::for_manifest(profile_id, exact_release, feature_introduction) {
-    Ok(context) => context
-    Err(@token.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
-    Err(@token.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
-      return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
+  let dialect_context : @dialect.DialectContext = match dialect {
+    @dialect.Dialect::Doris => {
+      match @dialect.ProfileMetadata::for_manifest(profile_id, exact_release, feature_introduction) {
+        Ok(_) => {
+          { dialect: dialect, profile_id: profile_id, exact_release: exact_release, feature_introduction: feature_introduction }
+        }
+        Err(@dialect.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
+        Err(@dialect.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
+          return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
+        }
+        Err(@dialect.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+      }
     }
-    Err(@token.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+    @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
   }
-  Ok({ profile_context: context, mode: mode, limits: ParseLimits::default() })
+  Ok({ dialect_context: dialect_context, mode: mode, limits: ParseLimits::default() })
 }
 
 pub fn ParseOptions::for_profile(
-  profile : @token.DorisProfile,
+  profile : @dialect.DorisProfile,
   mode : ParseMode,
 ) -> ParseOptions {
-  { profile_context: @token.ValidatedProfileContext::canonical(profile), mode: mode, limits: ParseLimits::default() }
+  let metadata = profile.metadata()
+  {
+    dialect_context: {
+      dialect: @dialect.Dialect::Doris,
+      profile_id: profile.id(),
+      exact_release: metadata.exact_release,
+      feature_introduction: metadata.feature_introduction,
+    },
+    mode: mode,
+    limits: ParseLimits::default(),
+  }
 }
 pub fn ParseOptions::for_profile_with_limits(
-  profile : @token.DorisProfile,
+  profile : @dialect.DorisProfile,
   mode : ParseMode,
   limits : ParseLimits,
 ) -> ParseOptions {
-  { profile_context: @token.ValidatedProfileContext::canonical(profile), mode: mode, limits: limits }
+  let metadata = profile.metadata()
+  {
+    dialect_context: {
+      dialect: @dialect.Dialect::Doris,
+      profile_id: profile.id(),
+      exact_release: metadata.exact_release,
+      feature_introduction: metadata.feature_introduction,
+    },
+    mode: mode,
+    limits: limits,
+  }
 }
 
-pub fn ParseOptions::profile(self : ParseOptions) -> @token.DorisProfile {
-  self.profile_context.profile()
+pub fn ParseOptions::profile(self : ParseOptions) -> @dialect.DorisProfile {
+  match @dialect.DorisProfile::from_id(self.dialect_context.profile_id) {
+    Some(profile) => profile
+    None => @dialect.DorisProfile::V4_X
+  }
 }
 
-pub fn ParseOptions::profile_metadata(self : ParseOptions) -> @token.ProfileMetadata {
-  self.profile_context.metadata()
+pub fn ParseOptions::profile_metadata(self : ParseOptions) -> @dialect.ProfileMetadata {
+  self.profile().metadata()
+}
+
+/// The dialect selection's canonical id ("doris" | "flink") — the wire
+/// identity carried by ParseResult.dialect (DIALECT-04, D-09).
+pub fn ParseOptions::dialect_id(self : ParseOptions) -> String {
+  match self.dialect_context.dialect {
+    @dialect.Dialect::Doris => "doris"
+    @dialect.Dialect::Flink => "flink"
+  }
 }
 
 pub fn ParseOptions::mode(self : ParseOptions) -> ParseMode {
@@ -180,6 +264,7 @@ pub struct PrimitiveDiagnostic {
 pub struct ParseResult {
   pub schema_version : String
   pub source_transport : String
+  pub dialect : String
   pub profile : String
   pub exact_release : String
   pub feature_introduction : String
@@ -288,18 +373,19 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     limits.max_recovery_steps,
     limits.max_diagnostics,
   )
-  let parsed = @parser.parse_with_limits_context(source, options.profile_context, parser_mode, parser_limits)
+  let parsed = @parser.parse_with_limits_context(source, options.dialect_context, parser_mode, parser_limits)
   if !parsed.root.is_valid(source.byte_length()) { return Err(InvalidSyntaxTree) }
   let diagnostics : Array[PrimitiveDiagnostic] = []
   for diagnostic in parsed.diagnostics {
     diagnostics.push(primitive_diagnostic(diagnostic))
   }
   Ok({
-    schema_version: "doris.parse.v1",
+    schema_version: "fathom.parse.v1",
     source_transport: "inline-root-v1",
-    profile: options.profile().id(),
-    exact_release: options.profile_metadata().exact_release,
-    feature_introduction: options.profile_metadata().feature_introduction,
+    dialect: options.dialect_id(),
+    profile: options.dialect_context.profile_id,
+    exact_release: options.dialect_context.exact_release,
+    feature_introduction: options.dialect_context.feature_introduction,
     mode: mode_id(options.mode),
     valid: parsed.valid,
     recovered: parsed.recovered,
@@ -312,12 +398,13 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
 
 pub fn parse_with_metadata(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
   mode_id_value : String,
 ) -> Result[ParseResult, ParseError] {
-  let options = match ParseOptions::from_manifest(profile_id, exact_release, feature_introduction, mode_id_value) {
+  let options = match ParseOptions::from_manifest(dialect_id, profile_id, exact_release, feature_introduction, mode_id_value) {
     Ok(options) => options
     Err(error) => return Err(error)
   }
@@ -326,10 +413,11 @@ pub fn parse_with_metadata(
 
 pub fn parse_with_ids(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   mode_id_value : String,
 ) -> Result[ParseResult, ParseError] {
-  let options = match ParseOptions::new(profile_id, mode_id_value) {
+  let options = match ParseOptions::new(dialect_id, profile_id, mode_id_value) {
     Ok(options) => options
     Err(error) => return Err(error)
   }
@@ -392,14 +480,14 @@ pub fn format_text(
   )
   let parsed = @parser.parse_with_limits_context(
     source,
-    parse_options.profile_context,
+    parse_options.dialect_context,
     parser_mode,
     parser_limits,
   )
   if !parsed.root.is_valid(source.byte_length()) {
     return Err(InvalidSyntaxTree)
   }
-  let formatted = @formatter.format(parsed.root, source, format_options)
+  let formatted = @formatter.format(parsed.root, source, format_options, parse_options.dialect_context)
   let diagnostics : Array[FormatDiagnostic] = []
   for diagnostic in parsed.diagnostics {
     diagnostics.push(format_diagnostic(diagnostic))
@@ -417,11 +505,12 @@ pub fn format_text(
 
 pub fn format_with_ids(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   mode_id_value : String,
   format_options : FormatOptions,
 ) -> Result[FormatResult, ParseError] {
-  let options = match ParseOptions::new(profile_id, mode_id_value) {
+  let options = match ParseOptions::new(dialect_id, profile_id, mode_id_value) {
     Ok(options) => options
     Err(error) => return Err(error)
   }
@@ -430,6 +519,7 @@ pub fn format_with_ids(
 
 pub fn format_with_metadata(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
@@ -437,6 +527,7 @@ pub fn format_with_metadata(
   format_options : FormatOptions,
 ) -> Result[FormatResult, ParseError] {
   let options = match ParseOptions::from_manifest(
+    dialect_id,
     profile_id,
     exact_release,
     feature_introduction,
@@ -503,19 +594,24 @@ pub fn ParseResult::all_spans_in_bounds(self : ParseResult) -> Bool {
   check(self.root, self.source_byte_length, 0, self.source_byte_length)
 }
 
-test "api_requires_explicit_profile_and_mode" {
-  assert_true(ParseOptions::new("mysql", "strict") is Err(UnknownProfile(..)))
-  assert_true(ParseOptions::new("4.x", "unknown") is Err(UnknownMode(..)))
-  let options = match ParseOptions::new("2.1", "editor") {
+test "api_requires_explicit_dialect_profile_and_mode" {
+  // DIALECT-01 / Pitfall 6: dialect is validated FIRST, then profile.
+  assert_true(ParseOptions::new("mysql", "4.x", "strict") is Err(UnknownDialect(..)))
+  assert_true(ParseOptions::new("doris", "mysql", "strict") is Err(UnknownProfile(..)))
+  // flink is a legal dialect whose profiles are ALL rejected until Phase 10.
+  assert_true(ParseOptions::new("flink", "flink-2.3.0", "strict") is Err(UnknownProfile(..)))
+  assert_true(ParseOptions::new("doris", "4.x", "unknown") is Err(UnknownMode(..)))
+  let options = match ParseOptions::new("doris", "2.1", "editor") {
     Ok(options) => options
     Err(_) => panic()
   }
   assert_eq(options.profile().id(), "2.1")
+  assert_eq(options.dialect_id(), "doris")
   assert_true(options.mode() is ParseMode::Editor)
 }
 
 test "api_result_owns_source_once_and_has_bounded_descendant_spans" {
-  let result = match parse_with_ids(b"SELECT x\r\n", "3.x", "strict") {
+  let result = match parse_with_ids(b"SELECT x\r\n", "doris", "3.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -526,21 +622,21 @@ test "api_result_owns_source_once_and_has_bounded_descendant_spans" {
 }
 
 test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
-  let first = match parse_with_ids(b"bad", "4.x", "strict") {
+  let first = match parse_with_ids(b"bad", "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
-  let second = match parse_with_ids(b"bad", "4.x", "strict") {
+  let second = match parse_with_ids(b"bad", "doris", "4.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
-  assert_true(first.diagnostics[0].code.starts_with("DORIS-PARSE-"))
+  assert_true(first.diagnostics[0].code.starts_with("FATHOM-PARSE-"))
   assert_eq(first.diagnostics[0].statement_id, 0U)
   assert_eq(second.diagnostics[0].statement_id, 0U)
 }
 
 test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
-  let empty = match parse_with_ids(b"", "2.1", "strict") {
+  let empty = match parse_with_ids(b"", "doris", "2.1", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -548,11 +644,11 @@ test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
   assert_eq(empty.root.start_byte, 0)
   assert_eq(empty.root.end_byte, 0)
   assert_eq(empty.diagnostics.length(), 0)
-  let strict = match parse_with_ids(b"SELECT", "3.x", "strict") {
+  let strict = match parse_with_ids(b"SELECT", "doris", "3.x", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
-  let editor = match parse_with_ids(b"SELECT", "3.x", "editor") {
+  let editor = match parse_with_ids(b"SELECT", "doris", "3.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -563,13 +659,13 @@ test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
 }
 
 test "api_diagnostic_statement_ids_are_monotonic_per_snapshot" {
-  let result = match parse_with_ids(b"bad; bad", "4.x", "editor") {
+  let result = match parse_with_ids(b"bad; bad", "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_eq(result.diagnostics.length(), 2)
   assert_eq(result.diagnostics[0].statement_id, 0U)
   assert_eq(result.diagnostics[1].statement_id, 1U)
-  assert_true(result.diagnostics[0].code.has_prefix("DORIS-PARSE-"))
-  assert_true(result.diagnostics[1].code.has_prefix("DORIS-PARSE-"))
+  assert_true(result.diagnostics[0].code.has_prefix("FATHOM-PARSE-"))
+  assert_true(result.diagnostics[1].code.has_prefix("FATHOM-PARSE-"))
 }

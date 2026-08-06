@@ -306,7 +306,7 @@ fn baseline_fixture(id : String) -> BaselineFixture {
 
 fn parse_json(id : String, mode : String) -> String {
   let fixture = baseline_fixture(id)
-  @utf8.decode_lossy(@binding.doris_parse_v1(fixture.raw, fixture.profile, mode))
+  @utf8.decode_lossy(@binding.fathom_parse_v1(fixture.raw, "doris", fixture.profile, mode))
 }
 
 /// Default formatter options per D-29..D-32 (upper, 2, 100, trailing, follow,
@@ -315,8 +315,8 @@ fn parse_json(id : String, mode : String) -> String {
 fn format_json(id : String) -> String {
   let fixture = baseline_fixture(id)
   @utf8.decode_lossy(
-    @binding.doris_format_v1(
-      fixture.raw, fixture.profile, "strict", "upper", 2, 100, "trailing", "follow", true,
+    @binding.fathom_format_v1(
+      fixture.raw, "doris", fixture.profile, "strict", "upper", 2, 100, "trailing", "follow", true,
     ),
   )
 }
@@ -337,7 +337,7 @@ fn cli_format_json(id : String) -> String {
     Ok(options) => options
     Err(_) => panic()
   }
-  match @api.format_with_ids(fixture.raw, fixture.profile, "strict", options) {
+  match @api.format_with_ids(fixture.raw, "doris", fixture.profile, "strict", options) {
     Ok(result) => @binding.format_result_json(fixture.raw, result, fixture.profile)
     Err(_) => panic()
   }
@@ -348,7 +348,7 @@ fn cli_format_json(id : String) -> String {
 /// the LSP completion handler consumes.
 fn completion_json(id : String) -> String {
   let fixture = baseline_fixture(id)
-  let list = match @completion.complete(fixture.raw, fixture.profile, fixture.raw.length()) {
+  let list = match @completion.complete(fixture.raw, "doris", fixture.profile, fixture.raw.length()) {
     Ok(list) => list
     Err(_) => return "{\"error\":\"completion failed\"}"
   }

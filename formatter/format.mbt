@@ -6,6 +6,7 @@ pub fn format(
   root : @syntax.SyntaxNode,
   source : @source.SourceText,
   options : FormatOptions,
+  context : @dialect.DialectContext,
 ) -> FormatResult {
   match find_first_unsafe(root) {
     Some((element, statement_id)) => {
@@ -20,7 +21,7 @@ pub fn format(
     None => ()
   }
   let newline = detect_newline(source, options.newline_style())
-  let out = Layout::new(options, newline)
+  let out = Layout::new(context, options, newline)
   let statement_offsets : Array[Int] = []
   for child in root.children() {
     match child {

@@ -15,6 +15,7 @@ pub(all) struct CompletionList {
 }
 
 pub enum CompletionError {
+  UnknownDialect(dialect_id~ : String)
   UnknownProfile(profile_id~ : String)
   InvalidCursor(cursor~ : Int, source_length~ : Int)
   InvalidSource
@@ -41,12 +42,25 @@ fn word_is(word : Bytes, expected : Bytes) -> Bool {
   word.length() == expected.length() && bytes_equal_ci(word, expected)
 }
 
-fn profile_allows(profile : @token.DorisProfile, introduced_profile : String) -> Bool {
-  match introduced_profile {
-    "2.1" => true
-    "3.x" => match profile { @token.DorisProfile::V2_1 => false; _ => true }
-    "4.x" => profile is @token.DorisProfile::V4_X
-    _ => false
+/// The dialect dimension of candidate gating (DIALECT-02): Doris rows are
+/// gated by the Doris profile (D-15), Flink has no rows and no profiles in
+/// Phase 9 — nothing is allowed.
+fn profile_allows(context : @dialect.DialectContext, entry : @dialect.KeywordEntry) -> Bool {
+  match context.dialect {
+    @dialect.Dialect::Doris => {
+      match @dialect.DorisProfile::from_id(context.profile_id) {
+        Some(profile) => {
+          match entry.introduced_profile {
+            "2.1" => true
+            "3.x" => match profile { @dialect.DorisProfile::V2_1 => false; _ => true }
+            "4.x" => profile is @dialect.DorisProfile::V4_X
+            _ => false
+          }
+        }
+        None => false
+      }
+    }
+    @dialect.Dialect::Flink => false
   }
 }
 
@@ -84,9 +98,9 @@ fn completion_context(source : @source.SourceText, stream : @token.TokenStream, 
   else { "general" }
 }
 
-fn context_accepts(context : String, word : Bytes) -> Bool {
+fn context_accepts(context : String, dialect_context : @dialect.DialectContext, word : Bytes) -> Bool {
   match context {
-    "select" => (@token.is_clause_keyword(word) && !word_is(word, b"SELECT") && !word_is(word, b"WITH") && !word_is(word, b"JOIN")) || word_is(word, b"DISTINCT") || word_is(word, b"ALL")
+    "select" => (@dialect.is_clause_keyword(dialect_context, word) && !word_is(word, b"SELECT") && !word_is(word, b"WITH") && !word_is(word, b"JOIN")) || word_is(word, b"DISTINCT") || word_is(word, b"ALL")
     "from" => word_is(word, b"JOIN") || word_is(word, b"WHERE") || word_is(word, b"GROUP") ||
       word_is(word, b"ORDER") || word_is(word, b"LIMIT") || word_is(word, b"UNION") || word_is(word, b"ON")
     "where" => word_is(word, b"AND") || word_is(word, b"OR") || word_is(word, b"GROUP") ||
@@ -95,7 +109,7 @@ fn context_accepts(context : String, word : Bytes) -> Bool {
     "order-by" => word_is(word, b"ASC") || word_is(word, b"DESC") || word_is(word, b"LIMIT")
     "join-on" => word_is(word, b"ON") || word_is(word, b"USING") || word_is(word, b"JOIN") ||
       word_is(word, b"WHERE") || word_is(word, b"GROUP") || word_is(word, b"ORDER")
-    _ => @token.is_clause_keyword(word)
+    _ => @dialect.is_clause_keyword(dialect_context, word)
   }
 }
 
@@ -128,10 +142,25 @@ fn cursor_replacement(source : @source.SourceText, stream : @token.TokenStream, 
 
 /// Return bounded syntax-only candidates for an editor snapshot at a UTF-8
 /// byte cursor. The LSP adapter converts the resulting byte range to UTF-16.
-pub fn complete(raw : Bytes, profile_id : String, cursor_byte : Int) -> Result[CompletionList, CompletionError] {
-  let profile = match @token.DorisProfile::from_id(profile_id) {
-    Some(profile) => profile
-    None => return Err(UnknownProfile(profile_id~))
+pub fn complete(raw : Bytes, dialect_id : String, profile_id : String, cursor_byte : Int) -> Result[CompletionList, CompletionError] {
+  // Explicit dialect selection first (DIALECT-01, Pitfall 6), then the
+  // profile for that dialect; flink profiles are all rejected in Phase 9.
+  let dialect = match dialect_id {
+    "doris" => @dialect.Dialect::Doris
+    "flink" => @dialect.Dialect::Flink
+    _ => return Err(UnknownDialect(dialect_id~))
+  }
+  let dialect_context : @dialect.DialectContext = match dialect {
+    @dialect.Dialect::Doris => {
+      match @dialect.DorisProfile::from_id(profile_id) {
+        Some(profile) => {
+          let metadata = profile.metadata()
+          { dialect: dialect, profile_id: profile_id, exact_release: metadata.exact_release, feature_introduction: metadata.feature_introduction }
+        }
+        None => return Err(UnknownProfile(profile_id~))
+      }
+    }
+    @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
   }
   if cursor_byte < 0 || cursor_byte > raw.length() {
     return Err(InvalidCursor(cursor=cursor_byte, source_length=raw.length()))
@@ -142,22 +171,20 @@ pub fn complete(raw : Bytes, profile_id : String, cursor_byte : Int) -> Result[C
   }
   // Parse in editor mode so completion observes the same bounded recovery path
   // as diagnostics. Candidate selection itself remains token/context based.
-  ignore(@api.parse_with_ids(raw, profile_id, "editor"))
-  let stream = @lexer.lex(source, profile)
+  ignore(@api.parse_with_ids(raw, dialect_id, profile_id, "editor"))
+  let stream = @lexer.lex(source, dialect_context)
   let (replacement_start, prefix) = cursor_replacement(source, stream, cursor_byte)
   let context = completion_context(source, stream, replacement_start)
   let items : Array[CompletionItem] = []
+  let entries = @dialect.classification_entries(dialect_context)
   let mut priority = 0
   while priority < 2 && items.length() < MAX_CANDIDATES {
     let mut index = 0
-    while index < @token.classification_entry_count() && items.length() < MAX_CANDIDATES {
-      let entry = match @token.classification_entry_at(index) {
-        Some(entry) => entry
-        None => break
-      }
+    while index < entries.length() && items.length() < MAX_CANDIDATES {
+      let entry = entries[index]
       let preferred = context_preferred(context, entry.word)
       let in_priority = (priority == 0 && preferred) || (priority == 1 && !preferred)
-      if in_priority && profile_allows(profile, entry.introduced_profile) && context_accepts(context, entry.word) &&
+      if in_priority && profile_allows(dialect_context, entry) && context_accepts(context, dialect_context, entry.word) &&
         prefix_matches(entry.word, prefix) {
         let label = @utf8.decode_lossy(entry.word)
         items.push({

@@ -1,7 +1,7 @@
 test "exports_are_primitive_and_versioned" {
-  let parsed = @binding.doris_parse_v1(b"select 1", "4.x", "strict")
-  let formatted = @binding.doris_format_v1(
-    b"select 1", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
+  let parsed = @binding.fathom_parse_v1(b"select 1", "doris", "4.x", "strict")
+  let formatted = @binding.fathom_format_v1(
+    b"select 1", "doris", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
   )
   let profile = @binding.doris_profile_v1("2.1")
   let capabilities = @binding.doris_capabilities_v1()
@@ -13,7 +13,7 @@ test "exports_are_primitive_and_versioned" {
   let formatted_text = @utf8.decode_lossy(formatted[:])
   let profile_text = @utf8.decode_lossy(profile[:])
   let capabilities_text = @utf8.decode_lossy(capabilities[:])
-  assert_true(parsed_text.contains("doris.parse.v1"))
+  assert_true(parsed_text.contains("fathom.parse.v1"))
   assert_true(parsed_text.contains("\"source_bytes\":[115,101,108,101,99,116,32,49]"))
   assert_true(!parsed_text.contains("ParseResult"))
   assert_true(formatted_text.contains("doris.format.v1"))
@@ -21,4 +21,55 @@ test "exports_are_primitive_and_versioned" {
   assert_true(!formatted_text.contains("FormatResult"))
   assert_true(profile_text.contains("doris.profile.v1"))
   assert_true(capabilities_text.contains("doris.capabilities.v1"))
+}
+
+test "dialect_selection_is_explicit_end_to_end" {
+  // (a) The happy path carries neutral wire identity: fathom.parse.v1 schema,
+  // dialect and profile metadata fields, valid=true.
+  let ok = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "doris", "4.x", "strict")[:])
+  assert_true(ok.contains("fathom.parse.v1"))
+  assert_true(ok.contains("\"dialect\":\"doris\""))
+  assert_true(ok.contains("\"profile\":\"4.x\""))
+  assert_true(ok.contains("\"valid\":true"))
+  // (b) Invalid input yields a stable FATHOM-PARSE diagnostic; the error
+  // envelope carries fathom.error.v1.
+  let bad = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELEKT 1", "doris", "4.x", "strict")[:])
+  assert_true(bad.contains("FATHOM-PARSE-"))
+  let envelope_error = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "doris", "9.x", "strict")[:])
+  assert_true(envelope_error.contains("fathom.error.v1"))
+  assert_true(envelope_error.contains("FATHOM-SCHEMA-003"))
+  // (c) flink is selectable but every flink profile is rejected with a
+  // structured error — no Doris fallback, neutral message.
+  let flink = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(flink.contains("fathom.error.v1"))
+  assert_true(flink.contains("FATHOM-SCHEMA-003"))
+  assert_true(!flink.contains("Doris"))
+  // Unknown dialect: structured UnknownDialect error.
+  let unknown = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "mysql", "4.x", "strict")[:])
+  assert_true(unknown.contains("fathom.error.v1"))
+  assert_true(unknown.contains("unknown dialect"))
+}
+
+test "flink_internal_route_returns_not_implemented_statement" {
+  // (d) The internal Flink route (parser entry, bypassing profile rejection):
+  // a directly constructed Flink DialectContext parses to a Statement node
+  // carrying FATHOM-PARSE-008 — no Doris grammar runs.
+  let source = match @source.SourceText::new(b"SELECT 1") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let context = ({
+    dialect: @dialect.Dialect::Flink,
+    profile_id: "flink-2.3.0",
+    exact_release: "flink-2.3.0",
+    feature_introduction: "",
+  } : @dialect.DialectContext)
+  let parsed = @parser.parse(source, context, @parser.ParseMode::Strict)
+  assert_true(!parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 1)
+  assert_eq(parsed.diagnostics[0].code, "FATHOM-PARSE-008")
+  assert_eq(parsed.diagnostics[0].message, "flink grammar is not yet implemented in this release")
+  let statements = parsed.root.children()
+  assert_true(statements.length() >= 1)
+  assert_true(statements[0].span().end_byte == source.byte_length())
 }

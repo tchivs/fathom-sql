@@ -4,4 +4,5 @@ import {
   "fathom/doris-sql/token" @token,
   "fathom/doris-sql/lexer" @lexer,
   "fathom/doris-sql/syntax" @syntax,
+  "fathom/doris-sql/dialect" @dialect,
 }

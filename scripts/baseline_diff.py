@@ -160,18 +160,18 @@ def classify(left_pairs, right_pairs, rules):
         removed = left.get(path, Counter()) - right.get(path, Counter())
         added = right.get(path, Counter()) - left.get(path, Counter())
         # Pair removed values with added values at the same path via approved
-        # transitions (e.g. "doris.parse.v1" -> "fathom.parse.v1").
+        # transitions (e.g. "doris.parse.v1" -> "fathom.parse.v1"). Keep
+        # pairing while BOTH sides still hold values: multi-document snapshot
+        # files (LSP homomorphs — a parse envelope plus a format envelope)
+        # legitimately carry the same leaf value at the same path more than
+        # once, and every occurrence must pair or the gate reports phantom
+        # unexpected diffs (09-02 Rule 1 fix).
         for old in list(removed.keys()):
             for new in list(added.keys()):
-                if added[new] > 0 and is_approved_value(old, new, path, rules):
+                while removed.get(old, 0) > 0 and added.get(new, 0) > 0 and is_approved_value(old, new, path, rules):
                     approved.append((path, old, new, "approved change"))
                     removed[old] -= 1
                     added[new] -= 1
-                    if removed[old] == 0:
-                        del removed[old]
-                    if added[new] == 0:
-                        del added[new]
-                    break
         for old, count in removed.items():
             for _ in range(count):
                 unexpected.append((path, old, None, "removed value not explained"))

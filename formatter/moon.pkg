@@ -3,6 +3,7 @@ import {
   "fathom/doris-sql/source" @source,
   "fathom/doris-sql/token" @token,
   "fathom/doris-sql/syntax" @syntax,
+  "fathom/doris-sql/dialect" @dialect,
   "moonbitlang/core/buffer" @buffer,
   "moonbitlang/core/debug" @debug,
   "moonbitlang/core/encoding/utf8" @utf8,

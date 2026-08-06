@@ -12,16 +12,16 @@ options(
     "js": {
       "format": "esm",
       "exports": [
-        "doris_parse_v1",
-        "doris_format_v1",
+        "fathom_parse_v1",
+        "fathom_format_v1",
         "doris_profile_v1",
         "doris_capabilities_v1",
       ],
     },
     "wasm": {
       "exports": [
-        "doris_parse_v1",
-        "doris_format_v1",
+        "fathom_parse_v1",
+        "fathom_format_v1",
         "doris_profile_v1",
         "doris_capabilities_v1",
       ],

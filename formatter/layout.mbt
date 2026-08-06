@@ -8,6 +8,7 @@
 /// it (PROPERTIES and partition-definition lists; recorded in formatter_test).
 
 struct Layout {
+  context : @dialect.DialectContext
   buf : @buffer.Buffer
   mut column : Int
   indent_level : Int
@@ -31,8 +32,9 @@ struct Layout {
   mut failed : @syntax.SyntaxElement?
 }
 
-fn Layout::new(options : FormatOptions, newline : Bytes) -> Layout {
+fn Layout::new(context : @dialect.DialectContext, options : FormatOptions, newline : Bytes) -> Layout {
   {
+    context: context,
     buf: @buffer.Buffer::Buffer(size_hint=1024),
     column: 0,
     indent_level: 0,
@@ -77,7 +79,7 @@ fn Layout::emit(self : Layout, text : Bytes, zero_space_before : Bool) -> Unit {
 /// measure agree even when the input omits the space).
 fn Layout::emit_token(self : Layout, raw : Bytes) -> Unit {
   let zero_space_before = raw == b"," || raw == b";" || raw == b")" || raw == b"("
-  self.emit(rewrite_keyword_case(raw, self.options.keyword_case()), zero_space_before)
+  self.emit(rewrite_keyword_case(self.context, raw, self.options.keyword_case()), zero_space_before)
   if raw == b"(" {
     self.no_space_next = true
   }

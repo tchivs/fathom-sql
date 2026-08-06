@@ -2,4 +2,5 @@ pkgtype(kind: "library")
 import {
   "fathom/doris-sql/source" @source,
   "fathom/doris-sql/token" @token,
+  "fathom/doris-sql/dialect" @dialect,
 }

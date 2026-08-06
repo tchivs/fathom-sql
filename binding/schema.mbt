@@ -1,12 +1,13 @@
 /// Public wire-schema contract for parser and formatter results.
 
-pub const PARSE_SCHEMA_VERSION : String = "doris.parse.v1"
+pub const PARSE_SCHEMA_VERSION : String = "fathom.parse.v1"
 pub const FORMAT_SCHEMA_VERSION : String = "doris.format.v1"
 pub const SOURCE_TRANSPORT : String = "inline-root-v1"
 
 pub enum SchemaError {
   UnsupportedSchemaVersion(version~ : String)
   UnsupportedSourceTransport(transport~ : String)
+  UnknownDialect(dialect~ : String)
   UnsupportedProfile(profile~ : String)
   UnsupportedMode(mode~ : String)
 } derive(Eq, @debug.Debug)
@@ -26,10 +27,18 @@ pub fn validate_source_transport(transport : String) -> Result[Unit, SchemaError
   }
 }
 
-pub fn validate_profile(profile : String) -> Result[Unit, SchemaError] {
-  match profile {
-    "2.1" | "3.x" | "4.x" => Ok(())
-    _ => Err(UnsupportedProfile(profile~))
+/// Explicit dialect+profile selection validation (Pitfall 6, D-11): the
+/// dialect is validated FIRST (unknown -> UnknownDialect), then the profile is
+/// validated per dialect. flink is a legal dialect whose profiles are ALL
+/// rejected until Phase 10 (A1/OQ1) — no Doris fallback, no silent default.
+pub fn validate_dialect_profile(dialect : String, profile : String) -> Result[Unit, SchemaError] {
+  match dialect {
+    "doris" => match profile {
+      "2.1" | "3.x" | "4.x" => Ok(())
+      _ => Err(UnsupportedProfile(profile~))
+    }
+    "flink" => Err(UnsupportedProfile(profile~))
+    _ => Err(UnknownDialect(dialect~))
   }
 }
 
@@ -42,10 +51,11 @@ pub fn validate_mode(mode : String) -> Result[Unit, SchemaError] {
 
 pub fn schema_error_code(error : SchemaError) -> String {
   match error {
-    UnsupportedSchemaVersion(_) => "DORIS-SCHEMA-001"
-    UnsupportedSourceTransport(_) => "DORIS-SCHEMA-002"
-    UnsupportedProfile(_) => "DORIS-SCHEMA-003"
-    UnsupportedMode(_) => "DORIS-SCHEMA-004"
+    UnsupportedSchemaVersion(_) => "FATHOM-SCHEMA-001"
+    UnsupportedSourceTransport(_) => "FATHOM-SCHEMA-002"
+    UnknownDialect(_) => "FATHOM-SCHEMA-003"
+    UnsupportedProfile(_) => "FATHOM-SCHEMA-003"
+    UnsupportedMode(_) => "FATHOM-SCHEMA-004"
   }
 }
 
@@ -53,14 +63,15 @@ pub fn schema_error_message(error : SchemaError) -> String {
   match error {
     UnsupportedSchemaVersion(version~) => "unsupported schema version: \{version}"
     UnsupportedSourceTransport(transport~) => "unsupported source transport: \{transport}"
-    UnsupportedProfile(profile~) => "unsupported Doris profile: \{profile}"
+    UnknownDialect(dialect~) => "unknown dialect: \{dialect}"
+    UnsupportedProfile(profile~) => "unsupported profile: \{profile}"
     UnsupportedMode(mode~) => "unsupported parse mode: \{mode}"
   }
 }
 
 pub fn schema_error_json(error : SchemaError) -> String {
   stringify({
-    "schema_version": Json::string("doris.error.v1"),
+    "schema_version": Json::string("fathom.error.v1"),
     "code": Json::string(schema_error_code(error)),
     "message": Json::string(schema_error_message(error)),
   })
@@ -70,6 +81,7 @@ pub fn parse_result_json(result : @api.ParseResult) -> String {
   stringify({
     "schema_version": Json::string(PARSE_SCHEMA_VERSION),
     "source_transport": Json::string(result.source_transport),
+    "dialect": Json::string(result.dialect),
     "profile": Json::string(result.profile),
     "exact_release": Json::string(result.exact_release),
     "feature_introduction": Json::string(result.feature_introduction),
@@ -98,7 +110,7 @@ pub fn format_result_json(source : Bytes, result : @api.FormatResult, profile : 
 }
 pub fn error_json(code : String, message : String) -> String {
   stringify({
-    "schema_version": Json::string("doris.error.v1"),
+    "schema_version": Json::string("fathom.error.v1"),
     "code": Json::string(code),
     "message": Json::string(message),
   })
@@ -106,21 +118,25 @@ pub fn error_json(code : String, message : String) -> String {
 
 pub fn parse_error_json(error : @api.ParseError) -> String {
   let code = match error {
-    @api.ParseError::UnknownProfile(_) => "DORIS-SCHEMA-003"
-    @api.ParseError::UnknownMode(_) => "DORIS-SCHEMA-004"
-    @api.ParseError::ProfileMetadataMismatch(..) => "DORIS-SCHEMA-005"
-    @api.ParseError::UnsupportedFeatureIntroduction(_) => "DORIS-SCHEMA-006"
-    @api.ParseError::InputTooLarge(..) => "DORIS-PARSE-001"
-    @api.ParseError::InvalidLimit(..) => "DORIS-PARSE-002"
-    @api.ParseError::InvalidSyntaxTree => "DORIS-PARSE-003"
+    @api.ParseError::UnknownDialect(_) => "FATHOM-SCHEMA-003"
+    @api.ParseError::UnknownProfile(_) => "FATHOM-SCHEMA-003"
+    @api.ParseError::UnknownMode(_) => "FATHOM-SCHEMA-004"
+    @api.ParseError::ProfileMetadataMismatch(..) => "FATHOM-SCHEMA-005"
+    @api.ParseError::UnsupportedFeatureIntroduction(_) => "FATHOM-SCHEMA-006"
+    @api.ParseError::ConflictingSelection(..) => "FATHOM-SCHEMA-007"
+    @api.ParseError::InputTooLarge(..) => "FATHOM-PARSE-001"
+    @api.ParseError::InvalidLimit(..) => "FATHOM-PARSE-002"
+    @api.ParseError::InvalidSyntaxTree => "FATHOM-PARSE-003"
   }
   let message = match error {
-    @api.ParseError::UnknownProfile(profile_id~) => "unsupported Doris profile: \{profile_id}"
+    @api.ParseError::UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id}"
+    @api.ParseError::UnknownProfile(profile_id~) => "unsupported profile: \{profile_id}"
     @api.ParseError::UnknownMode(mode_id~) => "unsupported parse mode: \{mode_id}"
     @api.ParseError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~) => {
       "profile metadata mismatch for \{profile_id}: expected release \{expected_release}/\{expected_feature_introduction}, got \{actual_release}/\{actual_feature_introduction}"
     }
     @api.ParseError::UnsupportedFeatureIntroduction(feature_introduction~) => "unsupported feature introduction: \{feature_introduction}"
+    @api.ParseError::ConflictingSelection(selection_a~, selection_b~) => "conflicting dialect/profile selections: \{selection_a} vs \{selection_b}"
     @api.ParseError::InputTooLarge(requested_bytes~, max_bytes~) => "input too large: \{requested_bytes} bytes (limit \{max_bytes})"
     @api.ParseError::InvalidLimit(limit_name~, value~) => "invalid parser limit \{limit_name}: \{value}"
     @api.ParseError::InvalidSyntaxTree => "parser produced an invalid syntax tree"
@@ -149,7 +165,7 @@ pub fn format_error_json(error : @api.FormatError) -> String {
 }
 
 pub fn profile_json(profile : String) -> String {
-  match @api.parse_with_ids(b"", profile, "strict") {
+  match @api.parse_with_ids(b"", "doris", profile, "strict") {
     Ok(result) => stringify({
       "schema_version": Json::string("doris.profile.v1"),
       "profile": Json::string(result.profile),
