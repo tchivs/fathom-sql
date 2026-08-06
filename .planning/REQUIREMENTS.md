@@ -37,8 +37,8 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 
 - [x] **NAME-01**: Consumer-facing module imports, Native binaries, and public exports complete a clean cutover to `fathom/sql`, `fathom-sql`, and `fathom-lsp`; no old public aliases remain.
 - [x] **NAME-02**: Machine-readable wire contracts use `fathom.parse.v1`, `fathom.format.v1`, `fathom.error.v1`, and `fathom.capabilities.v1`, with `FATHOM-*` diagnostics and explicit dialect/profile fields.
-- [ ] **NAME-03**: VS Code, IntelliJ, Web/npm, CI/release assets, configuration keys, LSP server identity, README, and project documentation use neutral product naming; Doris remains only as a dialect/profile/corpus/provenance semantic identifier.
-- [ ] **NAME-04**: CI includes a naming inventory/allowlist gate that rejects product-level remnants of `doris-sql`, `doris-lsp`, `doris.*`, and `DORIS-*`; the allowlist is limited to Doris dialect semantics and provenance.
+- [x] **NAME-03**: VS Code, IntelliJ, Web/npm, CI/release assets, configuration keys, LSP server identity, README, and project documentation use neutral product naming; Doris remains only as a dialect/profile/corpus/provenance semantic identifier.
+- [x] **NAME-04**: CI includes a naming inventory/allowlist gate that rejects product-level remnants of `doris-sql`, `doris-lsp`, `doris.*`, and `DORIS-*`; the allowlist is limited to Doris dialect semantics and provenance.
 
 ### Corpus and Parity Gates
 
@@ -94,8 +94,8 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | TOOL-05 | Phase 13 | Pending |
 | NAME-01 | Phase 9 | Complete |
 | NAME-02 | Phase 9 | Complete |
-| NAME-03 | Phase 9 | Pending |
-| NAME-04 | Phase 9 | Pending |
+| NAME-03 | Phase 9 | Complete |
+| NAME-04 | Phase 9 | Complete |
 | CORPUS-01 | Phase 12 | Pending |
 | PARITY-01 | Phase 12 | Pending |
 | PARITY-02 | Phase 12 | Pending |

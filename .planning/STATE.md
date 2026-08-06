@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
-status: executing
-stopped_at: Completed 09-06-PLAN.md
-last_updated: "2026-08-06T16:59:28.569Z"
+status: verifying
+stopped_at: Completed 09-07-PLAN.md
+last_updated: "2026-08-06T17:44:21.415Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 0
+  completed_plans: 7
+  percent: 20
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
-**Progress:** [█████████░] 86%
+Status: Phase complete — ready for verification
+**Progress:** [██████████] 100%
 Last activity: 2026-08-07 — Phase 9 execution started
 
 ## Performance Metrics
@@ -89,6 +89,7 @@ Last activity: 2026-08-07 — Phase 9 execution started
 | Phase 09 P09-04 | 34 | 3 tasks | 35 files |
 | Phase 09 P05 | 38 | 2 tasks | 25 files |
 | Phase 09-dialect-boundary-and-neutral-naming P06 | 8 | 4 tasks | 12 files |
+| Phase 09-dialect-boundary-and-neutral-naming P07 | 15 | 4 tasks | 47 files |
 
 ## Accumulated Context
 
@@ -174,6 +175,9 @@ Recent decisions affecting current work:
 - [Phase ?]: LSP D-01 selection transport locked (option-a): document-level config rides didOpen/didChange extension fields, workspace default from initializationOptions/serve_stdio, languageId mapping only when user-configured; missing everywhere -> FATHOM-SCHEMA-007
 - [Phase ?]: flink is a legal LSP selection in Phase 9 (A1): parse routes via new @api.parse_flink_not_implemented -> FATHOM-PARSE-008, never Doris; format/completion reject with the api unsupported-profile error
 - [Phase ?]: D-03 publication guard compares version AND selection (dialect/profile) against the stored document; stale async results dropped on either mismatch
+- [Phase ?]: Task 1 auto-selected option-a: full host cutover per D-06 (fathom.* config keys, sql language id, fathom-sql-language-client/@fathom/sql-web-demo/fathom-sql-intellij package names, fathom.sql plugin id, FathomSettings/fathom.xml state, no default dialect D-02)
+- [Phase ?]: The ci.yml naming-gate job comment carries no literal forbidden patterns because ci.yml is itself a scanned product file; check_naming.py self-exempts as the inventory carrier
+- [Phase ?]: Final-sweep stragglers outside the explicit file lists (dialect/doris.mbt, lsp/diagnostics_formatting_test.mbt) fixed with 2-line changes each to reach zero product-file hits; 406/406 native suite + intact parity baseline confirm no behavior change
 
 ### Pending Todos
 
@@ -205,8 +209,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-06T16:59:28.545Z
-Stopped at: Completed 09-06-PLAN.md
+Last session: 2026-08-06T17:44:12.690Z
+Stopped at: Completed 09-07-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

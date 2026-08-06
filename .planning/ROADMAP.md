@@ -82,7 +82,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Validation**: Freeze the v1 Doris 2.1/3.x/4.x valid, invalid, recovery, CST/span, diagnostic, formatter, completion, CLI, LSP, and schema outputs before migration; compare the post-migration outputs byte-for-byte/shape-for-shape, run the explicit-selection matrix, and enforce a repository naming forbidden/allowlist inventory.
 **Research flags**: No new external technology choice is required; planning must still inventory every public import/export/asset and distinguish product-name remnants from allowed Doris dialect/provenance references.
-**Plans**: 6/7 plans executed
+**Plans**: 7/7 plans executed
 
 - [x] 09-01-PLAN.md
 - [x] 09-02-PLAN.md
@@ -90,7 +90,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 - [x] 09-04-PLAN.md
 - [x] 09-05-PLAN.md
 - [x] 09-06-PLAN.md
-- [ ] 09-07-PLAN.md
+- [x] 09-07-PLAN.md
 
 ### Phase 10: Flink Release Profiles and Lexical Core
 
