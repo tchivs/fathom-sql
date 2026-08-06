@@ -16,7 +16,7 @@ test "exports_are_primitive_and_versioned" {
   assert_true(parsed_text.contains("fathom.parse.v1"))
   assert_true(parsed_text.contains("\"source_bytes\":[115,101,108,101,99,116,32,49]"))
   assert_true(!parsed_text.contains("ParseResult"))
-  assert_true(formatted_text.contains("doris.format.v1"))
+  assert_true(formatted_text.contains("fathom.format.v1"))
   assert_true(formatted_text.contains("\"source_bytes\":"))
   assert_true(!formatted_text.contains("FormatResult"))
   assert_true(profile_text.contains("doris.profile.v1"))
@@ -46,6 +46,57 @@ test "dialect_selection_is_explicit_end_to_end" {
   assert_true(!flink.contains("Doris"))
   // Unknown dialect: structured UnknownDialect error.
   let unknown = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "mysql", "4.x", "strict")[:])
+  assert_true(unknown.contains("fathom.error.v1"))
+  assert_true(unknown.contains("unknown dialect"))
+}
+
+test "format_export_is_dialect_aware_with_neutral_wire_identity" {
+  // (a) The happy path carries fathom.format.v1 with dialect/profile/
+  // exact_release metadata (DIALECT-04, D-09) — the same envelope shape as
+  // the parse result.
+  let ok = @utf8.decode_lossy(
+    @binding.fathom_format_v1(
+      b"select 1", "doris", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
+    )[:],
+  )
+  assert_true(ok.contains("fathom.format.v1"))
+  assert_true(ok.contains("\"dialect\":\"doris\""))
+  assert_true(ok.contains("\"profile\":\"4.x\""))
+  assert_true(ok.contains("\"exact_release\":\"4.x\""))
+  assert_true(ok.contains("\"accepted\":true"))
+  // (b) A refusal (malformed input) yields exactly one FATHOM-FORMAT-001
+  // inside the format envelope; format-option errors carry fathom.error.v1
+  // with the FATHOM-FORMAT code family.
+  let refused = @utf8.decode_lossy(
+    @binding.fathom_format_v1(
+      b"select (", "doris", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
+    )[:],
+  )
+  assert_true(refused.contains("\"accepted\":false"))
+  assert_true(refused.contains("FATHOM-FORMAT-001"))
+  let bad_option = @utf8.decode_lossy(
+    @binding.fathom_format_v1(
+      b"select 1", "doris", "4.x", "strict", "mixed", 2, 100, "trailing", "follow", true,
+    )[:],
+  )
+  assert_true(bad_option.contains("fathom.error.v1"))
+  assert_true(bad_option.contains("FATHOM-FORMAT-002"))
+  // (c) flink is rejected with the structured unsupported-profile error
+  // (FATHOM-SCHEMA-003) — no formatting under Doris policy, ever (Pitfall 6,
+  // T-09-10). Unknown dialect: structured UnknownDialect.
+  let flink = @utf8.decode_lossy(
+    @binding.fathom_format_v1(
+      b"select 1", "flink", "flink-2.3.0", "strict", "upper", 2, 100, "trailing", "follow", true,
+    )[:],
+  )
+  assert_true(flink.contains("fathom.error.v1"))
+  assert_true(flink.contains("FATHOM-SCHEMA-003"))
+  assert_true(!flink.contains("\"accepted\""))
+  let unknown = @utf8.decode_lossy(
+    @binding.fathom_format_v1(
+      b"select 1", "mysql", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
+    )[:],
+  )
   assert_true(unknown.contains("fathom.error.v1"))
   assert_true(unknown.contains("unknown dialect"))
 }

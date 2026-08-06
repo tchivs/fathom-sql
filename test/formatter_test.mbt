@@ -6,7 +6,7 @@
 /// - byte-exact idempotence format(format(x)) == format(x) (D-34, Pitfall 6:
 ///   full Bytes equality, no trimming);
 /// - zero-diagnostic reparse of accepted output (D-35);
-/// - absolute refusal with DORIS-FORMAT-001 on error trees (D-33);
+/// - absolute refusal with FATHOM-FORMAT-001 on error trees (D-33);
 /// - CRLF byte-for-byte preservation (flagged assumption A2);
 /// - empty input formats to empty output.
 
@@ -60,7 +60,7 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
     }
     let mut found = false
     for diagnostic in formatted.diagnostics {
-      if diagnostic.code.has_prefix("DORIS-FORMAT-") {
+      if diagnostic.code.has_prefix("FATHOM-FORMAT-") {
         found = true
       }
     }
@@ -105,7 +105,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
       options: None,
       expected_golden: b"",
     },
-    // Version-invalid 2.1 MERGE (SourceError leaf): refusal with DORIS-FORMAT-001.
+    // Version-invalid 2.1 MERGE (SourceError leaf): refusal with FATHOM-FORMAT-001.
     {
       fixture_id: "2.1-merge-version-invalid-refusal",
       profile: "2.1",
@@ -194,7 +194,7 @@ test "formatter_options_default_and_validation" {
 
 test "formatter_refusal_never_masks_parse_diagnostics" {
   // Threat T-03-01: format_text converts FATHOM-PARSE-* diagnostics and
-  // prepends them so DORIS-FORMAT-001 never masks parse errors.
+  // prepends them so FATHOM-FORMAT-001 never masks parse errors.
   let raw = b"MERGE INTO t USING s ON a=b WHEN MATCHED THEN UPDATE SET x=1"
   let options = @formatter.FormatOptions::default()
   let parse_options = match @api.ParseOptions::new("doris", "2.1", "strict") {
@@ -210,15 +210,15 @@ test "formatter_refusal_never_masks_parse_diagnostics" {
   assert_true(result.diagnostics.length() >= 2)
   assert_true(result.diagnostics[0].code.has_prefix("FATHOM-PARSE-"))
   assert_true(result.diagnostics[0].code == "FATHOM-PARSE-006")
-  // Exactly one DORIS-FORMAT-001, and it comes after the parse diagnostics.
+  // Exactly one FATHOM-FORMAT-001, and it comes after the parse diagnostics.
   let mut format_count = 0
   for diagnostic in result.diagnostics {
-    if diagnostic.code == "DORIS-FORMAT-001" {
+    if diagnostic.code == "FATHOM-FORMAT-001" {
       format_count = format_count + 1
     }
   }
   assert_eq(format_count, 1)
-  assert_eq(result.diagnostics[result.diagnostics.length() - 1].code, "DORIS-FORMAT-001")
+  assert_eq(result.diagnostics[result.diagnostics.length() - 1].code, "FATHOM-FORMAT-001")
   // The diagnostic shape mirrors PrimitiveDiagnostic fields.
   let refusal = result.diagnostics[result.diagnostics.length() - 1]
   assert_eq(refusal.severity, "error")
@@ -1372,7 +1372,7 @@ let formatter_corpus_fixtures : Array[FormatterFixture] = [
 /// (D-34), reparse with zero diagnostics (D-35), and keep every
 /// statement offset inside the output; expected_error and
 /// version-negative rows refuse with empty output and a
-/// DORIS-FORMAT-001 diagnostic (the malformed half of D-34 is a
+/// FATHOM-FORMAT-001 diagnostic (the malformed half of D-34 is a
 /// refusal assertion, research Pitfall 6 — never a skipped test).
 fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
   let options = match fixture.options {
@@ -1416,12 +1416,12 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
     }
     let mut found = false
     for diagnostic in formatted.diagnostics {
-      if diagnostic.code == "DORIS-FORMAT-001" {
+      if diagnostic.code == "FATHOM-FORMAT-001" {
         found = true
       }
     }
     if !found {
-      return fixture.fixture_id + ": no DORIS-FORMAT-001 refusal"
+      return fixture.fixture_id + ": no FATHOM-FORMAT-001 refusal"
     }
     ""
   }
@@ -1630,7 +1630,7 @@ test "formatter_03_03_never_panic_boundary_suite" {
   }
 }
 
-/// Refusal-diagnostic shape gate: every DORIS-FORMAT- diagnostic on the
+/// Refusal-diagnostic shape gate: every FATHOM-FORMAT- diagnostic on the
 /// error half of the corpus is well-formed — "error" severity, expected_class
 /// "format", valid span ordering, and a statement_id.
 test "formatter_03_03_refusal_diagnostics_are_well_formed" {
@@ -1650,7 +1650,7 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
     assert_true(!result.accepted)
     let mut format_found = false
     for diagnostic in result.diagnostics {
-      if diagnostic.code.has_prefix("DORIS-FORMAT-") {
+      if diagnostic.code.has_prefix("FATHOM-FORMAT-") {
         format_found = true
         assert_eq(diagnostic.severity, "error")
         assert_eq(diagnostic.expected_class, "format")
@@ -1660,4 +1660,30 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
     }
     assert_true(format_found)
   }
+}
+
+/// DIALECT-03 / Pitfall 6: the format path is dialect-aware end-to-end.
+/// (a) A flink selection is rejected with the structured UnknownProfile error
+/// BEFORE any formatting runs — no Doris-policy output is produced for a flink
+/// request (T-09-10). (b) The refusal diagnostic on malformed input carries
+/// the neutral FATHOM-FORMAT-001 code.
+test "formatter_dialect_selection_is_validated_first" {
+  // (a) flink is a legal dialect whose profiles are all rejected in Phase 9;
+  // the api entry rejects the selection before any parse/format work.
+  let flink = @api.format_with_ids(b"select 1", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default())
+  assert_true(flink is Err(@api.ParseError::UnknownProfile(profile_id="flink-2.3.0")))
+  // Unknown dialect: structured UnknownDialect, never a Doris fallback.
+  let unknown = @api.format_with_ids(b"select 1", "mysql", "4.x", "strict", @formatter.FormatOptions::default())
+  assert_true(unknown is Err(@api.ParseError::UnknownDialect(dialect_id="mysql")))
+  // (b) A refusal on malformed input carries exactly one FATHOM-FORMAT-001
+  // and the parse diagnostics are prepended, never masked (T-03-01).
+  let refused = match @api.format_with_ids(b"select (", "doris", "4.x", "strict", @formatter.FormatOptions::default()) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!refused.accepted)
+  assert_eq(refused.output.length(), 0)
+  assert_eq(refused.diagnostics[refused.diagnostics.length() - 1].code, "FATHOM-FORMAT-001")
+  // Doris formatting output is unchanged by the dialect dimension: the corpus
+  // harness above asserts byte-exact goldens and idempotence under "doris".
 }

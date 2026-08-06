@@ -49,7 +49,7 @@ fn run_fixture(id : String) -> Unit raise {
   assert_true(parsed.contains("\"source_bytes\":"))
   assert_true(parsed.contains("\"root\":"))
   assert_true(parsed.contains("\"diagnostics\":"))
-  assert_true(formatted.contains("doris.format.v1") || formatted.contains("fathom.error.v1"))
+  assert_true(formatted.contains("fathom.format.v1") || formatted.contains("fathom.error.v1"))
   assert_true(formatted.contains("\"source_bytes\":"))
 }
 
@@ -81,7 +81,7 @@ test "parity_corpus_exercises_profiles_recovery_comments_bytes_and_refusal" {
     true,
   ))
   assert_true(refused.contains("\"accepted\":false"))
-  assert_true(refused.contains("DORIS-FORMAT-001"))
+  assert_true(refused.contains("FATHOM-FORMAT-001"))
 }
 
 test "parity_rejects_unknown_profile_mode_and_options" {
@@ -93,11 +93,11 @@ test "parity_rejects_unknown_profile_mode_and_options" {
   let unknown_case = json_text(@binding.fathom_format_v1(
     b"select 1", "doris", "4.x", "strict", "mixed", 2, 100, "trailing", "follow", true,
   ))
-  assert_true(unknown_case.contains("DORIS-FORMAT-002"))
+  assert_true(unknown_case.contains("FATHOM-FORMAT-002"))
   let invalid_width = json_text(@binding.fathom_format_v1(
     b"select 1", "doris", "4.x", "strict", "upper", 2, 0, "trailing", "follow", true,
   ))
-  assert_true(invalid_width.contains("DORIS-FORMAT-006"))
+  assert_true(invalid_width.contains("FATHOM-FORMAT-006"))
 }
 
 test "parity_capabilities_exclude_wasm_gc_and_expose_linear_wasm" {
@@ -128,6 +128,7 @@ test "target_abi_regression_preserves_bytes_and_exposes_only_primitives" {
   let formatted = json_text(@binding.fathom_format_v1(
     b"select 1", "doris", "4.x", "strict", "upper", 2, 100, "trailing", "lf", true,
   ))
-  assert_true(formatted.contains("\"schema_version\":\"doris.format.v1\""))
+  assert_true(formatted.contains("\"schema_version\":\"fathom.format.v1\""))
+  assert_true(formatted.contains("\"dialect\":\"doris\""))
   assert_true(!formatted.contains("FormatResult"))
 }

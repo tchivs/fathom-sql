@@ -1,9 +1,9 @@
 test "diagnostics_and_formatting_contract" {
-  let schemas = ["fathom.parse.v1", "doris.format.v1"]
-  let expected_schemas = ["fathom.parse.v1", "doris.format.v1"]
+  let schemas = ["fathom.parse.v1", "fathom.format.v1"]
+  let expected_schemas = ["fathom.parse.v1", "fathom.format.v1"]
   assert_eq(schemas, expected_schemas)
   assert_eq(schemas[0], "fathom.parse.v1")
-  assert_eq(schemas[1], "doris.format.v1")
+  assert_eq(schemas[1], "fathom.format.v1")
   let source = b"select 1"
   let refusal_fields = ["schema_version", "source_bytes", "diagnostics", "formatted"]
   assert_eq(refusal_fields, ["schema_version", "source_bytes", "diagnostics", "formatted"])
@@ -16,7 +16,7 @@ test "diagnostics_and_formatting_contract" {
     Ok(result) => result
     Err(_) => panic()
   }
-  assert_true(@binding.format_result_json(source, formatted, "4.x").contains("doris.format.v1"))
+  assert_true(@binding.format_result_json(source, formatted, "doris", "4.x", "4.x").contains("fathom.format.v1"))
   assert_true(formatted.accepted)
   assert_true(formatted.output != source)
   assert_eq(source, b"select 1")

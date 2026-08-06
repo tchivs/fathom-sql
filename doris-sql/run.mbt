@@ -17,7 +17,7 @@ const DEFAULT_LINE_WIDTH : Int = 100
 /// D-39 exit mapping:
 /// 0 = accepted — stdout carries the formatted SQL, stderr empty;
 /// 1 = parse failure or format refusal — stdout empty, diagnostics on stderr
-///     (the api core prepends the parse diagnostics, so the DORIS-FORMAT-001
+///     (the api core prepends the parse diagnostics, so the FATHOM-FORMAT-001
 ///     refusal never masks them, T-03-20);
 /// 2 = usage error (missing file, bad option value, unknown profile) —
 ///     stderr message only, no SQL output.
@@ -129,7 +129,7 @@ fn parse_error_outcome(error : @api.ParseError) -> CliOutcome {
 }
 
 /// Render all diagnostics to stderr bytes, one per line. On refusal the api
-/// core has already prepended the parse diagnostics, so the DORIS-FORMAT-001
+/// core has already prepended the parse diagnostics, so the FATHOM-FORMAT-001
 /// refusal never masks them (T-03-20).
 pub fn render_diagnostics(diagnostics : Array[@api.FormatDiagnostic]) -> Bytes {
   let out = @buffer.Buffer::Buffer(size_hint=256)

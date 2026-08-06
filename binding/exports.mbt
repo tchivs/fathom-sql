@@ -45,17 +45,26 @@ pub fn fathom_format_v1(
   newline_style : String,
   trailing_newline : Bool,
 ) -> Bytes {
+  // Dialect/profile validated FIRST (Pitfall 6, T-09-10): a flink request is
+  // rejected with the structured unsupported-profile error before any option
+  // parsing or formatting — never a Doris-policy format of a flink request.
+  // The ParseOptions also supplies the exact_release metadata for the result
+  // envelope (DIALECT-04).
+  let selection = match @api.ParseOptions::new(dialect, profile, mode) {
+    Ok(options) => options
+    Err(error) => return parse_error_bytes(error)
+  }
   let keyword_case_value = match @api.KeywordCase::from_id(keyword_case) {
     Some(value) => value
-    None => return error_bytes("DORIS-FORMAT-002", "unsupported keyword case: \{keyword_case}")
+    None => return error_bytes("FATHOM-FORMAT-002", "unsupported keyword case: \{keyword_case}")
   }
   let comma_style_value = match @api.CommaStyle::from_id(comma_style) {
     Some(value) => value
-    None => return error_bytes("DORIS-FORMAT-003", "unsupported comma style: \{comma_style}")
+    None => return error_bytes("FATHOM-FORMAT-003", "unsupported comma style: \{comma_style}")
   }
   let newline_style_value = match @api.NewlineStyle::from_id(newline_style) {
     Some(value) => value
-    None => return error_bytes("DORIS-FORMAT-004", "unsupported newline style: \{newline_style}")
+    None => return error_bytes("FATHOM-FORMAT-004", "unsupported newline style: \{newline_style}")
   }
   let options = match @api.FormatOptions::new(
     keyword_case_value,
@@ -69,7 +78,17 @@ pub fn fathom_format_v1(
     Err(error) => return format_error_bytes(error)
   }
   match @api.format_with_ids(raw, dialect, profile, mode, options) {
-    Ok(result) => json_bytes(format_result_json(raw, result, profile))
+    Ok(result) => {
+      json_bytes(
+        format_result_json(
+          raw,
+          result,
+          dialect,
+          profile,
+          selection.profile_metadata().exact_release,
+        ),
+      )
+    }
     Err(error) => parse_error_bytes(error)
   }
 }

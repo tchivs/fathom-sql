@@ -1,7 +1,8 @@
 /// Refusal-first format entry (D-33, research Pattern 5): a tree containing
 /// error/missing/skipped material returns accepted=false with empty output and
-/// exactly one DORIS-FORMAT-001 diagnostic — never partial bytes. The function
-/// never panics: every source.slice failure becomes a refusal diagnostic.
+/// exactly one FATHOM-FORMAT-001 diagnostic — never partial bytes. The
+/// function never panics: every source.slice failure becomes a refusal
+/// diagnostic.
 pub fn format(
   root : @syntax.SyntaxNode,
   source : @source.SourceText,
@@ -128,7 +129,7 @@ fn layout_document_trivia(
 fn refusal_diagnostic(span : @source.Span, statement_id : UInt) -> FormatDiagnostic {
   {
     severity: "error",
-    code: "DORIS-FORMAT-001",
+    code: "FATHOM-FORMAT-001",
     message: "refusing to format a tree containing error/missing/skipped material",
     expected_class: "format",
     start_byte: span.start_byte,

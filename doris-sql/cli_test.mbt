@@ -83,14 +83,14 @@ test "cli_parse_failure_exit_1_with_parse_diagnostic" {
 test "cli_refusal_exit_1_never_masks_parse_diagnostics" {
   // MERGE is introduced in 4.x; under 2.1 strict the parser wraps it in a
   // SourceError leaf -> formatter refusal. The api core prepends the parse
-  // diagnostics, so the refusal renders BOTH DORIS-PARSE-* and DORIS-FORMAT-001
-  // (T-03-20: the refusal never masks the parse errors).
+  // diagnostics, so the refusal renders BOTH DORIS-PARSE-* and
+  // FATHOM-FORMAT-001 (T-03-20: the refusal never masks the parse errors).
   let raw = b"MERGE INTO t USING s ON a=b WHEN MATCHED THEN UPDATE SET x=1"
   let outcome = run_format(command_stdin("2.1"), raw)
   assert_eq(outcome.exit_code, 1)
   assert_eq(outcome.stdout.length(), 0)
   let stderr = outcome.stderr.to_string()
-  assert_true(stderr.contains("DORIS-FORMAT-001"))
+  assert_true(stderr.contains("FATHOM-FORMAT-001"))
   assert_true(stderr.contains("DORIS-PARSE-"))
 }
 

@@ -1,7 +1,7 @@
 /// Public wire-schema contract for parser and formatter results.
 
 pub const PARSE_SCHEMA_VERSION : String = "fathom.parse.v1"
-pub const FORMAT_SCHEMA_VERSION : String = "doris.format.v1"
+pub const FORMAT_SCHEMA_VERSION : String = "fathom.format.v1"
 pub const SOURCE_TRANSPORT : String = "inline-root-v1"
 
 pub enum SchemaError {
@@ -95,11 +95,22 @@ pub fn parse_result_json(result : @api.ParseResult) -> String {
   })
 }
 
-pub fn format_result_json(source : Bytes, result : @api.FormatResult, profile : String) -> String {
+/// Serialized format result envelope (DIALECT-04): carries the same
+/// dialect/profile/exact_release metadata as the parse envelope so consumers
+/// never guess which selection produced the formatted bytes (D-09).
+pub fn format_result_json(
+  source : Bytes,
+  result : @api.FormatResult,
+  dialect : String,
+  profile : String,
+  exact_release : String,
+) -> String {
   stringify({
     "schema_version": Json::string(FORMAT_SCHEMA_VERSION),
     "source_transport": Json::string(SOURCE_TRANSPORT),
+    "dialect": Json::string(dialect),
     "profile": Json::string(profile),
+    "exact_release": Json::string(exact_release),
     "source_bytes": byte_array_json(source),
     "source_byte_length": Json::number(source.length().to_double()),
     "accepted": Json::boolean(result.accepted),
@@ -154,12 +165,12 @@ pub fn format_error_json(error : @api.FormatError) -> String {
     @api.FormatError::InvalidSyntaxTree => "formatter received an invalid syntax tree"
   }
   let code = match error {
-    @api.FormatError::UnknownKeywordCase(_) => "DORIS-FORMAT-002"
-    @api.FormatError::UnknownCommaStyle(_) => "DORIS-FORMAT-003"
-    @api.FormatError::UnknownNewlineStyle(_) => "DORIS-FORMAT-004"
-    @api.FormatError::InvalidIndent(_) => "DORIS-FORMAT-005"
-    @api.FormatError::InvalidLineWidth(_) => "DORIS-FORMAT-006"
-    @api.FormatError::InvalidSyntaxTree => "DORIS-FORMAT-007"
+    @api.FormatError::UnknownKeywordCase(_) => "FATHOM-FORMAT-002"
+    @api.FormatError::UnknownCommaStyle(_) => "FATHOM-FORMAT-003"
+    @api.FormatError::UnknownNewlineStyle(_) => "FATHOM-FORMAT-004"
+    @api.FormatError::InvalidIndent(_) => "FATHOM-FORMAT-005"
+    @api.FormatError::InvalidLineWidth(_) => "FATHOM-FORMAT-006"
+    @api.FormatError::InvalidSyntaxTree => "FATHOM-FORMAT-007"
   }
   error_json(code, message)
 }

@@ -323,7 +323,8 @@ fn format_json(id : String) -> String {
 
 /// CLI homomorph (D-37/D-38): the doris-sql format CLI is a thin wrapper over
 /// @api.format_with_ids mapped to CliOutcome; its stdout envelope is
-/// @binding.format_result_json, frozen here via the same call chain.
+/// @binding.format_result_json, frozen here via the same call chain. The
+/// envelope carries dialect/profile/exact_release metadata (DIALECT-04).
 fn cli_format_json(id : String) -> String {
   let fixture = baseline_fixture(id)
   let options = match @api.FormatOptions::new(
@@ -338,7 +339,13 @@ fn cli_format_json(id : String) -> String {
     Err(_) => panic()
   }
   match @api.format_with_ids(fixture.raw, "doris", fixture.profile, "strict", options) {
-    Ok(result) => @binding.format_result_json(fixture.raw, result, fixture.profile)
+    Ok(result) => {
+      let exact_release = match @api.ParseOptions::new("doris", fixture.profile, "strict") {
+        Ok(options) => options.profile_metadata().exact_release
+        Err(_) => panic()
+      }
+      @binding.format_result_json(fixture.raw, result, "doris", fixture.profile, exact_release)
+    }
     Err(_) => panic()
   }
 }

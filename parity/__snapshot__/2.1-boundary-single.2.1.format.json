@@ -1,1 +1,1 @@
-{"schema_version":"doris.format.v1","source_transport":"inline-root-v1","profile":"2.1","source_bytes":[83,69,76,69,67,84,32,49],"source_byte_length":8,"accepted":true,"formatted":[83,69,76,69,67,84,32,49,10],"diagnostics":[],"statement_offsets":[0]}
+{"schema_version":"fathom.format.v1","source_transport":"inline-root-v1","dialect":"doris","profile":"2.1","exact_release":"2.1","source_bytes":[83,69,76,69,67,84,32,49],"source_byte_length":8,"accepted":true,"formatted":[83,69,76,69,67,84,32,49,10],"diagnostics":[],"statement_offsets":[0]}

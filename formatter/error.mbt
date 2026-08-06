@@ -25,7 +25,7 @@ pub(all) struct FormatDiagnostic {
 }
 
 /// One format operation result. D-33 refusal contract: accepted=false with
-/// empty output and a DORIS-FORMAT-001 diagnostic — never partial bytes.
+/// empty output and a FATHOM-FORMAT-001 diagnostic — never partial bytes.
 /// statement_offsets carries the per-statement output byte offset (research
 /// Open Question 5, Phase 4 ECO-02 range edits).
 pub(all) struct FormatResult {
