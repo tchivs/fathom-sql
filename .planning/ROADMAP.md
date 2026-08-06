@@ -2,7 +2,7 @@
 
 ## Overview
 
-v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatting + CLI, and Native LSP / JS-Wasm facade / Web-Monaco / VS Code integration (27/27 requirements). v2.0 extends the SDK from syntax to semantics and analysis: catalog-backed name resolution (ANAL-01), Doris lint rules with safe autofix (LINT-01), column-level lineage (LINE-01), stable cross-backend fingerprints (FING-01), and benchmark-gated incremental parsing (EDIT-01). v2.0 Phase 5 also closes the two v1 deferred verification items — human-hosted VS Code launch (CLOSE-01, 04-04 Task 4) and the linear-Wasm CI runtime execution parity step (CLOSE-02).
+v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatting + CLI, and Native LSP / JS-Wasm facade / Web-Monaco / VS Code integration (27/27 requirements). v2.0 (redefined 2026-08-06) turns the single-dialect Doris parser into a multi-dialect SQL SDK: a dialect abstraction layer, a Flink SQL dialect across the whole toolchain, and product-neutral naming (binaries/schema/error codes/extensions/docs). The former v2.0 analysis-layer scope (ANAL/LINT/LINE/FING/EDIT) is deferred to v3.0.
 
 ## Milestones
 
@@ -46,11 +46,27 @@ Doris SQL Parser SDK 首个可发布里程碑。无损 CST 内核、SELECT/DML/D
 
 </details>
 
-## v2.0: Analysis and Intelligence — PLANNING
+## v2.0: Multi-Dialect: Flink SQL & Neutral Naming — PLANNING
+
+Doris SQL Parser SDK 从单方言升级为多方言 SQL SDK:引入方言抽象层(Dialect 体系、关键字表隔离、API/schema/LSP 的 dialect 参数、Doris 字节级不变 parity gate),新增 Flink SQL 方言全链(词法/关键字、文法、CST/诊断、formatter/analyzer/completion/LSP/CLI),并完成产品命名中立化(`fathom-sql`/`fathom-lsp`、`fathom/sql` 模块、`FATHOM-*` 错误码、`fathom.*.v1` schema、扩展/文档改名,不考虑向后兼容)。
+
+- **Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md) — 待定义
+- **Research:** [research/SUMMARY.md](research/SUMMARY.md) — 待 v2.0 方言 research
+
+### Phase 9: Dialect Boundary and Neutral Naming (tentative)
+
+**Goal**: 引入方言抽象层与产品命名中立化,保持 Doris 解析字节级不变。
+**Mode:** mvp
+**Depends on**: Phase 4 (v1.0)
+**Status:** Not started (phases TBD by roadmapper)
+
+## v3.0: Analysis and Intelligence — PLANNING (deferred)
+
+> **DEFERRED 2026-08-06:** formerly v2.0; deferred when v2.0 was redefined as Multi-Dialect. Requirements archived at [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md).
 
 Doris SQL Parser SDK 从语法层扩展到语义与分析层:catalog 名字解析、Doris 专属 Lint、列级血缘、跨后端稳定指纹,以及基准门控的增量解析;并在首个阶段收尾 v1.0 遗留验证项(VS Code 宿主验证、linear-Wasm CI 步骤)。
 
-- **Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md) — 7 requirements (CLOSE-01/02, ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01)
+- **Requirements:** [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md) — 7 requirements (CLOSE-01/02, ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01)
 - **Research:** [research/SUMMARY.md](research/SUMMARY.md) — v2 analysis-feature research (2026-08-05)
 
 ### Phase 5: Closeout and Analysis Foundation
@@ -119,6 +135,6 @@ Success criteria:
 
 ## Next Milestone
 
-v3.0 — start with `/gsd-new-milestone`. Candidate v3 scope (see REQUIREMENTS.md § Future Requirements): ANAL-02 full type inference (likely out of scope), LINT-02 rule plugins/marketplace, LINE-02 cross-catalog lineage federation, EDIT-02 broad structural refactors, Wasm GC first-class target.
+v3.0 (deferred analysis layer) — starts after v2.0 Multi-Dialect completes. Scope carried from the archived [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md): ANAL-01/LINT-01/LINE-01/FING-01/EDIT-01. Candidate later scope (see the archived requirements § Future): ANAL-02 full type inference (likely out of scope), LINT-02 rule plugins/marketplace, LINE-02 cross-catalog lineage federation, EDIT-02 broad structural refactors, Wasm GC first-class target.
 
-**Coverage (v2.0):** 7/7 requirements mapped (CLOSE-01/02, ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01); 0 unmapped.
+**Coverage (v2.0):** TBD — requirements being defined.

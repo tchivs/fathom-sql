@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.0
-milestone_name: Analysis and Intelligence
+milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming"
 status: planning
-last_updated: "2026-08-05T05:47:37.121Z"
-last_activity: 2026-08-05
+last_updated: "2026-08-06T06:43:38.943Z"
+last_activity: 2026-08-06
 progress:
   total_phases: 0
   completed_phases: 0
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-08-03)
 
 ## Current Position
 
-Phase: 05
-Plan: Not started
-Status: Roadmap created (7/7 requirements mapped)
-Last activity: 2026-08-05 — Milestone v2.0 started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-08-06 — Milestone v2.0 started
 
 ## Performance Metrics
 
@@ -171,7 +171,6 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 Last session: 2026-08-05T02:28:45.156Z
 Stopped at: Completed 04-04-PLAN.md
 Resume file: None
-
 
 ## Quick Tasks Completed
 
