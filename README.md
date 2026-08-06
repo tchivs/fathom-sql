@@ -57,7 +57,7 @@ import {
   "fathom/sql/api" @api,
 }
 
-let parsed = @api.parse_with_ids(b"SELECT 1", "4.x", "strict")
+let parsed = @api.parse_with_ids(b"SELECT 1", "doris", "4.x", "strict")
 match parsed {
   Ok(result) => {
     // result.valid == true
@@ -82,7 +82,7 @@ import {
   "fathom/sql/printer" @printer,
 }
 
-let parsed = @api.parse_with_ids(b"SELECT 1 +", "4.x", "editor")
+let parsed = @api.parse_with_ids(b"SELECT 1 +", "doris", "4.x", "editor")
 match parsed {
   Ok(result) => {
     // result.valid == false
@@ -110,6 +110,7 @@ import {
 let options = @formatter.FormatOptions::default()
 let formatted = @api.format_with_ids(
   b"select 1; select 2",
+  "doris",
   "4.x",
   "strict",
   options,
@@ -133,7 +134,7 @@ The formatting result contains `accepted`, output bytes, formatting/parsing diag
 ```text
 api/        Caller-facing parse/format facade, options, result, and diagnostic types
 source/     Source snapshots, byte Spans, and line indexes
-lexer/      Doris-profile-aware lexical analysis
+lexer/      Dialect-aware lexical analysis
 token/      Token types, keyword classifications, and Doris profile metadata
 parser/     Handwritten recursive-descent document parser and Pratt expression parsing path
 syntax/     Lossless CST nodes, leaves, and error/missing structures

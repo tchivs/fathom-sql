@@ -174,7 +174,7 @@ For machine-readable or HTML reports, select a format supported by the MoonBit c
 - **linear-wasm-parity** — `moon build --target wasm binding` and `moon build --target wasm parity`, then `moon test --target wasm --package parity` (executes the parity corpus **on the linear-Wasm backend**) plus `moon test --target native --package parity` for the byte-parity cross-check.
 - **corpus** — `generate_corpus_report.py --check` and `check_keywords.py corpus/keywords.tsv`.
 
-`.github/workflows/doris-native-release.yml` gates the GitHub Release job on the same `linear-wasm-parity` step (in addition to the native multi-platform build), so a release cannot publish without the linear-Wasm runtime execution parity passing.
+`.github/workflows/fathom-native-release.yml` gates the GitHub Release job on the same `linear-wasm-parity` step (in addition to the native multi-platform build), so a release cannot publish without the linear-Wasm runtime execution parity passing.
 
 There is no automatic coverage upload or automatic FE/Nereids differential testing (the FE script is deliberately manual-only, D-20). Before submitting, run at least the following from the repository root:
 

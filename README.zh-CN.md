@@ -58,7 +58,7 @@ import {
   "fathom/sql/api" @api,
 }
 
-let parsed = @api.parse_with_ids(b"SELECT 1", "4.x", "strict")
+let parsed = @api.parse_with_ids(b"SELECT 1", "doris", "4.x", "strict")
 match parsed {
   Ok(result) => {
     // result.valid == true
@@ -83,7 +83,7 @@ import {
   "fathom/sql/printer" @printer,
 }
 
-let parsed = @api.parse_with_ids(b"SELECT 1 +", "4.x", "editor")
+let parsed = @api.parse_with_ids(b"SELECT 1 +", "doris", "4.x", "editor")
 match parsed {
   Ok(result) => {
     // result.valid == false
@@ -111,6 +111,7 @@ import {
 let options = @formatter.FormatOptions::default()
 let formatted = @api.format_with_ids(
   b"select 1; select 2",
+  "doris",
   "4.x",
   "strict",
   options,
@@ -134,7 +135,7 @@ match formatted {
 ```text
 api/        面向调用方的 parse/format facade、选项、结果和诊断类型
 source/     源码快照、字节 Span 与行索引
-lexer/      Doris profile 感知的词法分析
+lexer/      Dialect 感知的词法分析
 token/      token 类型、关键字分类和 Doris profile 元数据
 parser/     手写递归下降文档解析器与 Pratt 表达式解析路径
 syntax/     无损 CST 节点、叶子和错误/缺失结构

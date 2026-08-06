@@ -2,7 +2,7 @@
 English: [English API reference](../API.md) | 简体中文
 # API 参考
 
-Fathom 是一个 MoonBit 库，不是 HTTP 服务。这里的 `api/` 目录是 `fathom/doris-sql/api` library package，提供 Doris SQL 的解析与格式化 facade；调用方通过函数参数传入源字节、Doris profile、模式和限制，不需要启动服务器、连接 Doris FE 或配置认证凭据。
+Fathom 是一个 MoonBit 库，不是 HTTP 服务。这里的 `api/` 目录是 `fathom/sql/api` library package，提供 Doris SQL 的解析与格式化 facade；调用方通过函数参数传入源字节、Doris profile、模式和限制，不需要启动服务器、连接 Doris FE 或配置认证凭据。
 
 ## 认证
 
@@ -10,7 +10,7 @@ Fathom 是一个 MoonBit 库，不是 HTTP 服务。这里的 `api/` 目录是 `
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
+  "fathom/sql/api" @api,
 }
 ```
 
@@ -22,13 +22,13 @@ import {
 
 | 入口 | 所属包 | 用途 | 认证 |
 |---|---|---|---|
-| `parse` | `fathom/doris-sql/api` | 使用已构造的 `ParseOptions` 解析原始 SQL 字节 | 不需要 |
-| `parse_with_ids` | `fathom/doris-sql/api` | 用 profile/mode 字符串快捷构造选项并解析 | 不需要 |
-| `parse_with_metadata` | `fathom/doris-sql/api` | 校验 profile 的 release 与 feature metadata 后解析 | 不需要 |
-| `format_text` | `fathom/doris-sql/api` | 解析并按 `FormatOptions` 格式化 SQL | 不需要 |
-| `format_with_ids` | `fathom/doris-sql/api` | 用 profile/mode 字符串快捷格式化 | 不需要 |
-| `format_with_metadata` | `fathom/doris-sql/api` | 校验 profile metadata 后格式化 | 不需要 |
-| `resolve_table_references` | `fathom/doris-sql/analyzer` | 使用调用方 catalog 解析已支持 DML/DDL 的目标表名 | 不需要 |
+| `parse` | `fathom/sql/api` | 使用已构造的 `ParseOptions` 解析原始 SQL 字节 | 不需要 |
+| `parse_with_ids` | `fathom/sql/api` | 用 profile/mode 字符串快捷构造选项并解析 | 不需要 |
+| `parse_with_metadata` | `fathom/sql/api` | 校验 profile 的 release 与 feature metadata 后解析 | 不需要 |
+| `format_text` | `fathom/sql/api` | 解析并按 `FormatOptions` 格式化 SQL | 不需要 |
+| `format_with_ids` | `fathom/sql/api` | 用 profile/mode 字符串快捷格式化 | 不需要 |
+| `format_with_metadata` | `fathom/sql/api` | 校验 profile metadata 后格式化 | 不需要 |
+| `resolve_table_references` | `fathom/sql/analyzer` | 使用调用方 catalog 解析已支持 DML/DDL 的目标表名 | 不需要 |
 
 ## 请求与响应格式
 
@@ -98,6 +98,7 @@ pub fn parse(
 ```moonbit
 pub fn parse_with_ids(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   mode_id_value : String,
 ) -> Result[ParseResult, ParseError]
@@ -110,6 +111,7 @@ pub fn parse_with_ids(
 ```moonbit
 pub fn parse_with_metadata(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
@@ -125,6 +127,7 @@ pub fn parse_with_metadata(
 pub struct ParseResult {
   pub schema_version : String
   pub source_transport : String
+  pub dialect : String
   pub profile : String
   pub exact_release : String
   pub feature_introduction : String
@@ -203,6 +206,7 @@ pub fn format_text(
 
 pub fn format_with_ids(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   mode_id_value : String,
   format_options : FormatOptions,
@@ -210,6 +214,7 @@ pub fn format_with_ids(
 
 pub fn format_with_metadata(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
@@ -246,15 +251,15 @@ pub(all) struct FormatResult {
 
 ### 无损打印
 
-需要精确重放输入时，使用 `fathom/doris-sql/printer`：
+需要精确重放输入时，使用 `fathom/sql/printer`：
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/printer" @printer,
+  "fathom/sql/api" @api,
+  "fathom/sql/printer" @printer,
 }
 
-let parsed = @api.parse_with_ids(b"-- note\r\nselect 1", "4.x", "editor")
+let parsed = @api.parse_with_ids(b"-- note\r\nselect 1", "doris", "4.x", "editor")
 match parsed {
   Ok(result) => {
     let raw_again = @printer.print_result(result)
@@ -268,7 +273,7 @@ match parsed {
 
 ### 可选名字解析 API
 
-`fathom/doris-sql/analyzer` 不属于解析语法有效性通道。它只消费 `syntax.SyntaxNode`、调用方提供的源字节和 catalog：
+`fathom/sql/analyzer` 不属于解析语法有效性通道。它只消费 `syntax.SyntaxNode`、调用方提供的源字节和 catalog：
 
 ```moonbit
 pub(all) struct ColumnInfo {
@@ -361,9 +366,9 @@ pub(all) struct FormatDiagnostic {
 
 ```moonbit
 import {
-  "fathom/doris-sql/api" @api,
-  "fathom/doris-sql/formatter" @formatter,
-  "fathom/doris-sql/printer" @printer,
+  "fathom/sql/api" @api,
+  "fathom/sql/formatter" @formatter,
+  "fathom/sql/printer" @printer,
 }
 
 fn main {

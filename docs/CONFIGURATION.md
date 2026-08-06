@@ -21,7 +21,7 @@ The project uses MoonBit DSL manifests and does not use additional JSON, YAML, T
 The root `moon.mod` defines the module identity and default build target:
 
 ```moonbit
-name = "fathom/doris-sql"
+name = "fathom/sql"
 version = "0.1.0"
 preferred_target = "native"
 ```
@@ -46,9 +46,10 @@ The parsing API is located in `api/api.mbt`. `api.parse` accepts raw `Bytes` and
 
 ### Required Parsing Settings
 
-Every `ParseOptions` construction must explicitly specify a Doris profile and parsing mode:
+Every `ParseOptions` construction must explicitly specify a dialect, a Doris profile, and parsing mode:
 
-- **Profile**: Only `2.1`, `3.x`, or `4.x` are allowed; an unknown value returns `ParseError::UnknownProfile` and does not fall back to the generic MySQL dialect.
+- **Dialect**: Only `doris` or `flink` are allowed; an unknown value returns `ParseError::UnknownDialect`. Flink profiles are rejected until a Flink release profile is pinned (Phase 10).
+- **Profile**: Only `2.1`, `3.x`, or `4.x` are allowed (for the doris dialect); an unknown value returns `ParseError::UnknownProfile` and does not fall back to a generic dialect.
 - **Mode**: Only `strict` or `editor` are allowed; an unknown value returns `ParseError::UnknownMode`.
 - **Manifest metadata (optional entry point)**: When using `from_manifest`, `exact_release` and `feature_introduction` must exactly match the built-in metadata for the selected profile; otherwise, `ProfileMetadataMismatch` is returned. An unsupported feature introduction returns `UnsupportedFeatureIntroduction`.
 
@@ -63,7 +64,7 @@ The built-in metadata for the three profiles is:
 Example:
 
 ```moonbit
-let options = match @api.ParseOptions::new("4.x", "editor") {
+let options = match @api.ParseOptions::new("doris", "4.x", "editor") {
   Ok(value) => value
   Err(error) => panic()
 }
@@ -102,7 +103,7 @@ Formatting configuration is provided by `FormatOptions` in `formatter/options.mb
 Example:
 
 ```moonbit
-let parse_options = match @api.ParseOptions::new("3.x", "strict") {
+let parse_options = match @api.ParseOptions::new("doris", "3.x", "strict") {
   Ok(value) => value
   Err(error) => panic()
 }
@@ -116,7 +117,7 @@ When the formatter encounters a syntax tree containing `error`, `missing`, or `s
 
 Fathom is a library rather than a resident application that requires startup configuration, so no setting causes the process to fail to start because configuration is missing. Required settings exist only at the API-call boundary:
 
-1. Parsing and formatting must select a valid Doris profile and mode.
+1. Parsing and formatting must select a valid dialect, Doris profile, and mode (no implicit fallback).
 2. When using the manifest entry point, release and feature-introduction metadata must match the profile.
 3. When custom `ParseLimits` are provided, all limits must be non-negative.
 4. When custom `FormatOptions` are provided, `indent` must be non-negative and `line_width` must be greater than zero.

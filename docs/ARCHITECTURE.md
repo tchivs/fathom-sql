@@ -6,7 +6,7 @@ English | [简体中文](zh-CN/ARCHITECTURE.md)
 
 Fathom is a Doris SQL Parser SDK implemented in MoonBit: it accepts source bytes (typically UTF-8; invalid encoding produces lexical diagnostics), a Doris version profile, a parsing mode, and resource limits, and outputs a lossless concrete syntax tree (CST) with byte positions, diagnostics, and recovery status. Based on the same parse result, callers can choose lossless printing, deterministic formatting, or limited table-reference resolution by injecting a catalog. The system uses a layered pipeline architecture. Its core path is `SourceText → Lexer → TokenStream → Parser → Syntax CST`; the `api` package provides a stable facade across layers, while `printer`, `formatter`, and the optional `analyzer` branch from the CST without introducing Doris execution semantics into the parsing core.
 
-`moon.mod` declares the module as `fathom/doris-sql`, with version `0.1.0` and preferred target `native`; the core library package manifest explicitly declares `pkgtype(kind: "library")`, while `test/moon.pkg` does not declare a package type; `doris-sql/moon.pkg` declares `pkgtype(kind: "executable")` and provides a thin CLI adapter. The MoonBit toolchain version recorded in `moon.mod` is `moon 0.1.20260724`.
+`moon.mod` declares the module as `fathom/sql`, with version `0.1.0` and preferred target `native`; the core library package manifest explicitly declares `pkgtype(kind: "library")`, while `test/moon.pkg` does not declare a package type; `fathom-sql/moon.pkg` declares `pkgtype(kind: "executable")` and provides a thin CLI adapter. The MoonBit toolchain version recorded in `moon.mod` is `moon 0.1.20260724`.
 
 ## Component Diagram
 

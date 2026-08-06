@@ -148,3 +148,23 @@ jobs:
 
       - name: Keyword classification check
         run: python3 corpus/tools/check_keywords.py corpus/keywords.tsv
+
+  naming-gate:
+    name: neutral naming inventory gate (NAME-04)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # NAME-04: reject product-level remnants of doris-sql / doris-lsp /
+      # doris.* / DORIS-* in current source, config, CI, extensions, and docs.
+      # The allowlist is limited to Doris dialect semantics and provenance
+      # (D-05); historical archives are exempt (D-04). NEVER add an update-like
+      # bypass to this job.
+      - name: Neutral naming inventory
+        run: python3 scripts/check_naming.py

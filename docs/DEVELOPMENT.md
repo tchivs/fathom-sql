@@ -2,7 +2,7 @@
 English | [简体中文](zh-CN/DEVELOPMENT.md)
 # Development Guide
 
-This guide explains how to develop Fathom locally, run MoonBit checks and tests, and maintain SQL corpus data organized by Doris version. Fathom consists of MoonBit library packages and the `doris-sql/` native CLI adapter; the repository has no deployment service, and the Python tools are used only for corpus validation and optional differential analysis.
+This guide explains how to develop Fathom locally, run MoonBit checks and tests, and maintain SQL corpus data organized by Doris version. Fathom consists of MoonBit library packages and the `fathom-sql/` native CLI adapter; the repository has no deployment service, and the Python tools are used only for corpus validation and optional differential analysis.
 
 ## Local Development Setup
 
@@ -55,7 +55,7 @@ The repository has no `scripts` field in `package.json` and no Makefile; the com
 | `moon check` | Checks the current module without generating object files. Provides quick feedback on type, import, and package-manifest issues. |
 | `moon check --fmt` | Checks MoonBit source formatting while checking the module. |
 | `moon build` | Builds the current module using the default `native` target from `moon.mod`. |
-| `moon build --target native --release` | Builds the library packages and the `doris-sql` executable package in Native release mode. |
+| `moon build --target native --release` | Builds the library packages and the `fathom-sql` executable package in Native release mode. |
 | `moon build --target js` | Explicitly checks compatibility with the JavaScript backend. |
 | `moon build --target wasm` | Explicitly checks compatibility with the linear WebAssembly backend. |
 | `moon build --target wasm-gc` | Checks the Wasm GC backend when supported by the toolchain; it is not the current default target. |
@@ -126,7 +126,7 @@ Do not depend on generated files in `_build/`, and do not have runtime tests imp
 
 ## Branch Conventions
 
-The repository has no `CONTRIBUTING.md` or pull request template, so no branch-naming convention is documented. CI gates live in `.github/workflows/ci.yml` (moon check/fmt, native test, linear-Wasm runtime execution parity, corpus checks) and `.github/workflows/doris-native-release.yml` (release). The currently checked-out branch is `master`, and recent commit titles use Conventional Commits-style prefixes such as `feat(...)` and `docs(...)`; these are practices observed in the current repository, not mandatory conventions.
+The repository has no `CONTRIBUTING.md` or pull request template, so no branch-naming convention is documented. CI gates live in `.github/workflows/ci.yml` (moon check/fmt, native test, linear-Wasm runtime execution parity, corpus checks) and `.github/workflows/fathom-native-release.yml` (release). The currently checked-out branch is `master`, and recent commit titles use Conventional Commits-style prefixes such as `feat(...)` and `docs(...)`; these are practices observed in the current repository, not mandatory conventions.
 
 It is recommended to start new work from the latest `master` in a short-lived branch using a purpose-expressing prefix, for example:
 

@@ -2,7 +2,7 @@
 English: [English development guide](../DEVELOPMENT.md) | 简体中文
 # 开发指南
 
-本指南说明如何在本地开发 Fathom、运行 MoonBit 检查和测试，以及维护按 Doris 版本组织的 SQL 语料。Fathom 由 MoonBit library packages 和 `doris-sql/` native CLI 适配器组成；仓库没有部署服务，Python 工具只用于语料校验和可选的差异分析。
+本指南说明如何在本地开发 Fathom、运行 MoonBit 检查和测试，以及维护按 Doris 版本组织的 SQL 语料。Fathom 由 MoonBit library packages 和 `fathom-sql/` native CLI 适配器组成；仓库没有部署服务，Python 工具只用于语料校验和可选的差异分析。
 
 ## 本地开发设置
 
@@ -55,7 +55,7 @@ moon check
 | `moon check` | 检查当前模块，不生成对象文件。用于快速反馈类型、导入和包清单问题。 |
 | `moon check --fmt` | 在检查模块的同时验证 MoonBit 源文件格式。 |
 | `moon build` | 按 `moon.mod` 的默认 `native` 目标构建当前模块。 |
-| `moon build --target native --release` | 以 Native release 模式构建库包和 `doris-sql` executable package。 |
+| `moon build --target native --release` | 以 Native release 模式构建库包和 `fathom-sql` executable package。 |
 | `moon build --target js` | 显式检查 JavaScript 后端兼容性。 |
 | `moon build --target wasm` | 显式检查线性 WebAssembly 后端兼容性。 |
 | `moon build --target wasm-gc` | 在工具链支持时检查 Wasm GC 后端；它不是当前默认目标。 |
@@ -121,7 +121,7 @@ python3 corpus/tools/sqlglot_diff.py
 
 ## 分支约定
 
-仓库没有 `CONTRIBUTING.md` 或 Pull Request 模板，因此没有已文档化的分支命名规范。CI 门禁位于 `.github/workflows/ci.yml`(moon check/fmt、native 测试、线性 Wasm 运行时执行 parity、corpus 检查)与 `.github/workflows/doris-native-release.yml`(发布)。当前检出的分支为 `master`，最近提交标题采用了 `feat(...)` 和 `docs(...)` 等 Conventional Commits 风格前缀；这些是当前仓库观察到的实践，不是强制规范。
+仓库没有 `CONTRIBUTING.md` 或 Pull Request 模板，因此没有已文档化的分支命名规范。CI 门禁位于 `.github/workflows/ci.yml`(moon check/fmt、native 测试、线性 Wasm 运行时执行 parity、corpus 检查)与 `.github/workflows/fathom-native-release.yml`(发布)。当前检出的分支为 `master`，最近提交标题采用了 `feat(...)` 和 `docs(...)` 等 Conventional Commits 风格前缀；这些是当前仓库观察到的实践，不是强制规范。
 
 建议新工作从最新 `master` 创建短生命周期分支，并使用能表达目的的前缀，例如：
 

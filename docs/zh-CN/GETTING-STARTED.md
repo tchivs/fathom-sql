@@ -2,7 +2,7 @@
 English: [English getting started](../GETTING-STARTED.md) | 简体中文
 # 开始使用 Fathom
 
-Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供保留源码字节、诊断和格式化能力。当前仓库提供库包和 `doris-sql/` native CLI 适配器，不提供需要启动的 HTTP 服务。
+Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供保留源码字节、诊断和格式化能力。当前仓库提供库包和 `fathom-sql/` native CLI 适配器，不提供需要启动的 HTTP 服务。
 
 ## 前置条件
 
@@ -11,7 +11,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 - **Python 3**：仅在运行 `corpus/` 下的语料报告工具或差分工具时需要。解析器本身不需要 Python 运行时。
 - **可选的 Python 依赖**：`corpus/requirements.txt` 固定了差分比较工具 `sqlglot==30.14.0`；只在使用该差分工具时安装。
 
-仓库没有 Node.js 依赖、数据库、`.env` 文件或部署服务。MoonBit 模块身份和首选构建目标记录在根目录 `moon.mod` 中：模块名为 `fathom/doris-sql`，版本为 `0.1.0`，首选目标为 `native`。
+仓库没有 Node.js 依赖、数据库、`.env` 文件或部署服务。MoonBit 模块身份和首选构建目标记录在根目录 `moon.mod` 中：模块名为 `fathom/sql`，版本为 `0.1.0`，首选目标为 `native`。
 
 ## 安装步骤
 
@@ -46,7 +46,7 @@ moon check
 
 该命令检查根包以及 `api`、`parser`、`lexer`、`syntax`、`printer`、`formatter`、`analyzer` 等库包。当前仓库的 `moon check` 已验证能够完成，可能会输出弃用、冗余修饰符或未使用项警告；这些警告不等同于检查失败。
 
-Fathom 当前没有 HTTP 服务，但提供 `doris-sql/` native CLI 适配器；库调用方可在自己的 MoonBit package 中导入 `fathom/doris-sql/api`，CLI 入口位于 `doris-sql/main.mbt`，最短库用法见 [README.md](../../README.md) 的“使用示例”章节。
+Fathom 当前没有 HTTP 服务，但提供 `fathom-sql/` native CLI 适配器；库调用方可在自己的 MoonBit package 中导入 `fathom/sql/api`，CLI 入口位于 `fathom-sql/main.mbt`，最短库用法见 [README.md](../../README.md) 的“使用示例”章节。
 
 ## 常见设置问题
 
@@ -63,7 +63,7 @@ moon check
 
 ### 把库当作服务或 CLI 启动
 
-仓库没有 HTTP 服务，但包含可执行的 `doris-sql` 包；需要运行 CLI 时使用该包的 `format` 入口，需要库 API 时在调用方的 MoonBit package 中导入 `fathom/doris-sql/api`。解析入口需要显式传入 Doris profile（`2.1`、`3.x` 或 `4.x`）和模式（`strict` 或 `editor`）。
+仓库没有 HTTP 服务，但包含可执行的 `fathom-sql` 包；需要运行 CLI 时使用该包的 `format` 入口，需要库 API 时在调用方的 MoonBit package 中导入 `fathom/sql/api`。解析入口需要显式传入 Doris profile（`2.1`、`3.x` 或 `4.x`）和模式（`strict` 或 `editor`）。
 
 ### `moon test` 报告快照占位符或失败
 

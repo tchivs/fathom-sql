@@ -36,7 +36,8 @@ This project has no HTTP endpoints, HTTP base URL, request routes, or deployment
 
 - SQL input is `Bytes`, not `String`. Source bytes are stored once at the result root; nodes and diagnostics refer to them through byte offsets.
 - `start_byte` and `end_byte` are byte offsets in the half-open interval `[start_byte, end_byte)`, not Unicode character indexes; every span must fall within the input length.
-- `profile` must explicitly select `"2.1"`, `"3.x"`, or `"4.x"`; there is no silent fallback to a generic MySQL dialect.
+- `dialect` must explicitly select `"doris"` or `"flink"`.
+- `profile` must explicitly select `"2.1"`, `"3.x"`, or `"4.x"` (doris dialect); there is no silent fallback to a generic dialect.
 - `mode` must be `"strict"` or `"editor"`. Both modes share the CST and diagnostic shapes; `editor` can generate `missing`, `error`, and `skipped` nodes to preserve incomplete input.
 
 ### Parse Options
@@ -64,7 +65,7 @@ Constructors:
 
 | Constructor | Description |
 |---|---|
-| `ParseOptions::new(profile_id, mode_id)` | Accepts `"2.1"`/`"3.x"`/`"4.x"` and `"strict"`/`"editor"`, using default limits. |
+| `ParseOptions::new(dialect_id, profile_id, mode_id)` | Accepts `"doris"`/`"flink"`, `"2.1"`/`"3.x"`/`"4.x"`, and `"strict"`/`"editor"`, using default limits. |
 | `ParseOptions::for_profile(profile, mode)` | Uses `@token.DorisProfile` and `ParseMode`, with default limits. |
 | `ParseOptions::for_profile_with_limits(profile, mode, limits)` | Uses enum profile/mode values and caller-provided `ParseLimits`. |
 | `ParseOptions::for_profile_with_metadata(profile, metadata, mode)` | Creates options after validating complete `ProfileMetadata`. |
@@ -98,18 +99,20 @@ This is the complete entry point: it validates limits and source size, runs the 
 ```moonbit
 pub fn parse_with_ids(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   mode_id_value : String,
 ) -> Result[ParseResult, ParseError]
 ```
 
-Use this when the profile and mode come from configuration or CLI arguments. It is equivalent to calling `ParseOptions::new(profile_id, mode_id_value)` first and then calling `parse`.
+Use this when the profile and mode come from configuration or CLI arguments. It is equivalent to calling `ParseOptions::new(dialect_id, profile_id, mode_id_value)` first and then calling `parse`.
 
 #### `parse_with_metadata`
 
 ```moonbit
 pub fn parse_with_metadata(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
@@ -125,6 +128,7 @@ This entry point first calls `ParseOptions::from_manifest`. `exact_release` and 
 pub struct ParseResult {
   pub schema_version : String
   pub source_transport : String
+  pub dialect : String
   pub profile : String
   pub exact_release : String
   pub feature_introduction : String
@@ -142,7 +146,7 @@ Current result protocol fields:
 
 - `schema_version`: currently `"fathom.parse.v1"`.
 - `source_transport`: currently `"inline-root-v1"`, meaning source bytes are embedded in the result root.
-- `profile`, `exact_release`, `feature_introduction`, `mode`: the profile metadata and mode actually used for this call.
+- `dialect`, `profile`, `exact_release`, `feature_introduction`, `mode`: the dialect, profile metadata, and mode actually used for this call.
 - `valid`: whether the syntax result is valid. It is usually `false` when syntax, lexical, resource, or profile-feature diagnostics exist; editor recovery does not promote an erroneous result to valid.
 - `recovered`: whether the editor recovery path generated a tree that can continue to be consumed.
 - `source_bytes`, `source_byte_length`: the original source bytes and their length; comments, whitespace, line breaks, BOM, Unicode, and invalid bytes are retained as raw bytes.
@@ -203,6 +207,7 @@ pub fn format_text(
 
 pub fn format_with_ids(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   mode_id_value : String,
   format_options : FormatOptions,
@@ -210,6 +215,7 @@ pub fn format_with_ids(
 
 pub fn format_with_metadata(
   raw : Bytes,
+  dialect_id : String,
   profile_id : String,
   exact_release : String,
   feature_introduction : String,
@@ -254,7 +260,7 @@ import {
   "fathom/sql/printer" @printer,
 }
 
-let parsed = @api.parse_with_ids(b"-- note\r\nselect 1", "4.x", "editor")
+let parsed = @api.parse_with_ids(b"-- note\r\nselect 1", "doris", "4.x", "editor")
 match parsed {
   Ok(result) => {
     let raw_again = @printer.print_result(result)

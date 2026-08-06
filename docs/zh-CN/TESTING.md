@@ -168,7 +168,7 @@ moon coverage report -f summary
 - **linear-wasm-parity** — `moon build --target wasm binding` 与 `moon build --target wasm parity`,然后 `moon test --target wasm --package parity`(在**线性 Wasm 后端**上执行 parity 语料)加 `moon test --target native --package parity` 做字节级 parity 交叉校验。
 - **corpus** — `generate_corpus_report.py --check` 与 `check_keywords.py corpus/keywords.tsv`。
 
-`.github/workflows/doris-native-release.yml` 将 GitHub Release job 门禁在相同的 `linear-wasm-parity` 步骤上(外加原生多平台构建),因此发布前必须通过线性 Wasm 运行时执行 parity。
+`.github/workflows/fathom-native-release.yml` 将 GitHub Release job 门禁在相同的 `linear-wasm-parity` 步骤上(外加原生多平台构建),因此发布前必须通过线性 Wasm 运行时执行 parity。
 
 没有自动上传覆盖率或自动运行 FE/Nereids 差分(FE 脚本刻意保持手动,D-20)。提交前至少应在仓库根目录执行：
 

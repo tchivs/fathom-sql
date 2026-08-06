@@ -21,7 +21,7 @@ Fathom 是一个以 MoonBit 实现的 Doris SQL 解析与格式化库。它没�
 根目录的 `moon.mod` 定义模块身份和默认构建目标：
 
 ```moonbit
-name = "fathom/doris-sql"
+name = "fathom/sql"
 version = "0.1.0"
 preferred_target = "native"
 ```
@@ -63,7 +63,7 @@ pkgtype(kind: "library")
 示例：
 
 ```moonbit
-let options = match @api.ParseOptions::new("4.x", "editor") {
+let options = match @api.ParseOptions::new("doris", "4.x", "editor") {
   Ok(value) => value
   Err(error) => panic()
 }
@@ -102,7 +102,7 @@ let result = @api.parse(b"SELECT * FROM orders", options)
 示例：
 
 ```moonbit
-let parse_options = match @api.ParseOptions::new("3.x", "strict") {
+let parse_options = match @api.ParseOptions::new("doris", "3.x", "strict") {
   Ok(value) => value
   Err(error) => panic()
 }
