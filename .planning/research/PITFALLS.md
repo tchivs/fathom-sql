@@ -1,634 +1,344 @@
 # Domain Pitfalls
 
-**Domain:** Apache Doris SQL 解析器 SDK（MoonBit、无损 CST、Native/Wasm/JS、CLI/LSP）  
-**Researched:** 2026-08-03  
-**Evidence confidence:** LOW（研究抓取工具对 `websearch`/`webfetch` 的自动分级为 LOW；下文优先采用已直接读取的 Apache Doris、MoonBit、LSP、Tree-sitter 与 Prettier 官方文档，并把从其事实推出的工程结论标为推论）
+**Domain:** Fathom v2.0 多方言无损 SQL Parser SDK（Doris + Flink、MoonBit、CST、Native/JS/Wasm、CLI/LSP）  
+**Researched:** 2026-08-06  
+**Confidence:** HIGH（仓库耦合点和 v1 约束直接由本地文件核验；Flink/Calcite 语法边界由 Apache 官方文档与 Calcite 官方 API/源码核验；“会导致回归”的部分是基于这些事实的工程推论，标明验证门。）
 
-## 风险排序
+## 研究结论
 
-最可能造成重写或破坏用户信任的风险是：版本/语法权威失配、关键字分类错误、无损 CST 破坏 round-trip、错误恢复产生级联误诊、跨后端 ABI 不一致，以及 LSP 坐标/同步错误。它们都会让用户看到“数据库能执行而 SDK 拒绝”或“编辑器/格式化器悄悄改坏源码”，而不是普通的未覆盖语法报错。
+本里程碑不是“再加一套关键字和几个 Flink 语句”。v1 的 profile、分类表、parser 路由、诊断码、序列化 schema、CLI、LSP、Web、VS Code 与 JetBrains 发布流程都把 Doris 写进了公共边界。目标明确要求 Dialect、Flink 全链和中立命名（`.planning/PROJECT.md:72-81`），因此任何只修改 `parser/` 的实现都会留下跨层不一致。最危险的结果不是少支持一条语法，而是：Doris 原有输入的接受性、CST 字节回放或诊断坐标悄悄改变，用户无法区分是方言错误还是 SDK 回归。
+
+Flink 也不是 Doris 的“同义词”。Apache Flink SQL 明确基于 Apache Calcite、单独列出 DDL/DML/Query 语句和大量预留关键字（[Flink SQL overview](https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/)）；Windowing TVF 是 `FROM` 中的 polymorphic table function，包含 `TABLE`、`DESCRIPTOR`、命名参数等结构（[Windowing TVF](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/window-tvf/)）；`MATCH_RECOGNIZE` 具有 `PATTERN`、`DEFINE`、`MEASURES`、`AFTER MATCH SKIP` 等嵌套子语言，且官方明确声明仅实现标准子集（[Pattern Recognition](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/match_recognize/)）。这些构造必须走显式方言/语句路由，而不是污染共享 Doris 产生式。
 
 ## Critical Pitfalls
 
-### Pitfall 1：把 `current` 文档或单一 Doris 语法当作永久规范（方言与版本漂移）
+### Pitfall 1：把全局 Doris keyword 分类表升级成“所有方言共用表”
 
 **What goes wrong:**
 
-解析器在 Doris 2.1、3.x、4.x 或未发布开发版之间混用语法、关键字和示例；旧集群的合法 SQL 被报错，新版本语法被错误接受，或者同一 SQL 在不同配置下得到不同 CST。用户无法判断诊断是 Doris 真实错误还是 SDK 的版本错误，覆盖率数字也失去意义。
+`token/token.mbt` 目前只有 `DorisProfile`（`V2_1/V3_X/V4_X`，`token/token.mbt:3-7`），并以一个全局 `classification_rows` 为运行时真相（`token/token.mbt:307-325`）。`classification_of`、`is_reserved_word` 和 `is_unquoted_identifier` 都没有方言参数（`token/token.mbt:449-493`）。直接把 Flink 词加入该数组会造成至少三类错误：
+
+- Flink 保留/未来保留词在 Doris 中被错误拒绝为未引用 identifier，或 Doris 的 contextual/non-reserved 词被 Flink 误用；同一个原词在两个方言中可能具有不同的 reserved、non-reserved、contextual 和语境含义。
+- `is_reserved_word` 被 lexer、identifier 解析和 formatter 间接复用后，方言选择会被隐式全局状态吞掉；解析同一文本的结果可能取决于上一次调用或某个默认 profile。
+- 只添加“语句中看到的词”仍会漏掉数据类型、窗口 TVF、MATCH_RECOGNIZE 子语句、未来保留词和 recovery 边界词。Flink 官方说明即使功能未实现，字符串组合也可能已经 reserved；把“当前可解析”当作“关键词全集”会漏词（Flink overview 的 Reserved Keywords 段）。
 
 **Why it happens:**
 
-Apache Doris 文档仓库明确同时维护 current（开发中）与 4.x、3.x、2.1 版本树，且 current 页面提示其为 unreleased 文档。Doris 的 MySQL 协议兼容层也不等于 MySQL 语法完全等价。把文档网页的“最新”地址、FE 当前源码、MySQL 关键字表拼成一个无版本表，会把独立演进的来源错误地合并。
+v1 的审计工具把 runtime table 与 Doris production inventory 绑定：`check_keywords.py` 固定 `VALID_PROFILES = {2.1, 3.x, 4.x}`，并要求覆盖 Doris DML/DDL 词（`corpus/tools/check_keywords.py:23-41`）。开发者容易把这一套机制横向复制为一份表，而没有先提升抽象层。更隐蔽的是，分类和产生式 gate 在 v1 已明确是两层：`DorisFeature` 负责版本功能，分类负责 identifier 接受（`token/token.mbt:297-306`）；若新方言沿用 `DorisFeature`，两套语义会纠缠。
 
 **How to avoid:**
 
-- 在 lexer/parser API 中强制 `DialectVersion`/feature profile（至少 2.1、3.x、4.x、dev），禁止隐式使用 current。
-- 每个关键词、语法产生式和 corpus fixture 带版本标签，并区分 `introduced`、`deprecated`、`removed`、`accepted-but-not-reserved`。
-- 将已发布 Doris 文档版本作为兼容目标；current 只作为候选变更输入，未经确认不得提升稳定规范。
-- 记录“SDK 接受”与“FE 执行”两种状态，避免把未连接 FE 的纯语法结果宣传为执行兼容。
+1. 在 Phase 9（Dialect Boundary）先定义 `DialectId`/`DialectProfile` 和不可变 `KeywordTable`，所有分类查询签名必须接收 Dialect；禁止保留无参数的公共 `is_reserved_word`，或将其限制为 Doris 专用内部 helper。
+2. 每个方言维护独立的 `KeywordEntry`：原词、分类、语境、引入/移除版本、引用规则、来源 URL；共享层只保留词法形状和原文，不共享分类结论。
+3. 将“产生式 inventory”和“分类 inventory”分开校验：Flink 的 reserved/future-reserved 清单来自其锁定版本文档或 Calcite 源码；每条生产规则使用的词必须有方言行，未覆盖词必须显式 unknown/error，而不是自动降级为 identifier。
+4. 为每个冲突词写成对测试：作为 clause keyword、未引用列/表名、反引号标识符、函数名、字符串和 recovery token；测试 Doris 与 Flink 的结果及 lossless replay。
 
 **Warning signs:**
 
-- 同一个 fixture 在 CI 中随抓取日期改变结果。
-- 文档 URL 没有版本目录、测试只引用 `master`/`current`，或 coverage 报表没有版本维度。
-- 新增语法只改一个关键字表，没有对应版本记录和反例。
-- issue 中出现“在 2.1 可执行但在 SDK 报错”或“格式化后旧集群拒绝”。
+- 新增 Flink 词只改 `token/token.mbt`，没有 `dialect` 参数或 Flink 独立 TSV。
+- 同一 `classification_of(raw)` 被 Doris 与 Flink parser 共同调用；测试只能在单一默认方言下通过。
+- keyword rows 数量增加但 production inventory 没有差异报告；错误输入被“更多接受”却没有误接受率。
+- `QUALIFY`、`TABLE`、`MATCH`、`DEFINE`、`DESCRIPTOR` 在不同上下文中出现 identifier/keyword 结果不一致。
 
 **Phase to address:**
 
-**Phase 1（内核/版本化词法）**建立版本 profile、版本化 token/fixture 和拒绝混用的 API；**Phase 2（完整性）**对每个版本跑官方 corpus diff；**Phase 4（生态）**在 CLI/LSP 中暴露并持久化版本选择。
+**Phase 9：Dialect Boundary and Neutral Naming** 必须先隔离表和 API；**Phase 10：Flink Lexical/Grammar Core** 完成 Flink inventory 与冲突矩阵；**Phase 12：Cross-dialect Corpus/Parity** 运行双方言 acceptance/rejection 与分类 gate。
 
-**Evidence confidence:** LOW（直接核验的 Apache Doris Website README；该 README 说明 `docs/`、`versioned_docs/version-4.x`、`version-3.x`、`version-2.1` 并存，且当前页面说明 current 为 unreleased）。
+**Evidence:** `token/token.mbt:3-7,133-141,297-306,307-325,449-493`; `corpus/tools/check_keywords.py:23-41,93-103`; [Flink SQL overview — Reserved Keywords](https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/#reserved-keywords)。
 
 ---
 
-### Pitfall 2：把 MySQL 兼容性误当作关键字分类规则
+### Pitfall 2：Flink 文法污染 Doris，或用 DorisFeature 冒充 Dialect/语句路由
 
 **What goes wrong:**
 
-未加引号的列名、表名、别名或属性名被误认为关键字；或者真正需要在特定语境下识别的 Doris 关键字被当成普通标识符。结果可能是合法 SQL 无法解析、Pratt 表达式在别名处走错分支、格式化器改变标识符大小写，甚至把用户的数据对象名打印成保留字。
+当前 `parser/parser.mbt` 是单一 Doris recursive-descent + Pratt 路径：入口按裸 token 直接分派 `SELECT/WITH/INSERT/UPDATE/DELETE/MERGE/CREATE`（`parser/parser.mbt:3342-3370`），表达式 precedence 也直接对原文词做判断（`parser/parser.mbt:265-275`）。如果把 Flink 的特殊语法塞进这些分支：
+
+- Flink 的 `SELECT * FROM TABLE(TUMBLE(TABLE data, DESCRIPTOR(ts), ...))` 可能被 Doris 的普通 table/query 路径部分消费，随后产生错误 span 或错误 recovery，而不是在 Flink 规则中形成明确 CST。
+- `MATCH_RECOGNIZE` 的 `PATTERN` 正则样式、pattern variable、`DEFINE`/`MEASURES` 表达式会被普通 Pratt parser 当成 identifier/operator；一处缺失括号可能吞掉后续 statement。
+- Flink 的 DDL/DML 语句集合与 Doris 的 CREATE/INSERT/UPDATE/DELETE 细节不同。共享 `CREATE` 或 `INSERT` 分支会把 Flink 接受性错误地扩大到 Doris，或让 Doris 的 `MERGE`/properties/partition 版本 gate 失效。
+- `DorisFeature::Qualify/Tablet/MergeInto/...` 与 `Dialect` 混用后，代码可能检查“当前 profile 支持 feature”而没有检查“当前 parser 是 Doris”，导致 Flink 获得 Doris 诊断码/版本信息，或 Doris 被迫依赖 Flink feature enum。
+
+Flink 官方还明确 `MATCH_RECOGNIZE` 只支持文档定义的标准子集，不能用“通用 SQL pattern”误接受未支持特性（官方文档的 subset/known limitations 说明）。
 
 **Why it happens:**
 
-“兼容 MySQL 协议”和“ANSI SQL syntax”只描述接口定位，不是完整 Doris grammar/keyword contract。SQL 关键字往往有 reserved、non-reserved、contextual、功能/类型名等不同类别；关键字可否作为 identifier 还受引号形式和产生式上下文影响。把 `SELECT` 等词硬编码为唯一全局 enum，或者直接复用 MySQL 关键字表，会丢掉 Doris 的上下文和版本差异。
+v1 已经把“profile gate”做成 `ValidatedProfileContext::supports(DorisFeature)`（`token/token.mbt:47-53`），parser 的 recovery state 也持有该 context（`parser/parser.mbt:118-124`）。这是 Doris 版本功能抽象，不是多方言抽象。为了少改函数签名，最容易的短期方案是继续塞 `if feature_allowed`；该方案会把 dialect、release profile、grammar capability 和 diagnostic namespace 混成一个布尔条件。
 
 **How to avoid:**
 
-- 维护版本化、可审计的 keyword matrix：拼写、大小写策略、类别、可用上下文、引用方式、引入版本、来源 URL。
-- lexer 只产生稳定的词素/原文和候选 token；parser 在期待 identifier 的上下文用显式策略决定是否接受 contextual keyword。
-- 保留 quoted/unquoted identifier 的原始文本、引号类型和 escape，不要在 CST 构造阶段规范化。
-- 用成对反例测试：同一词作为关键字、未引用名称、反引号名称、字符串、函数名和别名；每个版本都验证。
+1. Phase 9 先建立 `Dialect` 作为最外层不可变 parse context：`dialect_id`、该方言的 keyword table、statement router、expression policy、feature registry、diagnostic namespace。Doris 的 `DorisFeature` 只能存在 Doris 模块内并由 `DorisDialect` 实现，不能出现在共享 CST/lexer/parser trait 的公共签名中。
+2. 语句入口先做 `Dialect::route_statement`，再进入 dialect-specific statement parser；共享表达式只共享“字面量/标识符/括号/通用运算符”的 token/CST 机制，方言差异通过显式 `ExpressionPolicy`/扩展节点处理。
+3. 对 Window TVF、MATCH_RECOGNIZE 等 Flink 子语言使用独立 parser rule 和 CST node；其未知/部分实现必须保留 source-backed error/skipped nodes，不能让 Doris recovery 集合替代它们。
+4. 为每个路由建立负向 gate：`parse(doris, flink-only syntax)` 和 `parse(flink, doris-only syntax)` 都要有明确预期；同一 SQL 的语句 kind、诊断 code、feature metadata 必须包含 dialect。
 
 **Warning signs:**
 
-- keyword set 由 MySQL 或 SQL 标准库自动生成且没有 Doris 版本审阅。
-- 失败只出现在 `SELECT keyword FROM ...`、别名、DDL 属性或反引号名称中。
-- lexer 测试只断言 token 名，不断言原文、类别和上下文。
-- 为了“让更多语句通过”把所有未知词降级成 identifier，之后诊断质量突然下降。
+- `parser/parser.mbt` 出现 `if dialect == Flink` 的散布式条件，而没有单一 router。
+- Flink 代码 import `@token.DorisFeature` 或生成 `DORIS-PARSE-*`；共享 Pratt precedence 开始包含 `PATTERN/DEFINE/DESCRIPTOR`。
+- Flink corpus 在没有修改 fixture 的情况下 acceptance 或 CST kind 变化；Flink-only grammar 在 Doris mode 返回 valid。
+- 某个 `CREATE`/`SELECT` rule 同时持有 Flink 和 Doris 的 clauses，却没有 dialect-specific test matrix。
 
 **Phase to address:**
 
-**Phase 1（lexer/CST）**先定义 token/trivia/identifier 契约；**Phase 2（SELECT 与 DDL 完整性）**完成 keyword matrix 与上下文测试；**Phase 3（formatter）**确保保留字和标识符打印不变形。
+**Phase 9：Dialect Boundary** 固化 context/router/feature registry；**Phase 10：Flink Grammar** 实现独立 Window TVF 与 MATCH_RECOGNIZE；**Phase 11：Doris Regression/Parity Gate** 证明共享表达式重构不改变 Doris；**Phase 12：Flink full toolchain** 消费 dialect capability，不再直接依赖 Doris enum。
 
-**Evidence confidence:** LOW（直接核验的 Doris Overview 对 MySQL protocol-compatible/ANSI SQL 的表述；关键字分类的细化是基于 SQL parser 工程推论，需在实现阶段用版本文档与 FE 行为交叉核验）。
+**Evidence:** `parser/parser.mbt:265-275,118-124,3342-3370`; `token/token.mbt:47-53,133-141,230-235`; `.planning/PROJECT.md:76-81`; [Flink overview](https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/); [Windowing TVF](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/window-tvf/); [MATCH_RECOGNIZE](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/match_recognize/)。
 
 ---
 
-### Pitfall 3：官方文档语料抽取把展示内容当成可执行 SQL
+### Pitfall 3：Doris CST、诊断或接受性发生隐性回归，parity 只测“能编译”
 
 **What goes wrong:**
 
-corpus 把 Markdown 中的伪代码、命令提示符、输出、变量占位符、截断片段、不同语言 tab、注释说明或需要预先建表/设置 session 的 SQL 当成独立可执行样例。通过率虚高或误报大量 parser bug；更糟的是抓取器在文档改版时悄悄换样例，导致 golden 基线不可追溯。
+任何 lexer 分类、共享 Pratt、CST kind 或 parser recovery 的改动，都可能改变 Doris v1 的公开行为：注释/空白/未知 token 丢失，节点 span/text length 改变，`DORIS-PARSE-*` code 或 statement id 改变，严格/编辑模式边界变化，或者本来在 2.1 被拒绝的 4.x-only feature 被接受。单看 parser 返回 `valid` 或 CLI exit code 无法发现这些回归。
+
+v1 的公共结果包含 `schema_version/profile/exact_release/feature_introduction/mode/valid/recovered/source_bytes/root/diagnostics`（`api/api.mbt:180-193`），并要求 root-only source bytes 与 primitive descendants。`ParseResult` 在 API 入口还会验证 syntax tree（`api/api.mbt:273-310`）。这意味着 Doris parity 必须是字节、树、诊断、版本 gate 四维，而非“解析成功率”。
 
 **Why it happens:**
 
-Doris 文档有版本目录、英文/中文镜像、侧边栏和代码块约定；页面可能包含多语种示例、SQL 与 shell 混合、输出块和语义前置条件。文档规范要求代码围栏语言标记，但不能证明每个 `sql` 围栏可以脱离上下文执行。文件移动、sidebar 变化和译文不同步也会制造重复或漏采。
+多方言重构通常会先改 token enum/`SyntaxKind`，再批量更新 snapshot；如果 snapshot 只包含新 Flink 语料，旧 Doris fixtures 便不会阻止变化。当前仓库已有 44 行 Doris manifest，但其中很多 provenance 是 `unavailable-offline`（`corpus/manifest.tsv:1-14`），且项目自身记录 FE/Nereids 差分仍待人工执行（`.planning/PROJECT.md:67-70`）。这使“绿 CI”不能自动等价于外部 Doris parity。
 
 **How to avoid:**
 
-- 抽取器保存来源 URL、git commit、版本、文件路径、heading、代码围栏语言、行号和上下文，而不是只保存 SQL 字符串。
-- 对 fixture 分类：`parse-only`、`requires-session`、`requires-catalog`、`executable`、`expected-error`、`not-sql`；不能自动判定的进入人工 review 队列。
-- 对 SQL 做最小清洗并保留原始块；变量/省略号/输出不能被静默替换。双语文档按同一 case ID 对齐，不能按文本 hash 猜等价。
-- corpus 更新必须产生新增/删除/变更报告，固定版本 release 时冻结输入；coverage 报告按文档版本和 fixture 类别统计。
+1. Phase 11 建立 frozen Doris oracle：锁定 v1 corpus/fixture、`corpus/keywords.tsv`、关键 malformed/recovery cases，并在方言重构前生成 immutable baseline（source hash、CST normalized view、all spans/text_len、diagnostics、format output、profile acceptance）。
+2. 每次改动跑 `print_lossless(parse_doris(x)) == x`；比较完整 serialized result，不只比较 `valid`。保留 statement kind/order、diagnostic code/span/message/statement_id、strict/editor、2.1/3.x/4.x acceptance/rejection。
+3. 对 formatter、completion、binding、LSP、Native/JS/Wasm 使用同一 Doris parity fixtures；schema 迁移测试应同时验证旧行为的中立字段映射和新 dialect 字段。
+4. FE/Nereids 可作为 differential oracle，但不能将离线不可得的 FE 结果伪造为 PASS；每个 unavailable/offline gap 必须在报告中可见。
 
 **Warning signs:**
 
-- 所有代码块都被标作 `parse-only` 或所有示例都被直接送进执行器。
-- fixture 没有来源 commit/版本/heading；重跑抓取后 diff 很大但没有文档变更记录。
-- 通过率上升但新增的 SQL 来自 shell、输出或占位变量。
-- 中文与英文样例数量不一致，却没有 triage 清单。
+- PR 只有新 Flink 测试，没有 Doris baseline diff。
+- snapshot 批量更新但没有 source hash、语法设计说明或“哪些字段允许变化”的审阅记录。
+- 只比较 parser `valid`，不比较 bytes、spans、diagnostic code、recovery nodes。
+- Native 通过而 JS/Wasm/LSP 只做编译；Doris 2.1 MERGE、QUALIFY 和 unknown statement 的负例消失。
 
 **Phase to address:**
 
-**Phase 2（官方 corpus/完整性）**实现可复现 manifest、分类和人工审阅；**Phase 4（CI/生态）**执行版本锁定、变更审计和可见的 coverage dashboard。
+**Phase 9** 在改 API 前冻结 baseline；**Phase 11：Doris Regression/Parity Gate** 作为 Flink parser 合并的硬门禁；**Phase 13：Cross-backend and Editor Parity** 覆盖 binding、CLI、LSP、Web、VS Code、IntelliJ。
 
-**Evidence confidence:** LOW（直接核验 Doris Website README 的版本目录与文档规范：代码围栏需标语言、文档维护有 current/4.x/3.x/2.1 分层；“代码块不必然可独立执行”属于由文档结构推出的工程结论）。
+**Evidence:** `api/api.mbt:162-193,273-310`; `binding/schema.mbt:3-5,69-83`; `corpus/manifest.tsv:1-14`; `.planning/PROJECT.md:67-70`; `.planning/milestones/v1.0-REQUIREMENTS.md:14-18,29-32,49-53`; [MoonBit tests/snapshots](https://docs.moonbitlang.com/en/latest/language/tests.html)（测试工具只能验证声明的 oracle，不能代替 corpus 设计）。
 
 ---
 
-### Pitfall 4：无损 CST 名义上保留 trivia，实际 round-trip 仍丢字节或错位
+### Pitfall 4：中立命名迁移遗漏，导致产品出现两套公共身份
 
 **What goes wrong:**
 
-注释、空白、换行、BOM、CRLF、字符串 escape 或未知 token 在 parse/print 后消失或移动；Span 在 Unicode、多字节 UTF-8、换行转换后与原文不一致。格式化、诊断和 LSP range 因此互相矛盾，用户最重视的“不会改坏源码”承诺失效。
+目标要求 clean cutover 为 `fathom-sql`/`fathom-lsp`、`fathom/sql`、`FATHOM-*`、`fathom.*.v1`，不保留兼容别名（`.planning/PROJECT.md:74-80`）。若只改 README 或模块名，用户会遇到：
+
+- MoonBit import 仍是 `fathom/doris-sql`（`moon.mod:5-7`、`lsp/moon.pkg:3-5`），CLI 仍叫 `doris-sql`，发布产物/下载 manifest 仍叫 `doris-lsp`（`.github/workflows/doris-native-release.yml:93-107`）。
+- binding 仍导出 `doris_parse_v1`/`doris_format_v1`，schema 仍为 `doris.parse.v1`/`doris.format.v1`，错误仍为 `DORIS-*`（`binding/exports.mbt:25-80`；`binding/schema.mbt:3-5,43-57,107-148`）。JS/Web/Monaco 与测试会继续传播旧名称。
+- LSP `serverInfo.name`, diagnostic `source`, fallback code/message 仍是 Doris（`lsp/handlers.mbt:36-46,78-89,152-161`），VS Code activation/languageId/settings/command 仍是 `doris`（`vscode/package.json:15-57`）。新 Flink 文件若复用 `.sql` 但没有 dialect 语义，会显示为错误语言。
+- JetBrains workflow 和 artifact 名称仍带 Doris（`.github/workflows/jetbrains-plugin.yml:19-46`），文档和配置还会要求用户输入 “Doris profile”。
 
 **Why it happens:**
 
-仅保存 AST 节点和“前后一个 comment 字符串”无法表达 trivia 所属边界、重复空行、尾随注释和错误 token。以字符索引代替 byte offset，或在 lexer 中先 normalize newline/Unicode，再把 normalized offset 当原始 span，会造成跨后端/跨编辑器偏移错误。无损与格式化是两种不同操作，若 printer 默认重建 token 而非使用原始叶节点，也会在未请求格式化时丢失信息。
+v1 的命名跨越编译模块、符号 ABI、JSON schema、错误码、二进制、LSP source、编辑器 languageId、扩展设置和发布脚本；没有单一 registry 时，机械替换会漏掉字符串、快照、包路径和下载文件名。并且 `doris` 既是旧产品名又是 Dialect 标识，盲目全局替换会错误地删除必须保留的 Doris 方言标识（目标明确“Doris 作为方言标识必须保留”）。
 
 **How to avoid:**
 
-- CST 以 source buffer 为真相，叶节点保存原始 span；trivia 采用稳定的 leading/trailing/inner 关联规则，未知与错误 token 也进入树。
-- 明确 byte offset、Unicode scalar、UTF-16 三套坐标的转换 API；永远不要在调用方自行换算。
-- 定义强不变量：`print_lossless(parse(x)) == x`（字节级）；格式化另走 `format` API，并声明其可改变空白但不得改变 token/语义。
-- 用 CRLF、混合换行、非 ASCII 标识符、emoji 注释、BOM、嵌套注释边界、EOF 注释和非法 byte 序列做 property/golden 测试。
+1. Phase 9 建立命名迁移矩阵，区分三类：产品/协议 namespace（必须改）、Doris dialect id（必须保留）、历史 corpus/source URL（按 provenance 保留）。列出 module import、binary/export、schema/error code、LSP source/serverInfo、languageId/config、VS Code/IntelliJ artifact、docs/tests。
+2. 定义单一 `ProductIdentity`/schema constants 生产者；binding、CLI、LSP、JS/Wasm 和扩展只消费常量/生成 manifest，不各自拼接字符串。schema 和 error code 做版本化 clean cutover，不提供隐式旧 namespace alias。
+3. 用 repository-wide forbidden/allowlist gate：产品边界禁止 `doris-*`/`DORIS-*`/`doris.*`，语料 URL、`Dialect::Doris`、Doris profile、官方名称列入允许位置；逐项检查生成产物、快照和发布 workflow。
+4. 命名迁移完成后再接 Flink UI；同时要求同一产品可列出 `Doris`、`Flink` 两个 dialect，避免中立化把 Doris 选择器删除。
 
 **Warning signs:**
 
-- round-trip 只用 `trim` 后字符串比较，或只测 ASCII/LF。
-- CST 没有未知 token/错误 token，解析失败就丢弃剩余源文。
-- 诊断位置在 Native 与 JS、VS Code 与 Monaco 之间相差一列或一行。
-- printer 读取 AST 字段而不读取 token/trivia span。
+- `grep` 仍发现 `doris.parse.v1`, `DORIS-`, `doris-lsp`, `doris-sql` 出现在 binding/LSP/CLI/extension 代码而不在 allowlist。
+- JS export 名改了但 `moon.pkg` exports、Wasm runner、parity fixture 仍调用旧符号。
+- UI 文案变成 “SQL” 却没有 dialect selector，或者把 `Doris` 误当产品 brand 删除。
+- 发布 workflow 产出名称、README 安装命令和实际 binary 不一致；JetBrains/VS Code 只改一方。
 
 **Phase to address:**
 
-**Phase 1（内核）**在任何语法扩展前锁定 source/trivia/span 不变量；**Phase 3（格式化）**分离 lossless printer 与 pretty printer 并加入字节级回归。
+**Phase 9：Dialect Boundary and Neutral Naming** 完成一次性矩阵迁移；**Phase 13：Cross-platform Packaging** 验证 Native/JS/Wasm/VS Code/IntelliJ 实际 artifact 和文档；不要把命名迁移拆成“最后清理”。
 
-**Evidence confidence:** LOW（由项目核心约束与 Tree-sitter 官方增量编辑 API 的 byte/point 双坐标要求交叉推导；需在 MoonBit 实现阶段进一步验证 UTF-8/UTF-16 细节）。
+**Evidence:** `.planning/PROJECT.md:72-81`; `moon.mod:5-7`; `api/api.mbt:298-310`; `binding/exports.mbt:25-80`; `binding/schema.mbt:3-5,43-57,69-83,107-148`; `lsp/handlers.mbt:36-46,78-89,152-161`; `vscode/package.json:15-57`; `.github/workflows/doris-native-release.yml:93-107`; `.github/workflows/jetbrains-plugin.yml:19-46`。
 
 ---
 
-### Pitfall 5：手写递归下降的错误恢复把一次错误扩散成全文件假错误
+### Pitfall 5：Flink corpus 未 pin、dev/nightly 文档污染，或 Calcite keyword/parser 漂移未被发现
 
 **What goes wrong:**
 
-缺少右括号、半成品 CTE、编辑中的字符串或错误 DDL 会触发无限循环、跳过下一条语句、产生数十个互相矛盾诊断，或者为了恢复而生成看似合法但语义完全错误的 CST。LSP 用户在输入过程中看到抖动的 diagnostics，无法定位真正错误。
+Flink 文档的 `release-1.20` 页面明确标记为 out-of-date 并指向 stable；`release-2.0` 页面也可能继续变化。若抓 stable/nightly/current 页面而不锁 Flink release、Calcite 版本、源码 commit、页面 heading 和抓取日期：
+
+- 同一 fixture 在重新抓取后语法、关键字、支持状态或示例会改变，golden 结果不再可复现。
+- 文档中的 SQL Client prompt、输出表、注释、legacy grouped window 示例被当成 SQL 语句，造成通过率虚高或 parser 误报。
+- Flink 语法文档与实际 Calcite parser 的 keyword/conformance 演进不同步；只抄文档 keyword list 会漏 future-reserved 或误纳入已废弃语法。
+- Window TVF 和 MATCH_RECOGNIZE 的语义限制被当成 parser 必须执行的 catalog/streaming validation，或反过来把未支持标准子集误接受为合法 Flink SQL。
+
+Calcite 官方 `SqlParser.Config` 暴露 `parserFactory`、`conformance`、`quoting`、`caseSensitive`、quoted/unquoted casing 等可变配置（[SqlParser.Config](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/parser/SqlParser.Config.html)）；Calcite `Parser.jj` 又明确 `IGNORE_CASE = true`、`UNICODE_INPUT = true` 并由模板生成 parser（[Parser.jj](https://github.com/apache/calcite/blob/main/core/src/main/codegen/templates/Parser.jj)）。因此 “Flink SQL keyword” 不是一份永恒字符串数组，而是 release + Calcite config/conformance 的组合。
 
 **Why it happens:**
 
-panic-mode 只按一个分号恢复会在分号缺失时吞掉后续 SQL；子句同步集合过宽会把错误 token 丢失，过窄则无法前进。Pratt parser 的 precedence、前缀/后缀运算符和错误节点若没有统一进度不变量，某些 token 序列会反复尝试同一产生式。把“恢复树”当“有效 AST”传给 analyzer/formatter，会把错误状态传播到下层。
+当前 Doris corpus 已有 manifest 设计（`corpus/manifest.tsv:1-14`），但 revision 仍记录 `unavailable-offline`；v1 研究也明确 current/dev 是未发布输入，不能静默接受（`.claude/CLAUDE.md:103-110`）。复制 Doris 抽取器时，如果只把 `doris-2.1` 替成 `flink-stable`，就会把 moving URL 当版本号。
 
 **How to avoid:**
 
-- 每个 parse routine 规定进度不变量（成功、显式 error node 或至少消费一个 token）；设置最大恢复步数和递归深度。
-- 分层同步点：语句级 `;`/EOF，子句级 `SELECT/FROM/WHERE/GROUP...`，括号级 delimiter；恢复时保留 skipped tokens 和错误 span。
-- 诊断对象区分 primary error、recovery note、suppressed cascade，并提供稳定 code/category；未闭合 delimiter 使用虚拟 token 但标记 synthetic。
-- fuzz 半成品输入和删除/插入单字符场景，验证 parser 终止、错误数量有界、后续独立语句仍可解析。
+1. Phase 12 设立 Flink corpus contract：每行记录 Flink release、Calcite dependency/version、官方 URL、仓库 commit/tag、retrieval date、页面 heading、code-fence language、fixture category、expected parser status、known limitations。
+2. 发布 corpus 只允许 pinned release/tag；stable/nightly/dev 只能进入 discovery 队列，不能进入 release/golden gate。抓取必须保存原始 block 和清洗后的 SQL，并生成 add/remove/change diff。
+3. 从同一 release 的 Flink docs、Flink source 和 Calcite source 交叉核验 keywords；保留 “文档声明支持”“parser 可语法接受”“需要 planner/catalog 才可验证” 三种状态，不能混成一个 `supported`。
+4. 对 Calcite drift 建立 lockfile/compatibility note：记录 parser conformance/quoting/case policy；升级 Calcite/Flink 时先生成 keyword、CST、diagnostic 和 acceptance diff，再决定是否更新 golden。
+5. 语料分类至少区分 `parse-only`、`requires-catalog`、`requires-streaming`、`expected-error/known-limitation`、`not-sql`；MATCH_RECOGNIZE subset 负例必须存在。
 
 **Warning signs:**
 
-- 任意输入 parser 超时/栈溢出，或错误数随文件长度线性爆炸。
-- 修改一处字符会让整个文档所有诊断位置大幅移动。
-- error node 没有原始 span/token，formatter 只能猜缺失内容。
-- analyzer 对 `recovered` 节点和 valid 节点没有区分。
+- manifest 的 `official_url` 含 `stable`/`nightlies`/`dev` 但没有 commit/tag；source revision 是 `latest` 或为空。
+- corpus 数量随抓取日期改变，变更报告无法指出文档行/heading；示例中出现 `Flink SQL>`、输出表或省略号。
+- Calcite dependency 升级没有 keyword/conformance diff；reserved list 与 parser 实际 token acceptance 不一致。
+- Flink feature 通过 parser，但没有说明 catalog/streaming/planner 前置条件；或把 docs “known limitations” 当成 lexer error。
 
 **Phase to address:**
 
-**Phase 1（SELECT/Pratt 与诊断内核）**建立 progress/recovery 契约和 fuzz harness；**Phase 2（DML/DDL）**为每类语句定义同步集合；**Phase 4（LSP）**验证编辑中诊断稳定性。
+**Phase 12：Flink Corpus and Calcite Compatibility** 必须在 Flink grammar 合并前完成 pin、分类和差分；**Phase 13：CI/Parity** 把 lockfile、fixture manifest、source hash 和 cross-backend snapshots 设为发布门禁。
 
-**Evidence confidence:** LOW（手写解析器行为属于工程推论；与项目规定的 statement panic-mode、clause best-effort recovery 直接相关，需用实现和 focused fuzz 进一步确认）。
+**Evidence:** `corpus/manifest.tsv:1-14`; `.claude/CLAUDE.md:98-110`; [Flink 2.0 SQL overview](https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/)（页面版本/过期提示、语句列表、reserved keywords）；[Windowing TVF](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/window-tvf/); [MATCH_RECOGNIZE](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/match_recognize/); [Calcite SqlParser.Config](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/parser/SqlParser.Config.html); [Calcite Parser.jj](https://github.com/apache/calcite/blob/main/core/src/main/codegen/templates/Parser.jj)。
 
 ---
 
-### Pitfall 6：增量解析只重用树，却没有同步编辑后的 range、缓存和父节点
+### Pitfall 6：CLI/LSP 未强制 dialect，languageId 与配置/profile 互相覆盖
 
 **What goes wrong:**
 
-一次文本编辑后，节点 Span、token 索引、诊断或 symbol cache 仍指向旧位置；局部 parse 看似成功，但后续 edit 会越来越偏移。共享旧树时出现竞态，或把旧节点句柄交给新树后导致随机错误。最终编辑器中高亮、补全和诊断漂移，重启后问题“消失”而难以复现。
+v1 的 CLI 只接受 `format --profile <2.1|3.x|4.x>`，且没有 dialect 字段（`doris-sql/args.mbt:23-39,110-127`）；运行时只调用 `@api.format_with_ids(input, command.profile, ...)`（`doris-sql/run.mbt:72-87`）。LSP 的 `ServerState` 只有一个 `profile : String`（`lsp/handlers.mbt:4-14`），初始化只读取 `initializationOptions.profile`（`lsp/handlers.mbt:144-150,297-310`），随后所有 parse/format/completion 都复用该字符串（`lsp/handlers.mbt:78-89,164-170,248-271`）。迁移时若仅把 `profile` 改成 Flink release 或让 CLI 根据文件扩展名猜测，会出现：
+
+- `--dialect flink --profile 4.x` 的参数被错误解释，或缺少 dialect 时静默落到 Doris；Flink 文档被当 Doris 解析并给出误导性的 `DORIS-*` 诊断。
+- LSP `languageId = flink`、`languageId = sql`、`initializationOptions.dialect = flink`、用户配置 `fathom.dialect = doris` 冲突时，没有确定的 precedence；同一个打开文档的诊断可能在重连/配置变更后换方言。
+- 当前 VS Code manifest 把所有 `.sql` 激活为 `doris`，settings 只提供 `doris.profile`，而 server 名称/diagnostic source 也写死 Doris（`vscode/package.json:15-57`; `lsp/handlers.mbt:44-46,152-161`）。若直接加 Flink extension，会造成两个扩展争抢 `.sql`，或用户看到 Flink 文档却仍发送 Doris profile。
+- IntelliJ/LSP4IJ 等客户端若只传 profile、没有 dialect/capabilities handshake，会与 Native CLI/JS/Wasm 的显式 dialect contract 不一致。
 
 **Why it happens:**
 
-增量解析不是只把旧 tree 作为参数传入。Tree-sitter 官方文档要求先用 `TSInputEdit` 更新旧树范围，再重解析；编辑前取得的节点若继续使用，还要分别更新节点位置；单个树实例也不是线程安全的。自研 CST 常见地只更新根 span，忘记 trivia、token cache、父链或外部分析索引。
+v1 的设计有意拒绝隐式 profile：文档要求 ParseOptions 显式选择 Doris 版本且未知值不回退（`docs/CONFIGURATION.md:43-61`）。多方言迁移若把这个已有强制性简单地扩展为“profile 字符串可取任意值”，就失去 dialect/profile 的正交性和校验边界。另一方面 LSP protocol 本身只知道 document URI/languageId 和客户端能力，业务 dialect 是产品 contract，不能靠 extension id 或文件名隐式推断。
 
 **How to avoid:**
 
-- 定义不可变 `TextEdit`，一次性携带旧/新 byte offset 与 line/column（含 UTF-16）；所有 span、trivia cache、diagnostic cache、索引从同一 edit 更新。
-- 维护 revision ID；任何诊断、LSP response、CST handle 绑定 revision，过期对象拒绝使用。
-- 增量路径必须有全量 parse 作为 oracle：随机编辑后比较 CST、diagnostics、lossless print 和关键节点范围。
-- 跨线程只传不可变 snapshot 或显式 clone；不要共享可变 parser/tree。
+1. Phase 9 定义 `DialectSelection { dialect, profile, source }`，dialect 必填；profile 只在对应方言 namespace 内校验。默认不得自动检测；缺失、未知或冲突必须是结构化 usage/config error。
+2. 统一 precedence 并持久化到文档 revision：显式 request/document configuration > server initialization config > 客户端 languageId 映射；若两者冲突，拒绝初始化/打开或发明确诊断，不静默覆盖。每个 `Document` 记录 dialect + profile，而不是 ServerState 只有一个 profile。
+3. CLI API 为 `fathom-sql parse/format --dialect <doris|flink> --profile <...>`；LSP initialization/capabilities、didOpen、completion/formatting 请求使用相同 schema；JS/Wasm facade 也必须传同一字段。
+4. 扩展不要让 `.sql` 自动决定方言：提供显式 language IDs/configuration 或按工作区设置选择，并在 `initialize` 做 capability echo；VS Code、IntelliJ、Web Monaco 都要有冲突和重连测试。
+5. diagnostics 使用中立 `FATHOM-*`，payload 同时携带 dialect/profile/Document version；不得依靠错误 code 猜方言。
 
 **Warning signs:**
 
-- 只测单次插入，不测连续编辑、删除、跨行替换和 undo/redo。
-- 只有根节点 span 改变，叶 token 的 start/end 不做不变量检查。
-- LSP 返回没有 document version，或 response 可晚于当前 revision 应用。
-- 增量结果和全量结果不同却以“增量更快”为理由跳过比较。
+- parser API 已有 `dialect`，但 `Document`/`Command`/`ParseResult`/LSP state 仍只有 `profile`。
+- `languageId`、CLI flag、initializationOptions 和 workspace config 没有单元矩阵；缺字段时测试仍期待默认 Doris。
+- Flink request 的错误 code/source 中出现 `DORIS`；同一 URI 改方言后旧 diagnostics 仍可覆盖新结果。
+- VS Code/IntelliJ 端到端只测试 Doris `.sql`；没有 Flink languageId、显式冲突、未知 dialect、profile 不适用的负例。
 
 **Phase to address:**
 
-**Phase 1（CST/span 基础）**先完成 edit/span 模型；**Phase 4（LSP/生态）**再启用增量解析并用全量 oracle 做 CI；在此之前宁可使用可证明正确的全量 parse。
+**Phase 9：Dialect Boundary and Neutral Naming** 冻结 selection/precedence/schema；**Phase 13：CLI/LSP/Editor Integration** 实现并验证强制 dialect、languageId/config 冲突和 revision-safe diagnostics。Flink parser 不能先以 Doris CLI/LSP 包装器“临时接入”。
 
-**Evidence confidence:** LOW（Tree-sitter 官方 Advanced Parsing 明确给出 `ts_tree_edit`、`ts_node_edit`、byte/point range 和线程安全限制；将这些限制映射到自研 CST 是工程推论）。
-
----
-
-### Pitfall 7：golden/snapshot 测试锁住了错误实现或被“批量更新”驯化
-
-**What goes wrong:**
-
-快照只比较 AST 的序列化，漏测 trivia、span、diagnostics、版本或语义 token；或者一次格式化/grammar 重构后批量接受所有 snapshot，实际回归被掩盖。固定 fixture 很快变旧，测试全绿却没有随机错误输入、跨后端差异和真实文档覆盖。
-
-**Why it happens:**
-
-golden 测试易读、便宜，但它是结果记录而非正确性证明。解析器输出包含很多“可变表示”（节点 ID、内部顺序、错误恢复细节），若没有规范化会产生噪声；反过来过度规范化又可能抹掉真实的 span/trivia 回归。单一 golden 也无法说明格式化是否幂等、parse-print 是否无损或版本边界是否正确。
-
-**How to avoid:**
-
-- 分层 oracle：字节级 lossless round-trip、token/trivia/span、结构化 CST、diagnostics、formatter idempotence、版本 acceptance/rejection、跨后端一致性。
-- snapshot 中固定 schema/version/source hash/fixture provenance；禁止无审阅的 `--update-snapshots`，要求变更说明和 diff 分类。
-- 文档 corpus、手写边界样例、property-based/fuzz、Doris FE（可用时）分别统计；报告 mutation score 或至少包含故意破坏实现的负例。
-- 对输出做稳定规范化只隐藏内部 ID，不隐藏源码位置、原始 token 和错误信息。
-
-**Warning signs:**
-
-- 测试主要是 `assert snapshot == file`，没有 round-trip/property/invariant。
-- PR 中 snapshot 文件大面积变化却没有语法设计说明。
-- coverage 只有“解析成功率”，没有误接受率和诊断稳定性。
-- Native 通过而 Wasm/JS snapshot 未运行，或 fixture 没有版本标签。
-
-**Phase to address:**
-
-**Phase 1**建立最小 golden + property oracle；**Phase 2**将官方 corpus 和版本差分纳入 CI；**Phase 3**加入 formatter stability；**Phase 4**加入跨后端与 LSP E2E。
-
-**Evidence confidence:** LOW（来自 parser/formatter 测试工程推论；需在项目建立首批 fixtures 后用故意注入 bug 的 focused checks 校验测试灵敏度）。
-
----
-
-### Pitfall 8：MoonBit Native/Wasm/JS 的 ABI 和宿主假设泄漏进核心模型
-
-**What goes wrong:**
-
-Native CLI 能用的 parser API 在 JS 中因 String/Bytes/Array 表示、导出符号、异常/Result、内存生命周期或 host import 不同而失效；Wasm 模块在浏览器加载但在另一个 runtime 缺少 `env`/`moonbit:ffi`；Native 与 Wasm 输出不同的 span、整数溢出或诊断文本。团队被迫维护两套实现，违背“一套核心代码”。
-
-**Why it happens:**
-
-MoonBit 官方 FFI 文档列出五类 backend，并明确 Wasm 外部交互依赖 host；不同 backend 对 `Int`、`String`、`Bytes`、external type、callback 有不同 ABI。文档还说明未列出的类型表示不稳定、FFI signature 必须精确、`Unit` 对应 void；`#export_name` 有当前限制，native foreign-library 不能作为 library artifact。直接把 MoonBit 内部 struct/Array/exception 或 host-specific package 作为公开 SDK ABI，是把实现细节当协议。
-
-**How to avoid:**
-
-- 核心只暴露纯数据、固定整数/字符串/Bytes 边界和显式 Result；C/JS/Wasm wrapper 各自做转换，禁止外部依赖未承诺表示。
-- 设计 versioned C ABI/JS API/Wasm export 清单：UTF-8 输入、owned/borrowed 生命周期、错误编码、最大输入限制、释放责任。
-- 每次发布对 Native、Wasm、Wasm GC（若支持）、JS 分别跑同一 corpus、round-trip、diagnostic/span 和 API smoke test。
-- 将 host imports、module name、export symbol 和 package kind 写入构建产物 manifest；不要依赖默认 `main`/运行时导出。
-
-**Warning signs:**
-
-- 公开函数参数包含 MoonBit 内部 ADT、泛型、callback 或 backend-dependent external type。
-- 只在 Native 编译/测试；Wasm/JS 直到发布前才尝试链接。
-- JS API 依赖对象 identity，Wasm API 却返回线性内存指针，或两者错误模型不一致。
-- 改动 `#export_name`、`moon.pkg` 或 runtime 版本就出现链接/宿主导入错误。
-
-**Phase to address:**
-
-**Phase 1**定义纯核心与稳定数据边界；**Phase 4（生态输出）**定义并测试 backend-specific wrappers、ABI manifest 和兼容策略，不能把 ABI 作为最后的打包工作。
-
-**Evidence confidence:** LOW（直接核验 MoonBit v0.10.5 FFI/package 文档的 backend、ABI stability、host import、export 与 native 限制；版本随 MoonBit 发布变化，执行阶段必须重新核对）。
-
----
-
-### Pitfall 9：LSP 文本同步和坐标协商错误，使“正确诊断”显示在错误位置
-
-**What goes wrong:**
-
-服务器采用 UTF-8 byte offset，客户端按 UTF-16 code unit；`didChange` 的 range 用旧版本，服务器却按新文本应用；增量/全量同步能力协商错误；server 在初始化前发通知或没有响应 cancellation。结果是编辑丢失、诊断跳列、补全插入破坏字符串，且只在非 ASCII SQL 或特定编辑器中出现。
-
-**Why it happens:**
-
-LSP 不是仅输出 JSON diagnostics：Base Protocol 规定 JSON-RPC framing/lifecycle，Document Synchronization 规定同步模式、版本与变更序列，位置编码需要 capability negotiation。SQL 解析器内部的 byte/span 与 LSP 的 UTF-16/UTF-8/UTF-32 坐标不是同一坐标系；若没有中央转换层，各 handler 会各自猜测。
-
-**How to avoid:**
-
-- 初始化时协商 `positionEncoding`，默认行为按协议版本处理；内部统一保存 byte span，边界层集中转换并测试 surrogate pair、emoji 注释、CJK、CRLF。
-- 明确文档 revision：拒绝/记录过期 change，按 `TextDocumentSyncKind` 正确处理 full/incremental；响应和 diagnostics 带相应 version 语义。
-- 严格实现 initialize/shutdown/exit、publishDiagnostics、cancellation 和 capability gating；先做协议录制/回放，再接复杂功能。
-- 用 VS Code/Monaco 等真实客户端做 E2E，并把原文、edit、期望 byte span 和 LSP range 全部记录。
-
-**Warning signs:**
-
-- 只用 ASCII、单行 SQL 测 LSP；没有 CJK/emoji/CRLF fixture。
-- 客户端重连或快速连续输入后出现旧诊断覆盖新诊断。
-- server 不保存 document version，或把 LSP range 直接当 CST byte span。
-- `didChange` 能工作但 initialize capability 没有根据客户端声明调整。
-
-**Phase to address:**
-
-**Phase 4（CLI/LSP）**先实现协议边界、同步/revision/坐标转换，再实现 completion/formatting/hover；**Phase 1**必须提供可靠 span API 供边界层转换。
-
-**Evidence confidence:** LOW（LSP 3.17 官方规范是协议主来源；此处具体故障模式是将规范的同步、坐标和生命周期要求映射到解析器集成的工程推论）。
-
----
-
-### Pitfall 10：pretty printer 不幂等，或格式化器把“无损”误实现为“重建”
-
-**What goes wrong:**
-
-`format(format(sql))` 每次继续改变换行、括号、注释位置或尾随逗号；同一 AST 因原始 trivia 不同得到不同且不可逆结果。更严重时，关键字/字符串/注释边界被改写导致 Doris 语义变化。用户只想格式化一处却得到全文件 diff，随后停止信任工具。
-
-**Why it happens:**
-
-格式化是规范化，lossless print 是原文重放，两者目标不同。Prettier 官方 rationale 将输出正确性和可逆性作为重要原则，同时承认某些基于原始换行的 heuristic 会造成“非可逆”格式；SQL 还有注释附着、窗口/CTE、字符串、hint、方言特有 DDL 和语义敏感换行等额外边界。若 printer 同时承担修复错误树、补 synthetic token 和格式化有效树，结果更不稳定。
-
-**How to avoid:**
-
-- 提供两个明确 API：`print_lossless(cst)` 必须字节级回放；`format(cst, options)` 只接受有效/可证明恢复的树，并声明无法安全格式化时返回诊断而不是猜。
-- 采用确定性的 doc/layout 算法；规定 comment ownership、blank-line policy、keyword case、line ending 和 trailing newline；同一配置下必须幂等。
-- 每个 formatter 输出先重新 parse，再验证 token 序列/关键结构与原输入等价；对 Doris hint、字符串、反引号、动态分区、物化视图 DDL 做 golden + differential tests。
-- 原始 trivia 作为布局输入但不让随机 token/节点 ID影响输出；选项变更纳入格式版本（format schema version）。
-
-**Warning signs:**
-
-- `format` 只能对比视觉输出，没测第二次输出是否相同。
-- formatter fixture 的 token 序列变化没有人工批准，或注释只按最近节点重新挂载。
-- 无法解析的输入被静默部分格式化并丢弃尾部。
-- 用户报告每次保存都产生 diff、注释跨节点移动、SQL 执行结果变化。
-
-**Phase to address:**
-
-**Phase 3（格式化）**在 lossless printer 已稳定后实现；**Phase 4**通过 CLI/LSP 的 on-type/save formatting 做真实客户端验证，禁止在 Phase 1/2 以 formatter 掩盖 parser 缺陷。
-
-**Evidence confidence:** LOW（直接核验 Prettier 官方 rationale 对 correctness、empty lines 和 non-reversible formatting 的说明；Doris 规则的具体集合仍需语料驱动）。
-
-## Moderate Pitfalls
-
-### Pitfall 11：未限制输入规模、嵌套深度和 token 数，嵌入式 SDK 被资源耗尽
-
-**What goes wrong:**
-
-极深括号/CTE、超长字符串、海量注释、重复运算符或无终止恢复路径导致栈溢出、超时和内存峰值；Wasm 页面卡死，LSP 阻塞所有请求，CLI 在 CI 中被 OOM kill。
-
-**Why it happens:**
-
-手写递归下降和 Pratt 天然依赖递归/循环；无损 CST 还保存原文/trivia/span，错误恢复可能制造大量 error nodes。解析器常在“正常 SQL”上做性能基准，却忽略不可信输入和半成品编辑文本。
-
-**How to avoid / detection:**
-
-设置字节、token、节点、递归深度、诊断数量和 wall-clock budget；超过预算返回带准确 span 的 resource-limit error，并保留可安全的前缀。做嵌套/长 token/随机 Unicode/注释 fuzz、峰值内存和 cancellation 测试；Native/Wasm 分别测。warning signs 是 latency 随嵌套深度非线性增长、单次输入占满 LSP event loop、Wasm UI 长任务警告。
-
-**Phase to address:**
-
-**Phase 1**加入 parser progress/limits；**Phase 4**在 CLI/LSP/Wasm API 让预算可配置且默认安全。
-
-**Evidence confidence:** LOW（资源风险是基于递归 parser、无损树和嵌入场景的工程推论，需 focused fuzz/benchmark 量化阈值）。
-
----
-
-### Pitfall 12：Parser、Analyzer、Formatter 的边界互相污染
-
-**What goes wrong:**
-
-为提高“解析成功率”，parser 调用 catalog 或猜列类型；formatter 依赖 analyzer 的解析结果；无 catalog 的 IDE 输入无法工作，缺少表元数据被误报为语法错误，后续语义扩展反过来破坏纯语法 API。
-
-**Why it happens:**
-
-Doris 语句同时有语法、session 属性、catalog 和 FE 执行语义；把这些层合并看似减少数据结构，实际让错误来源不可区分。项目明确要求 parser/analyzer 分离，但恢复节点、未解析名称和可选 catalog 若无稳定接口，后续开发仍会越界。
-
-**How to avoid / detection:**
-
-Parser 只消费文本和 dialect profile，输出 CST/diagnostics；Analyzer 接受 CST、可选 catalog、session profile 并产生独立 semantic diagnostics。测试必须覆盖无 catalog 纯语法、catalog 缺失、语义冲突三种状态；诊断 code 明确 `syntax`/`semantic`/`configuration`。warning signs 是 parser 构造函数需要数据库连接、语法测试必须准备 schema、formatter 在 analyzer 失败时停止。
-
-**Phase to address:**
-
-**Phase 1**冻结层接口；**Phase 2**扩展 DDL/DML 时用显式 session/profile；**M5+**再实现 analyzer/lint，不把它塞回首个解析器。
-
-**Evidence confidence:** LOW（直接来自 PROJECT.md 的用户约束，架构后果为工程推论）。
-
----
-
-### Pitfall 13：只跟踪 accepted SQL，不跟踪拒绝集合和“误接受”
-
-**What goes wrong:**
-
-coverage 只报告官方示例通过率，parser 为了高通过率过度宽松，接受 Doris FE 会拒绝的拼写、错误 clause 顺序或错误类型；用户把 SDK 的绿色诊断当作可执行保证，直到生产才失败。
-
-**Why it happens:**
-
-“能生成 CST”比“准确拒绝”容易量化。文档 corpus 多为 happy path，非法 SQL 样本稀少；恢复 parser 又天然倾向于继续构树。没有 negative corpus、FE differential 或 version-specific rejection policy，误接受不会暴露。
-
-**How to avoid / detection:**
-
-维护 `valid`、`invalid`、`version-invalid`、`requires-semantic` 四类 fixture；对每个新增宽松规则添加反例。可用 Doris FE 时做 parse/execute/dry-run differential；不可用时至少维护官方错误示例、grammar boundary 和 mutation-generated negatives。发布指标必须同时有 false accept rate、false reject rate、diagnostic locality。
-
-**Phase to address:**
-
-**Phase 2（完整性）**建立 negative corpus 与版本 rejection policy；**Phase 4**将 CLI/LSP 的诊断承诺文档化。
-
-**Evidence confidence:** LOW（测试策略工程推论；与项目验收信号“非法 SQL 的诊断质量”直接对应）。
-
----
-
-### Pitfall 14：通过复制 grammar/keyword 表绕过单一来源，后续升级出现漂移
-
-**What goes wrong:**
-
-lexer、parser、formatter、syntax highlight、LSP completion 各有一份关键字/产生式知识；修复只更新其中一份，CLI 接受而格式化器不识别，LSP 高亮与 parser 不一致，下一次 Doris 版本升级需要手工追查大量隐性分叉。
-
-**Why it happens:**
-
-不同消费者需要不同投影，直接复制最省事；Doris FE 自身也有 grammar/lexer 源码，SDK 若从其片段手抄而不保存来源和版本，容易形成“看起来相同”的独立实现。
-
-**How to avoid / detection:**
-
-建立单一 versioned language metadata（token spelling、precedence、keyword category、feature flags），生成或校验 highlight/completion/formatter projection；parser 手写逻辑仍可保留，但每个特殊 token 必须指向 metadata/source ID。CI 检测重复表、未映射 token 和版本 diff；新增关键字 PR 必须同时带正反例与来源。
-
-**Phase to address:**
-
-**Phase 1**定义 metadata/schema；**Phase 2**以 corpus 驱动维护；**Phase 4**为 LSP/highlighting 使用同一投影。
-
-**Evidence confidence:** LOW（Doris repository 官方页面显示 FE 的 ANTLR4 grammar tree；“复制会漂移”是工程推论，不能把 FE grammar 当独立 SDK 规范）。
-
-## Minor Pitfalls
-
-### Pitfall 15：诊断文本、token 名和内部节点 ID 被当作稳定 API
-
-**What goes wrong:**
-
-客户端按错误消息字符串匹配，或把节点枚举顺序序列化后持久化；一次 parser 重构导致插件、snapshot 和 LSP UI 破坏。用户得到不兼容升级，却无法从 error code 判断迁移。
-
-**Prevention / detection:**
-
-公开稳定 error code、severity、span、expected token class；message 可本地化/改进。节点 schema 和 ABI 版本化，内部 ID 不出现在公开 JSON。对升级运行 fixture contract test。
-
-**Phase to address:**
-
-**Phase 1**诊断/CST schema；**Phase 4**SDK/LSP API versioning。
-
----
-
-### Pitfall 16：行尾、编码和生成物处理不一致
-
-**What goes wrong:**
-
-Windows CRLF 被归一化后无法 lossless round-trip，Wasm 包含错误 source map，CLI 输出与 JS 输出的 newline 不同，golden 在不同平台反复变化。
-
-**Prevention / detection:**
-
-保留原始 source buffer 和 line-ending policy；测试 BOM、CRLF/LF、非 ASCII、空文件、无尾随换行；artifact 中固定编码并在跨平台 CI 校验 hash。
-
-**Phase to address:**
-
-**Phase 1**source/span；**Phase 4**distribution smoke tests。
-
----
-
-### Pitfall 17：把 `#export_name`、默认入口或 runtime import 当作永久 ABI
-
-**What goes wrong:**
-
-MoonBit 工具链更新后导出名、package kind 或 host import 改变，消费者无法加载；依赖包里的 export 没有出现在下游 artifact，导致“本地能调用、发布包找不到符号”。
-
-**Prevention / detection:**
-
-用 wrapper package 明确导出，发布 exports manifest 和 ABI smoke test；不依赖未承诺的类型表示，记录 MoonBit toolchain 版本。逐 backend 检查真实 artifact 的 exports/imports，而不是只看源码注解。
-
-**Phase to address:**
-
-**Phase 4**生态打包和发布。
+**Evidence:** `doris-sql/args.mbt:23-39,110-127`; `doris-sql/run.mbt:17-24,72-87,102-125`; `lsp/handlers.mbt:4-14,44-46,78-89,144-161,164-170,248-271,297-310`; `lsp/documents.mbt:1-35`; `docs/CONFIGURATION.md:43-61`; `vscode/package.json:15-57`; [LSP 3.17 specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)。
 
 ## Technical Debt Patterns
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |---|---|---|---|
-| 只抓 current 文档 | 初期 corpus 很快 | 版本回归不可复现、旧集群不可信 | 永远不能作为稳定 fixture；仅可作候选 nightly 输入 |
-| 先丢弃 trivia/span，后面再补 | AST 开发快 | 无法恢复注释关联和原始 offsets，通常需要重写 lexer/CST | 永远不适用于核心 parser；可在独立实验 AST 中使用 |
-| 用一个全局 MySQL keyword set | lexer 简单 | Doris contextual/version keywords 全部错误 | 仅可作为候选词典，不能直接决定 parser 接受性 |
-| snapshot 全量自动更新 | PR 容易变绿 | 真实回归随批量更新被吞掉 | 仅允许人工审阅、带 fixture/version diff 的更新 |
-| 首先实现 LSP 增量路径 | Demo 延迟好看 | stale spans/revision bugs 难定位 | Phase 1/2 应先用全量 oracle；稳定后再启用 |
-| 公开 MoonBit 内部 ADT/Array | 无 wrapper | Native/Wasm/JS ABI 绑定且不可升级 | 永远不作为跨语言公共 ABI |
-| formatter 对错误恢复树“尽量输出” | 编辑器看起来不空白 | 悄悄改写未完成 SQL/注释 | 默认拒绝或仅 lossless print；安全修复需显式选项 |
+| 在 `classification_rows` 里追加 Flink 词，保留无参数 `is_reserved_word` | 改动小、旧测试易复用 | 方言交叉污染、隐式全局状态、漏词难审计；Doris/Flink 不能独立升级 | **从不**；Phase 9 必须先参数化并隔离表 |
+| 用 `Dialect::Flink` 分支散落在 Doris `parser/parser.mbt` | 很快让几个 Flink 示例通过 | 路由不可证明、recovery/diagnostic 互相吞 token，后续无法删除 Doris 耦合 | 仅用于短期 spike，不能进入 release branch |
+| 以 `stable`/`nightlies` URL 作为 corpus 版本 | 无需维护下载 pin | golden 随日期漂移，无法复现或定位 Calcite/Flink 变化 | discovery-only；release corpus **never** |
+| 全局替换 `DORIS` 为 `FATHOM` | 机械迁移快 | 删除必须保留的 Doris dialect 标识，破坏历史 corpus provenance 和用户选择 | 只允许在命名矩阵/allowlist 驱动的 Phase 9 迁移 |
+| 用文件扩展名或 languageId 自动推断 dialect | UI 不需新增控件 | `.sql`、多客户端和 workspace 配置冲突时静默解析错方言 | 可作为显示建议，不可作为 parser contract |
+| 批量更新 snapshots 以“修复”Doris parity | 一次性清理大量 diff | 把真实 CST/diagnostic 回归永久锁死 | 只有 baseline 生成且逐字段审核后才可更新 |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |---|---|---|
-| Doris 官方文档 | 抓 current 页面并把 URL 当版本 | 使用 versioned corpus manifest，记录 commit、heading、代码块类别和版本 |
-| Doris FE（可选 differential） | 把 FE execute 结果当 parser contract，或忽略 session/catalog | 分离 syntax acceptance、semantic/execution result，并记录 FE 版本与 session |
-| MoonBit Wasm/JS host | 假设所有 host 都提供相同 imports/ABI | 固定 host adapter、exports/imports manifest 和各 backend smoke tests |
-| LSP client | 直接把 byte span 当 UTF-16 range，忽略 capability/version | 中央坐标转换、positionEncoding 协商、revision-aware sync 和真实客户端 E2E |
-| Monaco/Web worker | 在主线程解析、跨 worker 传递内部对象 | 传输版本化文本/序列化结果，限制输入并取消过期请求 |
-| Formatter/CLI | 将 lossless print 与 pretty format 混为一项 | 两个显式 API；formatter 输出重新 parse 且验证幂等/结构不变 |
+| MoonBit module / package | 只改 `moon.mod` 名称，遗漏每个 `moon.pkg` import、`#export_name`、JS/Wasm exports | 先生成 module/import/export inventory；Native、JS、linear-Wasm 逐个调用同一 serialized API，见 `moon.mod:5-7`、`binding/exports.mbt:25-80` |
+| Serialized schema | 仅改 schema 字符串，保留 Doris field/error message 或让旧/new namespace 同时可用 | clean cutover：`dialect` 与 profile 正交、schema/error constants 单一生产者、binding/parity/LSP/fixtures 同步；见 `binding/schema.mbt:3-5,69-83,107-148` |
+| Flink + Calcite | 把 Flink docs keyword list 当 parser 的永久权威，忽略 `SqlParser.Config` conformance/quoting/casing | 锁 Flink release + Calcite version/config，docs/source 交叉校验并审阅 diff；见 [Calcite Config](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/parser/SqlParser.Config.html) |
+| LSP client | 用 `languageId` 代替 dialect，或只把全局 profile 放在 ServerState | document-level `DialectSelection`，初始化协商、显式冲突拒绝、revision 绑定；见 `lsp/handlers.mbt:4-14,144-161` |
+| VS Code / IntelliJ | 只改显示名称，忘记 activation event、`.sql` selector、settings、artifact/workflow | 运行真实宿主 smoke：Doris/Flink/冲突/缺失配置/服务器不可用；见 `vscode/package.json:15-57`、`.github/workflows/jetbrains-plugin.yml:19-46` |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |---|---|---|---|
-| 深度递归 + 无深度预算 | 栈溢出、LSP 卡死 | 迭代化可行路径、深度/token/时间预算、fuzz | 恶意或半成品嵌套达到几千层即可；不要等生产 |
-| 每个 CST 节点复制 trivia/source slice | 大 SQL 内存峰值、Wasm GC 压力 | source buffer + span/view，必要时 arena/immutable sharing | 百 MB 文本或高频 LSP 编辑时明显 |
-| 每次编辑全量重建所有索引 | 输入延迟随文件长度增长 | 先正确的全量 baseline，再按 revision 分层增量 | 数万行 SQL 或连续输入时明显 |
-| 每个诊断同步做 analyzer/catalog 查询 | keystroke 阻塞、旧结果覆盖新结果 | syntax first、异步可取消 analyzer、revision gate | 多文件 workspace/远端 catalog 时明显 |
+| 每个 token 在多方言表中线性扫描 | 大 SQL 或 completion 延迟随 keyword rows × token 数增长 | 构造 dialect-local immutable lookup/index；保留小表时先 benchmark，勿复制 source bytes | Flink keyword + recovery inventory 增长、IDE 连续输入时可见 |
+| Window TVF/MATCH_RECOGNIZE 每次失败都回退整个 Doris statement | 单字符编辑造成全文件 diagnostics 抖动，恢复步数爆炸 | 独立子语言同步点、bounded recovery、共享全量 parse oracle；沿用 `ParserLimits` 边界 | 半成品 pattern、深层括号或长脚本 |
+| 为实现 parity 在每个 backend 重复序列化/CST source | Native/JS/Wasm 内存和输出时间不同，source bytes 多份 | root-only source transport、primitive schema 单一生产者；保持 `api.ParseResult` contract | 大 corpus、浏览器 worker、多文档 LSP |
+| 将 corpus 抓取和每次 CI 构建混在一起 | CI 时间和结果取决于网络/文档变化 | 抓取离线预生成 pinned artifact，CI 只校验 hash/manifest 并运行 fixtures | 发布或无网络环境；当前 manifest 已记录 offline gaps（`corpus/manifest.tsv:1-14`） |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---|---|---|
-| 无界解析不可信文本 | CPU/内存 DoS，浏览器/语言服务器失去响应 | 限制输入、节点、递归、诊断和 wall time；支持 cancellation |
-| 把 SQL 字符串直接拼入日志/JSON/HTML | 注释、控制字符或超大 literal 造成日志注入/前端 DoS | 结构化编码、长度上限、转义；诊断引用原文时截断并保留 span |
-| FFI 接收裸指针/不明生命周期 | Native 崩溃、Wasm 越界或 use-after-free | 仅使用稳定 ABI 类型，明确 ownership，边界校验并做 sanitizer/host tests |
-| 将 parser “接受”宣传为可执行安全保证 | 绕过 catalog/权限/FE 语义检查，给用户错误安全感 | 文档明确 parser-only；分析和执行校验分层，禁止执行副作用 |
+| 通过 `.sql` 扩展名、languageId 或未验证 `profile` 自动选择 dialect | 攻击者/用户可诱导工具以错误语法接受输入，诊断/格式化结果不可信 | dialect/profile 必填、枚举校验、冲突拒绝；结果携带实际 selection |
+| 为了“兼容”把 unknown Flink keyword 全部降级成 identifier | 错误 acceptance，后续 analyzer/formatter 产生危险的错误编辑 | dialect-local inventory + explicit unknown/error node；不以宽松 parser 隐藏覆盖缺口 |
+| 让 corpus 抓取直接执行示例或把 planner/catalog 结论写入 parser | 语料中的命令/输出/恶意文本进入执行边界，且破坏离线 parser 纯度 | `parse-only` 默认、原始 block 隔离、无 FE/database 执行；参照 `docs/API.md:5-17` 的纯前端边界 |
+| 允许过期 LSP response 以另一方言/配置覆盖当前文档 | 编辑器显示错误诊断或错误格式化 edit | 每个 Document 保存 version+dialect，response 带 revision，拒绝 stale；`lsp/documents.mbt:17-35` 已有版本单调性，可扩展 selection |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---|---|---|
-| 未选择 Doris 版本仍静默猜测 | 同一 SQL 在用户环境中行为不一致 | CLI/LSP/Web 明示 profile，并在诊断/结果中返回版本 |
-| 保存时每次 formatter 都产生 diff | 用户关闭自动格式化，失去信任 | 幂等 printer、最小变更策略、保留注释和 line ending |
-| 半成品 SQL 报成几十个错误 | 用户不知道改哪一处 | primary + recovery diagnostics、稳定范围、错误数量上限 |
-| LSP 仅在 ASCII 样例中看似正常 | CJK/emoji 用户编辑被错位 | UTF-16/UTF-8 fixture、真实客户端回放、中央坐标转换 |
-| 诊断把语法/语义/版本混在一起 | 用户误以为需要修改 SQL | 分层 severity/code/source，显示“需要 catalog/版本”的原因 |
+| UI 只显示 “SQL” 或 “Doris profile”，不显示 dialect | Flink 用户不知道解析器为何拒绝 Window TVF/MATCH_RECOGNIZE | 顶层显示 `Dialect: Flink` + release/profile + source（config/languageId），冲突显示可操作错误 |
+| 缺少 dialect 时悄悄默认 Doris | 用户看到看似精确但实际错误的 diagnostics | 明确要求选择 dialect；CLI exit 2/LSP initialize error；不要牺牲 v1 的显式 profile 原则 |
+| 错误文案仍为 `unsupported Doris profile`/`DORIS-LSP-001` | 中立产品下诊断和文档自相矛盾，Flink 支持看起来是假功能 | FATHOM namespace + dialect/profile fields；保留 Doris 作为值而不是产品前缀 |
+| 只有成功样例，没有 Flink subset/冲突/缺 profile 的负例 | 用户无法理解 parser 语法覆盖与 planner/catalog 限制 | UI/文档展示 supported/known limitation/semantic prerequisite，并用官方负例 fixture 驱动 |
 
-## “Looks Done But Isn't” Checklist
+## "Looks Done But Isn't" Checklist
 
-- [ ] **版本覆盖：** 每个 fixture 有 Doris 版本、来源 commit、语法类别，并且 current 与稳定版本分开。
-- [ ] **关键字：** 已测试 reserved/non-reserved/contextual、大小写、反引号、别名和同词不同上下文。
-- [ ] **无损 CST：** `print_lossless(parse(x)) == x` 是字节级，不是 trim 后比较；包含 CRLF、BOM、CJK、emoji、EOF 注释和非法 token。
-- [ ] **错误恢复：** parser 对所有错误输入都会前进并终止；后续语句仍可解析；诊断数量和范围有界。
-- [ ] **增量：** 随机编辑的增量结果与全量结果比较过，含连续 edit、undo/redo、过期 revision 和跨行替换。
-- [ ] **golden：** snapshot 更新有人工审阅；同时有 negative corpus、property tests、formatter idempotence 和误接受率。
-- [ ] **跨后端：** Native/Wasm/JS 使用同一 corpus 验证 token/CST/span/diagnostic，真实 artifact exports/imports 已检查。
-- [ ] **LSP：** initialize capability、position encoding、full/incremental sync、document version、cancellation 和 shutdown 均有回放测试。
-- [ ] **formatter：** lossless 与 pretty API 分离；二次 format 无变化；输出重新 parse 且 token/结构/注释策略通过检查。
+- [ ] **Keyword isolation:** 每个 `classification_of`/`is_reserved_word` 调用都经过 Dialect-local table；Doris 与 Flink 冲突词有双向 identifier/keyword 测试。
+- [ ] **Statement routing:** `SELECT/CREATE/INSERT` 先经过显式 dialect router；Window TVF、MATCH_RECOGNIZE 不在 Doris fallback 中解析。
+- [ ] **Doris parity:** 所有 v1 corpus、malformed/recovery、2.1/3.x/4.x feature gates 的 bytes/CST/spans/diagnostics/format 输出均与冻结 baseline 相同。
+- [ ] **Dialect/profile contract:** API、serialized schema、CLI、LSP、JS/Wasm、DocumentStore 都显式携带 dialect；缺失或冲突不自动 Doris。
+- [ ] **Neutral naming:** module/import、binary/export、schema、error code、LSP source/serverInfo、VS Code/IntelliJ artifacts、docs、snapshots 均按迁移矩阵完成；允许保留项仅为 Doris dialect/provenance。
+- [ ] **Flink corpus provenance:** 每个 fixture 有 release、Calcite version/config、source URL、commit/tag、heading、retrieval date、分类和 known limitation；没有 stable/nightly/dev 漂移输入。
+- [ ] **Cross-target/editor parity:** Native/JS/linear-Wasm、VS Code、IntelliJ、Web Monaco 的同一 dialect/profile fixture 输出一致，stale response 与 languageId/config 冲突有真实宿主测试。
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---|---|---|
-| 版本 corpus 混用 | HIGH | 冻结受影响 release；按 commit 重建 manifest；迁移 fixture 到版本 profile；发布兼容性说明和反例 |
-| trivia/span 已丢失 | HIGH | 停止 formatter 扩展；回到 source buffer/lexer 契约；重建 CST 叶节点与 span；以字节级 round-trip 作为门禁 |
-| 错误恢复级联 | MEDIUM/HIGH | 保留原始 token 流；加入 progress/recovery trace；缩窄同步集合；对旧诊断 golden 做迁移而非静默更新 |
-| 增量 stale range | HIGH | 临时关闭增量、回退全量 parse；用 edit sequence 找首个 divergence；修 revision/cache 更新后再开启 feature flag |
-| ABI 不一致 | HIGH | 保持旧 wrapper；按 artifact 检查 exports/imports；新增版本化 ABI adapter；跨后端 corpus 通过后再发布 |
-| LSP 坐标/同步错误 | MEDIUM | 记录原始 JSON-RPC 和文档 revision；统一坐标转换；加入非 ASCII/快速输入回放；过期响应丢弃 |
-| formatter 不幂等 | MEDIUM | 暂停自动保存格式化；固定 formatter options/schema；最小化 printer 规则；parse/format/format property 通过后恢复 |
+| 全局 keyword 表已混入 Flink | HIGH | 从 git/冻结 Doris baseline 恢复旧表；建立 dialect-local tables；重新生成分类 inventory；逐词跑 Doris/Flink acceptance 与 formatter parity，不保留全局兼容 alias |
+| Flink rule 已污染 Doris parser | HIGH | 以 router 为切点拆出 Flink module；保留共享 token/CST 原语；为每个 statement 重新指定 sync/recovery 集合；重跑 Doris strict/editor baseline |
+| Doris CST/diagnostic parity 回归 | HIGH | 锁定首个失败 fixture/source hash；比较 lexer→CST→serialized→printer 分层 diff；禁止更新 snapshot，修复后重跑全量 v1 baseline 与 cross-backend gate |
+| 命名迁移漏掉公共边界 | MEDIUM/HIGH | 运行 forbidden/allowlist inventory，按 module/ABI/schema/error/LSP/extension/docs 分类修复；重新生成 release artifacts 与 client package；确保 Doris dialect/provenance allowlist 未被误删 |
+| Flink corpus 漂移 | MEDIUM | 停止更新 golden；恢复最近 pinned release/commit；对新文档生成 diff queue；重新记录 Calcite lock/config 和 fixture categories，再决定是否提升规范 |
+| LSP/CLI 解析错 dialect | MEDIUM/HIGH | 拒绝受影响的 selection/config，清空旧 revision diagnostics；加入 explicit `DialectSelection`；复现 languageId/config/init 三方矩阵，验证新/旧文档不会交叉覆盖 |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---|---|---|
-| 版本/方言漂移 | Phase 1–2 | 2.1/3.x/4.x 版本矩阵、来源锁定和 accepted/rejected diff |
-| MySQL/Doris 关键字误分类 | Phase 1–2 | 上下文/引用/版本反例与 token metadata 一致性检查 |
-| 文档 corpus 污染 | Phase 2 | 可重放 extractor、fixture 分类、来源 manifest、变更审阅报告 |
-| 无损 CST 破坏 | Phase 1 | 字节级 lossless property、UTF-8/CRLF/trivia/span invariants |
-| 错误恢复级联 | Phase 1–2 | malformed/partial fuzz、进度/终止/诊断 locality 检查 |
-| 增量 stale state | Phase 1（模型）/4（启用） | 全量 oracle 对比、连续 edit、revision 和线程隔离测试 |
-| golden 假绿 | Phase 1–3 | negative/property/differential tests；snapshot 更新审阅门禁 |
-| Native/Wasm/JS ABI 漂移 | Phase 1（边界）/4（发布） | 三后端 artifact smoke、exports/imports manifest、同 corpus 结果一致 |
-| LSP 坐标/同步错误 | Phase 4 | 3.17 协议回放、position encoding、非 ASCII 和真实客户端 E2E |
-| formatter 不稳定/语义改变 | Phase 3 | format idempotence、reparse/token equivalence、注释/DDL/hint golden |
-| 无界输入资源耗尽 | Phase 1/4 | fuzz、预算/cancellation、峰值内存和 Wasm 长任务基准 |
-| Parser/Analyzer 越界 | Phase 1–2 | 无 catalog 语法测试与独立 semantic diagnostics contract |
+| 全局 keyword/classification 冲突或漏词 | **Phase 9 — Dialect Boundary**；**Phase 10 — Flink Lexical Core** | 静态禁止无 dialect 分类调用；逐词 inventory 无重复/无漏项；冲突词双 dialect fixture |
+| Flink 文法污染 Doris、路由错误、DorisFeature 混用 | **Phase 9 — Router/Capability Contract**；**Phase 10 — Flink Grammar** | Doris/Flink 双向 negative gate；每条 statement kind 由 router 唯一决定；共享 parser 包不 import DorisFeature |
+| Doris CST/diagnostic/parity 回归 | **Phase 11 — Doris Regression/Parity Gate** | 冻结 v1 baseline；字节级 replay、CST spans、diagnostic fields、profile gates、formatter 和 native/JS/Wasm 全部 diff 为零或有批准变更 |
+| 命名迁移遗漏 | **Phase 9 — Neutral Naming**；**Phase 13 — Packaging/Editors** | module/export/schema/error/LSP/CLI/VS Code/IntelliJ/docs inventory；forbidden/allowlist gate；真实 artifact/install smoke |
+| Flink corpus/dev/Calcite 漂移 | **Phase 12 — Corpus and Calcite Compatibility** | pinned release+commit+Calcite lock；source hash、manifest diff、known limitation 和 nightly exclusion 检查 |
+| CLI/LSP dialect 未强制、languageId/config/profile 冲突 | **Phase 9 — Selection Contract**；**Phase 13 — CLI/LSP/Editor Integration** | 缺失/未知/冲突均拒绝；document-level revision selection；VS Code/IntelliJ/Web/Native E2E 与 stale-response 测试 |
 
 ## Sources
 
-以下链接均为截至 2026-08-03 直接读取或核验的主来源；自动抓取 provider 的置信等级为 LOW，因此版本/实现细节在执行阶段仍需重新核对：
+### Local project evidence
 
-- Apache Doris Website README（版本树、current unreleased、英文/中文文档组织）：<https://raw.githubusercontent.com/apache/doris-website/master/README.md>
-- Apache Doris 官方 Overview（MySQL protocol-compatible layer、ANSI SQL、FE 负责解析请求）：<https://doris.apache.org/docs/dev/getting-started/what-is-apache-doris/>
-- Apache Doris 文档格式规范（SQL 代码围栏、版本文档修改、文档结构）：<https://raw.githubusercontent.com/apache/doris-website/master/community/how-to-contribute/docs-format-specification.md>
-- Apache Doris FE ANTLR4 语法目录（官方仓库当前 grammar 组织）：<https://github.com/apache/doris/tree/master/fe/fe-core/src/main/antlr4/org/apache/doris/nereids>
-- MoonBit Foreign Function Interface v0.10.5（backend、ABI、host imports、callbacks、exports、稳定表示限制）：<https://docs.moonbitlang.com/en/latest/language/ffi.html>
-- MoonBit Package Configuration v0.10.5（`foreign_library`、`#export_name`、exports scope、native 限制）：<https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html>
-- Language Server Protocol 3.17 Specification（JSON-RPC、生命周期、文本同步、位置与诊断协议）：<https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/>
-- Tree-sitter Advanced Parsing（编辑树/节点的 byte-point ranges、增量重解析、线程安全）：<https://tree-sitter.github.io/tree-sitter/using-parsers/3-advanced-parsing.html>
-- Prettier Rationale（correctness、空行策略、可逆/非可逆格式化）：<https://prettier.io/docs/rationale>
+- `/.planning/PROJECT.md:72-81` — v2.0 目标、Dialect/Flink/中立命名/语料 CI 要求。
+- `/token/token.mbt:3-7,133-141,297-306,307-325,449-493` — v1 Doris profile、DorisFeature、全局分类表和无参数分类查询。
+- `/parser/parser.mbt:118-124,265-275,3342-3370` — 单一 Doris recovery context、Pratt precedence、语句入口路由。
+- `/api/api.mbt:42-75,162-193,273-310` — 显式 Doris ParseOptions、primitive result、syntax tree 校验。
+- `/binding/schema.mbt:3-5,29-57,69-83,107-148`、`/binding/exports.mbt:25-80` — Doris schema/error namespace 和 ABI exports。
+- `/corpus/manifest.tsv:1-14`、`/corpus/tools/check_keywords.py:23-41,93-103` — v1 corpus provenance 与 Doris keyword inventory gate。
+- `/doris-sql/args.mbt:23-39,110-127`、`/doris-sql/run.mbt:17-24,72-87` — CLI 只有 Doris profile，运行时直达 `format_with_ids`。
+- `/lsp/handlers.mbt:4-14,36-46,78-89,144-161,164-170,248-271,297-310`、`/lsp/documents.mbt:1-35` — LSP 单一 profile、Doris source/code、version store。
+- `/moon.mod:5-7`、`/vscode/package.json:15-57`、`/.github/workflows/doris-native-release.yml:93-107`、`/.github/workflows/jetbrains-plugin.yml:19-46` — module、VS Code、Native 和 IntelliJ 发布命名耦合。
+- `/docs/CONFIGURATION.md:43-61`、`/docs/API.md:5-17,35-40` — 显式 Doris profile 和 parser/analyzer/offline 边界。
 
----
-*Pitfalls research for: Doris SQL Parser SDK*  
-*Researched: 2026-08-03*
+### Apache Flink / Calcite official evidence
 
----
-
-# v2 Analysis Features — Pitfalls
-
-**Researched:** 2026-08-05 (v2.0 milestone)
-**Focus:** Adding ANAL-01/LINT-01/LINE-01/FING-01/EDIT-01 to an EXISTING lossless-CST parser
-**Confidence:** MEDIUM (engineering inferences grounded in v1 pitfalls + verified MoonBit facts; each must become a focused test/bench)
-
-## Pitfall V1: Catalog case-sensitivity mismatch breaks resolution
-
-- **What goes wrong:** `StaticCatalog` is case-sensitive (D-22 documented), but Doris identifiers are case-insensitive in most contexts. A resolution engine that does exact-match against a case-sensitive catalog flags valid `SELECT col FROM Tbl` as unresolved.
-- **Warning signs:** resolution false-negatives on differently-cased identifiers; tests only use lowercase.
-- **Prevention:** ANAL-01 uses `equal_ignore_ascii_case` for lookup against the injected catalog while preserving the source spelling and span. Document the case policy explicitly (matches Doris behavior). Quoted identifiers keep exact case.
-- **Phase:** ANAL-01.
-
-## Pitfall V2: Lint autofix corrupts comments/trivia — violates the lossless core value
-
-- **What goes wrong:** A naive "replace token range" fix rewrites or drops leading/trailing comments, hint text, or newline style.
-- **Warning signs:** autofix output differs from `format(format(x))`; comment moves relative to the edited token; round-trip test fails after fix.
-- **Prevention:** route all autofix through the formatter-safe edit path (D-27/D-33); refuse unsafe transforms (error tree, comment overlap) and emit a diagnostic instead of a bad edit. Add round-trip assertions for every fix.
-- **Phase:** LINT-01.
-
-## Pitfall V3: Lineage breaks through views/CTEs/INSERT INTO SELECT
-
-- **What goes wrong:** Column edges are computed per-statement but views/CTEs/`INSERT INTO ... SELECT` need cross-statement expansion; `*` expansion without catalog is unsound.
-- **Warning signs:** lineage reports only direct `SELECT a FROM t` edges; view references produce no edges or incorrect column mappings.
-- **Prevention:** LINE-01 builds on ANAL-01 resolution; expand CTEs and views with resolved bindings; `*` requires catalog, otherwise emit an explicit "requires catalog" gap diagnostic (consistent with v1 honesty policy, D-17-style provenance).
-- **Phase:** LINE-01 (after ANAL-01).
-
-## Pitfall V4: Fingerprint instability across backends (Int width) and semantic folding
-
-- **What goes wrong (cross-backend):** Using `Int`-based hashing yields different fingerprints on JS (`number`) vs Wasm/Native (32-bit) — silently breaks parity. Using a normalization that folds quoted identifiers or string literal content changes semantics.
-- **Warning signs:** fingerprint differs between `moon build --target js` and `--target wasm` on identical input; two semantically different queries (different quoted identifier case, different literal) produce the same fingerprint.
-- **Prevention:** FING-01 hashes with `UInt64` (fixed 64-bit everywhere — verified FFI fact this session); normalize only syntactic trivia (whitespace, keyword case) and preserve identifier spelling, literal content, and quote style. Add a cross-target parity test for fingerprints.
-- **Phase:** FING-01.
-
-## Pitfall V5: Incremental parsing invalidation drift (stale spans, trivia)
-
-- **What goes wrong (EDIT-01):** Reusing a prior CST with a naive "span unchanged ⇒ node valid" rule leaves stale spans/trivia after an edit; comment-attachment and token boundaries drift, producing wrong diagnostics or lossy output.
-- **Warning signs:** incremental parse output differs from whole-doc reparse on the same input; a comment inserted mid-edit attaches to the wrong node.
-- **Prevention:** EDIT-01 is benchmark-gated — only adopt when whole-doc reparse measurably fails (v1 Pitfall 6). When adopted: reuse the `source` revisions + LineIndex, invalidate by span overlap with the edited region, and verify `print_lossless(parse_incremental(x)) == print_lossless(parse_full(x))` on every edit fixture.
-- **Phase:** EDIT-01 (after benchmark).
-
-## Pitfall V6: Analysis results leak across schema versions
-
-- **What goes wrong:** New resolution/lint/lineage/fingerprint result types appended to `binding/schema.mbt` without a version bump break existing LSP/JS/Wasm consumers that pinned `inline-root-v1`.
-- **Warning signs:** schema-tag mismatch errors on older consumers; parity fixtures fail after adding a result kind.
-- **Prevention:** schema v2 bump with explicit result-kind enum; keep `inline-root-v1` parseable by treating new kinds as optional/unknown; parity fixtures updated together.
-- **Phase:** all v2 analysis phases (binding/).
-
-## Sources
-
-- v1 PITFALLS.md (Pitfall 6 incremental, Pitfall 8 ABI, Pitfall 15 stable API, Pitfall 12 boundary pollution)
-- Verified MoonBit FFI fact (Int vs UInt64 width) — this session
-- Project decisions D-22/D-27/D-31/D-33/D-17
+- [Apache Flink SQL overview, release 2.0](https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/) — Flink SQL 基于 Calcite；DDL/DML/query 语句列表；reserved/future-reserved keywords；版本页面的 stable/out-of-date 提示。
+- [Apache Flink Windowing TVF, release 1.20](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/window-tvf/) — TUMBLE/HOP/CUMULATE/SESSION、`TABLE`/`DESCRIPTOR`/命名参数和 FROM 中 PTF 结构。
+- [Apache Flink Pattern Recognition / MATCH_RECOGNIZE, release 1.20](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/queries/match_recognize/) — PATTERN、DEFINE、MEASURES、AFTER MATCH SKIP、subset/known limitations。
+- [Apache Calcite `SqlParser.Config`](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/parser/SqlParser.Config.html) — parserFactory、conformance、quoting、case sensitivity、quoted/unquoted casing 等 release/config 变量。
+- [Apache Calcite `Lex`](https://calcite.apache.org/javadocAggregate/org/apache/calcite/config/Lex.html) — lexical policy、quoting/casing/case-sensitive 组合，不应被误当作一个全局 SQL keyword 表。
+- [Apache Calcite `Parser.jj`](https://github.com/apache/calcite/blob/main/core/src/main/codegen/templates/Parser.jj) — 官方 parser 模板显示 `IGNORE_CASE = true`、`UNICODE_INPUT = true` 和生成式 parser 边界。
+- [Language Server Protocol 3.17 specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) — language/client capability、document synchronization、position encoding 和 revision 语义的协议边界。
 
 ---
-*Pitfalls research (v2 additions) for: Doris SQL Parser SDK — analysis features*
+*Pitfalls research for: Fathom v2.0 Multi-Dialect: Flink SQL & Neutral Naming*
+*Researched: 2026-08-06*

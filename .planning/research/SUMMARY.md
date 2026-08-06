@@ -1,237 +1,215 @@
 # Project Research Summary
 
-**Project:** Doris SQL Parser SDK  
-**Domain:** Apache Doris SQL parsing, lossless source tooling, formatting, and editor SDKs  
-**Researched:** 2026-08-03  
-**Confidence:** MEDIUM-HIGH
+**Project:** Fathom v2.0 Multi-Dialect（Flink SQL 与 Neutral Naming）
+**Domain:** MoonBit 无损 CST 多方言 SQL Parser SDK、编辑器与跨后端工具链
+**Researched:** 2026-08-06
+**Confidence:** HIGH（边界与工程风险）；MEDIUM-HIGH（Flink 具体版本语法需按锁定 release 再验证）
 
 ## Executive Summary
 
-This is an open-source, standalone infrastructure SDK for Apache Doris SQL rather than a database client or an execution engine. The product promise is a Doris-aware, high-coverage parser that preserves every source byte—comments, whitespace, newlines, spelling, unknown fragments, and source positions—in a lossless concrete syntax tree (CST). That CST should support exact no-op replay, precise diagnostics, later formatting and edits, and editor workflows without starting Doris FE. Research consistently supports the four-milestone direction in `PROJECT.md`: establish the kernel, expand Doris completeness, add trustworthy formatting, then expose the same core through Native CLI/LSP and Wasm/JavaScript.
+Fathom v2.0 是一个以无损 CST 为核心的 SQL 前端 SDK：同一份 MoonBit 实现需要同时服务 Doris 与 Flink，输出 Native CLI/LSP、JavaScript/linear-Wasm facade，并保留注释、空白、换行、未知节点、错误节点和 byte span，使 no-op replay、诊断、格式化和编辑器增量体验可信。研究一致建议保留 handwritten lexer + recursive-descent + Pratt + bounded recovery；新增低层 `dialect` policy 层，用闭合 `Dialect` enum（`Doris`、`Flink`）和穷尽 `match` 路由，而不是把两个方言压入一个全局 keyword 表或用开放 trait 猜测方言。共享 source/token/CST/恢复/表达式机制，方言分别拥有 lexical policy、keyword classification、statement/clause grammar、feature gates、formatter/completion policy。
 
-Experts build this class of tool as a pure, immutable syntax pipeline: an input snapshot and line index feed a trivia-preserving lexer; handwritten recursive descent handles statements and clauses; Pratt parsing handles expressions; a narrow builder produces a recoverable CST; exact printing walks original leaves; and optional typed/semantic views sit above the CST. MoonBit is a strong fit for the stated constraint because its current toolchain supports Native, JavaScript, Wasm, and Wasm GC targets, but only narrow primitive/serialized APIs should cross backend boundaries. Doris’s versioned official documentation is the coverage oracle, while FE grammar and SQLGlot are differential/reference inputs—not runtime dependencies or compatibility contracts.
+Flink 支持面必须由发布版文档、对应 `flink-sql-parser` 源码及其锁定的 Calcite 版本三层证据共同定义。当前推荐主 profile 为 Flink 2.3.0，回归 profile 为 2.1.3 与 1.20.5；Flink 2.3 对应 Calcite 1.36.0，Flink 1.20 对应 Calcite 1.32.0。先锁 release/source/Calcite/config 和 corpus provenance，再实现 Flink lexical 与 grammar，尤其是 CREATE TABLE 的 metadata/computed columns、WATERMARK、connector options、Window TVF 与 `MATCH_RECOGNIZE`。产品身份则必须 clean cutover 到 `fathom/sql`、`fathom-sql`、`fathom-lsp`、`fathom.*.v1`、`FATHOM-*`；Doris 只作为显式方言值、profile 和 provenance 保留，不提供旧公共 alias。
 
-The main risks are trust failures rather than merely missing syntax: mixing released and unreleased Doris versions, treating MySQL keywords as Doris rules, dropping bytes or confusing UTF-8 and UTF-16 spans, allowing recovery to cascade, and exposing unstable MoonBit ABI details. Prevent these in the kernel and corpus process, not as late integration patches: force an explicit version profile, preserve raw source and unknown/error tokens, make progress/recovery and coordinate conversion explicit invariants, keep parser/analyzer/formatter boundaries separate, and run the same versioned fixtures across targets. Formatting must remain a deliberate operation distinct from exact replay, and ecosystem work must initially prefer correct whole-document reparsing over unproven incremental complexity.
+最大风险不是遗漏单个 Flink production，而是跨层不一致：全局分类表会让方言互相污染，Flink 分支会破坏 Doris recovery/CST/diagnostic parity，moving docs 或错误 Calcite 版本会使 corpus 漂移，命名半迁移会制造两套公共身份，CLI/LSP/Web/IDE 还可能静默选择错误方言。路线图必须把 dialect/context/schema/naming 与冻结的 Doris baseline 放在最前面，并把 byte-level Doris parity、版本化 Flink corpus、strict/editor recovery、跨 Native/JS/Wasm 结果一致性作为硬门禁。
 
 ## Key Findings
 
 ### Recommended Stack
 
-The detailed recommendation is in [STACK.md](./STACK.md). Use the current documented MoonBit toolchain (v0.10.5 evidence date) but pin the exact `moon version` and compiler mode in CI; do not build releases from an unrecorded floating `latest`. Start with the new `moon.mod`/`moon.pkg` DSL, not the deprecated JSON configuration, and pin `moonbitlang/core` (observed `0.1.20260728+5e7afb0c0`). Keep experimental `moonbitlang/x` at the adapter/test edge only if a prototype validates it. The parser core needs no database and should depend only on stable core primitives plus small local source/token/CST code.
+Stack 研究的详细证据见 [STACK.md](./STACK.md)。核心结论如下：
 
 **Core technologies:**
-- **MoonBit v0.10.5 toolchain and new module/package DSL:** one implementation compiled to Native, JS, and linear Wasm; pin the toolchain and use `pkgtype(kind: "executable")` for Native adapters and a thin `foreign_library` wrapper for JS/Wasm.
-- **`moonbitlang/core` (pin observed version):** stable strings, bytes, arrays, and immutable data primitives for the pure parser core.
-- **Local handwritten lexer, recursive-descent parser, and Pratt parser:** direct control over trivia, contextual Doris keywords, incomplete SQL, recovery, and cross-target behavior without a parser-generator runtime.
-- **Immutable lossless CST over `SourceText`/byte spans:** source slices and ordered trivia preserve bytes without copying source text into every node; derive line/column and LSP UTF-16 positions through a centralized `LineIndex`.
-- **Native CLI/LSP and JS ESM/linear-Wasm adapters:** expose only stable strings, bytes, integers, and versioned serialized schemas; never assume MoonBit ADT/array/object ABI is public.
-- **Git plus deterministic CI and versioned golden corpus:** run MoonBit tests/snapshots, feature coverage, negative/recovery fixtures, and Native/JS/Wasm parity with fixture provenance.
-- **LSP 3.17 baseline at the protocol edge:** implement lifecycle, document synchronization, diagnostics, and formatting first; consult the current specification before shipping and keep JSON-RPC out of the core.
+- **MoonBit（项目锁定 `moon 0.1.20260724`，遵循 v0.10.5 policy）**：单一实现编译 Native、JS 与 linear Wasm；CI/release 必须记录完整 `moon version`，不要因文档页面更新而无审查升级 compiler。
+- **新式 `moon.mod`/`moon.pkg` DSL + `moonbitlang/core`**：使用非 deprecated 配置；core 是 parser 的唯一必需运行时依赖。`moonbitlang/x` 仅可在 LSP/binding 边缘评估，不得进入 lexer/CST。
+- **Handwritten lexer + recursive descent + Pratt**：保留 source-backed byte spans、trivia、错误恢复和 incomplete SQL 控制；不引入 parser-generator runtime、Calcite Java runtime、ANTLR 或 sqlglot 作为生产核心。
+- **闭合 `Dialect` enum + exhaustive `match`**：方言是有限产品集合，所有 lexer/keyword/grammar/formatter/diagnostic/completion/adapter route 都获得编译期遗漏检查；`pub(open) trait` 仅留给 Catalog、AnalyzerProvider、HostTransport 等真正开放的扩展边界。
+- **Flink release/profile + matching Calcite pins**：主 profile `flink-2.3.0`；回归 profiles `flink-2.1.3`、`flink-1.20.5`。2.3 POM 锁定 Calcite 1.36.0，1.20 POM 锁定 1.32.0；2.1.3 的 Calcite 版本必须从其 release POM 提取，不能推断。
+- **Primitive versioned wire schema**：`fathom.parse.v1`、`fathom.format.v1`、`fathom.error.v1`、`fathom.capabilities.v1`；通过 UTF-8/Bytes 传递 source/诊断/CST view，source bytes 只在 root 持有一次，不能跨 ABI 暴露 MoonBit 内部 ADT。
+- **LSP 3.17 edge adapter 与 JS ESM/linear-Wasm facade**：UTF-16 只在 LSP/host 边界转换；Native `fathom-lsp`、CLI `fathom-sql`、Web/Monaco、VS Code/IntelliJ 都消费同一 API/schema。Wasm GC 首发只作可选评估，不作为首个兼容承诺。
+- **Pinned corpus + CI parity**：下载 Flink source archive 时验证 `.asc`/`.sha512`，记录 release tag/commit、Calcite version/config、URL、heading、文件 hash 与 expected status；CI 使用离线 pinned artifact，不依赖网络、FE、Flink cluster 或数据库。
 
-FE/Nereids parser code remains a useful acceptance oracle and gap-investigation reference, but the SDK must not embed FE or require a database. The official docs explicitly separate released 2.1/3.x/4.x trees from unreleased current/dev content, so fixture metadata must pin version, URL, retrieval/source commit, and category.
+关键 lexer 约束也会影响 roadmap：Doris 当前接受 `#` comment、双引号/反引号 quoted token；Calcite baseline 使用 `--`/`//`/block comment，并定义 `X'...'` 与 `U&'...'`，不应依据 SQL folklore 自动接受 `B'...'`。Flink 需独立 fixture 锁定 `#`、双引号、backtick、X/U& literal 与 escape 行为。
 
 ### Expected Features
 
-The detailed feature landscape is in [FEATURES.md](./FEATURES.md). Alternatives show a real gap: SQLGlot is useful as an open baseline but intentionally regenerates a normalized AST and is lenient; FE is coupled to the execution product; commercial GSP demonstrates the market feature bar but is not an open or independent contract; and general SQL LSPs do not list Doris support. The SDK should therefore compete on measured Doris coverage plus lossless source behavior, not on an unqualified “full compatibility” claim.
+Features 研究以“能安全用于 CI、formatter、IDE”为 table stakes，而不是把 Flink planner/runtime 误包装成 parser 能力。
 
 **Must have (table stakes):**
-- **Explicit, versioned Doris lexer/parser API** for at least 2.1, 3.x, and 4.x profiles; no silent MySQL fallback or implicit current/dev grammar.
-- **Lossless source model and byte-exact no-op replay** retaining comments, trivia, token spelling, newline style, quoted identifiers, unknown/error material, and spans: `print_lossless(parse(x)) == x`.
-- **Industrial SELECT and expression coverage** including joins, subqueries, CTEs, windows, predicates, functions, set operations, grouping sets/rollup/cube, hints, and Doris-specific documented clauses.
-- **DML, scripts, and Doris-specific DDL** including INSERT/OVERWRITE, UPDATE, DELETE, statement boundaries, tables/views, CTAS/LIKE, keys, distribution, buckets, partitions/dynamic partitions, properties, indexes, and materialized views, with release gates for syntax introduced later.
-- **Structured diagnostics and bounded recovery** with severity, stable code, message, expected class, token/span, statement identity, and explicit missing/error/skipped nodes for incomplete SQL.
-- **Deterministic printer baseline, dependency-light core, and coverage accounting** so consumers can inspect support by version/category and use syntax-only parsing offline.
+- **显式 `Dialect::Flink`、独立 keyword/lexical table 与 parser route**：禁止缺失 dialect 时静默落到 Doris；API、schema、CLI、LSP、Web、completion 都传递同一选择。
+- **Flink 核心 SELECT/CTE/JOIN/聚合/集合/表达式/类型与 DDL/DML/utility**：覆盖 CREATE/ALTER/DROP、CATALOG/DATABASE/VIEW/FUNCTION、INSERT/UPDATE/DELETE、ANALYZE/SHOW/DESCRIBE/EXPLAIN 等日常入口。
+- **Flink CREATE TABLE 专用 CST**：physical/metadata/computed columns、`WATERMARK`、`PRIMARY KEY NOT ENFORCED`、`PARTITIONED BY`、`DISTRIBUTED`、`WITH` options、`LIKE`/`AS`。
+- **Window TVF**：`TUMBLE`、`HOP`、`CUMULATE`、`SESSION`，以及 `TABLE`、`DESCRIPTOR`、interval literal、`=>` named argument 和窗口产出列。
+- **语法级 `MATCH_RECOGNIZE`**：保留 `PATTERN`、`DEFINE`、`MEASURES`、`AFTER MATCH SKIP`、pattern variable/quantifier；不宣称 planner/execution 等价。
+- **lossless recoverable CST 与结构化 dialect-aware diagnostics**：strict/editor 双模式、稳定 `FATHOM-*` code、severity/span/statement id/profile，未知和错误材料可回放。
+- **Flink-aware formatter 与 bounded syntax completion**：canonical format 与 lossless replay 分离；unsafe error/missing/skipped tree 由 formatter refusal，而不是部分输出。
+- **Neutral CLI/LSP/Web/IDE 全链**：`fathom-sql parse|format|lsp --dialect ...`、`fathom-lsp`、JS/linear-Wasm facade、Monaco、VS Code 和 IntelliJ 复用同一中立 LSP/schema。
+- **Doris parity + official Flink corpus + cross-backend parity**：Native/JS/Wasm 的序列化结果、诊断、span 与 round-trip 必须一致，Doris v1 既有行为不得因共享重构改变。
 
 **Should have (competitive):**
-- First-class CST traversal, stable spans/node identities, and safe targeted edits rather than a token side channel.
-- A separate optional catalog/analyzer boundary for name/type diagnostics, while parser-only validation remains useful with no catalog.
-- Documentation-as-coverage-oracle pipeline with checked-in fixtures, source provenance, golden snapshots, negative/recovery cases, and FE/SQLGlot differential reports.
-- Recoverable CST/LSP-oriented APIs for diagnostics, semantic tokens, folding, symbols, and later bounded incremental reuse.
-- Configurable, comment-preserving formatter and `doris-sql format` with explicit style options, safe behavior on error trees, and `format(format(x)) == format(x)`.
-- One core across Native and Wasm/JS, a stable JSON/JS schema facade, offline Doris highlighting, and a minimal Monaco/web integration.
+- **端到端可追踪的显式 dialect/profile**：每个 parse result、diagnostic、format output、completion 和 LSP document 都能回答“按哪一方言/版本产生”。
+- **source-backed dialect-specific diagnostics**：将 feature/grammar class、来源和稳定 code 关联，区分“文档支持”“parser 可接受”“需 catalog/planner”。
+- **损失无关的公共 CST 能力**：在 connector option 拼写、comments、pattern 和未知节点上仍可安全 range edit/no-op replay，优于会改变 casing/quoting 的 AST regeneration。
+- **可审计 Flink corpus/parity 报告**：按 release、feature、positive/negative/recovery、known limitation 输出覆盖，不以 generic parse success 宣称 Flink engine compatibility。
+- **后续 P2**：catalog-backed completion/hover、semantic tokens/symbols、扩展 release matrix；仅在基础 schema/span parity 稳定后加入。
 
 **Defer (v2+):**
-- Full type inference, function/privilege validation, optimizer rewrites, execution or `EXPLAIN` equivalence, and any requirement for Doris FE at runtime.
-- Enterprise lint rules, column-level lineage, SQL fingerprinting/normalization, broad refactoring, and catalog-heavy completion/hover until CST, scope, and schema contracts are stable.
-- Multi-dialect support, automatic dialect detection, template-language parsing, database execution, and closed-source GSP compatibility targets.
+- **完整 Flink planner/catalog/type/execution 语义验证**：需要 connectors、catalog、stream/batch 与运行时，不符合独立 Native/JS/Wasm parser 边界。
+- **无基准支持的 incremental CST/tree reuse**：只有在测量 whole-document reparse 成为真实 editor 瓶颈后推进，并保持 incremental/full replay byte-identical。
+- **第三方 dialect/plugin marketplace**：先稳定 Doris/Flink 的闭合 schema、keyword、diagnostic、跨后端合同。
+- **隐式自动 dialect detection、formatter 默认 transpile/convert**：如未来需要，只能是显式 opt-in，并返回 ambiguity/unsupported diagnostics 和 edits。
 
 ### Architecture Approach
 
-The architecture research in [ARCHITECTURE.md](./ARCHITECTURE.md) confirms a five-layer dependency direction, refined with a source-of-truth CST and optional semantic-less AST views: `SourceText/LineIndex → token/trivia lexer → handwritten parser → immutable CST/typed syntax views → exact printer/formatter → CLI, LSP, Wasm/JS, and optional analyzer`. Core packages remain pure and synchronous; file I/O, JSON-RPC, JavaScript conversion, and catalog/network access belong in adapters. Begin with whole-document parsing, but design immutable snapshots, revisions, and tree boundaries so incremental reuse can later be introduced only when measurements justify it.
+Architecture 研究建议在 `source` 与 `token` 之间加入无副作用 `dialect/` 层。`DialectContext`（dialect、profile、exact release、feature metadata）由 API 创建并贯穿 token stream、parser、formatter、completion、binding 与每个 LSP document；不存在全局可变方言状态。共享 scanner、source span、trivia、immutable CST、document segmentation、Pratt、progress guard、recovery budget 和 layout；Doris/Flink 各自提供 lexical policy、classification rows、statement/clause grammar、sync sets、feature gates 与 formatting policy。Analyzer 仍是 side-channel，只读取 syntax + source + context + optional Catalog，不改变 parser validity。
 
 **Major components:**
-1. **Source and coordinates** — immutable UTF-8 snapshot, byte spans, line-start index, versioned edits, and centralized byte/line/UTF-16 conversion.
-2. **Trivia-preserving lexer** — raw lexemes, comments, whitespace, newlines, literals, contextual keyword candidates, unknown/error tokens, and versioned language metadata.
-3. **Recursive-descent/Pratt parser** — statement and clause functions, centralized precedence, parser progress guarantees, diagnostics, and layered synchronization.
-4. **Lossless CST core** — immutable green/value tree or equivalent, ordered token/trivia leaves, spans/text lengths, explicit `ERROR`, skipped, and zero-width missing nodes; diagnostics remain a side channel.
-5. **Derived syntax/analysis** — typed semantic-less views or lowering with CST backreferences, plus a separate optional `Catalog`-backed analyzer returning semantic diagnostics without gating parsing.
-6. **Printer and edit utilities** — `print_lossless` as a structural leaf replay, then CST-aware formatting and targeted edits with explicit options and contracts.
-7. **Application adapters** — Native CLI and document-store/LSP transport, JS/Wasm serialized wrappers, and later web/Monaco integration; no parser fork per backend.
-
-The design should follow immutable red/green-style syntax principles from rust-analyzer, Rowan, and Roslyn; isolate parser and tree construction behind events or a narrow builder; and keep parser, formatter, analyzer, and transport diagnostics distinct. Every external result must carry document/version context so stale LSP or analyzer responses cannot replace current snapshots.
+1. **`source/` + `syntax/`** — 只拥有原始 bytes、half-open byte spans、line index 与方言中立 immutable CST；错误、missing、skipped、trivia 都是 source-backed leaf/node。
+2. **`dialect/`** — 唯一的 `Dialect`、profile/context、keyword classification、feature capability authority；Doris/Flink rows 分离，开放 trait 不承担内置方言 registry。
+3. **`token/` + `lexer/`** — 共享 token/trivia/span/storage 与扫描进度保证，由 `DorisLexPolicy`/`FlinkLexPolicy` 决定 comment、quote、literal、operator、identifier 行为。
+4. **`parser/`** — 共享 document/recovery/Pratt/query skeleton，`parse_segment` 先 `match context.dialect` 再调用 `DorisGrammar` 或 `FlinkGrammar`；Window TVF、`MATCH_RECOGNIZE` 等子语言有独立 rule/CST/sync set。
+5. **`api/` + `binding/`** — 校验 `DialectOptions`，返回带 dialect/profile/schema 的 primitive result；binding 是中立 wire schema 唯一生产者，JS/Wasm/native 只导出稳定 bytes wrapper。
+6. **`formatter/` + `completion/` + `analyzer/`** — 分别复用 context 分类表做安全格式化、bounded syntax candidates 与语义 side-channel；禁止直接 import 某个 dialect grammar 或重新维护 keyword 表。
+7. **`lsp/`、`fathom-sql` 与宿主** — LSP 3.17 JSON-RPC、CLI IO/exit code、VS Code/IntelliJ/Web/Monaco 均为薄适配层；UTF-16 只在 LSP 边界完成，document 保存 dialect/profile/revision 以拒绝 stale response。
+8. **`corpus/` + parity harness** — Doris/Flink 按 profile/release 分目录，manifest 保留 provenance/status/hash；比较 serialized schema、diagnostics、CST views、formatter output 与 lossless bytes。
 
 ### Critical Pitfalls
 
-The detailed risk mapping is in [PITFALLS.md](./PITFALLS.md). Its automated evidence grade is LOW, but the listed primary links (Apache Doris, MoonBit, LSP, Tree-sitter, and Prettier) are directly read; treat the engineering consequences as hypotheses to turn into focused invariants and tests.
-
-1. **Version and corpus drift** — never make current/dev documentation a permanent specification. Require a `DialectVersion`/feature profile, version-tag every keyword and fixture, freeze released corpus inputs, and report SDK syntax acceptance separately from FE execution. Address in M1/M2 and expose selection in M4.
-2. **Doris/MySQL keyword misclassification** — maintain an auditable, versioned reserved/non-reserved/contextual keyword matrix; preserve identifier spelling and quote style; decide contextual acceptance in parser context rather than a global MySQL table. Add paired positive/negative cases in M1/M2 and printer checks in M3.
-3. **Lossless CST and coordinate corruption** — preserve source-buffer spans, raw unknown/error tokens, BOM/CRLF/non-ASCII text, and documented trivia ownership. Keep canonical internal byte offsets and centralize UTF-8/line/UTF-16 conversion. Make byte equality a M1 gate before expanding grammar.
-4. **Recovery cascades and false acceptance** — each parser routine must consume input or emit an explicit error, use clause/statement synchronization, bound recursion/recovery/diagnostic counts, and distinguish recovered CST from valid syntax. Fuzz incomplete SQL and maintain negative/version-invalid fixtures in M1/M2 rather than treating “tree exists” as “valid SQL.”
-5. **Formatter trust failure** — exact replay and canonical formatting are separate APIs. Format only safe trees, preserve comments/hints/error material, define deterministic ownership/layout rules, reparse formatted output, and require idempotence. Implement only after replay is stable in M3; verify through CLI/LSP in M4.
-6. **Cross-target ABI and LSP boundary drift** — do not export internal MoonBit structs or confuse byte spans with negotiated LSP positions. Publish a versioned primitive/serialized facade, inspect real exports/imports, run parity smoke tests on Native/JS/Wasm, and validate revisions, lifecycle, cancellation, and non-ASCII edits in M4.
+1. **全局 Doris classification union**：会把 reserved/contextual/identifier 行为跨方言泄漏。Phase 9 必须参数化所有分类 API、拆出 dialect-local rows 和来源 metadata；Phase 10 加冲突词双向 keyword/identifier/quote/recovery fixtures。
+2. **Flink grammar 污染 Doris 或混用 `DorisFeature`**：Window TVF/MATCH_RECOGNIZE 可能被普通 Pratt 或 Doris recovery 吞掉。先建立单一 router，再用独立 Flink productions/sync sets；Doris/Flink-only 输入必须有双向 negative gate。
+3. **Doris CST/诊断/接受性隐性回归**：不能只测 compile 或 `valid`。Phase 9 冻结 v1 baseline，Phase 11 对 source bytes、CST spans/text、diagnostic code/span/statement id、strict/editor、formatter、completion 和 profile gates 做完整 diff。
+4. **Neutral naming 半迁移**：`fathom.*`、`FATHOM-*`、binary/export、LSP source、VS Code/IntelliJ artifact 若只改一部分，会产生两套 schema authority。Phase 9 建立 rename inventory/allowlist，Phase 13 做真实 artifact/install smoke；只允许 `Dialect::Doris` 和 provenance 中保留 Doris。
+5. **Flink corpus/dev/nightly/Calcite 漂移**：moving `stable`/`dev`/nightly 或错误 Calcite `main` 会让 golden 不可复现。必须 lock release archive、commit/tag、Calcite version/config、hash 和分类；将 docs support、parser acceptance、catalog requirement 分开记录。
+6. **CLI/LSP/Editor 静默错误选择方言**：profile 不能替代 dialect，languageId 不能独自决定 parser。实现 document-level `DialectSelection` 与明确 precedence；缺失、未知、冲突全部结构化拒绝，response 绑定 version+dialect 以防旧结果覆盖新文档。
 
 ## Implications for Roadmap
 
-The four milestones should remain the roadmap’s backbone, but each phase must lock the contracts required by later phases. Coverage breadth is intentionally downstream of source fidelity and recovery quality; formatting is downstream of exact replay; and packaging is downstream of a stable schema. The official corpus process is not release housekeeping—it is a product dependency for every grammar phase.
+Based on research, suggested phase structure:
 
-### Phase 1: Core Kernel
-**Rationale:** Source ownership, spans, token metadata, CST shape, and recovery are breaking foundations. If trivia or coordinate semantics are postponed, later formatter and LSP work requires a rewrite; if recovery is postponed, SELECT coverage will produce an editor-unusable parser.  
-**Delivers:** MoonBit module/toolchain pin; `SourceText`/`Span`/`LineIndex`; versioned lexer with trivia and unknown/error tokens; immutable lossless CST; structured diagnostics; recursive descent plus Pratt expressions; industrial SELECT/CTE/JOIN/window/grouping foundation; strict versus editor/recoverable results; exact replay and malformed-input fuzz/property gates.  
-**Addresses:** Versioned parser API, lossless model, exact no-op replay, SELECT/expression coverage, diagnostics, bounded recovery, dependency-light core, and the public parser/analyzer separation.  
-**Avoids:** Version mixing, MySQL keyword shortcuts, dropped bytes, recovery cascades, unbounded recursion, unstable diagnostic/CST contracts, and premature backend ABI exposure.  
-**Research flag:** **Needs focused research.** Confirm the pinned MoonBit toolchain/package behavior, exact Doris 2.1/3.x/4.x keyword and SELECT differences, span/trivia ownership, and the smallest stable serialized schema before implementation.
+### Phase 9: Dialect Boundary, Neutral Naming & Doris Baseline
+**Rationale:** 所有 Flink 工作依赖显式 context、独立分类、schema 和 route；命名迁移不能留到最后，否则新增 Flink API 会继续传播 Doris identity。先冻结 Doris v1 行为，避免重构后用新测试掩盖回归。
+**Delivers:** `dialect/` package；`Dialect::Doris|Flink` 与 `DialectContext`；DialectOptions/selection precedence；Doris profile/feature 迁入 dialect namespace；dialect-local classification API；`fathom/sql` imports、`fathom.*.v1`、`FATHOM-*`、`fathom-sql`/`fathom-lsp`、binding exports、LSP/VS Code/IntelliJ/Web naming matrix；immutable Doris 2.1/3.x/4.x baseline。
+**Addresses:** 显式 dialect、isolated keyword route、中立 CLI/LSP/schema、Doris parity foundation。
+**Avoids:** 全局 keyword 污染、DorisFeature 冒充 Dialect、命名双身份、缺失 dialect 默认为 Doris。
+**Hard gate:** 每个公共入口都传 dialect/profile；旧 alias 删除而非兼容；Doris valid/invalid/recovery/CST/diagnostics/formatter/completion 的 frozen baseline 可比较。
 
-### Phase 2: Doris Completeness and Corpus
-**Rationale:** Once the kernel can prove preservation and recovery, breadth can be added without weakening the trust boundary. DML/DDL and Doris warehouse clauses are the product’s dialect-specific value and cannot be inferred from generic MySQL or a single FE grammar.  
-**Delivers:** Version-gated DML, scripts, DDL, keys, distribution/buckets, partitions and dynamic partitions, properties, indexes, views, CTAS/LIKE, and materialized views; statement/clause synchronization; checked-in 2.1/3.x/4.x fixtures; reproducible extractor/manifest with URL, commit, heading, category, and expected status; negative/version-invalid/requires-catalog cases; FE/SQLGlot differential reports; optional semantic-less AST and `Catalog` interface.  
-**Addresses:** Doris-specific DDL/DML table stakes, coverage accounting, documentation-oracle differentiator, and parser/analyzer separation.  
-**Avoids:** Contaminated Markdown examples, unreleased-current drift, false acceptance, copied metadata tables, and semantic dependencies leaking into parsing.  
-**Research flag:** **Needs the deepest research.** Validate version-specific syntax against pinned official docs and feasible matching FE versions, define fixture classifications and rejection policy, and settle discrepancies rather than silently broadening acceptance.
+### Phase 10: Flink Release/Calcite Contract & Lexical Core
+**Rationale:** grammar 不能先于语料和 lexical oracle；Flink 的 quote/comment/literal/conformance 行为不是 Doris 的小补丁。先从官方 release 建立 profile/manifest，再实现可审计的 token/classification。
+**Delivers:** `flink-2.3.0` 主 profile、`2.1.3`/`1.20.5` 回归 profile；source archive SHA-512/PGP、commit/tag、Calcite pin/config lock；docs/source/Calcite 三层 provenance；Flink keyword rows、reserved/future-reserved/contextual inventory；`FlinkLexPolicy` 与 X/U&/quote/comment/identifier/operator 规则及负例。
+**Addresses:** Flink lexer/keywords table stakes、corpus auditability、Doris/Flink conflict matrix。
+**Uses:** MoonBit shared scanner、source-backed token/CST、官方 Flink Downloads/SQL docs、Flink POM、Calcite `Parser.jj`。
+**Avoids:** `#` comment 误继承、B literal folklore、stable/nightly/dev 漂移、把 docs keyword list 当永久 oracle。
+**Hard gate:** unknown profile/unsupported lexical input 显式拒绝或生成 error CST；每个 keyword 有 release/source/introduction metadata；相同 source 在两方言下的差异有 snapshot 和负例。
 
-### Phase 3: Formatting and Safe Edits
-**Rationale:** Formatting is only trustworthy when exact replay, raw token ownership, diagnostics, and Doris DDL coverage are already stable. It must be a deliberate CST transformation, not AST regeneration or a recovery workaround.  
-**Delivers:** Separate exact and configurable printers; deterministic comment-preserving layout; keyword case, indent, line width, comma, newline, and trailing-newline policies; targeted CST edits; `doris-sql format`; parse/reparse equivalence checks; formatter snapshots and idempotence gates.  
-**Uses:** Stable CST/source spans from M1, versioned syntax/corpus from M2, MoonBit Native executable packaging, and the same source truth for replay and format modes.  
-**Avoids:** Whole-document noisy diffs, moved comments/hints, semantic changes, formatting malformed trees by guessing, and non-idempotent save loops.  
-**Research flag:** **Targeted validation rather than broad research.** Printer architecture is established, but Doris comment attachment, hints, DDL layout, error-tree policy, and user style defaults require corpus experiments and focused design decisions.
+### Phase 11: Flink Grammar Core & Recovery
+**Rationale:** lexical contract 稳定后，才能安全加入有真实结构差异的语法；共享 parser skeleton 必须通过单一 route 使用，而不是复制 149KB Doris parser 或散落 `if dialect == Flink`。
+**Delivers:** explicit `parse_segment` dialect dispatch；Flink SELECT/CTE/JOIN/aggregate/query、DDL/DML/utility；CREATE TABLE physical/metadata/computed columns、WATERMARK、constraints/options；Window TVF；syntax-level `MATCH_RECOGNIZE`；Flink-specific sync/recovery/feature diagnostics/CST nodes。
+**Addresses:** Flink core parser、CREATE TABLE、Window TVF、MATCH_RECOGNIZE、strict/editor recovery、lossless CST table stakes。
+**Implements:** shared query/Pratt/recovery mechanics + `FlinkGrammar`/Flink sublanguage modules。
+**Avoids:** Flink-only syntax 在 Doris mode valid、普通 function call 吞 TABLE/DESCRIPTOR/PATTERN、error recovery 跨 statement 吞 token、把 Calcite experimental semantic 当 execution support。
+**Hard gate:** strict/editor 对同一 input 维持一致 primitive shape；recovery 有 bounded progress；Flink unsupported/known limitation 有明确 `FATHOM-*` diagnostics；Phase 9 Doris baseline 不变。
 
-### Phase 4: Ecosystem and Multi-Target Delivery
-**Rationale:** Stable CST/diagnostic/wire contracts must precede wrappers. The Native CLI/LSP and Wasm/JS SDK should prove that one parser serves offline editors, automation, and web clients without a second grammar or FE runtime.  
-**Delivers:** Native `doris-sql parse/format/lsp`; LSP 3.17 lifecycle, document synchronization, revisions, diagnostics, formatting, and UTF-16 conversion; Native/JS/linear-Wasm artifacts with explicit exports/imports manifests; stable JSON/JS schema; semantic tokens/symbols and minimal Monaco/web integration; same-corpus cross-target smoke tests; bounded whole-document reparse first and incremental reuse only if measured.  
-**Implements:** Thin target adapters around the pure core, version/profile selection at every user-facing entry point, and optional analyzer-backed features only where catalog metadata is supplied.  
-**Avoids:** Unstable MoonBit ABI, backend parser forks, stale responses, incorrect ranges, Node/FE runtime coupling, browser main-thread blocking, and premature incremental-parsing complexity.  
-**Research flag:** **Needs focused integration research.** Reconfirm MoonBit JS/Wasm artifact and host matrix, JSON codec limits, LSP position-encoding/version behavior, cancellation, real VS Code/Monaco replay, package naming, and distribution compatibility.
+### Phase 12: Cross-Dialect Corpus, Doris Parity & Coverage Gates
+**Rationale:** 新 grammar 必须用 release-pinned corpus 和 frozen Doris oracle 验证，而不是以通过几个 positive example 结束；此阶段将 Phase 10 的 lock/manifest 变成可持续发布门禁。
+**Delivers:** `corpus/doris/{2.1,3.x,4.x}` 与 `corpus/flink/{2.3.0,2.1.3,1.20.5}`；positive/negative/recovery/parse-only/requires-catalog/requires-streaming/known-limitation 分类；docs/source/Calcite conflict records；cross-dialect acceptance/rejection、keyword inventory、CST/diagnostic/format snapshots 和 coverage report。
+**Addresses:** Doris parity、官方 Flink corpus、版本/feature introduction metadata、MATCH_RECOGNIZE subset negative cases。
+**Avoids:** generic SQL success 被宣传为 engine compatibility、网络抓取进入 CI/runtime、snapshot 批量更新掩盖 regression、不可解释的 docs/parser source conflict。
+**Hard gate:** 每 fixture 有 release、Calcite version/config、URL、commit/tag、heading、retrieval date、hash、expected status；Doris bytes/CST/spans/diagnostics/formatter/completion 与 baseline 持续为零差异或有批准变更。
+
+### Phase 13: Formatter/Completion, CLI-LSP & Cross-Backend/Editor Packaging
+**Rationale:** parser/API/schema 稳定后再扩展宿主，才能让所有消费者共享同一 dialect-aware diagnostics，而不把 adapter 临时绑到 Doris profile。此阶段也是 clean-cutover 是否真实完成的运行时验证。
+**Delivers:** Flink formatter policy（unsafe tree refusal）、bounded syntax completion、dialect-aware analyzer side-channel；`fathom-sql parse|format|lsp`、`fathom-lsp` LSP 3.17；`fathom_parse_v1`/format/capability JS/linear-Wasm/native primitive wrappers；VS Code/IntelliJ/Web/Monaco neutral naming、dialect settings、document revision/stale-response handling；Native/JS/Wasm byte-level parity artifacts and release checks。
+**Addresses:** formatter/completion、CLI/LSP/Web/IDE table stakes，neutral naming differentiator，cross-target parity。
+**Uses:** shared `api` and FATHOM schema；LSP UTF-16 adapter；MoonBit `foreign_library`/`#export_name`；existing refusal-first formatter and LSP4IJ architecture。
+**Avoids:** formatter 在 error tree 上部分输出、languageId 偷换 dialect、全局 ServerState.profile、旧 export/schema/source/asset 残留、不同 backend 产生不同 span/diagnostic。
+**Hard gate:** 每个 host 明确传 dialect/profile；缺失/冲突/未知拒绝；同一 fixture 的 Native/JS/linear-Wasm serialized result 与 replay bytes 一致；真实 VS Code/IntelliJ/Monaco/CLI smoke 与 forbidden/allowlist naming gate 通过。
 
 ### Phase Ordering Rationale
 
-- `SourceText`/spans/trivia and the CST are upstream of every useful promise: exact replay, diagnostics, formatting, edits, semantic tokens, and LSP ranges.
-- SELECT/Pratt and recovery establish a vertical parser slice before the larger Doris grammar; M2 can then add DML/DDL while preserving the same contracts and corpus oracles.
-- Exact printing is an invariant, while formatting is a policy-driven transformation; separating them prevents M3 from concealing M1/M2 lossiness.
-- The stable facade and serialized schema must be frozen before M4 wrappers, and one MoonBit core must be compiled everywhere to prevent dialect/recovery drift.
-- Whole-document parsing is the correctness oracle for M4. Incremental parsing is an optimization to earn through benchmarks and differential comparison, not a prerequisite for the first usable LSP.
-- Corpus provenance, negative fixtures, version matrices, and cross-target checks are continuous gates across phases, not a final documentation task.
+- **Boundary first:** keyword classification、grammar route、wire schema、CLI/LSP/Web/IDE 都依赖 DialectContext；若先写 Flink grammar，会把旧 Doris coupling 带入新代码。
+- **Corpus lock before grammar acceptance:** Flink docs、Flink parser source 和 Calcite config/version 决定“支持”含义；Phase 10 先锁 oracle，Phase 12 完成可持续 manifest/parity gate。
+- **Shared mechanics, separate policy:** source/token/CST/Pratt/recovery/layout 只实现一次；真正不同的 lexical rule、statement/clause、sync set、formatter/completion policy 放进各 dialect module，维持 Doris parity。
+- **Adapters last:** 诊断/schema 必须先稳定；LSP/CLI/Web/IDE 只消费 API/binding，不绕过 parser 调用 Flink/Doris grammar。
+- **Parity is a release constraint, not cleanup:** Phase 9 freeze、Phase 12 corpus/parity、Phase 13 cross-backend parity 共同防止“编译通过”被误当作完成。
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 1:** MoonBit version/toolchain smoke prototype, Doris versioned keyword and SELECT behavior, source/trivia ownership, recovery invariants, and stable public schemas.
-- **Phase 2:** Versioned official corpus extraction and classification, FE differential strategy, release gates, and the rejection/false-acceptance policy.
-- **Phase 4:** MoonBit Native/JS/Wasm packaging and ABI, JSON serialization, LSP 3.17 synchronization/position encoding, and real editor E2E.
+- **Phase 10:** 需要按 Flink 2.3.0/2.1.3/1.20.5 提取 source archive、确认 2.1.3 Calcite pin，并冻结 `Lex`/`SqlParser.Config`、quote/case/comment/literal 行为；现有 FEATURES/PITFALLS 使用部分 2.0/1.20 页面，不能直接替代发布线证据。
+- **Phase 11:** Window TVF 与 `MATCH_RECOGNIZE` 是复杂嵌套子语言；需要逐 production 对照对应 release `flink-sql-parser`/Calcite tests，明确 Flink subset 与 unsupported diagnostics。
+- **Phase 12:** 需要设计可审计 corpus 抽取、manifest/hash/diff、docs-vs-parser conflict 和 semantic prerequisite 分类；不能把自动抓取的示例直接当 valid SQL。
+- **Phase 13:** 需要验证 MoonBit JS/linear-Wasm ABI、JSON codec Unicode/size/malformed behavior、LSP UTF-16/revision/initialization precedence，以及真实 VS Code/IntelliJ/Web artifact smoke。
 
-Phases with standard patterns (skip broad research-phase):
-- **Phase 3 printer mechanics and basic Native CLI file I/O** have well-established immutable CST/printer and executable-adapter patterns. Still run focused Doris corpus validation for comment/hint/DDL layout and formatter idempotence; do not interpret “standard pattern” as permission to skip acceptance tests.
+Phases with standard patterns (skip research-phase where local contract is sufficient):
+- **Phase 9 的共享 CST/Source ownership 与 enum+match 路由**：MoonBit 官方 enum/trait/module/package 文档与现有 v1 边界已充分说明；仍需工程迁移盘点，但无需重新选择技术路线。
+- **Phase 12 的 Doris baseline comparison**：v1 已有 manifest、strict/editor、formatter refusal、source-root parity 形状；重点是冻结和扩大 oracle，而非探索新 parser 方案。
+- **Phase 13 的 LSP4IJ 复用**：JetBrains 已明确不维护第二 parser/transport；实现应延续现有 LSP boundary，不引入新协议框架。
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH for MoonBit capabilities, official Doris version layout, and protocol/tool commands; MEDIUM for final packaging choices | Official MoonBit, Mooncakes, Apache Doris, and LSP sources were directly checked. Toolchain/ABI behavior is evolving and needs a cross-target prototype. |
-| Features | MEDIUM-HIGH | Official Doris docs, checked competitor source/README pages, LSP, Tree-sitter, and public GSP material support the gap and table stakes. GSP metrics are vendor-corpus measurements, and absence from checked LSP projects is not proof of no alternatives. |
-| Architecture | HIGH for pure lossless CST/parser boundaries; MEDIUM for backend packaging and future incremental strategy | Multiple mature syntax-tree references (rust-analyzer, Rowan, Roslyn, Tree-sitter) converge on the model; MoonBit target details remain evolving and performance needs measurement. |
-| Pitfalls | LOW-MEDIUM | The pitfalls report conservatively labels its automated evidence LOW. The primary specifications and source pages are strong, but several failure modes are engineering inferences that must become focused tests/fuzz/benchmarks. |
+| Stack | HIGH | MoonBit backend/module/package/FFI/test 文档、Flink Downloads/POM、Calcite template 与本地 v1 约束交叉核验；Wasm GC 最终部署矩阵仍待验证。 |
+| Features | MEDIUM-HIGH | Flink overview/CREATE/Window TVF、Calcite `MATCH_RECOGNIZE` 与现有 SDK 能力支持 table stakes；具体 release support 需从 2.3.0 等 pinned docs/source 再确认。 |
+| Architecture | HIGH | 现有 source/token/lexer/parser/api/binding/LSP/extension 边界已直接核验；Flink node/prod 的细节留给 grammar phase。 |
+| Pitfalls | HIGH | 主要风险都有本地调用点、命名耦合、现有 parity contract 或 Apache protocol/grammar 证据；回归严重度仍需执行阶段的 baseline diff 量化。 |
 
-**Overall confidence:** MEDIUM-HIGH for product direction and phase dependencies; MEDIUM for exact Doris grammar/version coverage and final MoonBit artifact contracts.
+**Overall confidence:** HIGH for sequencing, boundaries and non-negotiable constraints; MEDIUM-HIGH for exact Flink grammar coverage.
 
 ### Gaps to Address
 
-- **Authoritative versioned grammar boundary:** official docs are the public corpus but not a complete formal grammar, FE changes independently, and current/dev is unreleased. During M1/M2, pin release branches/commits and record accepted, rejected, and version-invalid behavior rather than claiming universal compatibility.
-- **MoonBit production matrix:** exact v0.10.5 compiler behavior, linear Wasm versus Wasm GC host support, JS ESM packaging, native library limitations, and JSON codec choice need a minimal prototype and artifact inspection before API freeze.
-- **Public schema and coordinate policy:** decide which CST/diagnostic fields, error codes, node IDs, source ownership, byte offsets, UTF-16 conversion, and schema versions are stable. Keep rich typed APIs internal to MoonBit and serialized primitives at foreign boundaries.
-- **Corpus extraction quality:** determine how Markdown examples are classified (`parse-only`, `requires-session`, `requires-catalog`, executable, expected-error, not-SQL), how bilingual examples align, and what human review gate freezes a release corpus.
-- **Recovery and formatter semantics:** quantify acceptable diagnostic counts/locality, resource budgets, safe formatting behavior for incomplete/error trees, comment attachment, and style defaults with representative Doris fixtures.
-- **Performance baseline:** no apples-to-apples baseline yet. Define equal output contracts before comparing sqlglot/ANTLR-JS and measure allocations, peak memory, exact print, formatting, malformed input, LSP latency, and cross-target overhead.
-- **Analyzer scope:** the `Catalog` interface is intentionally a boundary, but name resolution/type diagnostics and session/profile semantics should remain post-M4 unless requirements change; document syntax versus semantic/configuration diagnostics clearly.
+- **Flink 2.1.3 的 Calcite 版本与配置尚未在研究中给出精确值**：Phase 10 必须读取对应 release POM/source，写入 lockfile；在此之前不得把 2.1.3 作为完整 grammar oracle。
+- **研究文件部分引用 release-2.0/1.20 文档，而 stack 推荐 2.3.0 主 profile**：规划时应将 2.0 页面只作为背景/负例线索，所有 release gate 改用 2.3.0、2.1.3、1.20.5 对应路径和 commit。
+- **Flink lexical configuration（双引号、`#`、`//`、X/U&/B、case/quoting）需要 executable fixture 验证**：不能由 Calcite template 单独推断 Flink SQL Client 的最终行为。
+- **`MATCH_RECOGNIZE` 的 Flink subset 与语义边界**：parser 只承诺语法 CST；需要建立 accepted/known-limitation/requires-planner 分类，不做 runtime planner 等价声明。
+- **MoonBit primitive ABI 与 JSON codec 的跨 target 细节**：在 Phase 13 做小规模 Native/JS/linear-Wasm smoke，验证 Unicode、byte span、malformed input、输出稳定性后再锁公共 export。
+- **CLI/LSP dialect precedence 与 extension mapping 的产品决策**：建议 request/document configuration > server initialization > languageId 映射；冲突拒绝，且每 Document 保存 context/revision；需在真实宿主确认 UX。
+- **Doris v1 corpus 中部分 provenance 标记为 unavailable-offline**：不得伪造 FE differential PASS；缺口应在 parity 报告显式列出，并区分 byte baseline 与外部 oracle。
+- **是否在 v2.0 承诺 Wasm GC、catalog-backed completion、incremental parsing**：默认不承诺，分别以 runtime matrix、用户反馈/性能 benchmark 为进入条件。
 
 ## Sources
 
 ### Primary (HIGH confidence)
 
-- [STACK.md](./STACK.md) — consolidated official-source checks for MoonBit v0.10.5, `moon.mod`/`moon.pkg`, Mooncakes versions, backend/FFI limits, testing commands, Doris versioned docs, and LSP 3.17.
-- [FEATURES.md](./FEATURES.md) — official Apache Doris SQL manuals and FE grammar, SQLGlot source/README, public GSP capability/error/licensing pages, LSP specification, Tree-sitter, and SQL LSP references.
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — rust-analyzer syntax design, Rowan, Roslyn, Tree-sitter advanced parsing, official MoonBit package/WebAssembly docs, LSP 3.17, and Doris 3.0 manual.
-- [PITFALLS.md](./PITFALLS.md) — directly checked Apache Doris Website/Overview and docs-format sources, MoonBit FFI/package docs, LSP 3.17, Tree-sitter advanced parsing, and Prettier rationale.
-- [MoonBit documentation v0.10.5](https://docs.moonbitlang.com/en/latest/) — supported targets and mixed-backend modules.
-- [MoonBit FFI and package configuration](https://docs.moonbitlang.com/en/latest/language/ffi.html), [package docs](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html) — ABI stability, exports, package kinds, and host constraints.
-- [Apache Doris versioned documentation overview](https://doris.apache.org/docs/dev/getting-started/what-is-apache-doris/), [SQL manual](https://doris.apache.org/docs/4.x/sql-manual/sql-statements/) — released version families and SQL statement corpus.
-- [Apache Doris FE grammar](https://github.com/apache/doris/tree/master/fe/fe-core/src/main/antlr4/org/apache/doris/nereids) — differential/reference source, not an SDK runtime.
-- [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) — lifecycle, synchronization, ranges, and diagnostics.
-- [Tree-sitter advanced parsing](https://tree-sitter.github.io/tree-sitter/using-parsers/3-advanced-parsing.html) — recoverable/edit-aware tree expectations and concurrency caveat.
+**Local project evidence:**
+- [`STACK.md`](./STACK.md)、[`FEATURES.md`](./FEATURES.md)、[`ARCHITECTURE.md`](./ARCHITECTURE.md)、[`PITFALLS.md`](./PITFALLS.md) — 本 SUMMARY 的四份完整研究输入。
+- `.planning/PROJECT.md:5-11,43-50,72-81` — 无损 CST、MoonBit 单实现、parser/analyzer 边界、v2 Dialect/Flink/neutral naming 目标。
+- `token/token.mbt`、`lexer/lexer.mbt`、`parser/parser.mbt`、`api/api.mbt` — 现有 Doris profile/classification、scanner、单方言 route、CST/recovery/API evidence。
+- `binding/schema.mbt`、`binding/exports.mbt`、`lsp/handlers.mbt`、`doris-sql/*`、`vscode/package.json`、`jetbrains/*`、`web/*` — Doris 命名及 schema/CLI/LSP/Web/IDE coupling inventory。
+- `corpus/manifest.tsv`、`corpus/tools/check_keywords.py` — v1 corpus provenance 与 keyword gate。
+
+**MoonBit official:**
+- [MoonBit enum/match](https://docs.moonbitlang.com/en/latest/language/fundamentals.html#enum) — closed enum constructors与穷尽 match。
+- [MoonBit traits/packages](https://docs.moonbitlang.com/en/latest/language/packages.html#traits) — `pub(open) trait` 的开放实现语义。
+- [Module configuration](https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html) — module naming、SemVer、preferred target与依赖。
+- [Package configuration/exports](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html) — `pkgtype`、foreign library、`#export_name`、JS exports。
+- [MoonBit FFI](https://docs.moonbitlang.com/en/latest/language/ffi.html) — backend/ABI/host portability边界。
+- [MoonBit tests](https://docs.moonbitlang.com/en/latest/language/tests.html) 与 [coverage](https://docs.moonbitlang.com/en/latest/toolchain/moon/coverage.html) — snapshot/coverage能力（本任务未运行测试）。
+
+**Apache Flink/Calcite/protocol:**
+- [Flink Downloads](https://flink.apache.org/downloads/) — 2.3.0、2.1.3、1.20.5 release/source archive、签名与 hash。
+- [Flink 2.3 SQL overview](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/overview/) — release SQL surface、statement families、reserved keywords。
+- [Flink 2.3 CREATE](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/ddl/create/) — CREATE TABLE/DDL 专用结构。
+- [Flink 2.3 Window TVF](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/queries/window-tvf/) — TUMBLE/HOP/CUMULATE/SESSION、TABLE/DESCRIPTOR/named args。
+- [Flink 2.3 table POM](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/pom.xml) — Calcite 1.36.0 pin。
+- [Flink 1.20 table POM](https://raw.githubusercontent.com/apache/flink/release-1.20/flink-table/pom.xml) — Calcite 1.32.0 pin。
+- [Flink 2.3 `config.fmpp`](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/flink-sql-parser/src/main/codegen/config.fmpp) 与 [`parserImpls.ftl`](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/flink-sql-parser/src/main/codegen/includes/parserImpls.ftl) — Flink 对 Calcite parser 的定制边界。
+- [Calcite 1.36 `Parser.jj`](https://github.com/apache/calcite/blob/calcite-1.36.0/core/src/main/codegen/templates/Parser.jj) — lexical/literal/MATCH_RECOGNIZE grammar oracle。
+- [Calcite `SqlParser.Config`](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/parser/SqlParser.Config.html) 与 [Calcite `Lex`](https://calcite.apache.org/javadocAggregate/org/apache/calcite/config/Lex.html) — conformance、quoting、casing配置。
+- [LSP 3.17 specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) — JSON-RPC lifecycle、position encoding、diagnostic/edit contracts。
 
 ### Secondary (MEDIUM confidence)
 
-- [rust-analyzer syntax guide](https://rust-analyzer.github.io/book/contributing/syntax.html), [Rowan API](https://docs.rs/rowan/latest/rowan/), and [Roslyn syntax model](https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/work-with-syntax) — convergent lossless immutable CST and recovery patterns.
-- [SQLGlot Doris dialect](https://raw.githubusercontent.com/tobymao/sqlglot/main/sqlglot/dialects/doris.py) and [SQLGlot README](https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md) — open interoperability/performance baseline and limits of normalized AST regeneration.
-- [General SQL LSP `sqls`](https://raw.githubusercontent.com/sqls-server/sqls/master/README.md) and [`sql-language-server`](https://raw.githubusercontent.com/joe-re/sql-language-server/master/README.md) — expected editor interactions, but neither checked project lists Doris.
-- [GSP Doris support](https://docs.sqlparser.com/reference/sql-syntax/doris/) and [advanced source-token re-emission](https://docs.sqlparser.com/tutorials/advanced-features/) — commercial feature expectations and corpus-reporting precedent, not an open compatibility target.
+- [SQLGlot README](https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md) 与 [dialect registry](https://github.com/tobymao/sqlglot/tree/main/sqlglot/dialects) — 显式 dialect 参数、lenient parser、AST/comment fidelity 限制和方言模块组织参考，不是 Flink engine oracle。
+- [SQLFluff Flink dialect](https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink.py) 与 [keyword table](https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink_keywords.py) — lexer/connector/watermark/computed/metadata/distribution decomposition 参考。
+- [Tree-sitter official parser model](https://tree-sitter.github.io/tree-sitter/using-parsers/1-getting-started.html) — concrete tree/editable parser 的架构比较；不作为 Fathom runtime 依赖。
 
-### Tertiary (LOW confidence; validate during planning)
+### Tertiary (LOW confidence / validation required)
 
-- Engineering inferences in [PITFALLS.md](./PITFALLS.md) about keyword-context edge cases, corpus contamination, recovery budgets, formatter policy, resource limits, and cross-backend failure modes. These are retained as explicit test and research hypotheses, not verified product facts.
-- [Prettier rationale](https://prettier.io/docs/rationale) — general formatter correctness/idempotence guidance; Doris-specific formatting rules still require corpus evidence.
+- `release-2.0`/`release-1.20` Flink docs 中过时或版本差异页面 — 仅用于发现 feature/负例线索；release gate 必须迁移到锁定版本。
+- [指定 `tree-sitter/tree-sitter-sql` URL](https://github.com/tree-sitter/tree-sitter-sql) — Architecture 研究记录直接读取为 404，不据此作 grammar 事实。
+- Calcite current `main` parser template — 仅 discovery，不得替代 Flink profile 对应的 Calcite release。
 
 ---
-*Research completed: 2026-08-03*  
+*Research completed: 2026-08-06*
 *Ready for roadmap: yes*
-
----
-
-# v2 Research Summary — Analysis and Intelligence
-
-**Milestone:** v2.0 | **Researched:** 2026-08-05 | **Confidence:** MEDIUM-HIGH
-
-## Key Findings
-
-### Stack: no new dependencies required
-All five v2 features (ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01) build on the already-pinned `moonbitlang/core` + local modules. Verified facts that shape design:
-- `Map` is a **LinkedHashMap** (deterministic iteration → stable serialized output); core has `sorted_map`/`hashmap`/`json`/`immut` but **no `hash` package**.
-- **`Int` is 32-bit on Wasm/C but `number` on JS; `UInt64` is fixed 64-bit everywhere** → FING-01 fingerprints MUST use `UInt64` for cross-backend parity.
-- `String::equal_ignore_ascii_case` exists → ANAL-01 case-insensitive catalog lookup.
-- `@bench` + `moon bench --target native|js|wasm|all` → the EDIT-01 benchmark gate.
-- `moonbitlang/x@0.4.47` has experimental `crypto` (SHA-256) — edge-only, keep out of core.
-
-### Features
-- **ANAL-01** (HIGH): scopes/table/column/function binding + star expansion with catalog; extends existing `analyzer/` (D-21/D-22/D-24). Case-insensitive identifiers, profile-gated.
-- **LINT-01** (MEDIUM-HIGH): SQLFluff-style rule registry (stable codes, bundles, severity config) + **safe lossless autofix** through the formatter-safe path (D-27/D-33 refuse).
-- **LINE-01** (HIGH): column lineage **depends on ANAL-01**; view/CTE/`INSERT INTO SELECT` expansion; `*` requires catalog else explicit gap.
-- **FING-01** (LOW-MEDIUM): normalize CST (whitespace/keyword case only, preserve identifiers/literals/quoting) → canonical bytes → `UInt64` hash; independent of catalog.
-- **EDIT-01** (VERY HIGH, benchmark-gated): only adopt when whole-doc reparse measurably fails; reuse `source` revisions + LineIndex; span-overlap invalidation; `parse_incremental == parse_full` invariant.
-
-### Architecture
-- `analyzer/` extended (ANAL-01); new `lint/`, `lineage/`, `fingerprint/` packages; `incremental/` only if benchmarks pass.
-- `lineage/` imports `analyzer/` (never parser); `lint/` uses formatter-safe edits; `fingerprint/` walks CST directly.
-- `binding/schema.mbt` needs a **v2 schema bump** for new result kinds; `api/` gains `analyze_text`/`lint_text`/`lineage_text`/`fingerprint_text`.
-- Build order: **A** closeout (ECO-07 VS Code host + linear-Wasm CI) + ANAL-01 foundation → **B** FING-01 + LINT-01 (parallel) → **C** LINE-01 → **D** EDIT-01 (benchmark first).
-
-### Pitfalls to encode as tests
-1. Catalog case-sensitivity mismatch (false-negatives) — ANAL-01.
-2. Autofix corrupting comments/trivia — LINT-01 (D-33 refuse).
-3. Lineage breaks through views/CTEs/`*` — LINE-01 (needs catalog, honest gaps).
-4. Fingerprint cross-backend drift (Int width) and semantic folding — FING-01 (UInt64).
-5. Incremental span invalidation/trivia drift — EDIT-01 (benchmark-gated).
-6. Schema-version leaks across consumers — binding/ v2 bump.
-
-## Implications for v2 Roadmap
-
-- **Phase 1** should fold the two v1 closeout items (ECO-07 human VS Code host verification; linear-Wasm CI runtime execution parity) plus the ANAL-01 resolution engine foundation — the user chose "纳入首个阶段".
-- ANAL-01 before LINE-01 (dependency); FING-01 and LINT-01 are parallelizable; EDIT-01 is a gated decision phase, not a guaranteed deliverable.
-- Cross-backend parity tests must extend to fingerprints (UInt64) and the new serialized analysis results.
-- No new runtime dependencies; no catalog runtime; lossless round-trip stays the invariant every new feature must preserve.
-
-## Sources
-
-- This session: MoonBit FFI docs (`Int` width), MoonBit commands (`moon bench`), mooncakes core/x package metadata, SQLFluff rules reference, SQLGlot API docs.
-- Project v1: STATE.md decisions D-21/D-22/D-24/D-27/D-31/D-33, milestone audit (ECO-07/linear-Wasm CI), v1 research baseline.
-
----
-*Research synthesized: 2026-08-05 — v2.0 milestone*

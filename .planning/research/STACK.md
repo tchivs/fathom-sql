@@ -1,257 +1,267 @@
-# Technology Stack
+# Stack Research
 
-**Project:** Doris SQL Parser SDK  
-**Researched:** 2026-08-03  
-**Research mode:** Ecosystem  
-**Overall confidence:** HIGH for MoonBit toolchain capabilities and Doris source/version layout; MEDIUM for the project-level parser, LSP, and packaging recommendations (these are design choices derived from the stated lossless-CST and multi-backend constraints).
+**Domain:** MoonBit 无损 CST 的多方言 SQL Parser SDK（Doris + Flink SQL）  
+**Researched:** 2026-08-06  
+**Confidence:** HIGH（MoonBit 与 Apache 官方文档/源码、版本和本地 v1 约束已交叉核对；Flink 某些未单独文档化的词法行为按 Calcite 版本源码保守处理）
+
+## 结论先行
+
+1. **方言路由选闭合 `enum` + `match`，不要用 `pub(open) trait`。** Doris 与 Flink 是当前产品明确支持的有限集合，需要在新增方言时让所有 lexer、keyword、statement、formatter、diagnostic、completion 和 adapter 路由获得编译器的穷尽性检查。MoonBit 文档定义普通 `enum` 为闭合构造集合，`match` 可覆盖所有 constructor；`pub(open) trait` 则允许包外实现，适合开放的 Catalog/host extension 接口，不适合作为静态方言集合的唯一判别器（[MoonBit enum/match](https://docs.moonbitlang.com/en/latest/language/fundamentals.html#enum)、[MoonBit trait visibility](https://docs.moonbitlang.com/en/latest/language/packages.html#traits)）。
+2. **推荐以 Flink 2.3.0 作为当前主语料 profile，并同时锁定 2.1.3、1.20.5 作为发布线回归 profile。** Apache 下载页在本次研究中列出 2.3.0 为最新稳定版本，以及 2.2.1、2.1.3、1.20.5；不要使用 `dev`、`stable` 或 moving `release-2.3` branch 作为长期 fixture 入口（[Flink Downloads](https://flink.apache.org/downloads/)）。
+3. **权威性采用三层而不是单一来源：** 发布版 Flink SQL 文档决定用户可见支持面；对应发布源码的 `flink-sql-parser` 与测试决定 Flink-specific productions；源码中锁定的 Calcite 版本及 `Parser.jj` 决定共享 SQL lexical/grammar 基线。Flink 2.3 的 `flink-table/pom.xml` 锁定 Calcite 1.36.0，Flink 1.20 锁定 Calcite 1.32.0；因此不能拿当前 Calcite `main` 直接替代 Flink 的 parser oracle（[Flink 2.3 table POM](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/pom.xml)、[Flink 1.20 table POM](https://raw.githubusercontent.com/apache/flink/release-1.20/flink-table/pom.xml)、[Calcite Parser template](https://github.com/apache/calcite/blob/calcite-1.36.0/core/src/main/codegen/templates/Parser.jj)）。
+4. **lexer 必须变成 profile-specific，而不是在 Doris lexer 上继续堆条件。** Doris v1 当前把 `--`、`#`、`/*…*/` 都识别为 comment，并把 `"…"` 与 `` `…` `` 都识别为 quoted token（[本地 `lexer/lexer.mbt:277-307`](../../lexer/lexer.mbt#L277-L307)）。Calcite 基线只定义 `--`/`//` 单行注释和 block/formal comment，并将 `#` 留为非法/未知字符；它还定义 X binary string 与 U& Unicode string，而 B bit-string 并未出现在该模板的 literal token 定义中（[Calcite lexical template](https://github.com/apache/calcite/blob/calcite-1.36.0/core/src/main/codegen/templates/Parser.jj#L9430-L9750)）。Flink profile 应明确测试并锁定这些行为，不能继承 Doris 的宽松接受面。
+5. **命名采用一次性 clean cutover。** 公开 module/import 统一为 `fathom/sql`，Native 可执行文件为 `fathom-sql`/`fathom-lsp`，wire schema 为 `fathom.parse.v1`、`fathom.format.v1`、`fathom.error.v1`、`fathom.capabilities.v1`，错误码为 `FATHOM-*`；dialect 作为 schema/API 字段保留 `doris` 与 `flink`。不保留 `doris-*`、`doris.*`、`DORIS-*` 的兼容 alias，因为本 milestone 明确不考虑向后兼容。MoonBit module 名允许 `/`、`-`，发布到 Mooncakes 时需 username 前缀且使用 SemVer；package 名由目录决定，executable/foreign_library 要用 `pkgtype`（[MoonBit module config](https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html)、[package config/export](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html)）。
 
 ## Recommended Stack
 
-### Core Framework
+### Core Technologies
 
-| Technology | Version / evidence date | Purpose | Why |
-|------------|-------------------------|---------|-----|
-| MoonBit toolchain (`moon`, `moonc`) | Current official documentation is **MoonBit v0.10.5** (verified 2026-08-03); pin the exact `moon version` output in CI rather than tracking `latest` silently | The single implementation language and build system | The official documentation lists `wasm`, `wasm-gc`, `js`, and `native` backends and explicitly supports mixed-backend modules. This directly satisfies one parser implementation for Native CLI/LSP and Web SDKs. Native debug/release backend details are still evolving, so reproducible builds must record the toolchain version and compiler mode. |
-| Moon module/package DSL (`moon.mod`, `moon.pkg`) | New format documented in v0.10.5; `moon.mod.json` and `moon.pkg.json` are deprecated since v0.10.4 and scheduled for removal | Module metadata, dependencies, package kinds, backend link options | Use the new DSL from the first commit. It supports `preferred_target`, package imports, test imports, `pkgtype(kind: "executable")`, and backend-specific linking without carrying a deprecated configuration format. |
-| `moonbitlang/core` | `0.1.20260728+5e7afb0c0` is the current successful Mooncakes version observed on 2026-08-03 | Strings, arrays, bytes, immutable data structures, basic utilities | Use the standard library as the only mandatory runtime dependency of the parser core. Pin the observed version in the module lock/CI and update deliberately; do not make parser correctness depend on experimental extension packages. |
-| `moonbitlang/x` | `0.4.47` observed on 2026-08-03; official registry describes it as experimental | Optional JSON/time/utility support at adapters and test tooling boundaries | Keep it out of the lexer/CST/parser dependency path. It can be evaluated for JSON and LSP adapters, but the core should use only stable core packages or a deliberately small local protocol codec. |
-| Handwritten MoonBit lexer + recursive-descent parser + Pratt expression parser | Project decision; no external version | Doris SQL tokenization, lossless CST construction, expression precedence, recovery | This is the only option that preserves explicit control over trivia, spans, incomplete editor input, and Doris-specific grammar while keeping all backends on the same implementation. Represent source positions as backend-neutral integer offsets/spans and retain every trivia token in the CST. |
+| Technology | Version / pin | Purpose | Why Recommended |
+|------------|---------------|---------|-----------------|
+| MoonBit compiler/toolchain | **项目锁定：moon 0.1.20260724，v0.10.5 policy**；每个 CI/release artifact 记录完整 `moon version` | 单一 parser/CST 实现，输出 Native、JS、linear Wasm | 现有 module 已记录 exact toolchain 与 `preferred_target = "native"`（[本地 `moon.mod:1-8`](../../moon.mod#L1-L8)）。官方文档明确支持 `wasm`、`wasm-gc`、`js`、`native`，适合保持一份 lexer/parser。不要因本次研究的 v0.10.6 文档页面就无审查升级 compiler。 |
+| Handwritten lexer + recursive descent + Pratt expressions | 项目内部技术，不引入版本化 parser runtime | 共享 SQL core、方言 token/keyword 表、方言 statement route、无损 CST 和 editor recovery | v1 已证明 source-backed byte spans、trivia、bounded recovery 与 round-trip 合同；Flink 需要 TABLE/DESCRIPTOR、window TVF、watermark/metadata column、MATCH_RECOGNIZE 等扩展，手写路由比生成 parser 更容易保持错误节点与原字节。保留 `source → token → syntax/parser → api/binding → adapters` 依赖方向（[本地 `api/api.mbt:1-120`](../../api/api.mbt#L1-L120)）。 |
+| Closed `Dialect` enum + exhaustive route table | 新增 v2 API；建议 constructor 至少 `Doris`、`Flink` | 所有静态方言分发的单一判别值 | 普通 enum 是闭合集合，`match` 在新增构造时产生遗漏警告；不会因为第三方实现而改变词法或语法。为开放扩展保留独立 trait，而不是把 dialect 本身建模成 open trait。可选的 `extenum` 也不适合作为核心 route：官方文档要求 wildcard，因为未来 constructor 可在包外增加。 |
+| Versioned primitive wire schema | `fathom.parse.v1`、`fathom.format.v1`、`fathom.error.v1`、`fathom.capabilities.v1` | Native/JS/Wasm/LSP/CLI 之间稳定传输 CST view、trivia、span、diagnostics、dialect | 当前 binding 是 schema 单一生产者但仍硬编码 `doris.*` 与 `DORIS-*`（[本地 `binding/schema.mbt:1-105`](../../binding/schema.mbt#L1-L105)）。schema v1 应做 clean cutover，保留 `dialect`、`exact_release`、`feature_introduction`、byte spans 和 source transport 字段；不要跨 ABI 暴露 MoonBit 内部 ADT。 |
+| Released Flink SQL corpus profiles | **主 profile：Flink 2.3.0**；回归 profiles：2.1.3、1.20.5 | 发布版 SQL examples、DDL/DML/query 语法、keyword snapshot、negative cases | 2.3.0 是官方下载页列出的最新 stable；2.1.3 与 1.20.5 覆盖 2.x/1.x 发布线。每个 profile 绑定 source tarball、SHA-512/PGP 校验、docs path、source commit/tag、文件 hash 和抽取日期。 |
+| Flink SQL parser source + matching Calcite source | Flink 2.3.0 → **Calcite 1.36.0**；Flink 1.20.5 → **Calcite 1.32.0** | 差分 oracle、keyword/grammar 变更审计、未在 docs 单独成页的语法 | Flink 的 `flink-sql-parser` 通过 `config.fmpp`/`parserImpls.ftl` 定制从 Calcite template 生成 parser；2.3 POM 的 Calcite 版本是 1.36.0，1.20 POM 是 1.32.0。将 Flink-specific includes 与对应 Calcite tag 一起锁定，不运行 Java FE 作为 SDK 依赖。 |
 
-**Verification note:** The MoonBit v0.10.5 FFI documentation lists five backends (Wasm, Wasm GC, JavaScript, C, and experimental LLVM), and the build command documentation lists `wasm`, `wasm-gc`, `js`, `native`, `llvm`, and `all` as target values. The version number above is documentation evidence, not a promise that the installer’s unpinned `latest` binary will remain v0.10.5.
+### Supporting Libraries / Packages
 
-### Database
+| Library / boundary | Version / pin | Purpose | When to Use |
+|-------------------|---------------|---------|-------------|
+| `moonbitlang/core` | 与当前 MoonBit lock 一起 pin；不在本研究中升级 | Array/Bytes/String/Map、debug、UTF-8、buffer | 始终作为 parser core 唯一必需 runtime dependency；继续使用 byte offsets，保持 source ownership 一次。 |
+| `moonbitlang/x` | 仅 edge evaluation，当前仓库已有历史研究建议 `0.4.47`；不得进入 lexer/CST | JSON 或 adapter utility | 只有在跨 backend smoke test 证明 API/Unicode/size 行为稳定后才用于 LSP/binding 边缘；核心不依赖实验包。 |
+| LSP 3.17 JSON-RPC adapter | LSP 3.17 baseline | Native `fathom-lsp`，dialect-aware diagnostics/formatting/completion | 保持 transport 在边缘；`initialize`/document sync/diagnostics/formatting 先复用同一 `fathom/sql` API。UTF-16 只在 adapter 做转换（[LSP 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)）。 |
+| Generated JS ESM + linear Wasm facade | MoonBit backend output；首发不承诺 Wasm GC | Browser/Monaco/Web SDK | 用 primitive `Bytes`/UTF-8 JSON wrappers；`foreign_library` 包只导出稳定 wrapper。官方 package docs 将 `#export_name` 限制为 public、non-generic、C-symbol-compatible 且 package-local unique，故使用 `fathom_parse_v1` 等稳定导出名而非导出内部 CST（[MoonBit package exports](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html#package-type)）。 |
+| npm/VS Code/JetBrains package tooling | npm wrappers 与扩展各自锁 package manager；不进入 MoonBit core | 分发 `fathom-sql` JS facade、VS Code/IntelliJ adapters | 扩展只传 `dialect`、schema v1 和 `fathom-lsp` path；语言配置/command/configuration key 全部使用 `fathom` 前缀。当前扩展仍硬编码 `doris` language id、`doris.profile` 与 `doris-lsp`（[本地 `vscode/package.json:1-58`](../../vscode/package.json#L1-L58)），因此必须在命名迁移时整体改名而非加一个新入口。 |
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| None in the parser SDK | N/A | The parser, CST, diagnostics, and formatter are pure in-process components | A database would add runtime state and deployment coupling without helping syntax parsing. Persisted corpus fixtures, version metadata, and golden snapshots belong in Git and CI artifacts, not in the SDK runtime. |
+## 方言路由决策：`enum + match` 优于 `pub(open) trait`
 
-### Infrastructure
+### 推荐形状
 
-| Technology | Version / evidence | Purpose | Why |
-|------------|--------------------|---------|-----|
-| Git + GitHub Actions (or an equivalent CI runner) | Current project infrastructure choice; pin MoonBit toolchain in CI | Source control, Doris corpus provenance, multi-target build/test matrix, release artifacts | The official MoonBit installer requires Git, and MoonBit provides command-line build/test/coverage commands suitable for a matrix. Keep CI jobs deterministic by recording `moon version`, target, dependency versions, and fixture provenance. |
-| Official MoonBit installer + SHA-256 verification | Installer/checksum instructions verified on the official download page 2026-08-03 | Install the compiler in developer and CI environments | Use the official installer for bootstrap, then verify binary/archive checksums and pin the resulting toolchain. Do not rely on an unrecorded floating `latest` for release artifacts. |
-| npm-compatible package publication for generated JS (adapter layer only) | Ecosystem convention; exact package registry is a release decision | Distribute ESM JS and TypeScript-facing metadata for browser/Monaco consumers | Keep npm packaging outside MoonBit parser-core. The generated JS artifact is the deliverable; a thin package wrapper can provide exports, types, and browser examples without introducing Node into Native or Wasm builds. |
+```moonbit
+pub(all) enum Dialect {
+  Doris
+  Flink
+}
 
-### Supporting Libraries
+fn keyword_table(dialect : Dialect) -> KeywordTable {
+  match dialect {
+    Dialect::Doris => @doris_keywords.table()
+    Dialect::Flink => @flink_keywords.table()
+  }
+}
+```
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `moonbitlang/core` | `0.1.20260728+5e7afb0c0` observed 2026-08-03 | Stable standard data/text/collection primitives | Always; this is the parser core’s baseline dependency. |
-| `moonbitlang/x` | `0.4.47` observed 2026-08-03; marked experimental | Optional JSON or utility support in adapters/tests | Only after evaluating its target behavior and API stability; never make lexer/CST correctness depend on it. |
-| LSP 3.17 message schema | 3.17 specification baseline | Native LSP protocol types and method names | At the LSP adapter boundary; implement only the methods required by the current editor workflow first. |
+这里的 `Dialect` 不是可由用户实现的策略对象，而是产品支持矩阵的一部分。`ParseOptions`、CLI `--dialect`、LSP initialization/configuration、serialized schema 和 completion context 都携带它；每个 route function 对 enum 做一次穷尽 `match`，禁止全局 `classification_rows` 再次成为跨方言隐式状态。
 
-### Backend and Public-API Boundary
+### 为什么不以 `pub(open) trait Dialect` 为核心
 
-| Target | Recommendation | Configuration/publishing choice | Confidence |
-|--------|----------------|----------------------------------|------------|
-| Native | First-class release target for `doris-sql` CLI and `doris-sql lsp` | Put the CLI/LSP entry point in an executable package using `pkgtype(kind: "executable")`; use `moon build --target native --release`. The official package docs expose native C compiler/link flags, so keep the initial CLI free of native libraries and use the default compiler. | HIGH for capability; MEDIUM for the exact release layout |
-| JavaScript | Primary browser/Monaco integration target | Export a small wrapper package as a `foreign_library`; use `#export_name` on stable, non-generic wrapper functions and `options(link: { "js": { "format": "esm", "exports": [...] } })`. Prefer ESM as the default; CJS and IIFE remain available for consumers that need them. | HIGH |
-| WebAssembly (linear Wasm) | Portable binary target for hosts that do not want the JS backend | Build with `--target wasm`, expose only explicit wrapper functions, and avoid host-dependent `println`/`env` behavior. Use UTF-8/bytes or serialized results at the host boundary rather than depending on internal MoonBit object layout. | HIGH for documented capability; MEDIUM for final host ABI until a smoke test is added |
-| Wasm GC | Optional evaluation target, not the first compatibility promise | The official docs support `wasm-gc` and an optional JS String Builtin configuration. Enable it only after the ordinary Wasm and JS wrappers work; its reference-type/string-host assumptions should be tested in the exact browser/runtime matrix before release. | HIGH for capability; MEDIUM for deployment choice |
+- `pub(open) trait` 的语义是允许包外新增 implementation；这正是可扩展 Catalog、host capability 或 analyzer provider 所需的开放性，不是 Doris/Flink 这种有限集合的产品合同。
+- trait 的 coherent implementation 规则仍允许类型/trait 所属包添加实现；它提供的是行为抽象而不是 `match` 的 constructor exhaustiveness。若将 route 改为 trait，新增 Flink production 可能只实现部分方法，编译器不会像闭合 enum 那样强制所有 route 都更新。
+- trait dispatch 会使路由配置、ABI 和测试矩阵分散到 implementations；对无损 parser 更重要的是 token kind/classification/grammar/recovery/diagnostics 处于同一个 selected dialect context。
+- `extenum` 也不是替代方案：官方文档明确指出 open enum 的 pattern match 必须有 wildcard。wildcard 会掩盖新方言未接入某个 route 的错误。
 
-The FFI documentation explicitly warns that types not listed in its ABI tables do not have a stable representation. Therefore, do **not** expose the internal CST structs, arrays, or ADTs as an assumed cross-backend ABI. Keep rich typed APIs for MoonBit-to-MoonBit consumers, and add thin per-backend wrappers such as:
+### trait 的保留边界
 
-- `parse_text` → serialized diagnostics/CST view or a documented byte buffer;
-- `format_text` → formatted source text;
-- `version`/capability metadata → strings and integers.
+可以定义 `pub(open) trait Catalog`、`pub(open) trait AnalyzerProvider` 或 `pub(open) trait HostTransport`，由用户包外实现；trait 的输入输出应是中立 primitive/CST view，不得把 `Dialect` route 交给用户实现。当前 analyzer 已作为独立包、不反向污染 parser 的边界（[本地 `analyzer/moon.pkg`](../../analyzer/moon.pkg) 与项目约束 [`.claude/CLAUDE.md:19-22`](../../.claude/CLAUDE.md#L19-L22)）。
 
-Native callers may use internal typed values; JS/Wasm callers should use stable primitives and an explicit schema. This also prevents a future CST representation change from becoming an ABI break. `#export_name` exports must be defined in the package producing the artifact; an export declaration in a dependency does not automatically add symbols to a downstream artifact, so wrappers belong in the public adapter package.
+## Flink 权威来源与可 pin 版本
 
-### Parser/CST Libraries and Data Model
+### Source precedence
 
-| Choice | Recommendation | Rationale |
-|--------|----------------|-----------|
-| Lexer/CST runtime | Build a small local MoonBit core module; do not introduce a parser-generator runtime | No stable official MoonBit lossless-CST package was verified in the current official documentation/registry sources. A local implementation avoids an unverified dependency and can encode the product’s required invariant: every source byte is covered by token/trivia spans and printing the lossless tree reproduces the original input. |
-| CST representation | Immutable node/token structures plus source spans, with trivia retained as first-class token data | Supports precise diagnostics, comment/whitespace preservation, formatter edits, and later editor features. Keep span units documented (prefer byte offsets for slicing/ABI; derive line/column indexes in a source map) and avoid copying source text into every node. |
-| AST/analyzer | Separate optional analyzer package over CST-derived semantic nodes | Parser remains usable without a catalog, while table/column metadata can be injected later. Do not pull Doris FE execution semantics or catalog resolution into the parser core. |
-| Pretty printer | A local CST-aware printer with a lossless mode and configurable formatting mode | Lossless mode must emit original trivia; configured formatting can change whitespace while retaining comments and unknown/error nodes. Make idempotence (`format(format(x)) == format(x)`) a tested contract. |
+| 层级 | 权威材料 | 用途 | 锁定方法 |
+|------|----------|------|----------|
+| 1 | Flink 发布版 SQL docs | 用户可见 feature/support 面、示例、DDL/DML/query 语法 | 只从 `flink-docs-release-2.3`/对应 release path 抽取；拒绝 `dev`、`stable`、nightly。 |
+| 2 | 对应 release source 的 `flink-table/flink-sql-parser` | Flink 自定义 statement、DDL、window/TVF、keyword addition 和 parser tests | 以 `flink-2.3.0-src.tgz`（或 release tag 对应 commit）为输入，记录 source commit + path + hash；不要只引用 moving branch。 |
+| 3 | Flink POM 锁定的 Calcite | shared SQL grammar、token/quoted/comment/literal 基线和 MATCH_RECOGNIZE | Flink 2.3 → Calcite 1.36.0；Flink 1.20 → Calcite 1.32.0；从对应 Calcite release tag/source artifact 抽取，不用 `main`。 |
+| 4 | Apache Calcite `Parser.jj` 与 parser tests | 当 Flink docs 不单列某语法（例如 MATCH_RECOGNIZE）时的 grammar oracle | 仅在 Flink release 的 Calcite 版本范围内解释；Fathom 自己仍实现 CST，不引入 Calcite/Java runtime。 |
 
-The current Apache Doris repository’s official `NereidsParser` is useful as a differential/reference oracle for accepted syntax, but it is a Java FE implementation rather than an embeddable MoonBit dependency. Use it to investigate discrepancies, never as the SDK’s runtime parser.
+### Recommended pin set
 
-### LSP and CLI Integration
+| Fathom profile | Official release | Docs URL root | Source / parser URL | Calcite pin |
+|----------------|------------------|---------------|---------------------|-------------|
+| `flink-2.3.0` | Flink 2.3.0 | [`/flink-docs-release-2.3/docs/sql/reference/overview/`](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/overview/) | [`release-2.3/flink-table/flink-sql-parser`](https://github.com/apache/flink/tree/release-2.3/flink-table/flink-sql-parser)；manifest 中再记录 release tag commit | 1.36.0，见 [`flink-table/pom.xml`](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/pom.xml) |
+| `flink-2.1.3` | Flink 2.1.3 | [`/flink-docs-release-2.1/`](https://nightlies.apache.org/flink/flink-docs-release-2.1/) | 对应 source release/tag；不得从 2.3 docs 回填 | 与该 release POM 一起锁定 |
+| `flink-1.20.5` | Flink 1.20.5 | [`/flink-docs-release-1.20/docs/dev/table/sql/overview/`](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/overview/) | [`release-1.20/flink-table/flink-sql-parser`](https://github.com/apache/flink/tree/release-1.20/flink-table/flink-sql-parser) | 1.32.0，见 [`flink-table/pom.xml`](https://raw.githubusercontent.com/apache/flink/release-1.20/flink-table/pom.xml) |
 
-| Technology | Version / evidence | Recommendation | Why |
-|------------|--------------------|----------------|-----|
-| Language Server Protocol | Implement the documented **LSP 3.17** baseline; check the current specification before shipping | Implement the Native server as a thin JSON-RPC-over-stdio adapter around the parser/diagnostic core. Start with initialize, shutdown/exit, `textDocument/didOpen`, `didChange`, `didClose`, diagnostics, and document formatting; add completion/hover only when the parser data supports them. | LSP is the interoperability contract, not a parser dependency. Keeping transport and protocol code at the edge preserves one core implementation and avoids requiring Node for the Native distribution. |
-| JSON-RPC/LSP codec | Small adapter using stable MoonBit primitives; evaluate `moonbitlang/x` JSON only at the edge | Do not make an experimental JSON package part of the core parser. Validate message framing, malformed input handling, and UTF-16 position conversion separately. | LSP uses strict message framing and editor positions; this is a boundary concern with different failure and resource limits from SQL parsing. |
-| CLI | MoonBit executable package | `doris-sql parse`, `doris-sql format`, and `doris-sql lsp` should call the same core APIs. Keep file/stdin handling, exit codes, and diagnostics rendering outside the parser package. | A native CLI is the simplest smoke-testable consumer and is explicitly in project scope. |
-| Browser/Monaco | Generated ESM JavaScript wrapper first; Wasm wrapper as an additional artifact | Let the JS host own editor integration and worker/thread scheduling. The MoonBit adapter receives text and returns diagnostics/edits in a stable schema; do not embed a Node-only LSP server in the browser package. | This keeps Web API ergonomics separate from the Native LSP transport while preserving the same parser. |
+Apache 下载页提供 source archive、`.asc` 和 `.sha512` 链接；corpus 更新脚本必须先验证签名/sha512，再抽取 SQL 文档。release branch URL 可供人工审计，但不能写入没有 commit/hash 的长期 manifest（[Flink Downloads](https://flink.apache.org/downloads/)）。
 
-**Protocol evidence:** Microsoft’s official LSP repository and specification define the protocol; the `vscode-languageserver-node` repository is an official Node/TypeScript implementation, but adopting it would make the Native LSP depend on a second runtime and would not make the MoonBit core portable. Use it as an interoperability reference/test client, not as a core dependency.
+## Flink corpus 提取与锁定
 
-### Testing, Golden Corpus, and CI
+1. **先选 release profile，再下载 source archive。** 默认只接受 `flink-2.3.0`；每个旧 profile 由明确的 release ticket 加入，不设 `flink-dev` 或 `latest` fallback。
+2. **验证来源。** 下载 `flink-X.Y.Z-src.tgz`、`.sha512`、`.asc`，使用 Apache KEYS/PGP 与 SHA-512 验证；manifest 写入 archive URL、验证结果、release tag/commit、retrieved_at、archive digest。
+3. **抽取两套输入。**
+   - docs positives：只抽取 release docs 中 SQL reference 的 query/DDL/DML/utility 页面和 fenced SQL examples；保留 page path、heading、anchor、source URL、release profile、原文 hash。
+   - parser oracle：抽取 `flink-sql-parser` 的 `parserImpls.ftl`、`config.fmpp`、`data/Parser.tdd`、tests，以及对应 Calcite `Parser.jj`；保留 source path、commit、Calcite version、文件 hash。不要把 Java AST 输出当作 Fathom 的 CST contract。
+4. **规范化但不改源码。** fixture 文件可归一化行尾和 metadata，但 SQL bytes、注释、大小写、反引号、`=>`、interval literal 和错误样本另存 raw source；每行 manifest 至少含 `fixture_id, dialect, flink_release, source_url, source_path, source_commit, calcite_version, category, expected_status, sha256`。
+5. **按 release 分组，禁止跨版本静默合并。** 目录建议 `corpus/flink-2.3.0/{ddl,dml,query,window,match-recognize,negative}`、`corpus/flink-2.1.3/...`、`corpus/flink-1.20.5/...`。相同 SQL 若在多个 release 出现，保留多条 provenance；仅由测试明确证明等价时共享 fixture 内容。
+6. **处理漂移与冲突。** CI 重新下载同一 archive/commit 后校验 digest；如果 URL 页面内容变化但 release digest 不变，报告 docs mirror drift；如果 docs 与 parser source 冲突，保留 conflict record 和两类测试，不以 moving docs 自动覆盖已发布行为。
+7. **禁止 dev 文档进入 release gate。** `doris` 现有 corpus 已采用 release family/profile metadata 与 manifest 校验（[本地 `token/token.mbt:55-104`](../../token/token.mbt#L55-L104)）；Flink 应复用该“exact release + feature introduction mismatch 必须拒绝”的模式，而不是把 `dev` 当作隐式未来方言。
 
-| Technology/tool | Version / evidence | Use |
-|-----------------|--------------------|-----|
-| MoonBit built-in tests | Current v0.10.5 docs | Use inline `test` blocks for invariants, `_wbtest.mbt` for internal parser tests, and `_test.mbt` for the public API. MoonBit runs black-box and white-box tests through `moon test`. |
-| Built-in snapshots | Current v0.10.5 docs | Use `debug_inspect`/JSON snapshots for normalized CST/diagnostic views and `@test.T::snapshot` for whole-process output. `moon test --update` is the supported update path. Keep large Doris corpus files in version-controlled fixture directories and make snapshot names include the Doris version/feature. |
-| Golden corpus harness | Local repository data + MoonBit test runner | Maintain fixtures grouped by `doris-2.1`, `doris-3.x`, `doris-4.x`, and `dev`; each fixture records source URL, documentation version, expected parse status, and expected round-trip/diagnostic result. Test the key invariant `print_lossless(parse(input)) == input`, then separately snapshot formatting and diagnostics. |
-| Coverage | `moon test --enable-coverage`; `moon coverage report` | MoonBit’s official coverage is branch coverage and can emit summary, HTML, Coveralls JSON, and Cobertura. Use it for implementation coverage, but report SQL feature/corpus coverage separately: branch coverage alone cannot prove Doris grammar coverage. |
-| Cross-backend CI | Moon commands plus the pinned installer | Run `moon check/build --target native`, `js`, `wasm` (and `wasm-gc` when enabled), then run the same small fixture suite through each public wrapper. Compare serialized diagnostics and round-trip outputs byte-for-byte. Record toolchain version and target in artifacts. |
+## Flink SQL 对栈的影响
 
-MoonBit tests resolve relative test paths from the module root. Put the corpus path and fixture loader behind one helper so package-local tests do not accidentally depend on the current working directory. Snapshot update commands must be manually reviewed; never accept regenerated golden files without checking the corresponding parser/formatter change.
+### Lexer compatibility matrix
 
-### Doris SQL Coverage Source
+| Input | Doris v1 当前行为 | Flink/Calcite baseline | Fathom 栈影响 |
+|------|-------------------|------------------------|----------------|
+| `--` / `/*…*/` | comment，保留 trivia | comment；Calcite 还声明 `//` 单行 comment | shared scanner 可复用 comment span，但 Flink profile 要加入 `//`（若目标 release 测试确认）；formatter 必须原样保留。 |
+| `# comment` | `#` 从 `lexer/lexer.mbt:277` 进入 Comment | Calcite lexical block 没有 `#` 单行 comment；`#` 不属于 identifier/token | Flink 不应继承 Doris `#` comment；将它 lex 为 `Unknown/Error` 并给稳定 `FATHOM-LEX-*` 诊断，除非某个明确 Flink release fixture 证明 SQL client 另有预处理。 |
+| `"name"` | `Quoted`，与 backtick 同路径（[本地 lexer:300-307](../../lexer/lexer.mbt#L300-L307)） | Calcite 有 DQID lexical state 的 double-quoted identifier；同时也有 BigQuery-specific double-quoted string state；实际行为依 selected `Lex` 配置 | Flink adapter 必须固定 release parser 的 lexical configuration；不要把 Doris “双引号永远是 identifier”复制到共享 lexer。用 positive/negative fixtures 验证 quoted identifier、string alias 和 formatter round-trip。 |
+| `` `name` `` | `Quoted` | Flink docs 示例明确使用 backticks；Calcite BTID/BQID 有 backtick identifier states | Flink keyword table 及 identifier classification 应以 backtick 为首选文档表现；escape 规则按 release fixture 锁定。 |
+| `X'AB'` | v1 lexer 只有 `'...'` string 路径，`X` 会先成为 identifier | Calcite `BINARY_STRING_LITERAL` 明确定义 `X`/`x` + quote | Flink token kind 增加 binary literal，保留 raw bytes 和 source span；Doris profile 不因共享 code 而误接受。 |
+| `B'0101'` | v1 无 prefixed literal token | Calcite 1.36 `Parser.jj` 的 literal token section 没有 `BINARY/BIT_STRING_LITERAL` 的 `B'...'` token | 不把 “SQL 标准通常有 B literal”当作 Flink 事实。默认 Flink 2.3 栈只锁定 X 与 U&；若 Flink release test corpus 证实 B，增加 `FlinkBitStringLiteral`，否则产生 unsupported/error CST，且不能改 Doris。 |
+| `U&'...'` | v1 无 Unicode-prefixed literal token | Calcite 定义 `UNICODE_STRING_LITERAL`（`U&` + quoted string）；另有 `U&` quoted identifier | Flink lexer/parser 要区分 Unicode string 与 Unicode quoted identifier；保留 escape character/source bytes，不能把 `U` 当普通 identifier 后再由 parser 猜测。 |
 
-| Source | Recommended use | Verification |
-|--------|-----------------|--------------|
-| Apache Doris official SQL manual (`dev`) | Discovery and current syntax tracking only | The current site labels `dev` as an unreleased version. Its SQL manual is organized into basic elements, functions, and statements. |
-| Versioned Doris docs | Reproducible corpus tags | The official current overview links versioned documentation for 2.1, 3.x, and 4.x; the release-note index also exposes 2.1, 3.0/3.1, and 4.0/4.1 lines. Pin the URL/version and retrieval date in corpus metadata. |
-| `apache/doris-website` | Corpus extraction source and documentation-change review | Official Apache repository containing the docs, release notes, and doc tooling. Prefer a pinned commit or release branch when generating a corpus; do not treat the moving `master` site as a permanent fixture. |
-| `apache/doris` FE/Nereids parser source | Differential oracle and gap investigation | The official source contains `NereidsParser` and related parser helpers under `fe/fe-core/.../nereids/parser`. It can explain Doris acceptance behavior, but the SDK remains independent and must not require FE/Java services. |
+### Grammar/statement matrix
 
-The coverage process should distinguish **documented example accepted**, **documented example rejected with an intentional unsupported-version diagnostic**, and **parser bug**. Doris documentation is a coverage oracle, not a complete formal grammar: parser behavior must be confirmed against versioned docs and, where feasible, a matching Doris release/FE oracle.
+| Flink feature | Official evidence | Parser/CST consequence |
+|---------------|------------------|------------------------|
+| `CREATE TABLE` physical/metadata/computed columns, `WATERMARK`, `PRIMARY KEY NOT ENFORCED`, `PARTITIONED BY`, `DISTRIBUTED`, `WITH`, `LIKE`, `AS` | [Flink 2.3 CREATE](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/ddl/create/)；1.20 对应页也有 CREATE grammar | column declaration 不能复用 Doris 的 column/engine/property node；metadata `FROM`、`VIRTUAL`、watermark expression、connector properties 必须有 source-backed CST nodes。 |
+| Window TVF `TUMBLE`, `HOP`, `CUMULATE`, `SESSION` | [Flink 2.3 Window TVF](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/queries/window-tvf/) | `FROM` 中 table function/`TABLE` argument、`DESCRIPTOR(timecol)`、interval literal、named argument `=>` 和 subsequent window columns 需要明确 productions；不能只把 TVF 当普通 function call。 |
+| `MATCH_RECOGNIZE` | Calcite `Parser.jj` 的 `SqlMatchRecognize`/`AFTER MATCH SKIP` productions（[pinned template](https://github.com/apache/calcite/blob/calcite-1.36.0/core/src/main/codegen/templates/Parser.jj)）；Flink overview 未提供稳定独立页面 | 按 Flink release 的 parser/test evidence 建 grammar fixtures；CST 必须保留 `PATTERN`, `DEFINE`, `MEASURES`, `AFTER MATCH SKIP`, quantifier 和 pattern variable，不从 docs 缺页推断“不支持”。 |
+| DML/utility | [Flink 2.3 overview](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/overview/) 列出 SELECT、CREATE/DROP/ALTER、ANALYZE、INSERT/UPDATE/DELETE、DESCRIBE/EXPLAIN/USE/SHOW/LOAD/UNLOAD | statement entry route 必须按 dialect 分发；不能让 Doris DDL fallback 接住未知 Flink statement，否则会破坏 diagnostics 和 lossless recovery。 |
+| Flink 2.3 additions | 2.3 CREATE 页还列出 MATERIALIZED TABLE、MODEL；这类页面在 1.20 不同 | feature metadata 应绑定 exact Flink release，selected profile mismatch 产生结构化 diagnostic；不要把新 DDL 无条件加入 1.20 profile。 |
+| Doris-specific | 当前 `DorisFeature`/`DorisProfile` 是显式版本门控（[本地 `token/token.mbt:133-247`](../../token/token.mbt#L133-L247)） | 迁移时将 Doris feature gates 置于 `Doris` dialect namespace；Flink 的 keyword classification/feature introduction 独立存放，禁止共享 `classification_rows`。 |
 
-## Alternatives Considered
+## Naming-neutralization and release conventions
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Implementation language | MoonBit | Rust, TypeScript, Python | The project requires one MoonBit implementation compiling to Native and Wasm/JS. Other languages could have stronger parser ecosystems, but would violate the stated single-core direction or require a second implementation/FFI layer. |
-| Parser engine | Handwritten recursive descent + Pratt | ANTLR/g4 or another generated parser | Generated grammars can accelerate initial syntax coverage, but they reduce direct control over error recovery, incomplete SQL, and trivia-preserving CST behavior. They also introduce generator/runtime/version coordination that is unnecessary for the chosen MoonBit core. Use Doris grammar/source as reference, not the runtime. |
-| Incremental parser | Lossless local CST designed for later incremental reuse | Tree-sitter | Tree-sitter is a strong independent option for incremental parsing, but adopting it would add a native/Wasm runtime and grammar boundary before the Doris coverage oracle and lossless printer contracts are stable. Reconsider only if profiling demonstrates that the local design cannot meet editor latency. |
-| Existing SQL library | Local Doris parser | sqlglot or a generic SQL AST library | Generic AST libraries are useful comparison baselines, but they are not the lossless MoonBit CST requested here and would leave comments/trivia or Doris-specific constructs outside the core contract. |
-| Doris reference | Versioned official docs plus FE differential checks | Depend on Doris FE at runtime | Runtime FE dependence contradicts independent SDK distribution, browser use, and the parser/analyzer separation. |
-| LSP implementation | Native MoonBit stdio adapter | `vscode-languageserver-node` | The Node implementation is a good protocol reference, but it adds Node packaging/runtime to a Native-first SDK and would duplicate the transport layer. |
-| Web target | JS ESM plus portable Wasm | Wasm GC only or JS-only | JS ESM gives the most direct browser/Monaco surface; linear Wasm preserves a portable host option. Wasm GC is documented but should be an explicitly tested optional artifact, while JS-only would fail the Wasm requirement. |
-| Package configuration | `moon.mod`/`moon.pkg` | `moon.mod.json`/`moon.pkg.json` | Official docs mark the JSON formats deprecated in v0.10.4 and scheduled for removal. |
+| Surface | Required convention | Integration point / gate |
+|---------|---------------------|--------------------------|
+| MoonBit module/import | root module `fathom/sql`；package dirs `source`, `token`, `lexer`, `parser`, `api`, `binding`, `formatter`, `completion`, `analyzer`; no public `fathom/doris-sql` imports | `moon.mod` module name allows `/` and `-`; package name comes from directory, so directory rename must happen before rewriting imports ([module](https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html#name), [package](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html#name)). |
+| Native CLI/LSP | binaries `fathom-sql` and `fathom-lsp`; commands `parse`, `format`, `lsp` accept required `--dialect doris|flink` plus dialect-specific release/profile | Current CLI package is `doris-sql` executable and imports `fathom/doris-sql/api` ([本地 `doris-sql/moon.pkg:1-13`](../../doris-sql/moon.pkg#L1-L13)); rename package and executable in one cutover; do not silently default to Doris. |
+| Wire schema | `fathom.parse.v1`, `fathom.format.v1`, `fathom.error.v1`, `fathom.capabilities.v1` with `dialect` field; `source_transport` remains explicit | binding remains sole schema producer; all wrappers compare serialized results byte-for-byte across native/js/wasm. Existing `doris.*` literals are migration inventory ([本地 `binding/schema.mbt:3-5,43-67`](../../binding/schema.mbt#L3-L67)). |
+| Diagnostics | `FATHOM-PARSE-###`, `FATHOM-LEX-###`, `FATHOM-FORMAT-###`, `FATHOM-SCHEMA-###`, `FATHOM-LSP-###`; messages may mention selected dialect, codes never use dialect brand | Code mapping is a closed enum `match`; no `DORIS-*` alias. Keep `dialect`, `statement_id`, byte span and expected class stable. |
+| JS/Wasm exports | `fathom_parse_v1`, `fathom_format_v1`, `fathom_capabilities_v1`, `fathom_profile_v1`; primitive UTF-8 JSON/Bytes only | `foreign_library` + `#export_name` on non-generic wrappers; export names must be C-symbol-compatible and unique within producing package ([MoonBit package config](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html#package-type)). |
+| VS Code | extension/package `fathom-sql-language-client`; language id `fathom-sql` or neutral `sql` with dialect setting; config keys `fathom.sql.dialect`, `fathom.sql.serverPath`; command `fathom.restartLanguageServer` | Current extension hardcodes `doris` in displayName, activation, settings and command ([本地 `vscode/package.json:1-58`](../../vscode/package.json#L1-L58)); change language-configuration, tests, server downloader and docs together. |
+| JetBrains/Web/docs | artifact/display names `fathom-sql`; docs use “Doris dialect”/“Flink dialect” only when describing syntax, never as product name | Update README, API docs, schemas, release workflow artifact names and examples in one migration; no compatibility aliases per milestone requirement. |
+| Release metadata | SemVer module/package version; corpus manifest records SQL release and Fathom parser schema separately; release notes state supported Flink profile matrix | Mooncakes publication requires module name username prefix and SemVer ([MoonBit module version](https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html#version)); native assets remain OS/arch named and checksummed. |
 
-## Installation and Setup
+## Development Tools and CI Gates
 
-The official MoonBit download page currently recommends Git and provides this installer (verify the downloaded binary/archive with the published SHA-256 file in production CI):
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `moon check` / `moon build` | Compile core and adapters per backend | Run native, JS and linear Wasm for shared code; use exact compiler recorded in `moon.mod`. Keep Wasm GC optional until runtime matrix is verified. |
+| Corpus extraction script | Fetch, verify, extract, hash, and manifest Flink release docs/source | Must accept an explicit release identifier; fail on `dev`/`stable`/unrecognized URL; never use network at parser runtime. |
+| Differential fixture harness | Compare Fathom acceptance/recovery/round-trip with source evidence | Flink parser source/Calcite is an oracle, not a runtime dependency; record `accepted_by_docs`, `accepted_by_source`, `fathom_status`, and conflicts independently. |
+| Cross-backend parity harness | Verify serialized schema, diagnostics, source bytes and formatter output | All dialects and profiles must exercise Native/JS/Wasm wrappers; compare JSON/Bytes, not internal MoonBit ADTs. |
+| Package/release checks | Audit neutral names and public artifacts | Fail if public source contains `doris-sql`, `doris-lsp`, `doris.*.v1`, or `DORIS-*` outside historical corpus provenance; allow `Dialect::Doris` and docs references to Doris dialect. |
+
+## Installation
 
 ```bash
-# Install the MoonBit CLI/toolchain according to the official installer.
-curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-
+# Pin and verify the existing MoonBit toolchain; do not silently upgrade.
 moon version
-moon new doris-sql-parser
-cd doris-sql-parser
 
-# Pin/update dependencies intentionally rather than accepting accidental upgrades.
-moon add moonbitlang/core@0.1.20260728+5e7afb0c0
-# Optional edge-only utilities; keep this out of parser-core until evaluated.
-# moon add moonbitlang/x@0.4.47
+# Check shared implementation for each promised target.
+moon check --target native
+moon check --target js
+moon check --target wasm
 
-# Development and release checks for the shared implementation.
-moon check --target all
+# Build only after the release/profile and corpus manifest are selected.
 moon build --target native --release
 moon build --target js --release
 moon build --target wasm --release
 
-# Built-in tests, snapshots, and branch coverage.
-moon test
-moon test --update          # only after reviewing intended snapshot changes
-moon test --enable-coverage
-moon coverage report -f summary
+# Optional edge tooling, never a parser-core dependency.
+# moon add moonbitlang/x@0.4.47
 ```
 
-A public JS package should use a package configuration along these lines (the exact package names and wrapper symbols are implementation details):
+No npm, Java, Flink cluster, Doris FE, Calcite runtime, ANTLR runtime or sqlglot installation belongs in the parser core. npm is only for generated JS consumers and editor extensions; Apache Flink/Calcite are source/corpus authorities, not production dependencies.
 
-```moonbit
-pkgtype(kind: "foreign_library")
+## Alternatives Considered
 
-options(
-  link: {
-    "js": {
-      "format": "esm",
-      "exports": ["parse_text", "format_text"],
-    },
-  },
-)
-```
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| Closed `Dialect` enum + `match` | `pub(open) trait Dialect` | Use an open trait only for genuinely user-implemented extension boundaries such as Catalog/host/analyzer provider; never for the finite built-in dialect route. |
+| Closed enum | `extenum` | Use `extenum` only when third-party constructors are a product requirement; its wildcard requirement weakens compile-time route completeness. |
+| Handwritten MoonBit parser | Apache Calcite JavaCC parser runtime | Use Calcite source as grammar/keyword oracle and version comparator; adopt runtime only if the product abandons MoonBit single-core and lossless CST constraints, which is out of scope. |
+| Flink release docs + pinned source + matching Calcite | `flink-docs-stable`, `nightlies`, `dev` | Use moving docs for discovery only; never use them in reproducible fixture/gate inputs. |
+| Flink 2.3.0 + matching Calcite 1.36.0 | Latest Calcite `main` | Use Calcite `main` only for exploratory future-syntax research; a Flink profile must use the Calcite version in its own POM. |
+| Local MoonBit JSON/primitive adapter | `moonbitlang/x` JSON in parser core | Use `moonbitlang/x` at adapter edge after target-specific verification; keep lexer/CST/backend parity independent of experimental packages. |
+| JS ESM + linear Wasm first | Wasm GC-only distribution | Use Wasm GC after a concrete browser/runtime matrix passes; it is not the first compatibility promise. |
 
-The exported wrappers should use `#export_name` and stable primitive arguments/results. A Native CLI/LSP package should instead use `pkgtype(kind: "executable")`. These forms and target names are taken from the official package/command documentation; validate the final artifact shape with the selected MoonBit toolchain because the toolchain is actively evolving.
-
-## Versioning and Reproducibility Policy
-
-1. Pin the MoonBit binary/toolchain version in CI; record `moon version` and target for every corpus/golden run. The official installer’s `latest` channel is convenient for local setup, not a reproducible release input.
-2. Pin `moonbitlang/core` and any optional `moonbitlang/x` version in `moon.mod`; update them in a deliberate dependency-change PR.
-3. Keep Native, JS, linear Wasm, and optional Wasm GC builds in the same CI matrix. A parser behavior change is not complete until the serialized public contract and lossless round-trip agree across enabled targets.
-4. Store Doris fixture provenance: version family, exact documentation URL, source commit/retrieval date, and whether the case is expected to parse. The official `dev` docs are unreleased and must not silently overwrite versioned goldens.
-5. Treat the CST schema, diagnostic schema, and exported wrapper signatures as versioned public APIs. Internal CST representation can evolve behind the stable serialized facade.
-
-## Sources
-
-### MoonBit (official)
-
-- [MoonBit Documentation home — v0.10.5](https://docs.moonbitlang.com/en/latest/) — supported backends and mixed-backend modules (HIGH).
-- [Foreign Function Interface — v0.10.5](https://docs.moonbitlang.com/en/latest/language/ffi.html) — backend list, host dependencies, FFI types/ABI, and portability warnings (HIGH).
-- [Module Configuration — v0.10.5](https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html) — `moon.mod`, dependencies, versions, and preferred targets (HIGH).
-- [Package Configuration — v0.10.5](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html) — `moon.pkg`, package kinds, `#export_name`, JS/native/Wasm link options (HIGH).
-- [Command-Line Help — v0.10.5](https://docs.moonbitlang.com/en/latest/toolchain/moon/commands.html) — build/check/test targets and commands (HIGH).
-- [Writing Tests — v0.10.5](https://docs.moonbitlang.com/en/latest/language/tests.html) — unit, black-box/white-box, and snapshot tests (HIGH).
-- [Measuring code coverage — v0.10.5](https://docs.moonbitlang.com/en/latest/toolchain/moon/coverage.html) — branch coverage and report formats (HIGH).
-- [WebAssembly Integration — v0.10.5](https://docs.moonbitlang.com/en/latest/toolchain/wasm/index.html) — component model and custom import/export guidance (HIGH).
-- [Use and publish packages — v0.10.5](https://docs.moonbitlang.com/en/latest/toolchain/moon/package-manage-tour.html) — `moon new`, `moon add`, Mooncakes, and package layout (HIGH).
-- [Official MoonBit download page](https://www.moonbitlang.com/download/) — installer and SHA-256 verification guidance (HIGH).
-- [Mooncakes `moonbitlang/core` manifest](https://mooncakes.io/api/v0/manifest/moonbitlang/core) — observed current version and checksum metadata (HIGH, checked 2026-08-03).
-- [Mooncakes `moonbitlang/x` manifest](https://mooncakes.io/api/v0/manifest/moonbitlang/x) — observed current experimental extension version (HIGH, checked 2026-08-03).
-- [Moon build system source repository](https://github.com/moonbitlang/moon) — official build-system/package-manager source (HIGH).
-
-### Doris and protocol standards (official)
-
-- [Apache Doris current overview](https://doris.apache.org/docs/dev/getting-started/what-is-apache-doris/) — current page labels itself unreleased and links 2.1/3.x/4.x docs (HIGH, last updated 2026-05-17 in page metadata).
-- [Apache Doris SQL manual index](https://doris.apache.org/docs/dev/sql-manual/) — official basic-element, function, and statement sections (HIGH).
-- [Apache Doris release-notes index](https://doris.apache.org/docs/dev/releasenotes/) — official version families including 2.1, 3.x, and 4.x (HIGH).
-- [Apache Doris website source](https://github.com/apache/doris-website) — official documentation repository and versioned corpus source (HIGH).
-- [Apache Doris FE Nereids parser directory](https://github.com/apache/doris/tree/master/fe/fe-core/src/main/java/org/apache/doris/nereids/parser) — official parser/differential reference source (HIGH).
-- [Language Server Protocol 3.17 specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) — protocol baseline and message contracts (HIGH).
-- [Microsoft Language Server Protocol repository](https://github.com/microsoft/language-server-protocol) — official protocol source and specification repository (HIGH).
-- [Microsoft vscode-languageserver-node repository](https://github.com/microsoft/vscode-languageserver-node) — official Node implementation, consulted as an interoperability reference rather than adopted dependency (HIGH).
-
-## Confidence Notes and Open Verification
-
-- **HIGH:** MoonBit target list, module/package syntax, export attributes, JS formats, test/snapshot/coverage commands, and Mooncakes versions are directly verified against current official docs or the official registry API.
-- **HIGH:** Doris versioned documentation layout, unreleased `dev` warning, release-note families, website repository, and FE parser location are directly verified against official Apache sources.
-- **MEDIUM:** The recommendation to expose serialized primitive wrappers rather than CST objects is a conservative design response to the official FFI ABI warning; final signatures require a small cross-target prototype.
-- **MEDIUM:** The recommendation to implement a native LSP adapter in MoonBit is compatible with the official protocol but is not evidence that a ready-made MoonBit LSP framework exists. Validate framing, UTF-16 positions, cancellation, and incremental document updates during the LSP phase.
-- **Open:** Confirm the exact production browser/runtime matrix for linear Wasm versus Wasm GC, and confirm whether the chosen JSON codec meets size, Unicode, and malformed-input requirements before making it a public dependency.
-
----
-
-# v2 Analysis Features — Stack Research
-
-**Researched:** 2026-08-05 (v2.0 milestone)
-**Focus:** ANAL-01 name resolution, LINT-01 lint rules, LINE-01 column lineage, FING-01 SQL fingerprints, EDIT-01 bounded incremental parsing
-**Confidence:** HIGH for MoonBit core facts (verified against downloaded `moonbitlang/core@0.1.20260728+5e7afb0c0` source this session); MEDIUM for benchmark thresholds (needs project-specific measurements)
-
-## Verdict: No New Runtime Dependencies
-
-The v2 analysis features can be implemented **entirely with the already-pinned `moonbitlang/core` stack and local modules**. No third-party MoonBit package is required in the parser core or the analysis packages. This preserves the single-core Native/Wasm/JS constraint and the dependency-light core.
-
-## Key Verified MoonBit Facts (from core source, this session)
-
-| Fact | Evidence | Implication |
-|------|----------|-------------|
-| `Map` is a **LinkedHashMap** — insertion order preserved, deterministic iteration | `builtin/linked_hash_map.mbt` | Catalog lookups and analysis results serialize deterministically; no separate ordered-map dependency needed |
-| Core has **no `hash` package**; `Hasher` is **xxHash32** | `builtin/hash.mbt`, `builtin/hash_fn.mbt` | FING-01 fingerprint hashing must be implemented locally (or use `UInt64` from a stable algorithm); don't assume a core hash module exists |
-| **`Int` is 32-bit on Wasm/WasmGC/C, `number` on JS; `UInt64` is fixed 64-bit everywhere** | `docs/moonbitlang.com/en/latest/language/ffi.html` (read this session) | **Cross-backend fingerprint stability REQUIRES `UInt64`** for the hash output; `Int`-based hashes would differ between JS and Wasm/Native |
-| `String` has `to_lower`, `equal_ignore_ascii_case`, `replace_all`; **no** `to_lowercase`/`to_uppercase` | `builtin/string_methods.mbt` | ANAL-01 case-insensitive catalog matching uses `equal_ignore_ascii_case` (documented case-insensitive policy, not byte case-folding) |
-| `@bench` attribute + `moon bench` CLI (`--target native|js|wasm|all`) with JSON summaries | `bench/` package, official commands doc | EDIT-01's "benchmarks justify the complexity" gate uses `moon bench`; `keep()` prevents dead-code elimination |
-| `moonbitlang/x@0.4.47` (experimental) has `crypto` with SHA-256 | Mooncakes x manifest + `x/crypto/package_data.json` | Optional stronger hash for FING-01 at the **adapter/edge**; keep out of parser core per existing policy |
-| Core has `sorted_map`, `hashmap`, `json`, `immut` packages | `module_index.json` | Catalog index (hashmap), ordered iteration (sorted_map), serialized results (json) all available |
-
-## What NOT to Add
+## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `moonbitlang/x` in parser core or analysis packages | Experimental; violates dependency-light core policy | Local hash/fingerprint implementation; `x/crypto` only if a strong hash is later needed at the JS/Wasm facade edge |
-| Any third-party incremental-parsing framework (e.g., a tree-sitter port) | Would fork the single-core implementation and abandon lossless CST control | Local bounded incremental reuse over the existing CST (EDIT-01), gated by `moon bench` evidence |
-| A database or catalog runtime | Breaks offline/standalone use | `Catalog` trait already injectable (D-22); StaticCatalog/JSON-backed catalog for tests |
-| Wasm GC as a v2 default target | Only linear Wasm is advertised in v1 (D-31); Wasm GC remains optional | Keep linear Wasm + JS facade; re-evaluate Wasm GC only if a consumer requires it |
+| `pub(open) trait` as the dialect registry | Open implementations and non-exhaustive behavior can leave a route partially wired; it is the wrong semantic contract for exactly two built-in dialects | `pub(all) enum Dialect` + centralized exhaustive route functions; separate open traits only for extension interfaces |
+| `#` comments in Flink lexer by copying Doris | Local Doris lexer explicitly treats `#` as comment, while Calcite lexical definitions do not; accepting it creates Flink false positives and corrupts recovery boundaries | Flink-specific comment table (`--`, `//`, block as release evidence supports), with `#` unknown/error fixture unless release parser proves pre-processing |
+| Blindly accepting all X/B/U prefixes | Calcite 1.36 template visibly defines X binary and U& Unicode forms but not B bit-string token; generic SQL folklore is not Flink release evidence | Implement X and U& from pinned Calcite; gate B by Flink release fixture and report unsupported otherwise |
+| `doris-sql`, `doris-lsp`, `doris.*.v1`, `DORIS-*` public names after cutover | Leaves product identity and serialized contracts dialect-specific; contradicts neutral naming and no-backward-compatibility milestone | `fathom-sql`, `fathom-lsp`, `fathom.*.v1`, `FATHOM-*`; keep `doris` only as a dialect value/provenance label |
+| `dev`/`stable` URLs or unpinned `release-*` branch as corpus | Documentation and source move; the same fixture can silently change | Apache source archive + `.asc`/`.sha512` + release tag/commit + per-file hash |
+| Flink/Doris FE or Calcite Java at runtime | Breaks offline Native/JS/Wasm SDK, adds deployment coupling and violates parser/analyzer separation | Pure MoonBit parser; use official source/docs only for corpus/differential evidence |
+| Parser generator/runtime fork beside the handwritten parser | Creates a second grammar/CST/error-recovery behavior and loses the single source of truth | Extend existing source-backed lexer/CST/parser with dialect tables and productions |
 
-## Version Pinning
+## Stack Patterns by Variant
 
-- **`moonbitlang/core`**: keep pinned `0.1.20260728+5e7afb0c0` (matches `moon.mod` / lock).
-- **`moonbitlang/x`**: if any v2 edge feature needs SHA-256, pin `0.4.47` explicitly and keep it at the binding/adapter boundary only; never import from `analyzer/`, `lint/`, `lineage/`, or `fingerprint/` core logic.
+**If the selected dialect is Doris:**
+- Use `Dialect::Doris`, an explicit Doris release profile (`2.1`, `3.x`, `4.x`), Doris keyword classification and existing Doris feature gates.
+- Preserve byte-level parity as a non-negotiable gate; do not change Doris lexer semantics merely to make Flink implementation convenient.
+
+**If the selected dialect is Flink:**
+- Use `Dialect::Flink` plus exact Flink release profile (`flink-2.3.0`, `flink-2.1.3`, or `flink-1.20.5`), per-release keyword table and matching Calcite version metadata.
+- Route window TVF, `MATCH_RECOGNIZE`, Flink DDL/DML and Flink lexical forms explicitly; never fall through to Doris productions.
+
+**If the code is a public host adapter:**
+- Expose only primitive UTF-8/Bytes serialized results with `dialect` and schema version; perform UTF-16 conversion in LSP/host code.
+- Use MoonBit `foreign_library`/`#export_name` wrappers and JS ESM; do not export internal CST enums/structs.
+
+**If adding a user extension:**
+- Use `pub(open) trait` for Catalog/analyzer/host capabilities, with explicit coherent implementation and primitive API boundaries.
+- Do not add a third built-in dialect through a trait implementation without first adding its `Dialect` enum constructor, release/profile metadata, keyword/grammar tables and every route match.
+
+## Version Compatibility
+
+| Package A | Compatible With | Notes |
+|-----------|-----------------|-------|
+| `fathom/sql@0.1.x` (v2 development line) | MoonBit `0.1.20260724` / v0.10.5 policy | Keep `moon.mod`/`moon.pkg` new DSL; official docs currently render v0.10.6, but compiler pin must remain explicit and upgrade separately. |
+| `Flink 2.3.0` | `Calcite 1.36.0` | Read from Flink 2.3 `flink-table/pom.xml`; parser grammar must use this Calcite template, not latest `main`. |
+| `Flink 1.20.5` | `Calcite 1.32.0` | Read from Flink 1.20 `flink-table/pom.xml`; keep 1.20 docs path under `/docs/dev/table/sql/`. |
+| `Flink 2.1.3` | Its release POM's Calcite version | Add only after extracting exact source/POM; do not infer from 2.3 or 1.20. |
+| `fathom.parse.v1` | Native, JS ESM, linear Wasm, LSP 3.17 | All targets use the same primitive field names/byte spans; host-specific UTF-16 is not part of parser schema. |
+| `fathom-sql` / `fathom-lsp` | VS Code/JetBrains clients using `fathom.*` settings | Release artifacts must include SHA-256 manifest and exact schema/capability metadata; no old binary aliases. |
 
 ## Sources
 
-- [MoonBit FFI docs — Int width portability](https://docs.moonbitlang.com/en/latest/language/ffi.html) — verified this session
-- [MoonBit commands — `moon bench`](https://docs.moonbitlang.com/en/latest/toolchain/moon/commands.html) — verified this session
-- Mooncakes `moonbitlang/core@0.1.20260728+5e7afb0c0` source archive (downloaded and read this session) — hash/hasher, linked_hash_map, string_methods, bench package
-- [Mooncakes `moonbitlang/x@0.4.47` module index](https://assets.mooncakes.io/assets/moonbitlang/x@0.4.47/module_index.json) — crypto package presence
+### Local project evidence
+
+- [`moon.mod:1-8`](../../moon.mod#L1-L8) — current root module `fathom/doris-sql`, exact recorded MoonBit toolchain, native preferred target; migration source of truth.
+- [`lexer/lexer.mbt:208-247,277-307`](../../lexer/lexer.mbt#L208-L307) — Doris comment, string, double-quote/backtick behavior.
+- [`token/token.mbt:3-247`](../../token/token.mbt#L3-L247) — closed Doris profile/feature enum, metadata validation and profile gates to preserve under `Dialect::Doris`.
+- [`token/token.mbt:297-464`](../../token/token.mbt#L297-L464) — current global `classification_rows`; must be split per dialect.
+- [`api/api.mbt:1-120`](../../api/api.mbt#L1-L120) — explicit profile/mode and primitive parse boundary.
+- [`binding/schema.mbt:1-105`](../../binding/schema.mbt#L1-L105) — current `doris.*` schema/error naming to replace with `fathom.*`.
+- [`doris-sql/moon.pkg:1-13`](../../doris-sql/moon.pkg#L1-L13) — current executable package/import path.
+- [`vscode/package.json:1-58`](../../vscode/package.json#L1-L58) — current extension’s Doris-specific public names requiring clean cutover.
+
+### Apache Flink (official)
+
+- [Flink Downloads](https://flink.apache.org/downloads/) — current stable release list, source archives, `.asc` and `.sha512` links; 2.3.0, 2.1.3 and 1.20.5 pins.
+- [Flink 2.3 SQL overview](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/overview/) — release-version SQL surface, statement families, Calcite relationship and reserved-keyword list.
+- [Flink 2.3 CREATE statements](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/ddl/create/) — physical/metadata/computed columns, watermark, constraints, distribution, properties, newer materialized/model DDL.
+- [Flink 2.3 Window TVF](https://nightlies.apache.org/flink/flink-docs-release-2.3/docs/sql/reference/queries/window-tvf/) — TUMBLE/HOP/CUMULATE/SESSION syntax and `TABLE`/`DESCRIPTOR`/interval/named-argument forms.
+- [Flink 1.20 SQL overview](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/dev/table/sql/overview/) — versioned older SQL surface and reserved-keyword evidence.
+- [Flink 2.3 table POM](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/pom.xml) — Calcite 1.36.0 property and parser module list.
+- [Flink 1.20 table POM](https://raw.githubusercontent.com/apache/flink/release-1.20/flink-table/pom.xml) — Calcite 1.32.0 property and parser module list.
+- [Flink 2.3 `config.fmpp`](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/flink-sql-parser/src/main/codegen/config.fmpp) — confirms Flink extends Calcite’s packaged `Parser.jj` through codegen configuration.
+- [Flink 2.3 `parserImpls.ftl`](https://raw.githubusercontent.com/apache/flink/release-2.3/flink-table/flink-sql-parser/src/main/codegen/includes/parserImpls.ftl) — Flink-specific DDL/utility/parser productions.
+
+### Apache Calcite (official)
+
+- [Calcite SQL language reference](https://calcite.apache.org/docs/reference.html) — baseline BNF for query, DML, window and table expressions.
+- [Calcite 1.36 Parser template](https://github.com/apache/calcite/blob/calcite-1.36.0/core/src/main/codegen/templates/Parser.jj) — pinned keyword/non-reserved-keyword generation, `MATCH_RECOGNIZE`, X binary literal, U& Unicode literal, lexical states and comment rules.
+- [Calcite current Parser template](https://github.com/apache/calcite/blob/main/core/src/main/codegen/templates/Parser.jj) — discovery only; not a release oracle for Flink profiles.
+
+### MoonBit (official)
+
+- [MoonBit language fundamentals](https://docs.moonbitlang.com/en/latest/language/fundamentals.html#enum) — closed enum constructors, `match`, `extenum`, and wildcard requirement for open enums.
+- [MoonBit methods and traits](https://docs.moonbitlang.com/en/latest/language/methods.html#trait-system) — `pub(open) trait`, implementations and method constraints.
+- [MoonBit package visibility/trait implementations](https://docs.moonbitlang.com/en/latest/language/packages.html#traits) — private/abstract/readonly/open trait semantics and coherence restrictions.
+- [MoonBit module configuration](https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html) — module naming, SemVer/Mooncakes username requirement, dependencies, preferred target and include/exclude.
+- [MoonBit package configuration](https://docs.moonbitlang.com/en/latest/toolchain/moon/package.html) — package-derived names, `pkgtype`, foreign libraries, `#export_name`, JS ESM/CJS exports.
+- [MoonBit FFI](https://docs.moonbitlang.com/en/latest/language/ffi.html) — backend set and stable primitive ABI guidance.
 
 ---
-*Stack research (v2 additions) for: Doris SQL Parser SDK — analysis features*
+*Stack research for: Fathom v2.0 Multi-Dialect (Flink SQL + neutral naming)*  
+*Researched: 2026-08-06*

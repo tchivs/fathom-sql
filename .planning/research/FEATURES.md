@@ -1,245 +1,187 @@
-# Feature Landscape
+# Feature Research
 
-**Domain:** Apache Doris SQL parser, formatter, and editor SDK
-**Researched:** 2026-08-03
-**Overall confidence:** MEDIUM-HIGH
+**Domain:** Flink SQL 多方言解析、编辑器与 SDK 工具链（Fathom v2.0）  
+**Researched:** 2026-08-06  
+**Confidence:** MEDIUM-HIGH
 
-## Competitive and Ecosystem Baseline
+## Feature Landscape
 
-The market is split between (1) general-purpose dialect libraries, (2) Doris's own frontend implementation, and (3) commercial parser products. None of the checked alternatives is a direct match for the requested combination of Doris coverage, lossless source representation, independent deployment, and Native plus Wasm/JavaScript targets.
+本清单把“table stakes”定义为：在现有 Doris v1 SDK 已经提供的同类能力上，Flink 用户如果不能得到，就无法安全地把结果用于 CI、格式化器或编辑器；而不是把 Flink 引擎的全部运行时语义误当成 parser SDK 的承诺。Flink 官方文档明确把 SQL 建立在 Apache Calcite 上，并列出 SELECT、DDL、DML、诊断类语句及关键字；CREATE TABLE 和 Window TVF 页面进一步显示，Flink 的语法差异不只是关键字，而包括 metadata/computed column、WATERMARK、connector options、DISTRIBUTED、`TABLE`/`DESCRIPTOR` 参数和流式窗口结构。证据：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>、<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>、<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/queries/window-tvf/>。
 
-* **SQLGlot is the closest open implementation reference, not a drop-in replacement.** Its current Doris dialect subclasses MySQL, installs a Doris-specific parser and generator, adds Doris functions/properties/partition syntax, and carries a large reserved-keyword set. SQLGlot's own README explicitly says that it parses to an AST, changes formatting/casing/quoting when regenerating SQL, preserves comments only on a best-effort basis, and is intentionally lenient rather than a validator. This makes it useful for interoperability and performance baselines, but it leaves a clear product gap for exact round-trip editing and IDE diagnostics. [HIGH confidence; source code and README checked]
-* **Doris FE/g4 is the execution product's grammar source, not an independently consumable SDK contract.** The Apache Doris repository exposes ANTLR grammar artifacts under `fe/fe-core/src/main/antlr4/org/apache/doris/nereids/` (including `JavaLexer.g4` and `JavaParser.g4` in the checked tree); SQLGlot's Doris generator also links its keyword list to a Doris `DorisLexer.g4` revision. FE grammar/version coupling, generated parser/runtime assumptions, and FE semantic dependencies mean it should be treated as a coverage oracle and differential-test reference, not copied as the public API. [HIGH for repository facts; MEDIUM for the integration conclusion]
-* **GSP demonstrates the commercial feature bar, while its public Doris evidence is bounded.** GSP documents a dedicated Doris grammar, AST access, formatting, syntax validation, and lineage. Its published Java 4.1.9 corpus measurement (2026-08-03) reports 38/46 constructs and 123/134 statements for Doris, including 17/21 SELECT statements and 16/17 DML statements. The same page says those percentages are only pass rates over its own vendor-documentation corpus, not the whole dialect. GSP also documents source-token re-emission for byte-preserving edits separately from normalised AST generation, and its licensing FAQ says external distribution needs a separate distribution license. These are useful expectations and trade-offs, not proof of undocumented capabilities. [HIGH for what GSP publicly states; MEDIUM for market comparison]
-* **General SQL editor servers establish expected interactions but have weak Doris coverage.** The checked `sqls` server advertises completion, hover, signature help, formatting, diagnostics/code actions, and database-backed metadata, but its listed drivers are MySQL, PostgreSQL, SQLite3, MSSQL, H2, and Vertica and its README marks CREATE/ALTER TABLE completion as incomplete. `sql-language-server` advertises completion, warnings/errors, linting, a parser, VS Code/Monaco integration, and MySQL/PostgreSQL/SQLite3 support. Neither checked project lists Doris. The LSP specification provides the transport and feature vocabulary; the Doris SDK must supply dialect-aware semantics without requiring a live database for syntax diagnostics. [HIGH for listed capabilities; LOW for any claim that no other Doris LSP exists]
-* **Lossless/incremental syntax trees are a recognized editor pattern.** Tree-sitter documents concrete syntax trees, useful results in the presence of syntax errors, edits that update node ranges, and reparsing that shares structure with the previous tree. The project need not adopt Tree-sitter or generated grammars, but its lossless CST and span/edit API should be judged against these editor expectations. [HIGH confidence]
+### Table Stakes (Users Expect These)
 
-## Table Stakes
-
-These are the minimum capabilities users reasonably expect from a production parser SDK. A feature is not table stakes merely because an adjacent competitor claims it; it is table stakes when its absence makes a parser unsafe to embed in CI, a formatter, or an editor.
-
-| Feature | Why Expected | Complexity | Dependencies | Version / corpus implications |
+| Feature | Why Expected | Complexity | Dependencies | Evidence |
 |---|---|---:|---|---|
-| **Doris dialect lexer and parser API** (`parse`, `parse_many`, structured result) | Users need a library that can parse Doris without bringing up FE or guessing between MySQL dialects. | High | Lexer, recursive-descent statement parser, Pratt expression parser, public CST/diagnostic types | Define a version-tagged dialect profile (at least Doris 2.1, 3.x, 4.x/current). Never silently treat a later keyword as valid in an older profile. |
-| **Lossless source model** retaining trivia, comments, token text, and byte/line/column spans | Formatter, refactoring, diagnostics, and editor edits must not discard user comments or unrelated whitespace. SQLGlot explicitly documents that AST regeneration changes cosmetic details; GSP documents token-list re-emission as a separate source-preserving path. | High | Trivia-preserving lexer, immutable CST nodes, source coordinate model, safe edit/replace operation | Golden corpus must include comments, mixed newline styles, quoted identifiers, Unicode, and semicolons. Define whether spans are byte offsets, UTF-16 positions, or both for LSP. |
-| **Exact no-op round trip** (`print(parse(sql)) == sql`) | It is the trust boundary for tools that inspect or edit SQL. A parse-only operation must not rewrite a file. | Med-High | Lossless CST, token ownership rules, printer that can replay original tokens | Make this an invariant in every supported version profile; add snapshot tests for all official examples, not just SELECT. |
-| **Core SELECT and expression coverage** | SELECT, joins, subqueries/CTEs, windows, grouping sets/rollup/cube, set operations, predicates, literals, functions, and Pratt precedence are the daily workload. Doris's 4.x SELECT documentation explicitly includes hints, `ALL EXCEPT`, partitions/tablets, sampling, grouping extensions, joins, UNION, and WITH. | High | Expression precedence table, clause parser, nested-scope CST shape, recovery points | Start with documented examples from 2.1/3.x/4.x and record feature introduction/removal versions. Avoid using MySQL compatibility as a coverage claim. |
-| **DML and statement/script boundaries** | INSERT, INSERT OVERWRITE, UPDATE, DELETE, MERGE where supported, semicolon-separated scripts, and statements containing nested semicolons are needed for CI and migrations. Naive semicolon splitting corrupts procedure-like or nested constructs. | High | Statement dispatcher, delimiter-aware lexer/parser, recovery synchronization | Track support per Doris release; preserve statement-level spans even when one statement fails. |
-| **Doris DDL and warehouse-specific clauses** | CREATE/ALTER/DROP table and view, CTAS/LIKE, keys and aggregation semantics, distribution, buckets, partitions/dynamic partitions, properties, indexes, and materialized views are what distinguish Doris from generic MySQL. The official 4.x CREATE TABLE page documents these forms and marks `ORDER BY` as supported since 4.1.0. | High | DDL CST nodes, property key/value representation, partition/distribution grammar, feature gates | Corpus must pin docs by release; current `4.x` pages are for an unreleased branch and should not be treated as 4.0 compatibility. Keep unsupported/new clauses as recoverable unknown nodes rather than accepting them in every version. |
-| **Precise, machine-readable diagnostics** | Editors and CI need severity, code, message, token/span, expected syntax, and statement identity—not only a boolean. GSP publicly documents token, line/column, hint, error type, and per-statement errors. | High | Error type model, span mapping, parser context, diagnostics API | Diagnostics are a public compatibility surface; stable codes should include dialect/version context. Test malformed and half-written SQL, not only rejected complete SQL. |
-| **Error recovery for incomplete SQL** | An editor must continue producing a tree and diagnostics after a missing expression, comma, quote, closing delimiter, or clause keyword. | High | Panic-mode at statement boundaries, clause-level recovery, explicit error/missing nodes | Recovery behavior must be snapshot-tested on editor-like prefixes/suffixes. Do not promise engine acceptance from a recoverable CST. |
-| **Deterministic printer baseline** | Even before a configurable formatter, users need a stable canonical rendering for debugging, snapshots, and generated SQL. | Medium | CST/AST rendering rules, keyword and identifier policy | Canonical mode must be version-aware and documented as potentially changing only under a versioned printer contract. |
-| **Embeddable, dependency-light core** | CI, build tools, web workers, and editor extensions cannot depend on a running Doris FE or a database connection for syntax-only work. | Medium | Pure MoonBit core, no FE runtime dependency, explicit analyzer boundary | Build the same semantic core for Native and Wasm/JS; avoid backend-specific parser forks. |
-| **Coverage accounting and compatibility reporting** | Consumers need to know what “supported Doris” means and when a syntax gap is intentional. GSP's measured corpus and SQLGlot's source dialect implementation show that a named coverage corpus is more useful than an unqualified support badge. | Medium | Official-doc scraper/fixture process, version manifest, golden/snapshot runner | Report per release and feature category; include source URL and introduction version in each fixture. |
+| **显式 `Dialect::Flink` 选择、独立关键字/词法表与 parser 路由** | 同一段 SQL 的关键字、引用符、保留/非保留类别和语法入口会随方言变化；用户必须知道到底按哪个规则解析，不能把 Doris 的 profile 参数伪装成 Flink。 | HIGH | `Dialect` 标识；每方言 keyword classification、quoted identifier/literal 规则；lexer/parser dispatcher；公共 API、schema、completion、LSP 的 dialect 参数 | v2 目标要求 Dialect、关键字表隔离和 parser 路由：`.planning/PROJECT.md:72-81`；当前 API 仍只接受 Doris profile：`api/api.mbt:42-75`；Flink 官方 reserved-keyword 列表：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>；可验证的组织参考是 SQLFluff 以 ANSI `copy_as("flink")` 后扩展集合和 lexer：<https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink.py>`。 |
+| **Flink SQL 核心解析覆盖**（SELECT/CTE/JOIN/聚合/集合运算/表达式/类型/脚本边界） | 这是 SQL 编辑、诊断和格式化的日常路径；官方 Flink 页面将 SELECT 定为 SQL 支持的核心查询入口。必须保留半成品的可恢复树，而不是只接受完整提交给引擎的语句。 | HIGH | 共享递归下降 + Pratt 核心；Flink-specific clause table；语句边界和恢复同步点；CST 节点 | 官方语句总览：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>；项目已确定手写递归下降/Pratt 与 editor recovery：`.planning/PROJECT.md:43-50`。Calcite 的 `parseQuery`/`parseStmtList` 也证明语句与语句列表是独立 parser 操作：<https://raw.githubusercontent.com/apache/calcite/main/core/src/main/java/org/apache/calcite/sql/parser/SqlParser.java>`。 |
+| **Flink DDL/DML 解析**（CREATE/ALTER/DROP、CATALOG/DATABASE/VIEW/FUNCTION、INSERT/UPDATE/DELETE、ANALYZE/SHOW/DESCRIBE/EXPLAIN 等） | Flink SQL 用户管理 catalog、表和 connector，并提交 INSERT 等作业；只有 SELECT 会让 SDK 对真实 Flink SQL 工作流不完整。 | HIGH | statement dispatcher；DDL/DML CST families；catalog/table schema；connector option list；版本/feature gates | 官方 overview 列举这些语句：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>；CREATE 页明确列出 CREATE TABLE/OR REPLACE TABLE/CATALOG/DATABASE/VIEW/FUNCTION：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>；本项目 v2 目标明确要求 Flink DDL/DML：`.planning/PROJECT.md:76-81`。 |
+| **Flink CREATE TABLE 专用结构**（physical/metadata/computed columns、WATERMARK、PRIMARY KEY NOT ENFORCED、PARTITIONED BY、DISTRIBUTION、`WITH` options、LIKE/AS） | 这些是 Flink 与普通 MySQL/ANSI 解析最容易分叉的真实语法；连接器配置和事件时间定义必须进入 CST，不能把括号内容当成未知字符串后丢失。 | HIGH | DDL CST；嵌套 column definitions；option key/value token 保留；时间属性和 constraint 节点；恢复点 | 官方 CREATE TABLE grammar 和示例包含这些结构：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>；SQLFluff 的可验证实现也分别定义 connector options、watermark、computed/metadata column、constraint、partition/distribution segments：<https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink.py>`。 |
+| **窗口 TVF**（TUMBLE/HOP/CUMULATE/SESSION、`TABLE`/`DESCRIPTOR` 调用与后续窗口聚合路径） | 流式 SQL 的窗口不是普通 `OVER` 子句的别名。官方文档定义四个 TVF、参数顺序/命名参数和 `window_start/window_end/window_time` 产出；无法解析会直接阻塞 Flink 作业编辑。 | HIGH | table-valued function/`TABLE` argument；`DESCRIPTOR`；interval literal；FROM 关系节点；formatter/completion 上下文 | 官方 Window TVF 页面列出四类函数并给出完整 grammar/示例：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/queries/window-tvf/>；v2 目标点名窗口 TVF：`.planning/PROJECT.md:76-81`。 |
+| **`MATCH_RECOGNIZE` CST 与诊断（至少语法层）** | CEP 查询需要 PATTERN、MEASURES、DEFINE、skip policy 等结构；不能用泛化函数调用吞掉它们，否则 completion、formatter 和错误范围都会失真。语义执行不属于 parser。 | HIGH | table reference extension；pattern/quantifier grammar；nested expression；recoverable error nodes；明确“experimental/unsupported semantic”状态 | Calcite 官方 reference 说明 `MATCH_RECOGNIZE` 用于 CEP、目前 experimental/not fully implemented，并列出 grammar：<https://calcite.apache.org/docs/reference.html#match_recognize>（页面 `### MATCH_RECOGNIZE` 段）；本项目 v2 目标明确点名该语法：`.planning/PROJECT.md:76-81`。 |
+| **结构化、方言感知诊断**（severity/code/message/expected class/span/statement id；strict/editor 两种结果） | CI 需要可靠失败，IDE 需要在缺括号、未闭引号、错误方言关键字和半成品输入上继续工作；“解析失败”或 generic MySQL error 不足以指导修复。 | HIGH | parser context；recoverable CST；source byte/line/UTF-16 mapping；稳定 `FATHOM-*` code；dialect/profile metadata | 当前公共 API 已有机器可读 diagnostics 字段和 strict/editor mode：`api/api.mbt:1-5,42-62,162-193`；当前 LSP 把 severity/code/range/source/data 映射到协议：`lsp/handlers.mbt:36-59`；Flink 官方关键字/grammar 是诊断 expected-class 的权威来源：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>。 |
+| **Lossless CST 与 no-op round-trip**（注释、空白、换行、token text、span、未知/错误节点均可回放） | 这是 Fathom 的核心信任边界：parse-only 或未改变的编辑不能改写用户 SQL；Flink connector options、注释和 `MATCH_RECOGNIZE` pattern 若被 AST 重生成，会造成不可接受的 diff。 | HIGH | trivia-preserving lexer；immutable CST；source ownership/span；lossless printer；跨方言 node schema | 项目核心价值和约束：`.planning/PROJECT.md:5-11,43-50`；当前 `ParseResult` 保留 source bytes/root/diagnostics：`api/api.mbt:180-193`。对比事实：SQLGlot 明确 AST regeneration 不保证 formatting/casing/quoting，comments 仅 best effort：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`。 |
+| **Flink-aware deterministic formatter**（canonical formatting 与 lossless replay 分开；错误树拒绝格式化） | 用户会在保存、CI 或 pre-commit 中调用 formatter；formatter 必须认识 Flink-specific DDL/TVF/pattern，并在不安全的错误树上拒绝产生部分输出，而不是默默丢 token。 | HIGH | stable CST；comment/trivia ownership；dialect formatting policies；safe edit/refusal diagnostics；CLI/LSP text edits | 当前 formatter 明确遇到 error/missing/skipped material 返回拒绝诊断、不输出部分 bytes：`formatter/format.mbt:1-20,49-65,127-137`；Flink-specific syntax evidence：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>、<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/queries/window-tvf/>。 |
+| **方言感知 syntax completion**（关键字/子句/DDL/TVF/contextual candidates，按 cursor span 返回 edit） | 用户在 `SELECT ... FROM`、CREATE TABLE、WATERMARK、窗口 TVF 和 pattern 结构中依赖候选；只复用 Doris keyword rows 会产生错误候选并隐藏 Flink 可用语法。 | HIGH | lexer token stream；CST/editor recovery；每方言 classification/context table；UTF-8 byte→LSP UTF-16 conversion；bounded candidates | 当前 completion 是 syntax-only、profile-gated、最多 32 个候选并返回 replacement bytes：`completion/completion.mbt:1-24,129-175`；其 context 仍硬编码 Doris `QUALIFY` 等：`completion/completion.mbt:87-99`；Flink keywords/constructs：<https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink_keywords.py>`、<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/queries/window-tvf/>。 |
+| **Flink dialect 的 Native LSP**（initialize 宣告 dialect/capabilities、didOpen/didChange/didClose、diagnostics、formatting、completion，UTF-16） | 编辑器把 LSP 当实时前端；解析器不提供同步、位置编码和 text edit 映射，Flink 工具链仍不可用。 | HIGH | shared API；JSON-RPC framing；document store；dialect in initialization/config; diagnostics/format/completion adapters | 现有 LSP 已实现 document parsing、publishDiagnostics、formatting、completion capability 和 UTF-16：`lsp/handlers.mbt:1-10,78-90,152-196,200-245`；目标重命名和 dialect 参数列于 `.planning/PROJECT.md:72-81`。LSP protocol baseline：<https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/>。 |
+| **中立命名的 CLI**（`fathom-sql parse/format`，显式 `--dialect flink|doris`，稳定 schema/error code 和可脚本化 exit codes） | Flink 用户需要离线 CI/pre-commit/脚本入口；CLI 若仍叫 `doris-sql` 或默认 Doris，会让 dialect 选择不可见且与产品中立化目标冲突。 | MEDIUM-HIGH | public API dialect selection；formatter/diagnostics schema；stdin/file IO；exit code policy；Native executable packaging | 当前 CLI 是 thin adapter executable、只导入 API：`doris-sql/moon.pkg:1-13`；中立命名目标：`.planning/PROJECT.md:72-81`；Flink SQL CLI 是官方文档中的实际执行入口示例：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>。 |
+| **Web/Monaco facade**（JS/linear-Wasm 同一 dialect API、诊断 markers、formatter edits、无网络/数据库依赖） | 浏览器用户需要在输入时看到 Flink diagnostics/formatting；输出必须是稳定序列化 schema，而非 MoonBit 内部对象。不同 backend 不能给出不同 keyword 或 span 结果。 | HIGH | serializable neutral schema；JS/Wasm wrapper；UTF-8 byte/UTF-16 mapping；Monaco adapter；artifact loading/error handling | 当前 adapter 用显式 profile、`doris_parse_v1`/`doris_format_v1` 并解码 schema：`web/src/monaco-adapter.ts:1-4,76-100`；Monaco model/markers/debounce parse 路径：`web/src/main.ts:26-47,83-108,150-175`；线性 Wasm parity 是已验证约束：`.planning/REQUIREMENTS.md:10-13`；SQLFluff/Tree-sitter 只能证明多方言/错误容忍组织，不替代本 SDK ABI。 |
+| **IntelliJ 集成复用同一个中立 LSP**（Flink 文件语言映射、显式 dialect 设置、诊断/格式化/补全可用） | IntelliJ 不应再维护第二个 Flink parser 或第二套 transport；v1 插件已经以 LSP4IJ 连接 Native server，因此 v2 的最低期望是切换到 neutral server/schema 后功能不回退。 | MEDIUM-HIGH | `fathom-lsp` executable；LSP4IJ provider；per-project dialect setting；plugin language mapping；release/download parity | 插件明确“不含 parser 或第二个 LSP transport”：`jetbrains/README.md:1-7`；当前 server 通过 initialization options 传 profile：`jetbrains/src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt:11-23,42-43`；现有 profile 校验/默认值：`jetbrains/src/main/kotlin/fathom/jetbrains/doris/DorisSettings.kt:30-59`。v2 中需把这些 Doris-only surface 改成 neutral/dialect-aware。 |
 
-## Differentiators
+### Differentiators (Competitive Advantage)
 
-These are high-value capabilities aligned with the stated opportunity. They should be built only after the table-stakes invariants are reliable; otherwise they turn into trust liabilities.
-
-| Feature | Value Proposition | Complexity | Dependencies | Version / corpus implications |
+| Feature | Value Proposition | Complexity | Dependencies | Evidence |
 |---|---|---:|---|---|
-| **Lossless CST first-class API (not merely a token side channel)** | Enables safe range edits, comment-preserving formatting, semantic highlighting, and round-trip transformations without rebuilding the whole document. This is a stronger contract than SQLGlot's AST and more ergonomic than an opaque commercial token list. | High | Stable node IDs/spans, trivia ownership, edit API, printer | Node shape and span semantics need a compatibility policy before ecosystem release. Corpus must include trivia placement around every grammar boundary. |
-| **Doris-specific semantic boundary with optional catalog injection** | Syntax validation works offline; later completion/hover/name resolution can consume table/column metadata without coupling the parser to FE execution semantics. This directly respects the project boundary against replacing `EXPLAIN` or full type inference. | High | CST-to-AST projection, scope model, `Catalog` interface, optional analyzer package | Fixtures should distinguish syntax-valid from catalog-dependent diagnostics. Keep engine-specific semantic behavior opt-in and versioned. |
-| **Documentation-as-coverage-oracle pipeline** | Turns Doris documentation drift into an observable release task and makes claims auditable. GSP's corpus methodology is a useful precedent; the project can improve it by pinning 2.1/3.x/4.x, publishing fixtures, and running lossless snapshots. | Medium-High | Source manifest, fixture normalizer, golden runner, CI diff report | Official docs currently expose separate 2.1, 3.x, 4.x, and unreleased/current branches. Keep source URLs, page dates, and version labels in fixture metadata. |
-| **Recoverable CST designed for LSP** | A single parse can power diagnostics, semantic tokens, folding, document symbols, and formatting while the user is typing. Tree-sitter documents error-tolerant and edit-aware trees; this project can offer a Doris-native API with the same outcome while retaining handwritten parser control. | High | Error/missing nodes, incremental/reparse strategy or bounded reparsing, span-to-LSP mapping | LSP uses UTF-16 positions in common clients; preserve lossless byte spans and provide conversion. Validate malformed prefixes from real editor workflows. |
-| **Configurable, comment-preserving formatter** | Gives Doris users a trustworthy `doris-sql format` and library API: indentation, keyword case, comma style, line width, and dialect/version profile while preserving comments and untouched trivia. | High | CST printer, formatting policy, stable comment attachment, CLI | Require idempotence (`format(format(x)) == format(x)`) and explicit distinction between no-op replay and canonical formatting. New Doris clauses need formatting tests per profile. |
-| **One MoonBit implementation across Native and Wasm/JS** | Avoids duplicated parser behavior and gives CLI/LSP, web tools, and Monaco the same diagnostics and CST semantics. Existing SQL LSP projects show that Monaco and multiple editor clients are practical, but they generally depend on a server/database stack. | High | Pure core modules, serialization boundary, Native/Wasm/JS packaging, UTF-16 conversion | Public API must avoid backend-specific types; publish capability matrix and bundle-size/performance budgets per target. |
-| **Doris-aware syntax highlighting and semantic tokens without a database** | Makes the SDK immediately useful in web editors and offline IDEs, including incomplete SQL. | Medium | Lossless token/CST spans, LSP semantic-token mapper, versioned keyword classes | Keyword class changes are version-sensitive; fixtures must check quoted/unquoted identifiers and reserved/contextual keyword behavior. |
-| **Stable JSON/JS facade and schema fixtures** | Lets web/Monaco users consume parse results without binding to MoonBit internals; generated schema fixtures also make cross-language compatibility testable. | Medium | Serializable CST/diagnostic schema, Wasm/JS wrapper, schema versioning | Version the wire schema separately from grammar profiles; include source spans and trivia explicitly rather than serializing only AST nodes. |
-| **Differential validation against FE, SQLGlot, and documented examples** | FE is the execution authority, SQLGlot is an open parser baseline, and docs are the public syntax corpus. Triangulation helps locate unsupported/ambiguous syntax without making any one implementation the SDK contract. | Medium | Test harnesses, FE container or parser invocation where feasible, normalized outcomes | Record disagreements as fixtures with a reason and Doris-version label; never turn a MySQL/SQLGlot acceptance into proof of Doris validity. |
+| **显式 dialect 是所有层的必填/可追踪输入，不静默 fallback** | 让 parse result、diagnostic、completion、format output 和 LSP session 都能回答“按什么规则产生”；避免 Flink SQL 被 Doris/MySQL 接受后生成错误结果。 | HIGH | dialect enum/metadata；unknown dialect hard error；wire schema carries dialect；CLI/LSP/Web/IDE config propagation；Doris parity gate | SQLGlot README 的可验证建议是已知 source dialect 时显式传 `dialect`；未指定时使用 superset dialect：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`。本项目 v1 profile 已在 unknown profile 时返回错误而非猜测：`api/api.mbt:48-75`；v2 目标要求显式 dialect：`.planning/PROJECT.md:72-81`。 |
+| **按方言分发且可定位来源的 diagnostics** | 同一 token 在 Doris 与 Flink 中可能是 keyword、identifier 或 unsupported construct；诊断中带 dialect、feature/grammar class、source span 和稳定 `FATHOM-*` code，用户可以修复而不是猜。 | HIGH | dialect-specific keyword/grammar metadata；diagnostic schema；strict/editor recovery；official corpus links | 当前 Doris feature metadata 已把 introduced profile、diagnostic code、recovery kind/message 绑定在一起：`token/token.mbt:133-160`；当前 LSP diagnostics carries code/source/data：`lsp/handlers.mbt:36-59`；Flink official reserved list/grammar：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>。 |
+| **Lossless CST/round-trip 作为公共能力，而非 AST 的附属 token 列表** | SQLGlot 公开承认 AST 重生成会改变格式/casing/quoting、comments 仅 best effort；Fathom 可在 Flink connector options、comments、pattern 和未知节点上进行安全 range edit 与 no-op replay。 | HIGH | stable CST node/span contract；trivia ownership；safe edit/refusal policy；formatter modes；schema versioning | SQLGlot AST/format limitation：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`；当前 Fathom source bytes + CST root：`api/api.mbt:180-193`；formatter refusal：`formatter/format.mbt:1-20,127-137`。 |
+| **Native/JS/linear-Wasm byte-level parity gate** | 用户可在 CLI、LSP、Monaco 和其他 host 间迁移同一文档，不因 backend 使用不同 lexer、Unicode span 或 serialization 而得到不同 diagnostics/round-trip。 | HIGH | pure MoonBit core；primitive wire schema；UTF-8 byte spans；per-target runtime fixture；CI comparison | v1 已将 Wasm runtime parity 作为 release gate：`.planning/REQUIREMENTS.md:10-13`；核心约束要求同一实现编译 Native 与 Wasm/JS：`.planning/PROJECT.md:43-50`；Web adapter 的 byte position conversion：`web/src/monaco-adapter.ts:29-73`。 |
+| **中立命名和版本化 schema 同时覆盖 CLI/LSP/Web/IDE** | `fathom-sql`/`fathom-lsp`、`fathom/sql`、`FATHOM-*` 和 `fathom.*.v1` 使同一个 Flink/Doris core 不再把 Doris 当产品品牌；schema 版本独立于 dialect grammar version，便于跨 host parity。 | MEDIUM-HIGH | package/module rename；wire schema migration；release assets；VS Code/IntelliJ/Monaco configuration; no compatibility shim per milestone decision | v2 naming target：`.planning/PROJECT.md:76-81`；现有 Web facade 仍是 `doris.error.v1` / `doris_parse_v1`：`web/src/monaco-adapter.ts:16-22,88-100`；当前 LSP serverInfo/source 仍写 `doris-lsp`/`doris`：`lsp/handlers.mbt:41-47,152-161`，证明改名必须覆盖所有边界。 |
+| **文档驱动且可审计的 Flink corpus/parity 报告** | Flink stable/release docs 与 Calcite grammar 会演进；每个语法功能、版本、诊断和 round-trip 结果都有 URL/commit/fixture metadata，才不会把“解析成功”夸大为引擎兼容。 | MEDIUM-HIGH | official docs source manifest；positive/negative/recovery fixtures；snapshot runner；cross-target parity；differential comparisons | Flink release page明确提示 release-2.0 文档过时并推荐 stable：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>；Tree-sitter SQL README 也要求插件固定 generated parser revision：<https://raw.githubusercontent.com/DerekStride/tree-sitter-sql/master/README.md>`；v1 项目已用官方语料和版本 profile：`.planning/PROJECT.md:17-22,40-41`。 |
 
-## Anti-Features
+### Anti-Features (Commonly Requested, Often Problematic)
 
-These should be explicitly excluded or deferred to protect scope and user trust. “Do not build” means do not make them part of the initial product promise; a later extension can be reconsidered after the four milestones.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|---|---|---|
-| **Claiming full Doris compatibility from SQLGlot, FE grammar, or a single benchmark** | SQLGlot documents lenient parsing and AST-only regeneration; FE is an implementation dependency; GSP's percentages are corpus-specific and self-published. A generic “100% Doris” badge would be misleading. | Publish per-version, per-category docs-corpus results, known gaps, and differential-test status. |
-| **Silent MySQL fallback for unknown Doris syntax** | It converts unsupported constructs into false positives and can produce unsafe formatter/editor output. | Require an explicit Doris version/profile; emit a recoverable `UnknownDorisConstruct`/diagnostic with source span. |
-| **Lossy AST-only public contract** | It makes no-op edits, comment preservation, and precise source mapping impossible or fragile—the core opportunity would disappear. | Make lossless CST the source of truth; provide a derived AST projection for analysis. |
-| **Full semantic/type/execution replacement for Doris FE** | Function existence, complete type inference, privileges, optimizer behavior, and `EXPLAIN` semantics require catalog/runtime context and would expand into an engine rewrite. | Keep parser and optional catalog-backed analyzer separate; expose interfaces, not FE emulation. |
-| **Enterprise lint, column lineage, SQL fingerprinting, and optimizer rewriting in the first four milestones** | These require a stable AST/CST, scope rules, catalog policy, and substantial compatibility semantics. Shipping them early weakens parser coverage and error recovery. | Reserve them for post-ecosystem extensions with explicit semantic contracts and opt-in packages. |
-| **Bundling or embedding Doris FE as a runtime requirement** | Large Java/FE dependencies undermine Native/Wasm/JS portability, startup, licensing, and offline editor use. | Use FE for differential testing and execution integration only; keep core standalone. |
-| **Naive semicolon splitting or regex-only statement parsing** | Semicolons can occur inside nested constructs and strings; this breaks scripts and diagnostics. | Let the lexer/parser own statement boundaries and preserve statement spans. |
-| **Automatic SQL dialect detection as the default** | Plain SQL is ambiguous across MySQL-compatible dialects; first-success parsing can silently choose the wrong rules. | Require an explicit Doris profile; offer detection only as an opt-in diagnostic with ambiguity reporting. |
-| **Formatter that always regenerates the whole document** | It causes comment movement and noisy diffs, undermining trust in editor save actions. | Offer no-op replay, targeted CST edits, and a canonical formatter with explicit user opt-in. |
-| **Unbounded error recovery that accepts arbitrary text as valid SQL** | IDE tolerance can become CI false negatives and accidental acceptance of unsupported syntax. | Separate recoverable CST from validity status; preserve hard diagnostics and expose strict vs editor modes. |
-| **Publishing Wasm/JS wrappers before the core schema is stable** | Early wrapper APIs freeze accidental MoonBit implementation details and create multi-backend drift. | Stabilize core node/span/diagnostic contracts first; then generate thin Native and Wasm/JS facades. |
-| **Relying on closed-source GSP behavior as an undocumented compatibility target** | GSP is commercially licensed and its public pages do not establish every internal behavior; reverse engineering would create trust and legal ambiguity. | Use only public GSP claims as market evidence and maintain open, reproducible Doris fixtures. |
+| Feature | Why Requested | Why Problematic | Alternative | Evidence |
+|---|---|---|---|---|
+| **默认自动检测 dialect** | 用户希望输入一段 `.sql` 就“自动工作”。 | SQL 的关键字、引用符和 connector 结构存在歧义；first-success parser 会把 Doris/Flink 的有效性误判成另一个方言，诊断和 formatter 结果也无法解释。 | 默认要求显式 `Dialect`；可提供 opt-in detector，但返回候选集合、置信度和 ambiguity diagnostic，绝不替换用户选择。 | SQLGlot 官方 README 说明不指定 source dialect 时采用 superset dialect，并建议已知时显式传入：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`；本项目 v1 明确拒绝多方言/静默 MySQL fallback：`.planning/REQUIREMENTS.md:47-56`。 |
+| **单一 Doris 文法硬塞 Flink 特性** | 看起来可以复用现有 149KB parser，短期减少文件数。 | Flink 的 metadata/computed/WATERMARK、`TABLE`/`DESCRIPTOR`、窗口 TVF 和 `MATCH_RECOGNIZE` 会污染 Doris recovery、keyword classification 和 formatter；最终既不能保证 Doris parity，也不能给 Flink 精确诊断。 | 保持 shared core（token/CST/span/Pratt/recovery），在 statement/clause/keyword/format/completion 层按 dialect 路由；以差异最小的共享 grammar helper 复用。 | 当前 parser 是单一 Doris 入口且 API 强耦合 profile：`api/api.mbt:64-75`、`.planning/PROJECT.md:72-81`；SQLFluff 的可验证模式是方言复制基线后单独扩展 lexer、sets、segments：<https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink.py>`。 |
+| **方言静默转换/formatter 自动改写到另一方言** | 用户想把 SQL“顺便迁移”到 Flink 或 Doris。 | 转换可能改变 connector options、quoted identifier、时间属性、窗口 semantics 或未实现语法；在保存动作中静默重写会造成数据作业风险和大范围 diff。 | `format` 只在所选 dialect 内格式化；另设显式 `transpile/convert` API，默认拒绝 unsupported construct，输出转换 diagnostics 和 opt-in edits。 | SQLGlot 将 source/target dialect 显式分成 `read` 与 `write`，并在 unsupported translation 时可 warning 或 raise：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`；Fathom formatter 对 error/missing/skipped tree 已采取 refusal-first：`formatter/format.mbt:1-20,127-137`。 |
+| **未知 Flink 语法 generic MySQL/ANSI 兜底** | 可以让更多输入“parse 成功”，并借用通用 SQL 生态。 | generic 接受不代表 Flink engine 接受，会造成 false-negative CI、错误 completion、错误格式化和错误 source span；还会掩盖 Flink release 差异。 | 在选定 dialect 下保留 unknown/error CST 节点并发出稳定诊断；允许 editor mode 继续树化，strict mode 失败；将 Calcite/SQLGlot 仅用于差分调查。 | Flink 官方明确有独立 reserved keywords 和 Calcite-based SQL：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>；SQLGlot 自称 parser intentionally lenient、不是 validator：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`；项目当前错误恢复/strict-editor boundary：`api/api.mbt:1-5,48-62`。 |
+| **用 generic CST/AST 替掉 Flink-specific lossless nodes** | 共享一个“标准 SQL AST”会显得 API 简洁。 | 它会丢掉 metadata/computed column distinction、WATERMARK、connector option spelling、TVF named arguments、pattern text 和 comments，无法安全 formatter/edit。 | CST 保留原始 token/trivia 和 Flink node kind；再提供可选语义/通用 AST projection，且 projection 不能成为回放来源。 | Flink CREATE grammar explicitly distinguishes these definitions：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>；Tree-sitter 官方目标也是 concrete syntax tree、error-tolerant editing：<https://tree-sitter.github.io/tree-sitter/>；当前 Fathom `ParseResult` retains source bytes/root：`api/api.mbt:180-193`。 |
+| **在 parser SDK 内实现完整 Flink planner/catalog/execution semantics** | 用户可能要求“和 Flink SQL Client 一样验证”。 | connector、catalog、watermark、stream/batch mode、type inference 和 planner rules 需要运行时环境；嵌入这些依赖会破坏 Native/Wasm/JS 离线与独立发布边界，且远超语法工具。 | parser 负责 syntax/recovery；analyzer 通过可选 catalog/feature metadata 注入；engine differential check 只在 corpus/CI 外部执行。 | Flink 官方页面将 SQL 作为 TableEnvironment/SQL CLI 执行语言：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/>；项目已明确 parser/analyzer separation 与无 FE runtime：`.planning/PROJECT.md:19-22,43-50`。 |
+| **用 Tree-sitter/SQLFluff/sqlglot 的 permissive 结果直接宣称 Flink engine compatibility** | 成熟生态可快速扩大“支持语法”数字。 | Tree-sitter SQL README 称其 grammar general/permissive；SQLGlot 明确 lenient；SQLFluff 是 linter/parser 组织参考而不是 Flink planner oracle。直接把 parse success 当 engine acceptance 会误导用户。 | 以 Flink 官方 release docs/source 为 grammar authority；竞品只用于组织模式、负例和 differential signal；发布 per-feature/per-version coverage。 | Tree-sitter SQL README：<https://raw.githubusercontent.com/DerekStride/tree-sitter-sql/master/README.md>`；SQLGlot README：<https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>`；Flink official overview：<https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/>。 |
+| **错误树上强行 formatter/autofix 或无限恢复** | 编辑器希望“永远有输出”。 | 无限恢复会把任意文本误报为 valid；对 error/missing/skipped material 生成部分格式会破坏注释和未知 Flink clause，CI 与 save action 都不安全。 | editor mode 返回 recoverable CST + hard diagnostics；strict mode 拒绝；formatter 在 unsafe node 上返回空 output 和单一 refusal diagnostic。 | Fathom 当前 formatter refusal contract：`formatter/format.mbt:1-20,49-65,127-137`；当前 API 明确区分 Strict/Editor：`api/api.mbt:1-5,69-75`。 |
 
 ## Feature Dependencies
 
 ```text
-Versioned Doris profile + keyword/trivia lexer
-  -> lossless token stream and source spans
-  -> recursive-descent statements + Pratt expressions
-  -> recoverable CST + structured diagnostics
-  -> SELECT/CTE/JOIN/window/grouping coverage
-  -> DML and Doris DDL coverage
-  -> AST projection + optional Catalog/analyzer boundary
-  -> deterministic replay printer
-  -> configurable comment-preserving formatter + CLI
-  -> Native API and Wasm/JS schema facade
-  -> LSP server (diagnostics, semantic tokens, symbols, formatting)
-  -> editor/Monaco integrations
+Explicit Dialect + neutral schema/error-code contract
+    ├──> per-dialect lexer/keyword table
+    │       └──> Flink statement/clause parser routing
+    │               ├──> DDL/DML + CREATE TABLE structures
+    │               ├──> Window TVF
+    │               └──> MATCH_RECOGNIZE pattern CST
+    ├──> dialect-aware diagnostics + strict/editor recovery
+    └──> dialect-aware completion
 
-Official-doc corpus manifest + golden snapshots
-  -> every grammar feature above
-  -> release/version compatibility report
-  -> FE/SQLGlot differential tests
+Lossless trivia/span CST + source coordinate map
+    ├──> no-op replay / round-trip
+    ├──> safe Flink formatter
+    ├──> LSP diagnostics + UTF-16 text edits
+    └──> Web/Monaco markers + IntelliJ LSP integration
 
-CST edit API + stable spans
-  -> targeted refactors and future lint/lineage/fingerprint packages
-```
+Stable neutral wire schema + shared core
+    ├──> Native fathom-sql / fathom-lsp
+    ├──> JS + linear-Wasm Web facade
+    ├──> VS Code/Monaco adapter
+    └──> IntelliJ LSP4IJ provider
 
-The first four milestones should be vertical enough to prove this chain without making later analysis a prerequisite:
-
-1. **M1 — Core kernel:** lexer with trivia/spans, lossless CST, statement-level and clause-level recovery, Pratt expressions, industrial SELECT foundation, strict/no-op replay, and machine-readable diagnostics.
-2. **M2 — Completeness:** documentation-driven expansion across DML/DDL and Doris-specific table, key, distribution, partition, dynamic partition, property, index, and materialized-view forms; versioned 2.1/3.x/4.x profiles and differential/golden reports.
-3. **M3 — Formatting:** configurable canonical printer and `doris-sql format`, comment attachment rules, idempotence, line-width/indent/keyword policies, and safe targeted edits.
-4. **M4 — Ecosystem:** Native CLI/LSP plus Wasm/JS SDK, LSP diagnostics and document synchronization first, then semantic tokens/symbols/formatting, and a minimal Monaco/web integration using the same core.
-
-## MVP Recommendation
-
-### Prioritize
-
-1. **A trustworthy lossless kernel:** versioned Doris lexer, trivia/spans, CST, strict result plus recoverable editor result, and `parse(print(parse(x))) == x` for unchanged input. This is the differentiator and the prerequisite for every downstream feature.
-2. **Industrial SELECT and expressions:** joins, subqueries, CTEs, windows, grouping sets/rollup/cube, set operations, hints, and Doris-specific SELECT clauses, driven by official 2.1/3.x/4.x examples rather than generic MySQL acceptance.
-3. **A measured Doris coverage loop:** fixture metadata with source URLs and version labels, golden snapshots, negative/recovery cases, and FE/SQLGlot comparisons where their behavior is observable. Publish gaps instead of overclaiming.
-4. **M2 DML/DDL breadth before editor polish:** INSERT/UPDATE/DELETE/INSERT OVERWRITE plus Doris CREATE/ALTER table and materialized-view syntax, distribution/partition/properties, because these are the features generic SQL tools routinely miss and Doris operators actually edit.
-5. **M3 formatting only after replay is invariant:** provide a canonical and configurable formatter with comments preserved, plus CLI behavior suitable for CI and pre-commit use.
-6. **M4 thin integrations:** expose the stable core to Native and Wasm/JS; implement LSP diagnostics/synchronization/formatting and basic semantic tokens before completion/hover that depend on optional catalog metadata.
-
-### Defer
-
-* Full semantic analysis, type inference, privilege/function validation, optimizer rewrites, and FE `EXPLAIN` equivalence: defer behind a catalog-backed analyzer interface.
-* Enterprise lint rules, column-level lineage, SQL fingerprinting/normalization, and broad refactoring: defer until CST, scope, formatter, and schema contracts are stable.
-* Multi-dialect support, automatic dialect detection, template languages, database execution, and FE embedding: avoid turning a Doris SDK into a generic SQL platform.
-
-### MVP success signals
-
-* Official examples pass by named Doris version and category, with failures visible and reproducible.
-* Strict mode distinguishes invalid/unsupported SQL from editor-mode recoverable input.
-* No-op parse/replay is byte-for-byte for comments, whitespace, casing, newline style, and spans.
-* Canonical formatting is deterministic and idempotent, while targeted edits produce minimal source changes.
-* The same fixtures and diagnostics pass on Native and Wasm/JS, and a minimal LSP client can receive diagnostics and formatting without a live Doris FE.
-
-## Sources
-
-### Primary ecosystem and competitor sources
-
-- Apache Doris 4.x SQL statement index (versioned statement families): <https://doris.apache.org/docs/4.x/sql-manual/sql-statements/> (official docs; current index observed 2026-08-03)
-- Apache Doris 4.x `SELECT` syntax and examples: <https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/> (official docs; last updated May 28, 2026)
-- Apache Doris 4.x `CREATE TABLE` syntax, partition/distribution/properties, and `ORDER BY` version note: <https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/> (official docs; last updated June 14, 2026)
-- Apache Doris FE ANTLR grammar directory: <https://github.com/apache/doris/tree/master/fe/fe-core/src/main/antlr4> and checked grammar files <https://raw.githubusercontent.com/apache/doris/master/fe/fe-core/src/main/antlr4/org/apache/doris/nereids/JavaLexer.g4>, <https://raw.githubusercontent.com/apache/doris/master/fe/fe-core/src/main/antlr4/org/apache/doris/nereids/JavaParser.g4>
-- SQLGlot Doris dialect: <https://raw.githubusercontent.com/tobymao/sqlglot/main/sqlglot/dialects/doris.py>
-- SQLGlot Doris parser: <https://raw.githubusercontent.com/tobymao/sqlglot/main/sqlglot/parsers/doris.py>
-- SQLGlot Doris generator and Doris keyword-source reference: <https://raw.githubusercontent.com/tobymao/sqlglot/main/sqlglot/generators/doris.py>
-- SQLGlot README (AST regeneration, best-effort comments, lenient validation, parser errors): <https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>
-- SQLGlot AST primer (AST model and analysis scope): <https://raw.githubusercontent.com/tobymao/sqlglot/main/posts/ast_primer.md>
-- GSP Doris syntax support and documented-corpus measurements: <https://docs.sqlparser.com/reference/sql-syntax/doris/>
-- GSP machine-readable Doris capability record: <https://docs.sqlparser.com/capabilities/v1/dialects/doris.json>
-- GSP advanced features (AST generation versus source-token re-emission): <https://docs.sqlparser.com/tutorials/advanced-features/>
-- GSP error handling (structured diagnostics and per-statement reporting): <https://docs.sqlparser.com/how-to/error-handling/>
-- GSP licensing FAQ (dialect licensing and external distribution): <https://docs.sqlparser.com/faq/licensing/>
-- General SQL Parser architecture overview: <https://docs.sqlparser.com/explanation/architecture/>
-
-### Editor and parser-tooling sources
-
-- Language Server Protocol 3.18 specification: <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/>
-- Tree-sitter introduction (concrete syntax tree, error tolerance, incremental parsing): <https://tree-sitter.github.io/tree-sitter/>
-- Tree-sitter advanced parsing/editing API: <https://tree-sitter.github.io/tree-sitter/using-parsers/3-advanced-parsing.html>
-- `sqls` SQL LSP README and supported drivers/features: <https://raw.githubusercontent.com/sqls-server/sqls/master/README.md>
-- `sql-language-server` README, parser/linter/LSP/Monaco claims and supported databases: <https://raw.githubusercontent.com/joe-re/sql-language-server/master/README.md>
-- SQLFluff README (dialect-flexible linting/auto-fix and Doris dialect listing): <https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/README.md>
-
-## Evidence and Uncertainty Notes
-
-* “Current” means the public source/doc pages observed on 2026-08-03. SQLGlot source was read from `main` rather than a pinned release; use a release pin when benchmarking.
-* GSP's detailed Doris percentages are vendor-published measurements against its own corpus. They are useful evidence of a commercial coverage-reporting pattern, but not an independent market-wide benchmark.
-* The checked `sqls` and `sql-language-server` repositories do not list Doris. This supports the opportunity statement that Doris LSP support is underserved, but it is **not** proof that no other Doris editor plugin or private integration exists.
-* The official Doris current docs identify the `dev`/current branch as unreleased and link separate 2.1, 3.x, and 4.x documentation. A roadmap should therefore treat documentation versioning and fixture provenance as product features, not release-note chores.
-
----
-
-# v2 Analysis Features — Feature Landscape
-
-**Researched:** 2026-08-05 (v2.0 milestone)
-**Focus:** ANAL-01, LINT-01, LINE-01, FING-01, EDIT-01 + v1 closeout items
-**Confidence:** MEDIUM-HIGH (ecosystem patterns verified against SQLFluff/SQLGlot docs this session; Doris-specific scope grounded in v1 validated capabilities)
-
-## Table Stakes for a Doris SDK
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| ANAL-01 name resolution | Editors/analysts expect unresolved refs flagged; catalog injection already promised by ANLY-01 boundary | HIGH | Needs scopes (SELECT/CTE/subquery/alias), table+column+function binding, star expansion with catalog |
-| LINT-01 lint rules | SQL tooling standard (SQLFluff model) | MEDIUM | Rule registry with stable codes + bundles; severity config; **safe autofix** (text edits must stay lossless — D-33 refusal principle) |
-| LINE-01 column lineage | Analyst demand for data provenance | HIGH | Column-level source→target edges across SELECT/INSERT/CTE/set ops/views |
-| FING-01 SQL fingerprints | Caching/diff/CI use cases | LOW-MEDIUM | Stable across whitespace/case/comment; normalized form + stable hash (`UInt64` cross-backend) |
-| EDIT-01 incremental parsing | Editor latency at scale | VERY HIGH | **Benchmark-gated**: only adopt when whole-doc reparse measurably fails (v1 research explicitly deferred this) |
-
-## Differentiators (Doris-specific)
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| ANAL-01 | **Lossless** name resolution: every binding carries source spans and trivia-faithful refs, unlike SQLGlot's AST regeneration | HIGH | Profile-gated (2.1/3.x/4.x); case policy matches Doris (case-insensitive identifiers, `equal_ignore_ascii_case`) |
-| LINT-01 | **Doris-aware rule set** with version gates + safe lossless autofix | MEDIUM-HIGH | Rules keyed to Doris profile; autofix reuses formatter-safe edit path (D-27/D-33) |
-| LINE-01 | Column lineage **with source positions** and view/CTE expansion | HIGH | Builds on ANAL-01 resolution; Doris views/CTEs are first-class |
-| FING-01 | Stable **cross-backend** fingerprint (same hash on Native/JS/Wasm) | LOW-MEDIUM | UInt64 hash; normalized CST→canonical form |
-| EDIT-01 | Bounded incremental reuse of the **existing lossless CST** | VERY HIGH | Only after `moon bench` proves necessity |
-
-## Anti-Features (Defer / Avoid in v2)
-
-| Feature | Why Problematic | Alternative |
-|---------|-----------------|-------------|
-| Full type inference / optimizer equivalence | Replaces FE semantics; explodes scope; violates ANLY-01 boundary | ANAL-01 = resolution + targeted type diagnostics only |
-| Lint rule engine without severity config | Team adoption blockers | SQLFluff-style per-rule severity + enable/disable |
-| Autofix that touches comments/trivia | Violates lossless core value | Refuse unsafe transforms (D-33); only trivia-safe edits |
-| Lineage through `*` without catalog | Unsound (cannot know expanded columns) | Require catalog; report unknown columns as explicit gaps |
-| Fingerprint normalization that changes semantics | Case-folded quoted identifiers, string-literal folding break correctness | Normalize only syntactic trivia; preserve identifier spelling |
-| EDIT-01 without benchmark evidence | Premature complexity (v1 research Pitfall 6) | `moon bench` gate first |
-
-## Feature Dependencies
-
-```
-FING-01 (fingerprint) — independent of catalog
-    └──requires──> stable CST (v1) ✓
-
-ANAL-01 (name resolution)
-    └──requires──> stable CST + analyzer boundary (v1 ANLY-01) ✓
-                    └──enables──> LINE-01 (column lineage needs resolved refs)
-
-LINT-01 (lint rules)
-    └──requires──> CST traversal (v1) + formatter-safe edit path (v1 D-27/D-33)
-                    └──autofix──> reuse formatter/refuse principles
-
-LINE-01
-    └──requires──> ANAL-01 (name resolution)
-                    └──enhances──> LINT-01 (lineage-aware lint rules, optional later)
-
-EDIT-01
-    └──gated──> benchmark evidence (moon bench)
+Official Flink corpus + negative/recovery fixtures
+    └──> Doris parity gate + Native/JS/Wasm byte-level parity report
 ```
 
 ### Dependency Notes
 
-- **LINE-01 depends on ANAL-01** — lineage edges need resolved column refs. Roadmap must order ANAL-01 before LINE-01.
-- **LINT-01 and FING-01 are largely independent** of ANAL-01 and can proceed in parallel after CST/analyzer basics.
-- **EDIT-01 is the riskiest and must be gated** on measurements; roadmap should treat it as a "benchmark then decide" phase, not a guaranteed deliverable.
+- **Dialect routing requires keyword isolation first:** lexical classification drives parser branch selection, expected-token diagnostics and completion. The existing `DorisProfile`/global classification model is therefore not a safe shared default (`token/token.mbt:3-7,133-160`; `.planning/PROJECT.md:76-81`).
+- **Flink-specific DDL/TVF/MATCH_RECOGNIZE require CST before formatter/completion:** formatter and completion must inspect structure and spans, not regex-match source text. Official grammar evidence is the Flink CREATE, Window TVF and Calcite MATCH_RECOGNIZE references above.
+- **Diagnostics precede LSP, CLI, Web and IntelliJ:** all four consumers serialize the same severity/code/span contract. Existing LSP and Web code demonstrate this boundary (`lsp/handlers.mbt:36-59`; `web/src/monaco-adapter.ts:69-73`).
+- **Lossless CST precedes formatter/autofix:** no-op replay is independent of canonical formatting; the formatter must refuse unsafe trees before it gains Flink-specific layout rules (`formatter/format.mbt:1-20`).
+- **LSP is the IntelliJ integration boundary:** the plugin already contains no parser/second transport and passes profile via initialization options (`jetbrains/README.md:1-7`; `DorisLanguageServerFactory.kt:11-23,42-43`). Neutral naming should change the adapter contract, not duplicate parsing.
+- **`MATCH_RECOGNIZE` syntax and semantic support must be separately labeled:** Calcite documents the syntax as experimental/not fully implemented, so Fathom can provide syntax CST/diagnostics without claiming planner/execution equivalence (<https://calcite.apache.org/docs/reference.html#match_recognize>). 
 
-## v1 Closeout Items (fold into v2 Phase 1)
+## MVP Definition
 
-| Item | Source | Acceptance |
-|------|--------|------------|
-| ECO-07 human-hosted VS Code launch (04-04 Task 4) | v1 milestone audit, `pending_human` | Run the compiled extension on a machine with VS Code; confirm diagnostics/formatting/positionEncoding |
-| linear-Wasm CI runtime execution parity step | v1 milestone audit, `ci_recommendation` | Add CI job that builds `--target wasm` and executes the parity fixture suite, comparing byte output with Native/JS |
+### Launch With (v1)
+
+- [ ] **Explicit Flink/Doris dialect contract and isolated keyword tables** — without this, every other Flink result is ambiguous and Doris parity cannot be gated.
+- [ ] **Flink lexer + core SELECT/DML/DDL + CREATE TABLE + Window TVF + syntax-level MATCH_RECOGNIZE** — validates the requested language surface against official docs while keeping semantic execution out of scope.
+- [ ] **Lossless recoverable CST, structured dialect-aware diagnostics, and byte-exact replay** — preserves Fathom’s core value and supports malformed editor input.
+- [ ] **Flink-aware formatter and bounded completion** — makes the parser useful beyond batch parsing and reuses the same CST/keyword metadata.
+- [ ] **Neutral Native CLI/LSP plus JS/linear-Wasm schema facade** — exercises all public boundaries and enables Monaco/IntelliJ reuse.
+- [ ] **Doris byte-level parity and official Flink corpus snapshots on every backend** — prevents a successful Flink implementation from regressing the shipped Doris behavior.
+
+### Add After Validation (v1.x)
+
+- [ ] **Richer Flink completion from optional catalog metadata** — add after syntax-only candidates and dialect routing are stable; trigger is measured editor feedback showing keyword-only completion is insufficient.
+- [ ] **Semantic tokens, symbols and dialect-aware hover in LSP/Web/IntelliJ** — add after span/schema parity fixtures cover Flink-specific nodes.
+- [ ] **Expanded release matrix and feature-introduction metadata** — add when official Flink stable/release docs expose incompatible grammar changes that require more than one Flink profile.
+- [ ] **Explicit opt-in SQL conversion tool** — only after source/target dialect diagnostics and refusal behavior are specified; never as formatter default.
+
+### Future Consideration (v2+)
+
+- [ ] **Catalog-backed type/planner validation equivalent to Flink runtime** — defer because it introduces catalog/connectors/stream-batch semantics and conflicts with standalone SDK boundaries.
+- [ ] **Benchmark-gated incremental CST reuse** — defer until whole-document reparse is measured as a real editor bottleneck; preserve the invariant that incremental and full parse replay byte-identically (`.planning/REQUIREMENTS.md:31-33`).
+- [ ] **Third-party dialect/plugin marketplace** — defer until built-in Doris/Flink schema, keyword table, diagnostics and cross-backend contract are stable.
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---|---|---|---|
+| Explicit dialect + isolated keyword/grammar route | HIGH | HIGH | P1 |
+| Flink lexer/parser core and DDL/DML | HIGH | HIGH | P1 |
+| Lossless CST/replay + structured diagnostics/recovery | HIGH | HIGH | P1 |
+| Window TVF + CREATE TABLE structures | HIGH | HIGH | P1 |
+| MATCH_RECOGNIZE syntax CST | MEDIUM-HIGH | HIGH | P1 |
+| Formatter refusing unsafe trees | HIGH | HIGH | P1 |
+| Syntax completion | HIGH | MEDIUM-HIGH | P1 |
+| Neutral CLI/LSP | HIGH | HIGH | P1 |
+| JS/linear-Wasm Web/Monaco facade | HIGH | HIGH | P1 |
+| IntelliJ via neutral LSP | MEDIUM-HIGH | MEDIUM | P1 |
+| Cross-backend parity + official corpus report | HIGH | HIGH | P1 |
+| Catalog-backed completion/hover | MEDIUM | HIGH | P2 |
+| Semantic tokens/symbols | MEDIUM | MEDIUM | P2 |
+| Explicit opt-in transpilation | MEDIUM | HIGH | P2 |
+| Runtime-equivalent type/planner analysis | LOW for parser SDK | VERY HIGH | P3 |
+| Incremental parsing | MEDIUM | VERY HIGH | P3 (benchmark-gated) |
+
+**Priority key:**
+- P1: Must have for the Multi-Dialect launch.
+- P2: Should follow once language and public schemas are stable.
+- P3: Future consideration; do not let it compromise the parser contract.
+
+## Competitor Feature Analysis
+
+| Feature | SQLGlot | SQLFluff | tree-sitter SQL / Tree-sitter | Fathom approach |
+|---|---|---|---|---|
+| Multi-dialect organization | `Dialect` registry/classes; explicit source/target dialect arguments; dialect modules such as `doris.py` are separate files. | Flink dialect is a copy/extension of ANSI, then separately patches keyword sets, lexer and segments. | Tree-sitter runtime is a generic incremental parser; `tree-sitter-sql` describes itself as a general/permissive SQL grammar. | Use their separation ideas only: shared CST/recovery primitives, explicit `Dialect`, per-dialect lexer/grammar/formatter/completion tables, no default superset parser. |
+| Validation and errors | Explicit parse errors exist, but parser is intentionally lenient and not a validator; unsupported translation may warn or raise. | Linter/auto-fix is the product boundary; dialect grammar is useful reference for rule parsing, not Flink engine acceptance. | Robust useful results with syntax errors is an explicit runtime goal; generated tree is not proof of SQL engine validity. | Keep strict/editor distinction, stable `FATHOM-*` diagnostics, recoverable CST, and official Flink corpus as acceptance oracle. |
+| Source fidelity | AST regeneration changes cosmetic details; comments best effort. | Segment/trivia-oriented linter/formatter model is a useful organization reference. | Concrete syntax tree and edit-aware ranges support editor use cases. | Make lossless CST and `print_lossless(parse(x)) == x` a public invariant, then derive formatter/LSP/Web/IDE views from it. |
+| Flink evidence | Do not treat a generic or lenient parse as Flink runtime support. | `dialect_flink.py` visibly contains Flink keyword/lexer/connector/watermark/computed/metadata/distribution structures. | `tree-sitter-sql` references generic SQL sources and labels grammar permissive. | Flink official docs and Calcite grammar determine required fixtures; competitors only inform decomposition and negative tests. |
 
 ## Sources
 
-- [SQLFluff Rules Reference](https://docs.sqlfluff.com/en/stable/reference/rules.html) — verified this session (rule registry, bundles, `core` group, per-rule config, `sqlfluff fix` compatibility)
-- [SQLGlot API docs](https://sqlglot.com/sqlglot.html) — verified this session (`find_all`, `qualify`/`annotate_types` need schema, AST regeneration loses formatting)
-- v1 FEATURES.md (baseline landscape, 2026-08-03)
-- Project v1 milestone audit (ECO-07 pending, linear-Wasm CI recommendation)
+### Official Flink / Calcite / protocol
+
+- Apache Flink SQL overview, supported statements and reserved keywords: <https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/overview/> (directly read; page warns release-2.0 is out of date and links stable).
+- Apache Flink CREATE statements and CREATE TABLE grammar: <https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/create/> (directly read).
+- Apache Flink Windowing TVF (`TUMBLE`, `HOP`, `CUMULATE`, `SESSION`, `TABLE`/`DESCRIPTOR`): <https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/queries/window-tvf/> (directly read).
+- Apache Calcite `SqlParser` configuration and parse entry points: <https://raw.githubusercontent.com/apache/calcite/main/core/src/main/java/org/apache/calcite/sql/parser/SqlParser.java> (directly read).
+- Apache Calcite SQL grammar and `MATCH_RECOGNIZE` experimental status/grammar: <https://calcite.apache.org/docs/reference.html#match_recognize> (directly read; `MATCH_RECOGNIZE` section and syntax).
+- Language Server Protocol 3.17 specification: <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/>.
+
+### Multi-dialect/parser ecosystem
+
+- SQLGlot README: explicit dialect selection, lenient parser, AST regeneration/comment limitations, unsupported conversion behavior: <https://raw.githubusercontent.com/tobymao/sqlglot/main/README.md>.
+- SQLGlot dialect base/registry and parser/tokenizer/generator class composition: <https://raw.githubusercontent.com/tobymao/sqlglot/main/sqlglot/dialects/dialect.py>.
+- SQLFluff Flink dialect: ANSI inheritance, keyword sets, lexer patches, and Flink-specific segments: <https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink.py>.
+- SQLFluff Flink keyword table: <https://raw.githubusercontent.com/sqlfluff/sqlfluff/main/src/sqlfluff/dialects/dialect_flink_keywords.py>.
+- Tree-sitter official introduction: concrete syntax tree, incremental updates and useful results with syntax errors: <https://tree-sitter.github.io/tree-sitter/>.
+- `tree-sitter-sql` README: general/permissive grammar and generated parser revision requirement: <https://raw.githubusercontent.com/DerekStride/tree-sitter-sql/master/README.md>.
+- `tree-sitter-sql` grammar: shared extras/comments, precedence, statement modules and conflict declarations: <https://raw.githubusercontent.com/DerekStride/tree-sitter-sql/master/grammar.js>.
+
+### Local project evidence
+
+- v2 Multi-Dialect goal, Flink feature list and neutral names: `.planning/PROJECT.md:72-81`.
+- Core value, lossless CST, parser/recovery and backend constraints: `.planning/PROJECT.md:5-11,43-50`.
+- Current API still Doris-profile based and exposes strict/editor, result source bytes/root/diagnostics: `api/api.mbt:1-5,42-75,162-193`.
+- Current Doris profile/feature metadata and profile-introduced diagnostics: `token/token.mbt:3-7,47-77,133-160`.
+- Current syntax-only bounded completion: `completion/completion.mbt:1-24,129-175`.
+- Current refusal-first formatter contract: `formatter/format.mbt:1-20,49-65,127-137`.
+- Current LSP diagnostics, formatting, completion, UTF-16 and profile state: `lsp/handlers.mbt:1-10,36-59,78-90,144-196,200-245`.
+- Current CLI package as Native executable thin adapter: `doris-sql/moon.pkg:1-13`.
+- Current Web/Monaco profile facade and byte positions: `web/src/monaco-adapter.ts:1-4,29-73,76-100`; `web/src/main.ts:26-47,83-108,150-175`.
+- Current IntelliJ plugin reuses Native LSP and passes profile initialization options: `jetbrains/README.md:1-17`; `jetbrains/src/main/kotlin/fathom/jetbrains/doris/DorisLanguageServerFactory.kt:11-23,42-43`; `DorisSettings.kt:30-59`.
+- Existing cross-backend parity acceptance: `.planning/REQUIREMENTS.md:10-13`; incremental parsing benchmark gate: `.planning/REQUIREMENTS.md:31-33`.
 
 ---
-*Feature research (v2 additions) for: Doris SQL Parser SDK — analysis features*
+*Feature research for: Fathom v2.0 Multi-Dialect (Flink SQL & Neutral Naming)*  
+*Researched: 2026-08-06*
