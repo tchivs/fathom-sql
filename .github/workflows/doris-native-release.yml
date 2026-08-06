@@ -29,7 +29,7 @@ jobs:
           - platform: linux-x86_64
             runner: ubuntu-latest
           - platform: macos-x86_64
-            runner: macos-15-intel
+            runner: macos-14
           - platform: macos-aarch64
             runner: macos-14
           - platform: windows-x86_64
@@ -46,6 +46,14 @@ jobs:
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
           "$HOME/.moon/bin/moon" version
+          if [[ "${{ matrix.platform }}" == "macos-x86_64" ]]; then
+            cat > "$RUNNER_TEMP/x86_64-apple-clang" <<'EOF'
+          #!/bin/bash
+          exec clang -arch x86_64 "$@"
+          EOF
+            chmod +x "$RUNNER_TEMP/x86_64-apple-clang"
+            echo "MOON_CC=$RUNNER_TEMP/x86_64-apple-clang" >> "$GITHUB_ENV"
+          fi
 
       - name: Install MoonBit on Windows
         if: runner.os == 'Windows'
@@ -79,8 +87,12 @@ jobs:
           if [[ "${{ matrix.platform }}" == "windows-x86_64" ]]; then
             cp _build/native/release/build/lsp/lsp.exe "dist/doris-lsp-${{ matrix.platform }}.exe"
           else
-            cp _build/native/release/build/lsp/lsp.exe "dist/doris-lsp-${{ matrix.platform }}"
-            chmod +x "dist/doris-lsp-${{ matrix.platform }}"
+            asset="dist/doris-lsp-${{ matrix.platform }}"
+            cp _build/native/release/build/lsp/lsp.exe "$asset"
+            chmod +x "$asset"
+            if [[ "${{ matrix.platform }}" == "macos-x86_64" ]]; then
+              test "$(lipo -archs "$asset")" = "x86_64"
+            fi
           fi
 
       - name: Upload Native asset

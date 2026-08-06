@@ -19,13 +19,17 @@ def require(path: Path, pattern: str, description: str) -> None:
 
 build_path = ROOT / "build.gradle.kts"
 build = build_path.read_text(encoding="utf-8")
-for value, description in (
-    ("2.9.0", "IntelliJ Platform Gradle Plugin version"),
-    ("2.2.0", "Kotlin JVM version"),
-    ("0.20.1", "LSP4IJ version"),
-):
-    if value not in build:
-        errors.append(f"{build_path.relative_to(PROJECT_ROOT)}: missing {description} {value}")
+require(
+    build_path,
+    r'id\("org\.jetbrains\.intellij\.platform"\)\s+version\s+"2\.\d+\.\d+"',
+    "IntelliJ Platform Gradle Plugin version",
+)
+require(
+    build_path,
+    r'id\("org\.jetbrains\.kotlin\.jvm"\)\s+version\s+"2\.\d+\.\d+"',
+    "Kotlin JVM version",
+)
+require(build_path, r'plugin\("com\.redhat\.devtools\.lsp4ij",\s*"0\.20\.1"\)', "LSP4IJ version")
 if re.search(r"org\\.eclipse\\.lsp4j|lsp4j\\s*[:\\\"]", build, re.IGNORECASE):
     errors.append("build.gradle.kts: independently declared LSP4J runtime")
 require(build_path, r"sinceBuild\s*=\s*\"252\"", "minimum IntelliJ build")
