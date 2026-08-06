@@ -198,15 +198,23 @@ pub fn ParseOptions::for_profile_with_limits(
   }
 }
 
-pub fn ParseOptions::profile(self : ParseOptions) -> @dialect.DorisProfile {
-  match @dialect.DorisProfile::from_id(self.dialect_context.profile_id) {
-    Some(profile) => profile
-    None => @dialect.DorisProfile::V4_X
-  }
+/// The Doris profile this context resolves to, or None when the context is
+/// not a Doris context (flink) or its profile_id does not resolve — never a
+/// silently fabricated default (D-01, MI-01). All public constructors
+/// validate a Doris profile for Doris contexts, so None is reachable only
+/// through an externally-constructed pub(all) DialectContext.
+pub fn ParseOptions::profile(self : ParseOptions) -> @dialect.DorisProfile? {
+  @dialect.DorisProfile::from_id(self.dialect_context.profile_id)
 }
 
+/// Profile metadata for the Doris context. Panics on a context without a
+/// resolvable Doris profile — the explicit failure replaces the removed
+/// silent V4_X fabrication (MI-01); unreachable through public constructors.
 pub fn ParseOptions::profile_metadata(self : ParseOptions) -> @dialect.ProfileMetadata {
-  self.profile().metadata()
+  match self.profile() {
+    Some(profile) => profile.metadata()
+    None => panic()
+  }
 }
 
 /// The dialect selection's canonical id ("doris" | "flink") — the wire
@@ -635,7 +643,9 @@ test "api_requires_explicit_dialect_profile_and_mode" {
     Ok(options) => options
     Err(_) => panic()
   }
-  assert_eq(options.profile().id(), "2.1")
+  // MI-01: profile() is an Option — no silent V4_X fabrication for a
+  // context whose profile_id does not resolve.
+  assert_eq(options.profile(), Some(@dialect.DorisProfile::V2_1))
   assert_eq(options.dialect_id(), "doris")
   assert_true(options.mode() is ParseMode::Editor)
 }
