@@ -19,7 +19,7 @@ Ship the approved GitHub Releases distribution path for `doris-lsp` in the JetBr
 
 ## Changes
 
-1. Add a four-runner GitHub Actions Native release workflow, pinned to the recorded MoonBit version, including Windows installation and manifest generation.
+1. Add a four-runner GitHub Actions Native release workflow, using the public MoonBit installer and logging its resolved `moon version`; the historical repository toolchain archive is no longer served by the installer.
 2. Add a bounded HTTPS GitHub asset downloader with platform detection, URL/repository validation, manifest/tag validation, SHA-256 verification, atomic cache writes, executable permissions, and stale-cache fallback.
 3. Add a persisted settings toggle and wire resolution into the LSP4IJ process provider.
 4. Add deterministic downloader/settings tests, update source smoke contracts, plugin metadata, and release documentation.

@@ -20,6 +20,7 @@ completed: 2026-08-06
 - `./gradlew --no-daemon clean test buildPlugin`: passed; 10 tests passed, 0 failures; plugin ZIP produced.
 - `python3 scripts/source-smoke.py`: passed.
 - Native Release workflow YAML parsed successfully.
+- Known release constraint: the public MoonBit installer no longer serves the historical `0.1.20260724` archive used by the checkout, so the workflow selects `latest` and records the resolved `moon version` in its build log. Pinning can be restored when the exact archive is republished.
 - `moon check --target native lsp`: passed with existing warnings only.
 - `moon build --target native --release lsp`: passed; `_build/native/release/build/lsp/lsp.exe` exists.
 

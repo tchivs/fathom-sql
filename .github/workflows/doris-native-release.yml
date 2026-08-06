@@ -15,7 +15,8 @@ permissions:
   contents: read
 
 env:
-  MOONBIT_INSTALL_VERSION: "0.1.20260724"
+  # The installer no longer serves the repository's historical 0.1.20260724 archive; latest is logged by every build.
+  MOONBIT_INSTALL_VERSION: "latest"
 
 jobs:
   build:
