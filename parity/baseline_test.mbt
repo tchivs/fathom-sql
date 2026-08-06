@@ -20,7 +20,6 @@ pub(all) struct BaselineFixture {
   pub fixture_id : String
   pub profile : String
   pub raw : Bytes
-  pub expected_valid : Bool
 }
 
 /// All 44 corpus/manifest.tsv data rows, in manifest order. File-backed rows
@@ -35,265 +34,221 @@ let baseline_fixtures : Array[BaselineFixture] = [
     fixture_id: "2.1-industrial",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/\nSELECT DISTINCT k, SUM(v) AS total\nFROM fact PARTITION (p0) TABLESAMPLE (10)\nWHERE v BETWEEN 1 AND 9\nGROUP BY ROLLUP(k)\nHAVING SUM(v) > 0\nORDER BY total DESC\nLIMIT 10;\n\nSELECT a FROM left_table LEFT OUTER JOIN right_table ON left_table.k = right_table.k;\nSELECT a FROM first_table UNION ALL SELECT a FROM second_table;\nSELECT `group`, `window` FROM `table`;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-boundary-empty",
     profile: "2.1",
     raw: b"SELECT FROM t",
-    expected_valid: false,
   },
   {
     fixture_id: "2.1-boundary-single",
     profile: "2.1",
     raw: b"SELECT 1",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-contextual-keyword",
     profile: "2.1",
     raw: b"SELECT `group`, `window` FROM `table`",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-invalid-encoding",
     profile: "2.1",
     raw: b"SELECT \xff",
-    expected_valid: false,
   },
   {
     fixture_id: "3.x-industrial",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-query/SELECT/\nWITH recent AS (\n  SELECT k, SUM(v) OVER (PARTITION BY k ORDER BY ts ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling\n  FROM fact SAMPLE (10)\n  WHERE v IN (1, 2, 3)\n)\nSELECT k, rolling FROM recent QUALIFY rolling > 0 ORDER BY rolling DESC LIMIT 20;\n\nSELECT k FROM fact GROUP BY GROUPING SETS ((k), (k, region));\nSELECT k FROM left_table RIGHT JOIN right_table USING (k) UNION DISTINCT SELECT k FROM fallback_table;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-boundary-set-one",
     profile: "3.x",
     raw: b"SELECT k FROM t UNION SELECT k FROM t2",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-boundary-set-many",
     profile: "3.x",
     raw: b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3 UNION DISTINCT SELECT 4",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-recovery",
     profile: "3.x",
     raw: b"SELECT k FROM t WHERE",
-    expected_valid: false,
   },
   {
     fixture_id: "3.x-unsupported-profile",
-    profile: "3.x",
+    profile: "2.1",
     raw: b"SELECT k FROM t QUALIFY k > 0",
-    expected_valid: false,
   },
   {
     fixture_id: "4.x-industrial",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/\nSELECT /*+ SET_VAR(exec_mem_limit=1G) */\n  d.k, COUNT(*) AS n,\n  SUM(d.v) OVER (PARTITION BY d.k ORDER BY d.ts RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS running\nFROM (SELECT k, v, ts FROM detail WHERE v IS NOT NULL) AS d\nTABLET (1001)\nGROUP BY CUBE(d.k)\nHAVING COUNT(*) > 1\nORDER BY n DESC\nLIMIT 5 OFFSET 2\nINTO OUTFILE 'result.csv';\n\nSELECT k FROM t1 UNION SELECT k FROM t2 UNION ALL SELECT k FROM t3;\n-- Recovery fixture: the missing expression is intentional and remains source-backed.\nSELECT k +\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-boundary-set-two",
     profile: "4.x",
     raw: b"SELECT 1 UNION SELECT 2; SELECT 3 UNION ALL SELECT 4",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-recovery",
     profile: "4.x",
     raw: b"SELECT k +",
-    expected_valid: false,
   },
   {
     fixture_id: "4.x-invalid-encoding",
     profile: "4.x",
     raw: b"SELECT \xff",
-    expected_valid: false,
   },
   {
     fixture_id: "2.1-insert-values",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 INSERT VALUES grammar examples.\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-modification/DML/INSERT/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (examples 1-2; mysql> prompts and output blocks excluded)\nINSERT INTO test VALUES (1, 2);\nINSERT INTO test (c1, c2) VALUES (1, DEFAULT);\nINSERT INTO test VALUES (1, 2), (3, 2 + 2);\nINSERT INTO test (c1, c2) VALUES (1, DEFAULT), (3, DEFAULT);\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-insert-values",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x INSERT VALUES grammar examples.\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-modification/DML/INSERT/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (examples 1-2; mysql> prompts and output blocks excluded)\nINSERT INTO test VALUES (1, 2);\nINSERT INTO test (c1, c2) VALUES (1, DEFAULT);\nINSERT INTO test VALUES (1, 2), (3, 2 + 2);\nINSERT INTO test (c1, c2) VALUES (1, DEFAULT), (3, DEFAULT);\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-insert-values",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x INSERT VALUES grammar examples.\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (examples 1-2; mysql> prompts and output blocks excluded)\nINSERT INTO test VALUES (1, 2);\nINSERT INTO test (c1, c2) VALUES (1, DEFAULT);\nINSERT INTO test VALUES (1, 2), (3, 2 + 2);\nINSERT INTO test (c1, c2) VALUES (1, DEFAULT), (3, DEFAULT);\nINSERT INTO test /*+ STREAMING */ VALUES (1, 2);\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-insert-select",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 INSERT ... SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-modification/DML/INSERT/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (example 3-4; mysql> prompts and output blocks excluded)\nINSERT INTO test SELECT * FROM test2;\nINSERT INTO test (c1, c2) SELECT * FROM test2;\nINSERT INTO test PARTITION(p1, p2) WITH LABEL `label1` SELECT * FROM test2;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-insert-select",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x INSERT ... SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-modification/DML/INSERT/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (example 3-4; mysql> prompts and output blocks excluded)\nINSERT INTO test SELECT * FROM test2;\nINSERT INTO test (c1, c2) SELECT * FROM test2;\nINSERT INTO test PARTITION(p1, p2) WITH LABEL `label1` SELECT * FROM test2;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-insert-select",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x INSERT ... SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (example 3-4; mysql> prompts and output blocks excluded)\nINSERT INTO test SELECT * FROM test2;\nINSERT INTO test (c1, c2) SELECT * FROM test2;\nINSERT INTO test PARTITION(p1, p2) WITH LABEL `label1` SELECT * FROM test2;\nINSERT INTO db.test (c1) SELECT c1 FROM test2;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-update",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 UPDATE grammar examples (core SET/FROM/WHERE\n-- forms; the ORDER BY/LIMIT clause is documented in the 4.x grammar only).\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-modification/DML/UPDATE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nUPDATE t1 SET c1 = 1 WHERE id = 1;\nUPDATE t1 SET c1 = 1, c2 = 2 WHERE id = 1 AND name = 'a';\nUPDATE t1 alias SET c1 = 1;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-update",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x UPDATE grammar examples (core SET/FROM/WHERE\n-- forms; the ORDER BY/LIMIT clause is documented in the 4.x grammar only).\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-modification/DML/UPDATE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nUPDATE t1 SET c1 = 1 WHERE id = 1;\nUPDATE t1 SET c1 = 1, c2 = 2 WHERE id = 1 AND name = 'a';\nUPDATE t1 alias SET c1 = 1;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-update",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x UPDATE grammar examples (UNIQUE KEY model).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/UPDATE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nUPDATE t1 SET c1 = 1 WHERE id = 1;\nUPDATE t1 SET c1 = 1, c2 = DEFAULT WHERE id = 1;\nUPDATE t1 SET t1.c1 = t2.c1 FROM t2 INNER JOIN t3 ON t2.id = t3.id WHERE t1.id = t2.id;\nUPDATE t1 SET c1 = c1 + 1 ORDER BY c1 DESC NULLS LAST LIMIT 10;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-delete",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 DELETE grammar examples (predicate form;\n-- PARTITION/ORDER BY/LIMIT variants are documented in the 4.x grammar only).\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-modification/DML/DELETE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nDELETE FROM t WHERE id = 1;\nDELETE FROM t WHERE id IN (1, 2, 3) AND name = 'a';\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-delete",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x DELETE grammar examples (predicate form;\n-- PARTITION/ORDER BY/LIMIT variants are documented in the 4.x grammar only).\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/data-modification/DML/DELETE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nDELETE FROM t WHERE id = 1;\nDELETE FROM t WHERE id IN (1, 2, 3) AND name = 'a';\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-delete",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x DELETE grammar examples (both documented forms).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/DELETE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nDELETE FROM t WHERE id = 1;\nDELETE FROM t PARTITION p1 WHERE id = 1 AND name = 'a';\nDELETE FROM t PARTITIONS (p1, p2) WHERE id IN (1, 2, 3);\nDELETE FROM t WHERE id = 1 ORDER BY id LIMIT 10;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-create-table",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 CREATE TABLE grammar examples (keys, aggregation\n-- semantics, distribution/buckets incl. AUTO, partitions incl. AUTO PARTITION\n-- BY, properties). ORDER BY is a 4.1.0+ clause and stays out of this file.\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE TABLE example_table (k1 TINYINT, k2 DECIMAL(10, 2) DEFAULT \"10.5\", k3 CHAR(10) COMMENT \"string column\", v1 BIGINT SUM DEFAULT \"0\" COMMENT \"aggregate value\", INDEX idx_k1 (k1) USING BITMAP COMMENT \"index comment\") ENGINE=OLAP AGGREGATE KEY(k1) COMMENT \"my table\" DISTRIBUTED BY HASH(k1) BUCKETS 10 PROPERTIES (\"replication_num\" = \"1\", \"storage_medium\" = \"SSD\");\nCREATE TABLE t (k1 DATE, k2 INT) AUTO PARTITION BY RANGE (TO_DAYS(k1)) () DISTRIBUTED BY HASH (k2) BUCKETS 3;\nCREATE TABLE t2 (k1 INT) DISTRIBUTED BY HASH (k1) BUCKETS AUTO;\nCREATE TABLE t3 (k1 DATE) PARTITION BY RANGE (k1) (PARTITION p1 VALUES LESS THAN ('2021-01-01'), PARTITION p2 VALUES LESS THAN (MAXVALUE));\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-create-table",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x CREATE TABLE grammar examples (keys, aggregation\n-- semantics, distribution/buckets incl. AUTO, partitions incl. AUTO PARTITION\n-- BY, properties). ORDER BY is a 4.1.0+ clause and stays out of this file.\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE TABLE example_table (k1 TINYINT, k2 DECIMAL(10, 2) DEFAULT \"10.5\", k3 CHAR(10) COMMENT \"string column\", v1 BIGINT SUM DEFAULT \"0\" COMMENT \"aggregate value\", INDEX idx_k1 (k1) USING BITMAP COMMENT \"index comment\") ENGINE=OLAP AGGREGATE KEY(k1) COMMENT \"my table\" DISTRIBUTED BY HASH(k1) BUCKETS 10 PROPERTIES (\"replication_num\" = \"1\", \"storage_medium\" = \"SSD\");\nCREATE TABLE t (k1 DATE, k2 INT) AUTO PARTITION BY RANGE (TO_DAYS(k1)) () DISTRIBUTED BY HASH (k2) BUCKETS 3;\nCREATE TABLE t2 (k1 INT) DISTRIBUTED BY HASH (k1) BUCKETS AUTO;\nCREATE TABLE t3 (k1 DATE) PARTITION BY RANGE (k1) (PARTITION p1 VALUES LESS THAN ('2021-01-01'), PARTITION p2 VALUES LESS THAN (MAXVALUE));\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-create-table",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x CREATE TABLE grammar examples (full body incl.\n-- the 4.1.0+ ORDER BY clause, TEMPORARY modifier, rollup, partitions,\n-- distribution/buckets, properties).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE TABLE example_table (k1 TINYINT, k2 DECIMAL(10, 2) DEFAULT \"10.5\", k3 CHAR(10) COMMENT \"string column\", k4 INT NOT NULL DEFAULT \"1\" COMMENT \"int column\", v1 BIGINT SUM DEFAULT \"0\" COMMENT \"aggregate value\", INDEX idx_k1 (k1) USING BITMAP COMMENT \"index comment\") ENGINE=OLAP UNIQUE KEY(k1, k2) ORDER BY(k1) COMMENT \"my table\" PARTITION BY RANGE(k1) (PARTITION p1 VALUES LESS THAN (\"2021-01-01\"), PARTITION p2 VALUES LESS THAN (\"2022-01-01\")) DISTRIBUTED BY HASH(k1) BUCKETS 32 ROLLUP (r1 (k1) DUPLICATE KEY (k1)) PROPERTIES (\"replication_num\" = \"1\", \"storage_medium\" = \"SSD\");\nCREATE TEMPORARY TABLE t (a INT);\nCREATE TABLE t2 (k1 INT) DISTRIBUTED BY HASH (k1) BUCKETS AUTO;\nCREATE TABLE t3 (k1 DATE, k2 INT) AUTO PARTITION BY RANGE (TO_DAYS(k1)) () DISTRIBUTED BY HASH (k2) BUCKETS 3;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-create-view",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 CREATE VIEW grammar examples (plain and column\n-- defined forms; IF NOT EXISTS / column comments verified on the 4.x page).\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE VIEW v AS SELECT a, b FROM t;\nCREATE VIEW v (a, b) AS SELECT a, b FROM t;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-create-view",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x CREATE VIEW grammar examples (plain and column\n-- defined forms; IF NOT EXISTS / column comments verified on the 4.x page).\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE VIEW v AS SELECT a, b FROM t;\nCREATE VIEW v (a, b) AS SELECT a, b FROM t;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-create-view",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x CREATE VIEW grammar examples (IF NOT EXISTS,\n-- column definitions with comments, and a CTE-bodied query per the grammar's\n-- [AS] <query_stmt>).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/view/CREATE-VIEW/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE VIEW v AS SELECT a, b FROM t;\nCREATE VIEW IF NOT EXISTS db.v (a COMMENT 'col a') AS SELECT x AS a FROM t;\nCREATE VIEW v AS WITH cte AS (SELECT 1) SELECT * FROM cte;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-create-index",
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 CREATE INDEX grammar examples (INVERTED is the\n-- only index type the 2.1 CREATE TABLE/INDEX pages document).\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/table-and-view/index/CREATE-INDEX/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE INDEX index1 ON table1 (col1) USING INVERTED;\nCREATE INDEX idx ON db.table1 (col1, col2) USING INVERTED;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "3.x-create-index",
     profile: "3.x",
     raw: b"-- Released Apache Doris 3.x CREATE INDEX grammar examples (INVERTED is the\n-- only index type the 3.x CREATE TABLE/INDEX pages document).\n-- Source: https://doris.apache.org/docs/3.x/sql-manual/sql-statements/table-and-view/index/CREATE-INDEX/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE INDEX index1 ON table1 (col1) USING INVERTED;\nCREATE INDEX idx ON db.table1 (col1, col2) USING INVERTED;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-create-index",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x CREATE INDEX grammar examples (INVERTED, NGRAM_BF,\n-- and ANN index types with properties and comments).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/index/CREATE-INDEX/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE INDEX index1 ON table1 (col1) USING INVERTED;\nCREATE INDEX index2 ON table1 (col1) USING NGRAM_BF PROPERTIES (\"gram_size\" = \"3\", \"bf_size\" = \"1024\");\nCREATE INDEX IF NOT EXISTS idx ON t (c) COMMENT 'index comment';\nCREATE INDEX idx ON db.table1 (col1, col2) USING ANN PROPERTIES (\"index_type\" = \"hnsw\", \"metric_type\" = \"l2_distance\", \"dim\" = \"128\");\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-insert-overwrite",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x INSERT OVERWRITE grammar examples (the literal\n-- `table` keyword after OVERWRITE, PARTITION lists, and the PARTITION (*)\n-- auto-detect form documented since 2.1.3).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT-OVERWRITE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nINSERT OVERWRITE table test VALUES (1, 2);\nINSERT OVERWRITE table test PARTITION (p1, p2) SELECT * FROM test2;\nINSERT OVERWRITE table test PARTITION (*) SELECT * FROM test2;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "2.1-merge",
     profile: "2.1",
     raw: b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v",
-    expected_valid: false,
   },
   {
     fixture_id: "3.x-merge",
     profile: "3.x",
     raw: b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v",
-    expected_valid: false,
   },
   {
     fixture_id: "4.x-merge",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x MERGE INTO grammar examples (UNIQUE KEY model;\n-- MERGE-INTO is documented only in the 4.x docs tree).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/MERGE-INTO/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nMERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.v = s.v;\nMERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE;\nMERGE INTO t USING s ON t.id = s.id WHEN NOT MATCHED THEN INSERT VALUES (s.id, s.v);\nMERGE INTO t USING s ON t.id = s.id WHEN MATCHED AND t.v < s.v THEN UPDATE SET t.v = s.v WHEN NOT MATCHED THEN INSERT VALUES (s.id, s.v);\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-create-table-ctas",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x CREATE TABLE ... AS SELECT (CTAS) variant\n-- grammar examples.\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (Varaint Syntax: CREATE TABLE ... AS SELECT)\nCREATE TABLE t AS SELECT a, b FROM src;\nCREATE TABLE t (a INT) DISTRIBUTED BY HASH (a) BUCKETS 10 AS SELECT a FROM src;\nCREATE TABLE t (a INT, INDEX idx (a)) ENGINE=OLAP COMMENT \"ctas\" AS SELECT a FROM src;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-create-table-like",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x CREATE TABLE ... LIKE variant grammar examples.\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/table/CREATE-TABLE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql (Varaint Syntax: CREATE TABLE ... LIKE)\nCREATE TABLE new_t LIKE existing_t;\nCREATE TABLE new_t LIKE existing_t WITH ROLLUP (r1, r2);\nCREATE TABLE db.new_t LIKE db.existing_t;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-create-materialized-view",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x CREATE MATERIALIZED VIEW examples: the sync form\n-- (restricted single-table body) plus the async form (BUILD/REFRESH clauses\n-- with an unrestricted query, documented identically in the 2.1/3.x/4.x\n-- async-materialized-view pages).\n-- Sources:\n--   https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/sync-materialized-view/CREATE-MATERIALIZED-VIEW/\n--   https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE MATERIALIZED VIEW mv AS SELECT k, SUM(v) FROM t GROUP BY k;\nCREATE MATERIALIZED VIEW complete_mv (orderkey COMMENT 'Order key') BUILD IMMEDIATE REFRESH AUTO ON SCHEDULE EVERY 1 DAY STARTS '2099-01-01 20:30:00' DISTRIBUTED BY HASH (orderkey) BUCKETS 2 PROPERTIES (\"replication_num\" = \"1\") AS SELECT o_orderkey, l_orderkey FROM orders LEFT JOIN lineitem ON l_orderkey = o_orderkey;\nCREATE MATERIALIZED VIEW IF NOT EXISTS mv2 BUILD DEFERRED REFRESH COMPLETE ON MANUAL AS SELECT 1;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-script-multi-statement",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x multi-statement script fixture (DORIS-03): a\n-- semicolon-separated document parses each statement independently with\n-- monotonic statement ids; the invalid-statement variant (later statements\n-- survive) is asserted by the corpus_test oracle.\n-- Source: statement-family pages (https://doris.apache.org/docs/4.x/sql-manual/sql-statements/)\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nCREATE TABLE t (a INT); INSERT INTO t VALUES (1); SELECT * FROM t;\nINSERT INTO t VALUES (2); SELECT b;\n",
-    expected_valid: true,
   },
   {
     fixture_id: "4.x-malformed-recovery",
     profile: "4.x",
     raw: b"-- Released Apache Doris 4.x malformed DML recovery fixture: editor-mode\n-- goldens assert bounded recovery, byte-exact replay, and DORIS-PARSE\n-- diagnostics (Phase 1 recovery patterns).\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/UPDATE/\n-- Retrieved: 2026-08-04\n-- Code fence: grammar:sql\nUPDATE t SET x = 1 WHERE;\nINSERT INTO t VALUES (1;\n",
-    expected_valid: false,
   },
 ]
 
@@ -487,12 +442,12 @@ test "parse 3.x-recovery editor" {
 
 test "parse 3.x-unsupported-profile strict" {
   let t = @test.Test("parse 3.x-unsupported-profile strict")
-  snapshot_test(t, parse_json("3.x-unsupported-profile", "strict"), "3.x-unsupported-profile.3.x.strict.json")
+  snapshot_test(t, parse_json("3.x-unsupported-profile", "strict"), "3.x-unsupported-profile.2.1.strict.json")
 }
 
 test "parse 3.x-unsupported-profile editor" {
   let t = @test.Test("parse 3.x-unsupported-profile editor")
-  snapshot_test(t, parse_json("3.x-unsupported-profile", "editor"), "3.x-unsupported-profile.3.x.editor.json")
+  snapshot_test(t, parse_json("3.x-unsupported-profile", "editor"), "3.x-unsupported-profile.2.1.editor.json")
 }
 
 test "parse 4.x-industrial strict" {
