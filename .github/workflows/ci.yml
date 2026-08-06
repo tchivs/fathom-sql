@@ -161,8 +161,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      # NAME-04: reject product-level remnants of doris-sql / doris-lsp /
-      # doris.* / DORIS-* in current source, config, CI, extensions, and docs.
+      # NAME-04: reject product-level remnants of the legacy product identity
+      # (CLI/module names, LSP binary names, binding exports, wire schema
+      # namespaces, diagnostic code prefixes, host config keys/plugin ids,
+      # display titles) in current source, config, CI, extensions, and docs.
       # The allowlist is limited to Doris dialect semantics and provenance
       # (D-05); historical archives are exempt (D-04). NEVER add an update-like
       # bypass to this job.
