@@ -413,6 +413,14 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
     Some(document) => document
     None => return [ response(id, Json::array([]))]
   }
+  // T-09-23 flink surface (MI-06): formatting a flink-selected document is a
+  // structured not-implemented error, never a silent empty edit array — a
+  // host must be able to distinguish "nothing to format" from "formatting is
+  // not supported for this dialect". The message mirrors the parse-path
+  // FATHOM-PARSE-008 diagnostic text.
+  if document.dialect == "flink" {
+    return [ error_response(id, -32603, "flink grammar is not yet implemented")]
+  }
   let result = match @api.format_with_ids(document.text, document.dialect, document.profile, "strict", @api.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => return [ response(id, Json::array([]))]

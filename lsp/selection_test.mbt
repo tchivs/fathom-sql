@@ -234,8 +234,11 @@ test "flink_document_format_and_completion_reject_without_doris_policy" {
   let edits = handle_message(state, format)
   assert_eq(edits.length(), 1)
   let format_body = @utf8.decode_lossy(edits[0])
-  assert_true(format_body.contains("\"result\":[]"))
-  assert_true(!format_body.contains("newText"))
+  // MI-06: flink formatting is a structured -32603 not-implemented error,
+  // never a silent empty edit array.
+  assert_true(format_body.contains("-32603"))
+  assert_true(format_body.contains("flink grammar is not yet implemented"))
+  assert_true(!format_body.contains("\"result\""))
   let completion = message("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":7}}}")
   let completion_responses = handle_message(state, completion)
   assert_eq(completion_responses.length(), 1)
