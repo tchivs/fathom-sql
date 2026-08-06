@@ -86,7 +86,12 @@ BUILD_OUTPUT_DIRS = {"build", "dist"}
 def is_scannable(path: Path) -> bool:
     rel = path.relative_to(ROOT).as_posix()
     name = path.name
-    if any(part in EXCLUDED_DIRS or part in BUILD_OUTPUT_DIRS for part in path.parts):
+    # Match exclusion sets against ROOT-relative components only (MI-03):
+    # path.parts includes ancestors above ROOT, so a checkout under any
+    # directory literally named build/dist/.git/... would silently exclude
+    # EVERY file and the gate would pass with "0 files scanned".
+    rel_parts = rel.split("/")
+    if any(part in EXCLUDED_DIRS or part in BUILD_OUTPUT_DIRS for part in rel_parts):
         return False
     if name == "package-lock.json" or name.startswith("tsconfig"):
         return False
@@ -156,6 +161,17 @@ def main() -> int:
                         "%s:%d: %s matches %r" % (rel, lineno, description, pattern)
                     )
         scanned += 1
+    # MI-03: a scan that matches zero product files proves nothing — the gate
+    # must fail loudly rather than print "ok: 0 product files scanned". This
+    # is the blind-spot guard for a misconfigured ROOT or an over-broad
+    # exclusion set.
+    if scanned == 0:
+        print(
+            "naming gate failed: 0 product files scanned — scan scope is empty "
+            "(check ROOT, EXCLUDED_DIRS, and BUILD_OUTPUT_DIRS)",
+            file=sys.stderr,
+        )
+        return 1
     if problems:
         for problem in problems:
             print("error: " + problem, file=sys.stderr)

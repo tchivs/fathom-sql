@@ -105,7 +105,15 @@ allowed_remote_sources = {
 }
 
 for path in ROOT.rglob("*"):
-    if not path.is_file() or ".gradle" in path.parts or ".intellijPlatform" in path.parts or "build" in path.parts:
+    if not path.is_file():
+        continue
+    # Exclude via ROOT-relative components only (MI-03): path.parts includes
+    # ancestors above ROOT, so a checkout under a directory literally named
+    # "build" would silently skip every plugin source file. __pycache__ is
+    # this script's own py_compile bytecode (the naming-gate battery runs
+    # py_compile on it) and must never be scanned as a plugin source.
+    rel_parts = path.relative_to(ROOT).as_posix().split("/")
+    if any(part in {".gradle", ".intellijPlatform", "build", "__pycache__"} for part in rel_parts):
         continue
     if path.name in {"source-smoke.py", "README.md", "gradlew", "gradlew.bat", "plugin.xml"}:
         continue
