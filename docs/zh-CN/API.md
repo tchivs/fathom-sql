@@ -140,7 +140,7 @@ pub struct ParseResult {
 
 当前结果协议字段为：
 
-- `schema_version`：当前为 `"doris.parse.v1"`。
+- `schema_version`：当前为 `"fathom.parse.v1"`。
 - `source_transport`：当前为 `"inline-root-v1"`，表示源字节内嵌在结果根部。
 - `profile`、`exact_release`、`feature_introduction`、`mode`：本次调用实际使用的 profile metadata 和模式。
 - `valid`：语法结果是否有效。存在语法、词法、资源或 profile feature 诊断时通常为 `false`；editor 恢复不会把错误结果提升为有效。
@@ -318,14 +318,14 @@ pub fn[T : Catalog] resolve_table_references(
 
 | code | 含义 |
 |---|---|
-| `DORIS-PARSE-001` | statement 末尾存在不符合预期的 trailing material。 |
-| `DORIS-PARSE-002` | 通用语法错误，例如缺少 keyword、symbol、expression、identifier 或 clause。 |
-| `DORIS-PARSE-003` | 非法源编码或未闭合的词法材料。 |
-| `DORIS-PARSE-004` | 达到 parser 资源限制，例如 token、递归、恢复或诊断预算。 |
-| `DORIS-PARSE-006` | 选定 profile 不支持的 Doris feature，例如较早 profile 中的 `QUALIFY`、`TABLET` 或 `MERGE`。 |
-| `DORIS-PARSE-007` | 选定 profile 中未实现/不支持的 statement。 |
+| `FATHOM-PARSE-001` | statement 末尾存在不符合预期的 trailing material。 |
+| `FATHOM-PARSE-002` | 通用语法错误，例如缺少 keyword、symbol、expression、identifier 或 clause。 |
+| `FATHOM-PARSE-003` | 非法源编码或未闭合的词法材料。 |
+| `FATHOM-PARSE-004` | 达到 parser 资源限制，例如 token、递归、恢复或诊断预算。 |
+| `FATHOM-PARSE-006` | 选定 profile 不支持的 Doris feature，例如较早 profile 中的 `QUALIFY`、`TABLET` 或 `MERGE`。 |
+| `FATHOM-PARSE-007` | 选定 profile 中未实现/不支持的 statement。 |
 
-这些 code 应作为字符串处理。诊断消息和 `expected_class` 用于展示与定位，具体定位通过 `start_byte`/`end_byte` 和 `statement_id` 获取。代码 `DORIS-PARSE-005` 目前没有在 parser 实现中作为公开诊断生成。
+这些 code 应作为字符串处理。诊断消息和 `expected_class` 用于展示与定位，具体定位通过 `start_byte`/`end_byte` 和 `statement_id` 获取。代码 `FATHOM-PARSE-005` 目前没有在 parser 实现中作为公开诊断生成。
 
 ### Formatter 诊断与错误
 
@@ -347,7 +347,7 @@ pub(all) struct FormatDiagnostic {
 
 | code | 含义 |
 |---|---|
-| `DORIS-FORMAT-001` | CST 含有 `error`、`missing` 或 `skipped` 材料，formatter 拒绝生成部分输出。 |
+| `FATHOM-FORMAT-001` | CST 含有 `error`、`missing` 或 `skipped` 材料，formatter 拒绝生成部分输出。 |
 
 直接使用 formatter package 的 `FormatError` 还可能返回：`InvalidIndent`、`InvalidLineWidth`、`UnknownKeywordCase`、`UnknownCommaStyle`、`UnknownNewlineStyle` 和 `InvalidSyntaxTree`。通过 `api.format_text` 时，格式选项应先使用有效枚举和 `FormatOptions::new` 构造；parse 相关错误则按上面的 `ParseError` 返回。
 
@@ -355,7 +355,7 @@ pub(all) struct FormatDiagnostic {
 
 没有 HTTP 速率限制、连接配额或服务端窗口。Fathom 是纯库，调用方自行决定并发和生命周期。
 
-为防止单次不可信输入消耗无限资源，解析器提供的是**单次调用资源预算**，不是网络 rate limit：`max_bytes`、`max_tokens`、`max_recursion_depth`、`max_recovery_steps` 和 `max_diagnostics`。它们必须是非负整数；超过预算时会保留有界的错误/跳过材料并生成 `DORIS-PARSE-004`，而不是等待外部服务或静默丢弃源字节。
+为防止单次不可信输入消耗无限资源，解析器提供的是**单次调用资源预算**，不是网络 rate limit：`max_bytes`、`max_tokens`、`max_recursion_depth`、`max_recovery_steps` 和 `max_diagnostics`。它们必须是非负整数；超过预算时会保留有界的错误/跳过材料并生成 `FATHOM-PARSE-004`，而不是等待外部服务或静默丢弃源字节。
 
 ## 完整示例
 

@@ -12,9 +12,15 @@ pub enum SchemaError {
   UnsupportedMode(mode~ : String)
 } derive(Eq, @debug.Debug)
 
+/// Accepts exactly the four fathom.*.v1 result/error envelope namespaces
+/// (D-09): parse, format, error, capabilities. fathom.dialect.v1 is a
+/// metadata-query schema served by fathom_dialect_v1, not a result envelope.
 pub fn validate_schema_version(version : String) -> Result[Unit, SchemaError] {
   match version {
-    PARSE_SCHEMA_VERSION | FORMAT_SCHEMA_VERSION => Ok(())
+    PARSE_SCHEMA_VERSION |
+    FORMAT_SCHEMA_VERSION |
+    "fathom.error.v1" |
+    "fathom.capabilities.v1" => Ok(())
     _ => Err(UnsupportedSchemaVersion(version~))
   }
 }
@@ -53,9 +59,9 @@ pub fn schema_error_code(error : SchemaError) -> String {
   match error {
     UnsupportedSchemaVersion(_) => "FATHOM-SCHEMA-001"
     UnsupportedSourceTransport(_) => "FATHOM-SCHEMA-002"
-    UnknownDialect(_) => "FATHOM-SCHEMA-003"
     UnsupportedProfile(_) => "FATHOM-SCHEMA-003"
     UnsupportedMode(_) => "FATHOM-SCHEMA-004"
+    UnknownDialect(_) => "FATHOM-SCHEMA-007"
   }
 }
 
@@ -129,7 +135,7 @@ pub fn error_json(code : String, message : String) -> String {
 
 pub fn parse_error_json(error : @api.ParseError) -> String {
   let code = match error {
-    @api.ParseError::UnknownDialect(_) => "FATHOM-SCHEMA-003"
+    @api.ParseError::UnknownDialect(_) => "FATHOM-SCHEMA-007"
     @api.ParseError::UnknownProfile(_) => "FATHOM-SCHEMA-003"
     @api.ParseError::UnknownMode(_) => "FATHOM-SCHEMA-004"
     @api.ParseError::ProfileMetadataMismatch(..) => "FATHOM-SCHEMA-005"
@@ -175,30 +181,72 @@ pub fn format_error_json(error : @api.FormatError) -> String {
   error_json(code, message)
 }
 
-pub fn profile_json(profile : String) -> String {
-  match @api.parse_with_ids(b"", "doris", profile, "strict") {
-    Ok(result) => stringify({
-      "schema_version": Json::string("doris.profile.v1"),
-      "profile": Json::string(result.profile),
-      "exact_release": Json::string(result.exact_release),
-      "feature_introduction": Json::string(result.feature_introduction),
-      "source_transport": Json::string(SOURCE_TRANSPORT),
-      "modes": Json::array([Json::string("strict"), Json::string("editor")]),
-    })
-    Err(error) => parse_error_json(error)
+/// Per-dialect profile availability under fathom.dialect.v1 (OQ4): the
+/// dialect's released profiles with exact_release/feature_introduction taken
+/// ONLY from DorisProfile metadata (T-09-18 provenance discipline — nothing
+/// fabricated). flink is a legal dialect whose profile set is empty until
+/// Phase 10 (A1); an unknown dialect is a structured UnknownDialect error
+/// (FATHOM-SCHEMA-007).
+pub fn dialect_json(dialect : String) -> String {
+  match dialect {
+    "doris" => {
+      let profiles = ["2.1", "3.x", "4.x"]
+      let entries : Array[Json] = []
+      for profile in profiles {
+        let selection = match @api.ParseOptions::new("doris", profile, "strict") {
+          Ok(selection) => selection
+          Err(error) => return parse_error_json(error)
+        }
+        let metadata = selection.profile_metadata()
+        entries.push(Json::object({
+          "id": Json::string(profile),
+          "exact_release": Json::string(metadata.exact_release),
+          "feature_introduction": Json::string(metadata.feature_introduction),
+        }))
+      }
+      stringify({
+        "schema_version": Json::string("fathom.dialect.v1"),
+        "dialect": Json::string("doris"),
+        "source_transport": Json::string(SOURCE_TRANSPORT),
+        "profiles": Json::array(entries),
+        "modes": Json::array([Json::string("strict"), Json::string("editor")]),
+      })
+    }
+    "flink" => {
+      stringify({
+        "schema_version": Json::string("fathom.dialect.v1"),
+        "dialect": Json::string("flink"),
+        "source_transport": Json::string(SOURCE_TRANSPORT),
+        "profiles": Json::array([]),
+        "modes": Json::array([Json::string("strict"), Json::string("editor")]),
+      })
+    }
+    _ => schema_error_json(UnknownDialect(dialect= dialect))
   }
 }
 
+/// Global negotiation metadata under fathom.capabilities.v1 (OQ4): the
+/// dialect list with per-dialect profile availability, the supported schema
+/// namespaces, source transport, modes, and targets.
 pub fn capabilities_json() -> String {
   stringify({
-    "schema_version": Json::string("doris.capabilities.v1"),
+    "schema_version": Json::string("fathom.capabilities.v1"),
     "parse_schema": Json::string(PARSE_SCHEMA_VERSION),
     "format_schema": Json::string(FORMAT_SCHEMA_VERSION),
     "source_transport": Json::string(SOURCE_TRANSPORT),
-    "profiles": Json::array([
-      Json::string("2.1"),
-      Json::string("3.x"),
-      Json::string("4.x"),
+    "dialects": Json::array([
+      Json::object({
+        "dialect": Json::string("doris"),
+        "profiles": Json::array([
+          Json::string("2.1"),
+          Json::string("3.x"),
+          Json::string("4.x"),
+        ]),
+      }),
+      Json::object({
+        "dialect": Json::string("flink"),
+        "profiles": Json::array([]),
+      }),
     ]),
     "modes": Json::array([Json::string("strict"), Json::string("editor")]),
     "targets": Json::array([

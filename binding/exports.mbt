@@ -4,9 +4,11 @@
 /// SQL source; no MoonBit ADT, object handle, or host memory address crosses
 /// this boundary. `fathom_parse_v1` and `fathom_format_v1` are the ABI surface
 /// (dialect right after raw, consistent with ParseOptions::new and the CLI,
-/// A4); the metadata exports let hosts negotiate profiles and capabilities
-/// without parsing an SQL document first. `fathom_dialect_v1` replaces
-/// `doris_profile_v1` in 09-05.
+/// A4); the metadata exports let hosts negotiate dialects, profiles, and
+/// capabilities without parsing an SQL document first. `fathom_dialect_v1`
+/// reports a dialect's available profiles with release metadata under
+/// fathom.dialect.v1; `fathom_capabilities_v1` reports the global dialect
+/// list with per-dialect profile availability under fathom.capabilities.v1.
 
 fn json_bytes(value : String) -> Bytes {
   @utf8.encode(value)
@@ -93,12 +95,12 @@ pub fn fathom_format_v1(
   }
 }
 
-#export_name("doris_profile_v1")
-pub fn doris_profile_v1(profile : String) -> Bytes {
-  json_bytes(profile_json(profile))
+#export_name("fathom_dialect_v1")
+pub fn fathom_dialect_v1(dialect : String) -> Bytes {
+  json_bytes(dialect_json(dialect))
 }
 
-#export_name("doris_capabilities_v1")
-pub fn doris_capabilities_v1() -> Bytes {
+#export_name("fathom_capabilities_v1")
+pub fn fathom_capabilities_v1() -> Bytes {
   json_bytes(capabilities_json())
 }

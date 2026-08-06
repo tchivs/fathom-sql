@@ -7,5 +7,5 @@ fn main {
   )
   ignore(parsed)
   ignore(formatted)
-  ignore(@binding.doris_capabilities_v1())
+  ignore(@binding.fathom_capabilities_v1())
 }

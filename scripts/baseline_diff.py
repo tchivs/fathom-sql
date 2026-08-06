@@ -160,7 +160,7 @@ def classify(left_pairs, right_pairs, rules):
         removed = left.get(path, Counter()) - right.get(path, Counter())
         added = right.get(path, Counter()) - left.get(path, Counter())
         # Pair removed values with added values at the same path via approved
-        # transitions (e.g. "doris.parse.v1" -> "fathom.parse.v1"). Keep
+        # transitions (e.g. a v1 schema namespace -> its neutral replacement). Keep
         # pairing while BOTH sides still hold values: multi-document snapshot
         # files (LSP homomorphs — a parse envelope plus a format envelope)
         # legitimately carry the same leaf value at the same path more than

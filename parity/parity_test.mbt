@@ -101,16 +101,26 @@ test "parity_rejects_unknown_profile_mode_and_options" {
 }
 
 test "parity_capabilities_exclude_wasm_gc_and_expose_linear_wasm" {
-  let capabilities = json_text(@binding.doris_capabilities_v1())
-  assert_true(capabilities.contains("doris.capabilities.v1"))
+  let capabilities = json_text(@binding.fathom_capabilities_v1())
+  assert_true(capabilities.contains("fathom.capabilities.v1"))
+  assert_true(capabilities.contains("\"dialect\":\"doris\""))
+  assert_true(capabilities.contains("\"dialect\":\"flink\""))
   assert_true(capabilities.contains("js-esm"))
   assert_true(capabilities.contains("wasm-linear"))
   assert_true(capabilities.contains("\"wasm_gc\":false"))
-  let profile = json_text(@binding.doris_profile_v1("3.x"))
-  assert_true(profile.contains("doris.profile.v1"))
-  assert_true(profile.contains("\"exact_release\":"))
-  let bad_profile = json_text(@binding.doris_profile_v1("mysql"))
-  assert_true(bad_profile.contains("FATHOM-SCHEMA-003"))
+  let dialect = json_text(@binding.fathom_dialect_v1("doris"))
+  assert_true(dialect.contains("fathom.dialect.v1"))
+  assert_true(dialect.contains("\"id\":\"2.1\""))
+  assert_true(dialect.contains("\"id\":\"3.x\""))
+  assert_true(dialect.contains("\"id\":\"4.x\""))
+  assert_true(dialect.contains("\"exact_release\":"))
+  let flink = json_text(@binding.fathom_dialect_v1("flink"))
+  assert_true(flink.contains("fathom.dialect.v1"))
+  assert_true(flink.contains("\"profiles\":[]"))
+  let bad_dialect = json_text(@binding.fathom_dialect_v1("mysql"))
+  assert_true(bad_dialect.contains("fathom.error.v1"))
+  assert_true(bad_dialect.contains("FATHOM-SCHEMA-007"))
+  assert_true(bad_dialect.contains("unknown dialect"))
 }
 
 test "target_abi_regression_preserves_bytes_and_exposes_only_primitives" {

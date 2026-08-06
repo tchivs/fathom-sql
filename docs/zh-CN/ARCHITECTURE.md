@@ -46,7 +46,7 @@ graph TD
 3. **词法扫描**：`parser.parse_with_limits_context` 调用 `lexer.lex_with_limit`。lexer 从同一份 `SourceText` 读取字符，生成带 span 的 `TokenStream`，保留空白、换行、注释和 BOM；未知字符、非法 UTF-8 和未闭合字面量保留为错误或未知 token，并可在 token 限制下记录截断位置。
 4. **按语句解析**：parser 按分号切分文档中的语句片段，忽略 trivia 参与语法判断但把 trivia 作为源绑定叶子保留在树中。关键字首先选择 `SELECT`、DML、DDL 或其他语句族；查询和子查询通过递归下降处理，表达式通过单一 Pratt 路径处理运算符优先级、后缀和列表结构。
 5. **错误恢复**：在 `Editor` 模式下，parser 在缺失 token、非法表达式或子句边界处生成 `Error`、`Skipped` 或零宽 `Missing` 节点，并继续到语句级分号或语句族的子句边界；恢复步数、递归深度和诊断数量受限。`Strict` 模式仍返回诊断和树，但不会把错误结果标记为可恢复。资源限制和词法问题使用稳定的诊断结构。
-6. **CST 与公共结果**：parser 生成 `Document` 根节点及有序子节点，`api` 检查根节点的 span/子节点不变量，然后将 `SyntaxNode` 投影为 `PrimitiveNode`，返回 `ParseResult`。结果同时携带 profile 元数据、`valid`、`recovered`、原始 source bytes、诊断数组和 `doris.parse.v1` schema 标识。
+6. **CST 与公共结果**：parser 生成 `Document` 根节点及有序子节点，`api` 检查根节点的 span/子节点不变量，然后将 `SyntaxNode` 投影为 `PrimitiveNode`，返回 `ParseResult`。结果同时携带 profile 元数据、`valid`、`recovered`、原始 source bytes、诊断数组和 `fathom.parse.v1` schema 标识。
 7. **按需消费**：`printer.print_lossless` 沿 CST 叶子从 `SourceText` 切片并精确拼接，因此可验证 `print_lossless(parsed.root, parsed.source) == input`，其中 `parsed = parser.parse(source, profile, mode)`；`formatter.format` 对无错误/无缺失/无跳过材料的树执行布局、关键字大小写、缩进、逗号、换行和尾换行策略，遇到不安全树则拒绝输出；`analyzer.resolve_table_references` 使用调用方字节和 catalog，对已支持的 DML/DDL 语句解析目标表名，不参与语法有效性判断。
 
 ## 关键抽象

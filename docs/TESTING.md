@@ -132,7 +132,7 @@ Existing tests should prefer validating observable behavior through the public `
 Parser regression tests generally check all of the following layers rather than asserting only that parsing succeeds:
 
 1. Whether `valid`, `recovered`, and the diagnostic count/code match expectations for strict or editor mode.
-2. Diagnostic `DORIS-PARSE-###` codes, severity, expected class, byte spans, and snapshot-local `statement_id`.
+2. Diagnostic `FATHOM-PARSE-###` codes, severity, expected class, byte spans, and snapshot-local `statement_id`.
 3. Byte-level lossless replay via `@printer.print_result(result) == raw`, including comments, whitespace, LF/CRLF, BOM, Unicode, invalid bytes, and error material.
 4. `result.all_spans_in_bounds()`, statement order, node kinds, and the `missing`/`error`/`skipped` recovery structure.
 5. Acceptance or explicit rejection of version features under the `2.1`, `3.x`, and `4.x` profiles, without a generic dialect fallback.

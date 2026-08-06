@@ -3,15 +3,15 @@ test "exports_are_primitive_and_versioned" {
   let formatted = @binding.fathom_format_v1(
     b"select 1", "doris", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
   )
-  let profile = @binding.doris_profile_v1("2.1")
-  let capabilities = @binding.doris_capabilities_v1()
+  let dialect = @binding.fathom_dialect_v1("doris")
+  let capabilities = @binding.fathom_capabilities_v1()
   assert_true(parsed.length() > 0)
   assert_true(formatted.length() > 0)
-  assert_true(profile.length() > 0)
+  assert_true(dialect.length() > 0)
   assert_true(capabilities.length() > 0)
   let parsed_text = @utf8.decode_lossy(parsed[:])
   let formatted_text = @utf8.decode_lossy(formatted[:])
-  let profile_text = @utf8.decode_lossy(profile[:])
+  let dialect_text = @utf8.decode_lossy(dialect[:])
   let capabilities_text = @utf8.decode_lossy(capabilities[:])
   assert_true(parsed_text.contains("fathom.parse.v1"))
   assert_true(parsed_text.contains("\"source_bytes\":[115,101,108,101,99,116,32,49]"))
@@ -19,8 +19,12 @@ test "exports_are_primitive_and_versioned" {
   assert_true(formatted_text.contains("fathom.format.v1"))
   assert_true(formatted_text.contains("\"source_bytes\":"))
   assert_true(!formatted_text.contains("FormatResult"))
-  assert_true(profile_text.contains("doris.profile.v1"))
-  assert_true(capabilities_text.contains("doris.capabilities.v1"))
+  assert_true(dialect_text.contains("fathom.dialect.v1"))
+  assert_true(dialect_text.contains("\"dialect\":\"doris\""))
+  assert_true(dialect_text.contains("\"id\":\"4.x\""))
+  assert_true(capabilities_text.contains("fathom.capabilities.v1"))
+  assert_true(capabilities_text.contains("\"dialect\":\"doris\""))
+  assert_true(capabilities_text.contains("\"dialect\":\"flink\""))
 }
 
 test "dialect_selection_is_explicit_end_to_end" {
@@ -44,9 +48,10 @@ test "dialect_selection_is_explicit_end_to_end" {
   assert_true(flink.contains("fathom.error.v1"))
   assert_true(flink.contains("FATHOM-SCHEMA-003"))
   assert_true(!flink.contains("Doris"))
-  // Unknown dialect: structured UnknownDialect error.
+  // Unknown dialect: structured UnknownDialect error (FATHOM-SCHEMA-007).
   let unknown = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "mysql", "4.x", "strict")[:])
   assert_true(unknown.contains("fathom.error.v1"))
+  assert_true(unknown.contains("FATHOM-SCHEMA-007"))
   assert_true(unknown.contains("unknown dialect"))
 }
 
@@ -98,6 +103,7 @@ test "format_export_is_dialect_aware_with_neutral_wire_identity" {
     )[:],
   )
   assert_true(unknown.contains("fathom.error.v1"))
+  assert_true(unknown.contains("FATHOM-SCHEMA-007"))
   assert_true(unknown.contains("unknown dialect"))
 }
 

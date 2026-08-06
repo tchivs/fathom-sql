@@ -140,7 +140,7 @@ pub struct ParseResult {
 
 Current result protocol fields:
 
-- `schema_version`: currently `"doris.parse.v1"`.
+- `schema_version`: currently `"fathom.parse.v1"`.
 - `source_transport`: currently `"inline-root-v1"`, meaning source bytes are embedded in the result root.
 - `profile`, `exact_release`, `feature_introduction`, `mode`: the profile metadata and mode actually used for this call.
 - `valid`: whether the syntax result is valid. It is usually `false` when syntax, lexical, resource, or profile-feature diagnostics exist; editor recovery does not promote an erroneous result to valid.
@@ -318,14 +318,14 @@ When syntax can produce a `ParseResult`, errors are not returned as network stat
 
 | code | Meaning |
 |---|---|
-| `DORIS-PARSE-001` | Unexpected trailing material exists at the end of a statement. |
-| `DORIS-PARSE-002` | General syntax error, such as a missing keyword, symbol, expression, identifier, or clause. |
-| `DORIS-PARSE-003` | Invalid source encoding or unterminated lexical material. |
-| `DORIS-PARSE-004` | A parser resource limit was reached, such as the token, recursion, recovery, or diagnostic budget. |
-| `DORIS-PARSE-006` | A Doris feature unsupported by the selected profile, such as `QUALIFY`, `TABLET`, or `MERGE` in an earlier profile. |
-| `DORIS-PARSE-007` | A statement not implemented or unsupported by the selected profile. |
+| `FATHOM-PARSE-001` | Unexpected trailing material exists at the end of a statement. |
+| `FATHOM-PARSE-002` | General syntax error, such as a missing keyword, symbol, expression, identifier, or clause. |
+| `FATHOM-PARSE-003` | Invalid source encoding or unterminated lexical material. |
+| `FATHOM-PARSE-004` | A parser resource limit was reached, such as the token, recursion, recovery, or diagnostic budget. |
+| `FATHOM-PARSE-006` | A Doris feature unsupported by the selected profile, such as `QUALIFY`, `TABLET`, or `MERGE` in an earlier profile. |
+| `FATHOM-PARSE-007` | A statement not implemented or unsupported by the selected profile. |
 
-Treat these codes as strings. Diagnostic messages and `expected_class` are for presentation and location; obtain the precise location through `start_byte`/`end_byte` and `statement_id`. Code `DORIS-PARSE-005` is not currently generated as a public diagnostic by the parser implementation.
+Treat these codes as strings. Diagnostic messages and `expected_class` are for presentation and location; obtain the precise location through `start_byte`/`end_byte` and `statement_id`. Code `FATHOM-PARSE-005` is not currently generated as a public diagnostic by the parser implementation.
 
 ### Formatter Diagnostics and Errors
 
@@ -347,7 +347,7 @@ The current formatter refusal code is:
 
 | code | Meaning |
 |---|---|
-| `DORIS-FORMAT-001` | The CST contains `error`, `missing`, or `skipped` material, so the formatter refuses to generate partial output. |
+| `FATHOM-FORMAT-001` | The CST contains `error`, `missing`, or `skipped` material, so the formatter refuses to generate partial output. |
 
 Direct use of the formatter package’s `FormatError` may also return: `InvalidIndent`, `InvalidLineWidth`, `UnknownKeywordCase`, `UnknownCommaStyle`, `UnknownNewlineStyle`, and `InvalidSyntaxTree`. When using `api.format_text`, construct format options first with valid enums and `FormatOptions::new`; parse-related errors are returned as the `ParseError` described above.
 
@@ -355,7 +355,7 @@ Direct use of the formatter package’s `FormatError` may also return: `InvalidI
 
 There are no HTTP rate limits, connection quotas, or server-side windows. Fathom is a pure library, so callers decide concurrency and lifecycle.
 
-To prevent a single untrusted input from consuming unlimited resources, the parser provides a **per-call resource budget**, not a network rate limit: `max_bytes`, `max_tokens`, `max_recursion_depth`, `max_recovery_steps`, and `max_diagnostics`. These must be non-negative integers. When a budget is exceeded, bounded error/skipped material is retained and `DORIS-PARSE-004` is generated, rather than waiting for an external service or silently discarding source bytes.
+To prevent a single untrusted input from consuming unlimited resources, the parser provides a **per-call resource budget**, not a network rate limit: `max_bytes`, `max_tokens`, `max_recursion_depth`, `max_recovery_steps`, and `max_diagnostics`. These must be non-negative integers. When a budget is exceeded, bounded error/skipped material is retained and `FATHOM-PARSE-004` is generated, rather than waiting for an external service or silently discarding source bytes.
 
 ## Complete Example
 

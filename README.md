@@ -12,7 +12,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity p
 - **Version-aware parsing**: Supports the `2.1`, `3.x`, and `4.x` Doris profiles, and validates version and feature-introduction information through profile metadata.
 - **Two parsing modes**: `strict` performs strict validation, while `editor` provides error recovery for incomplete SQL.
 - **Lossless syntax tree**: Parse results preserve byte ranges for tokens, trivia, errors, and skipped content; comments, whitespace, newlines, BOM, Unicode, and invalid bytes in the source can all be replayed by the printer.
-- **Structured diagnostics**: Diagnostics include stable `DORIS-PARSE-*` codes, messages, severity levels, byte ranges, and statement IDs.
+- **Structured diagnostics**: Diagnostics include stable `FATHOM-PARSE-*` codes, messages, severity levels, byte ranges, and statement IDs.
 - **CST formatting**: The formatter supports keyword case, indentation, line width, comma style, newline style, and trailing-newline policy; when it encounters an error tree, it refuses to emit a partial result.
 - **Optional name resolution**: The `analyzer` package resolves DML/DDL target tables through a caller-injected `Catalog`, keeping metadata dependencies out of syntax parsing.
 - **Library and CLI**: Core parsing capabilities are provided as MoonBit library packages, while `fathom-sql/` contains the native CLI adapter; the repository has no deployment service.
@@ -89,7 +89,7 @@ match parsed {
     // result.recovered == true
     // result.root contains missing or error nodes
     // @printer.print_result(result) still replays the original bytes b"SELECT 1 +"
-    println(result.diagnostics[0].code) // DORIS-PARSE-002
+    println(result.diagnostics[0].code) // FATHOM-PARSE-002
   }
   Err(error) => {
     println(error.to_string())

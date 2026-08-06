@@ -40,6 +40,10 @@ Notes:
 - **`FATHOM-PARSE-008` is minted** for the Flink not-implemented path
   (09-02): any snapshot gain containing `FATHOM-PARSE-008` is approved
   only where this register's 09-02 entry explicitly names the fixture.
+- **`FATHOM-SCHEMA-007` is minted by 09-05** (UnknownDialect +
+  ConflictingSelection — see section 11): the v1 baseline range
+  `DORIS-SCHEMA-001..006` covers the original mappings; 007 is the new
+  dialect-selection code the 09-05 code mapping adds.
 
 ## 3. New fields (DIALECT-04)
 
@@ -188,3 +192,46 @@ these approve the CLI-facing shape in case any future snapshot captures it):
 key:usage_text: doris-sql format --profile <2.1|3.x|4.x> -> fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id>
 field: subcommand
 field: dialect
+
+## 11. 09-05 (wire-contract completion: fathom_dialect_v1/capabilities + code mapping)
+
+The parse/format halves were neutralized in 09-02/09-03; this plan closes the
+dialect/capabilities/error surface and the parity package. Sections 1-4
+already approve the profile/capabilities schema-namespace swap
+(`doris.profile.v1` -> `fathom.dialect.v1`, `doris.capabilities.v1` ->
+`fathom.capabilities.v1`) and the export renames (`doris_profile_v1` ->
+`fathom_dialect_v1`, `doris_capabilities_v1` -> `fathom_capabilities_v1`).
+The NEW bytes this plan mints:
+
+1. **`FATHOM-SCHEMA-007` (code mapping, OQ3):** `UnknownDialect` AND
+   `ConflictingSelection` serialize to `FATHOM-SCHEMA-007`. 09-02's interim
+   mapping put `UnknownDialect` on `FATHOM-SCHEMA-003` alongside
+   `UnsupportedProfile`; the 09-05 code mapping moves it to 007 so
+   dialect-selection errors are distinguishable from profile errors
+   (`UnsupportedProfile` stays 003). Any snapshot byte containing
+   `FATHOM-SCHEMA-007` for an unknown-dialect or conflicting-selection
+   error is approved.
+2. **`fathom.dialect.v1` envelope (was `doris.profile.v1`):** fields
+   `schema_version`, `dialect`, `source_transport`, `profiles`
+   (`id`/`exact_release`/`feature_introduction` sourced only from
+   `DorisProfile` metadata — T-09-18 provenance), `modes`. flink: empty
+   `profiles` array (Phase 9, A1).
+3. **`fathom.capabilities.v1` envelope (was `doris.capabilities.v1`):** adds
+   `dialects` (per-dialect `profiles` availability: doris 2.1/3.x/4.x,
+   flink empty); keeps `parse_schema`/`format_schema`/`source_transport`/
+   `modes`/`targets`/`wasm_gc`.
+4. **parity/fixtures/target-matrix.json:** schema assertions
+   `doris.parse.v1`/`doris.format.v1` -> `fathom.parse.v1`/`fathom.format.v1`,
+   `doris.error.v1` -> `fathom.error.v1`, plus the `dialect` field.
+5. **Web facade wire references (09-03 deferral):** monaco-adapter + main.test
+   export symbols `doris_parse_v1`/`doris_format_v1` -> `fathom_*_v1` with the
+   `dialect` argument, schema strings -> `fathom.*.v1`; docs/README
+   `DORIS-PARSE-*`/`DORIS-FORMAT-*`/`doris.parse.v1` -> `FATHOM-*`/
+   `fathom.parse.v1` (D-09/D-10 code/namespace renames, prose unchanged).
+
+Machine-readable additions (the two metadata schema_version transitions are
+already registered in section 1; these approve the new envelope fields in
+case any future snapshot captures them):
+
+field: dialects
+field: profiles

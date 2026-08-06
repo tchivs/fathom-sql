@@ -110,7 +110,7 @@ let format_options = @formatter.FormatOptions::default()
 let formatted = @api.format_text(b"select id, name from users", parse_options, format_options)
 ```
 
-When the formatter encounters a syntax tree containing `error`, `missing`, or `skipped` material, it rejects the output and returns `accepted = false`, empty output, and a `DORIS-FORMAT-001` diagnostic. This behavior cannot be disabled through environment variables.
+When the formatter encounters a syntax tree containing `error`, `missing`, or `skipped` material, it rejects the output and returns `accepted = false`, empty output, and a `FATHOM-FORMAT-001` diagnostic. This behavior cannot be disabled through environment variables.
 
 ## Required and Optional Settings
 

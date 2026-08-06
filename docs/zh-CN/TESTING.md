@@ -126,7 +126,7 @@ test "malformed_expression_keeps_source_bytes" {
 解析器回归测试通常同时检查以下层次，而不是只断言“解析成功”：
 
 1. `valid`、`recovered` 和诊断数量/代码是否符合 strict 或 editor 模式预期。
-2. 诊断的 `DORIS-PARSE-###` code、严重级别、expected class、字节 span 和 snapshot-local `statement_id`。
+2. 诊断的 `FATHOM-PARSE-###` code、严重级别、expected class、字节 span 和 snapshot-local `statement_id`。
 3. `@printer.print_result(result) == raw` 的字节级无损重放，包括注释、空白、LF/CRLF、BOM、Unicode、非法字节和错误材料。
 4. `result.all_spans_in_bounds()`、statement 顺序、节点 kind 以及 `missing`/`error`/`skipped` 恢复结构。
 5. 版本特性在 `2.1`、`3.x`、`4.x` profile 下的接受或明确拒绝；不使用通用方言回退。

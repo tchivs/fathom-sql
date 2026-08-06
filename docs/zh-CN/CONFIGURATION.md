@@ -110,7 +110,7 @@ let format_options = @formatter.FormatOptions::default()
 let formatted = @api.format_text(b"select id, name from users", parse_options, format_options)
 ```
 
-格式化器遇到包含 `error`、`missing` 或 `skipped` 材料的语法树时会拒绝输出，返回 `accepted = false`、空输出以及 `DORIS-FORMAT-001` 诊断；这不是可通过环境变量关闭的行为。
+格式化器遇到包含 `error`、`missing` 或 `skipped` 材料的语法树时会拒绝输出，返回 `accepted = false`、空输出以及 `FATHOM-FORMAT-001` 诊断；这不是可通过环境变量关闭的行为。
 
 ## 必需与可选设置
 

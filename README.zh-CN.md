@@ -13,7 +13,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 - **版本感知解析**：支持 `2.1`、`3.x`、`4.x` 三个 Doris profile，并通过 profile 元数据校验版本与特性引入信息。
 - **两种解析模式**：`strict` 用于严格校验，`editor` 用于半成品 SQL 的错误恢复。
 - **无损语法树**：解析结果保留 token、trivia、错误和跳过内容的字节范围；源代码中的注释、空白、换行、BOM、Unicode 以及非法字节都可通过打印器重放。
-- **结构化诊断**：诊断包含稳定的 `DORIS-PARSE-*` code、消息、严重级别、字节范围和 statement id。
+- **结构化诊断**：诊断包含稳定的 `FATHOM-PARSE-*` code、消息、严重级别、字节范围和 statement id。
 - **CST 格式化**：格式化器支持关键字大小写、缩进、行宽、逗号风格、换行风格和尾部换行策略；遇到错误树时拒绝输出部分结果。
 - **可选名字解析**：`analyzer` 包通过调用方注入的 `Catalog` 解析 DML/DDL 目标表，不把元数据依赖带入语法解析。
 - **库与 CLI**：核心解析能力以 MoonBit library packages 提供，`fathom-sql/` 包含 native CLI 适配器；仓库没有部署服务。
@@ -90,7 +90,7 @@ match parsed {
     // result.recovered == true
     // result.root 中包含 missing 或 error 节点
     // @printer.print_result(result) 仍可重放原始字节 b"SELECT 1 +"
-    println(result.diagnostics[0].code) // DORIS-PARSE-002
+    println(result.diagnostics[0].code) // FATHOM-PARSE-002
   }
   Err(error) => {
     println(error.to_string())

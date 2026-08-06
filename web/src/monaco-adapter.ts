@@ -13,7 +13,7 @@ function decodeResult(bytes) {
   } catch {
     throw new Error('The local parser artifact returned an unreadable result.');
   }
-  if (value && value.schema_version === 'doris.error.v1') {
+  if (value && value.schema_version === 'fathom.error.v1') {
     const error = new Error(value.message || 'The local parser operation failed.');
     error.code = value.code;
     error.payload = value;
@@ -88,14 +88,14 @@ export class ParserAdapter {
   async parse(source, profile) {
     if (!PROFILES.includes(profile)) throw new Error('Choose a supported Doris profile.');
     const module = await this.load();
-    return decodeResult(module.doris_parse_v1(utf8Bytes(source), profile, 'editor'));
+    return decodeResult(module.fathom_parse_v1(utf8Bytes(source), 'doris', profile, 'editor'));
   }
 
   async format(source, profile) {
     if (!PROFILES.includes(profile)) throw new Error('Choose a supported Doris profile.');
     const module = await this.load();
-    const result = decodeResult(module.doris_format_v1(
-      utf8Bytes(source), profile, 'strict', 'upper', 2, 100, 'trailing', 'follow', true,
+    const result = decodeResult(module.fathom_format_v1(
+      utf8Bytes(source), 'doris', profile, 'strict', 'upper', 2, 100, 'trailing', 'follow', true,
     ));
     return { ...result, output: result.formatted ? decodeUtf8(result.formatted) : '' };
   }
