@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-03)
 
 **Core value:** 用户可以对 Doris SQL 进行高覆盖、精确诊断且无损 round-trip 的解析与编辑，而不依赖 Doris FE、商业闭源 GSP 或薄弱的方言适配。
-**Current focus:** Phase 4 — Ecosystem and Multi-Target Delivery
+**Current focus:** Milestone v2.0 — Analysis and Intelligence
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
+Phase: 05
+Plan: Not started
+Status: Roadmap created (7/7 requirements mapped)
 Last activity: 2026-08-05 — Milestone v2.0 started
 
 ## Performance Metrics

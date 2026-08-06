@@ -61,18 +61,18 @@ Populated during v2.0 roadmap creation. Each requirement maps to exactly one pha
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLOSE-01 |  | Pending |
-| CLOSE-02 |  | Pending |
-| ANAL-01 |  | Pending |
-| LINT-01 |  | Pending |
-| LINE-01 |  | Pending |
-| FING-01 |  | Pending |
-| EDIT-01 |  | Pending |
+| CLOSE-01 | Phase 5 | Pending |
+| CLOSE-02 | Phase 5 | Pending |
+| ANAL-01 | Phase 5 | Pending |
+| LINT-01 | Phase 6 | Pending |
+| FING-01 | Phase 6 | Pending |
+| LINE-01 | Phase 7 | Pending |
+| EDIT-01 | Phase 8 | Pending |
 
-**Coverage (pending roadmap):**
+**Coverage:**
 - v2.0 requirements: 7 total
-- Mapped to phases: 0
-- Unmapped: 7 ⚠️ (roadmap will populate)
+- Mapped to phases: 7
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-08-05*
