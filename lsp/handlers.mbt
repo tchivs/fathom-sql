@@ -796,7 +796,20 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
                           match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
                         }
                       }
-                      Err(error) => [config_diagnostic(uri, version, selection_error_message(error))]
+                      Err(error) => {
+                        // MI-07: an invalid document-level selection still
+                        // advances the stored version+text (the previous
+                        // selection persists) so a later valid didChange or a
+                        // completion/formatting request carrying this version
+                        // is not judged stale against the old text. Only the
+                        // config diagnostic is published — no parse
+                        // diagnostics under the invalid selection.
+                        if state.docs.change(uri, version, text, current.dialect, current.profile, current.selection_source, current.language_id) {
+                          [config_diagnostic(uri, version, selection_error_message(error))]
+                        } else {
+                          match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
+                        }
+                      }
                     }
                   }
                 }

@@ -154,6 +154,32 @@ test "did_open_with_unknown_document_dialect_publishes_config_error" {
   assert_true(state.docs.get("file:///unknown.sql").is_none())
 }
 
+test "did_change_with_invalid_document_selection_advances_store" {
+  // MI-07: an invalid document-level selection on didChange still advances
+  // the stored version+text (the previous selection persists) so later
+  // requests carrying this version are not stale; only the config diagnostic
+  // is published — no version/text desync.
+  let state = ServerState::new()
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")))
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///invalid-change.sql\",\"version\":1,\"text\":\"SELECT 1\"}}}")
+  ignore(handle_message(state, open))
+  let change = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{\"textDocument\":{\"uri\":\"file:///invalid-change.sql\",\"version\":2,\"dialect\":\"mysql\",\"profile\":\"4.x\"},\"contentChanges\":[{\"text\":\"SELECT 2\"}]}}")
+  let responses = handle_message(state, change)
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(body.contains("publishDiagnostics"))
+  assert_true(body.contains("FATHOM-SCHEMA-007"))
+  assert_true(body.contains("unknown dialect: mysql"))
+  let document = match state.docs.get("file:///invalid-change.sql") {
+    Some(document) => document
+    None => panic()
+  }
+  assert_eq(document.version, 2)
+  assert_eq(document.text, @utf8.encode("SELECT 2"))
+  assert_eq(document.dialect, "doris")
+  assert_eq(document.profile, "4.x")
+}
+
 test "did_change_configuration_with_invalid_settings_rejects_all_or_nothing" {
   // T-09-19: an invalid fathom settings section is rejected wholesale via
   // window/showMessage; the previous defaults stay in effect.
