@@ -129,8 +129,16 @@ function renderDiagnostics(diagnostics, sourceBytes) {
     button.className = 'diagnostic-row';
     button.dataset.index = String(index);
     button.setAttribute('aria-label', `${label} ${diagnostic.code}: ${diagnostic.message}; lines ${text.start} to ${text.end}`);
-    button.innerHTML = `<span class="severity" aria-hidden="true">${glyph}</span><span class="severity-label">${label}</span><code>${diagnostic.code}</code><span class="diagnostic-message"></span><span class="diagnostic-range">${text.start}–${text.end}</span><span class="diagnostic-bytes">UTF-8 bytes ${text.bytes}</span>`;
+    const codeNode = document.createElement('code');
+    // MI-08: build the code node via textContent (never innerHTML) — the
+    // diagnostic code must stay inert even if it ever carries a
+    // dialect/source-derived string.
+    codeNode.textContent = diagnostic.code;
+    button.innerHTML = `<span class="severity" aria-hidden="true">${glyph}</span><span class="severity-label">${label}</span><span class="diagnostic-message"></span><span class="diagnostic-range">${text.start}–${text.end}</span><span class="diagnostic-bytes">UTF-8 bytes ${text.bytes}</span>`;
     button.querySelector('.diagnostic-message').textContent = diagnostic.message;
+    // Insert before the message span so the DOM order matches the previous
+    // markup (severity, label, code, message, range, bytes).
+    button.insertBefore(codeNode, button.querySelector('.diagnostic-message'));
     button.addEventListener('click', () => selectDiagnostic(index, text.range));
     button.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
