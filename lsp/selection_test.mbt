@@ -53,6 +53,35 @@ test "initialize_conflicting_workspace_sources_returns_structured_error" {
   assert_true(!state.initialized)
 }
 
+test "initialize_uses_serve_stdio_defaults_without_initialization_options" {
+  // MA-01: a bare LSP client (no initializationOptions at all) initializes
+  // successfully when serve_stdio provided the workspace defaults — the
+  // 09-06 option-a contract "workspace default comes from initializationOptions
+  // OR serve_stdio args" holds for `fathom-sql lsp --dialect doris --profile
+  // 4.x`.
+  let state = ServerState::new()
+  state.default_dialect = Some("doris")
+  state.default_profile = Some("4.x")
+  let responses = handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(body.contains("\"capabilities\""))
+  assert_true(state.initialized)
+  assert_eq(state.default_dialect, Some("doris"))
+  assert_eq(state.default_profile, Some("4.x"))
+}
+
+test "initialize_without_any_source_returns_missing_selection_error" {
+  // MA-01: with neither initializationOptions nor serve_stdio defaults the
+  // initialize still fails with the MissingSelection-class -32602.
+  let state = ServerState::new()
+  let responses = handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(body.contains("-32602"))
+  assert_true(!state.initialized)
+}
+
 test "did_open_without_any_selection_publishes_config_error" {
   // (e) D-02 no-guess rule: a document with no selection anywhere gets exactly
   // one FATHOM-SCHEMA-007 config diagnostic naming the missing selection — no

@@ -338,36 +338,62 @@ fn resolve_selection(state : ServerState, params : Json, language_id : String?) 
 /// initialize selection intake (D-01): reads initializationOptions
 /// { dialect, profile }, validates the closed-enum selection, and stores the
 /// workspace/session explicit default. A same-source conflict with the
-/// serve_stdio-provided default is a structured -32602 error.
-fn initialize_selection(state : ServerState, params : Json) -> Result[DialectSelection, String] {
-  let options = match  object_field(params, "initializationOptions") {
-    Some(options) => options
-    None => return Err("initialize requires initializationOptions.dialect and initializationOptions.profile")
+/// serve_stdio-provided default is a structured -32602 error. When
+/// initializationOptions is absent entirely (a bare LSP client such as
+/// neovim/lsp-mode connecting to `fathom-sql lsp --dialect doris --profile
+/// 4.x`), the serve_stdio workspace defaults — already validated by the CLI —
+/// are adopted (MA-01, 09-06 option-a: workspace default comes from
+/// initializationOptions OR serve_stdio args). MissingSelection is returned
+/// only when BOTH sources are empty.
+fn initialize_selection(state : ServerState, params : Json?) -> Result[DialectSelection, String] {
+  let options = match params {
+    Some(params) =>  object_field(params, "initializationOptions")
+    None => None
   }
-  let dialect = match  string_field(options, "dialect") {
-    Some(dialect) => dialect
-    None => return Err("initialize requires initializationOptions.dialect")
-  }
-  let profile = match  string_field(options, "profile") {
-    Some(profile) => profile
-    None => return Err("initialize requires initializationOptions.profile")
-  }
-  // Same-source conflict (D-01): serve_stdio workspace defaults and
-  // initializationOptions are both workspace/session sources.
-  match (state.default_dialect, state.default_profile) {
-    (Some(default_dialect), Some(default_profile)) if default_dialect != dialect || default_profile != profile => {
-      return Err("conflicting dialect/profile selections: \{default_dialect}/\{default_profile} vs \{dialect}/\{profile}")
+  match options {
+    None => {
+      // Fall back to the serve_stdio workspace/session defaults (D-01 seam).
+      match (state.default_dialect, state.default_profile) {
+        (Some(dialect), Some(profile)) => {
+          let selection = { dialect: dialect, profile: profile }
+          let validated = match validate_selection(selection) {
+            Ok(selection) => selection
+            Err(error) => return Err(selection_error_message(error))
+          }
+          state.default_dialect = Some(validated.dialect)
+          state.default_profile = Some(validated.profile)
+          Ok(validated)
+        }
+        _ => Err("initialize requires initializationOptions.dialect and initializationOptions.profile")
+      }
     }
-    _ => ()
+    Some(options) => {
+      let dialect = match  string_field(options, "dialect") {
+        Some(dialect) => dialect
+        None => return Err("initialize requires initializationOptions.dialect")
+      }
+      let profile = match  string_field(options, "profile") {
+        Some(profile) => profile
+        None => return Err("initialize requires initializationOptions.profile")
+      }
+      // Same-source conflict (D-01): serve_stdio workspace defaults and
+      // initializationOptions are both workspace/session sources.
+      match (state.default_dialect, state.default_profile) {
+        (Some(default_dialect), Some(default_profile)) if default_dialect != dialect || default_profile != profile => {
+          return Err("conflicting dialect/profile selections: \{default_dialect}/\{default_profile} vs \{dialect}/\{profile}")
+        }
+        _ => ()
+      }
+      let selection = { dialect: dialect, profile: profile }
+      let validated = match validate_selection(selection) {
+        Ok(selection) => selection
+        Err(error) => return Err(selection_error_message(error))
+      }
+      state.default_dialect = Some(validated.dialect)
+      state.default_profile = Some(validated.profile)
+      Ok(validated)
+    }
   }
-  let selection = { dialect: dialect, profile: profile }
-  let validated = match validate_selection(selection) {
-    Ok(selection) => selection
-    Err(error) => return Err(selection_error_message(error))
-  }
-  state.default_dialect = Some(validated.dialect)
-  state.default_profile = Some(validated.profile)
-  Ok(validated)
 }
 
 fn initialize_result() -> Json {
@@ -670,11 +696,7 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
         None => return []
       }
       if state.initialized { return [ error_response(id, -32600, "server is already initialized")] }
-      let params = match message.params {
-        Some(params) => params
-        None => return [ error_response(id, -32602, "initialize requires initializationOptions.dialect and initializationOptions.profile")]
-      }
-      match initialize_selection(state, params) {
+      match initialize_selection(state, message.params) {
         Ok(_) => {
           state.initialized = true
           [ response(id, initialize_result())]
