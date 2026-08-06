@@ -10,7 +10,7 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 
 ### Dialect Contract
 
-- [ ] **DIALECT-01**: Consumer can explicitly select `doris` or `flink` and its profile through the public API, CLI, LSP, JS/Wasm facade, Web, VS Code, and IntelliJ; missing, unknown, or conflicting selection returns a structured configuration error with no automatic dialect detection or generic fallback.
+- [x] **DIALECT-01**: Consumer can explicitly select `doris` or `flink` and its profile through the public API, CLI, LSP, JS/Wasm facade, Web, VS Code, and IntelliJ; missing, unknown, or conflicting selection returns a structured configuration error with no automatic dialect detection or generic fallback.
 - [x] **DIALECT-02**: Parser uses independent Doris and Flink lexical/keyword policies for reserved, non-reserved, and contextual words, quoted identifiers, comments, literals, operators, and feature metadata; no global union of dialect keyword rows can affect identifier acceptance.
 - [x] **DIALECT-03**: Shared source, token, CST, Pratt, and recovery mechanics route statement and clause grammar explicitly by dialect; Doris-only syntax is rejected in Flink mode and Flink-only syntax is rejected in Doris mode with localized diagnostics rather than try-all parsing.
 - [x] **DIALECT-04**: Parse, format, completion, LSP, and serialized results carry dialect, profile, and exact-release metadata; strict/editor mode, byte spans, statement identity, and structured `FATHOM-*` diagnostics remain stable across the public boundary.
@@ -35,7 +35,7 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 
 ### Product Identity Neutralization
 
-- [ ] **NAME-01**: Consumer-facing module imports, Native binaries, and public exports complete a clean cutover to `fathom/sql`, `fathom-sql`, and `fathom-lsp`; no old public aliases remain.
+- [x] **NAME-01**: Consumer-facing module imports, Native binaries, and public exports complete a clean cutover to `fathom/sql`, `fathom-sql`, and `fathom-lsp`; no old public aliases remain.
 - [x] **NAME-02**: Machine-readable wire contracts use `fathom.parse.v1`, `fathom.format.v1`, `fathom.error.v1`, and `fathom.capabilities.v1`, with `FATHOM-*` diagnostics and explicit dialect/profile fields.
 - [ ] **NAME-03**: VS Code, IntelliJ, Web/npm, CI/release assets, configuration keys, LSP server identity, README, and project documentation use neutral product naming; Doris remains only as a dialect/profile/corpus/provenance semantic identifier.
 - [ ] **NAME-04**: CI includes a naming inventory/allowlist gate that rejects product-level remnants of `doris-sql`, `doris-lsp`, `doris.*`, and `DORIS-*`; the allowlist is limited to Doris dialect semantics and provenance.
@@ -76,7 +76,7 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DIALECT-01 | Phase 9 | Pending |
+| DIALECT-01 | Phase 9 | Complete |
 | DIALECT-02 | Phase 9 | Complete |
 | DIALECT-03 | Phase 9 | Complete |
 | DIALECT-04 | Phase 9 | Complete |
@@ -92,7 +92,7 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | TOOL-03 | Phase 13 | Pending |
 | TOOL-04 | Phase 13 | Pending |
 | TOOL-05 | Phase 13 | Pending |
-| NAME-01 | Phase 9 | Pending |
+| NAME-01 | Phase 9 | Complete |
 | NAME-02 | Phase 9 | Complete |
 | NAME-03 | Phase 9 | Pending |
 | NAME-04 | Phase 9 | Pending |

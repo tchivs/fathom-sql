@@ -162,3 +162,29 @@ product naming replacement (LSP `source`, `serverInfo.name`, and any
 remaining product-layer `doris` token) and is the catch-all that keeps
 any stray `DORIS-`/`doris.*` remnant unapproved (it only rewrites
 `doris` -> `fathom`; nothing else).
+
+## 10. 09-04 (module rename + CLI cutover)
+
+The module/import rename (`fathom/doris-sql` -> `fathom/sql`) changes no
+behavior bytes — it is verified by the unchanged parity suite (228/228
+before and after). The CLI cutover (D-11) changes the CLI contract
+surface, which the parity CLI homomorph (baseline_test.mbt
+`cli_format_json`) mirrors via the same `format_with_ids` call chain;
+since the homomorph already passes `"doris"` as the dialect argument
+(now sourced from `Command.dialect`), no homomorph snapshot bytes
+change. Registered as the D-08 approval path for the new CLI surface:
+
+| Old (v1 baseline) | New (approved) |
+|--------------------|----------------|
+| CLI usage text: `usage: doris-sql format --profile <2.1|3.x|4.x> ...` | `usage: fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id> ...` (D-11) |
+| `Command` shape: `profile` only (format-only CLI) | `Command` gains `subcommand` (parse\|format\|lsp) and `dialect`; `--dialect` and `--profile` REQUIRED for every subcommand |
+| CLI exit matrix: usage errors exit 2 | adds `MissingDialect`/`UnknownDialect` -> exit 2; `--dialect flink --profile <id>` -> exit 2 (flink rejects every profile in Phase 9, A1/OQ1); `fathom-sql parse` stdout carries the `fathom.parse.v1` envelope |
+| CLI package dir / binary | `doris-sql/` -> `fathom-sql/` (binary `fathom-sql.exe`); LSP executable `lsp/` (main.mbt) -> library `lsp/` (serve_stdio) + new `fathom-lsp/` executable |
+| Release workflow | `doris-native-release.yml` -> `fathom-native-release.yml`; assets `fathom-lsp-{platform}`; manifest `fathom-lsp-manifest.json`; JetBrains artifact `fathom-sql-intellij` |
+
+Machine-readable additions (homomorph snapshots are expected byte-identical;
+these approve the CLI-facing shape in case any future snapshot captures it):
+
+key:usage_text: doris-sql format --profile <2.1|3.x|4.x> -> fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id>
+field: subcommand
+field: dialect

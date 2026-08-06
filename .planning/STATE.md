@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
 status: executing
-stopped_at: Completed 09-03-PLAN.md
-last_updated: "2026-08-06T15:38:37.659Z"
+stopped_at: Completed 09-04-PLAN.md
+last_updated: "2026-08-06T16:02:32.374Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 3
-  percent: 43
+  completed_plans: 4
+  percent: 57
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
-**Progress:** [██████--------] 43%
+**Progress:** [██████░░░░] 57%
 Last activity: 2026-08-06 — Phase 9 execution started
 
 ## Performance Metrics
@@ -86,6 +86,7 @@ Last activity: 2026-08-06 — Phase 9 execution started
 | Phase 09 P01 | 35 min | 3 tasks | 219 files |
 | Phase 09-dialect-boundary-and-neutral-naming P02 | 33 | 3 tasks | 163 files |
 | Phase 09 P03 | 25 | 2 tasks | 140 files |
+| Phase 09 P09-04 | 34 | 3 tasks | 35 files |
 
 ## Accumulated Context
 
@@ -158,6 +159,11 @@ Recent decisions affecting current work:
 - [Phase ?]: format_result_json carries dialect/profile/exact_release metadata mirroring the parse envelope (DIALECT-04, D-09); exact_release derived from ParseOptions at each callsite
 - [Phase ?]: Export-level format assertions live in parity/export_smoke_test.mbt (test package cannot import binding: foreign_library E4219 on native test targets); refusal is a FATHOM-FORMAT-001 diagnostic inside the fathom.format.v1 envelope, not fathom.error.v1
 - [Phase ?]: Rule 3: parity/run_js.mbt + run_wasm.mbt migrated to fathom_*_v1 with dialect arg — js/wasm parity builds were broken since 09-02 (native-only gate could not compile target-scoped runners)
+- [Phase ?]: Task 1 auto-selected option-a: full clean cutover per D-06 (one-way door, no compat aliases); module version stays 0.1.0 (release-planning decision)
+- [Phase ?]: Command gains subcommand field (parse|format|lsp) in addition to the plan's dialect field - dispatch requires it
+- [Phase ?]: CLI import surface grows to api/lsp/binding + core: run_parse serializes via @binding.parse_result_json (fathom.parse.v1), run_lsp calls @lsp.serve_stdio (single server loop, T-09-15)
+- [Phase ?]: Parity CLI homomorph needs no byte change - it already passes 'doris' (now sourced from Command.dialect); approved-changes.md section 10 documents the CLI contract (usage text, Command.dialect, exit-2 matrix)
+- [Phase ?]: LSP serverInfo.name/source and parity fixtures stay untouched this wave (09-05/09-06 own them); bare moon build --target native link failure is pre-existing (deferred-items.md)
 
 ### Pending Todos
 
@@ -189,8 +195,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-06T15:38:37.635Z
-Stopped at: Completed 09-03-PLAN.md
+Last session: 2026-08-06T16:02:32.351Z
+Stopped at: Completed 09-04-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
