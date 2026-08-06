@@ -2,9 +2,15 @@ pkgtype(kind: "executable")
 import {
   "fathom/doris-sql/api" @api,
   "fathom/doris-sql/binding" @binding,
+  "fathom/doris-sql/completion" @completion,
   "fathom/doris-sql/source" @source,
   "moonbitlang/core/encoding/utf8" @utf8,
 }
+
+import {
+  "moonbitlang/core/test" @test,
+} for "test"
+
 options(
   targets: {
     "run_native.mbt": ["native"],
