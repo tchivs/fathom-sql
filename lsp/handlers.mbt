@@ -503,6 +503,154 @@ fn completion_result(state : ServerState, params : Json, id : RpcId) -> Array[By
   })]
 }
 
+/// One languageId mapping entry: { <languageId>: { dialect, profile } }.
+fn selection_from_value(value : Json) -> DialectSelection? {
+  let dialect = match  string_field(value, "dialect") {
+    Some(dialect) => dialect
+    None => return None
+  }
+  let profile = match  string_field(value, "profile") {
+    Some(profile) => profile
+    None => return None
+  }
+  Some({ dialect: dialect, profile: profile })
+}
+
+/// Parse the user-configured languageId -> selection table (D-02): every
+/// entry is validated; any invalid entry rejects the whole settings update
+/// (all-or-nothing, T-09-19).
+fn language_mapping_from_json(mapping : Json) -> Result[Map[String, DialectSelection], String] {
+  let table : Map[String, DialectSelection] = Map([])
+  match mapping {
+    Object(entries) => {
+      let keys = entries.keys()
+      for language_id in keys {
+        let value = match entries.get(language_id) {
+          Some(value) => value
+          None => continue
+        }
+        let selection = match selection_from_value(value) {
+          Some(selection) => selection
+          None => return Err("language mapping entry for \{language_id} requires dialect and profile")
+        }
+        let validated = match validate_selection(selection) {
+          Ok(selection) => selection
+          Err(error) => return Err(selection_error_message(error))
+        }
+        table[language_id] = validated
+      }
+      Ok(table)
+    }
+    _ => Err("fathom settings languageMapping must be an object")
+  }
+}
+
+/// Apply a fathom settings section { dialect?, profile?, languageMapping? }
+/// (workspace/didChangeConfiguration or the workspace/configuration pull):
+/// validate every selection up front, then store the workspace/session
+/// default and the languageId mapping. On error nothing is applied and the
+/// message is returned for a structured surface (showMessage / -32602).
+fn apply_settings(state : ServerState, section : Json) -> Result[Unit, String] {
+  let new_default = match (string_field(section, "dialect"), string_field(section, "profile")) {
+    (None, None) => None
+    (Some(dialect), Some(profile)) => {
+      let selection = match validate_selection({ dialect: dialect, profile: profile }) {
+        Ok(selection) => selection
+        Err(error) => return Err(selection_error_message(error))
+      }
+      Some(selection)
+    }
+    _ => return Err("fathom settings require both dialect and profile or neither")
+  }
+  let new_mapping = match object_field(section, "languageMapping") {
+    Some(mapping) => match language_mapping_from_json(mapping) {
+      Ok(table) => Some(table)
+      Err(message) => return Err(message)
+    }
+    None => state.language_mapping
+  }
+  match new_default {
+    Some(selection) => {
+      state.default_dialect = Some(selection.dialect)
+      state.default_profile = Some(selection.profile)
+    }
+    None => ()
+  }
+  state.language_mapping = new_mapping
+  Ok(())
+}
+
+/// D-03 re-resolution of one document under the CURRENT workspace default /
+/// language mapping. Document-level explicit config persists unchanged; a
+/// document that no longer resolves to any selection yields MissingSelection.
+fn re_resolve_document(state : ServerState, document :  Document) -> Result[(DialectSelection, String), SelectionError] {
+  // (2) workspace/session explicit default (possibly changed)
+  match (state.default_dialect, state.default_profile) {
+    (Some(dialect), Some(profile)) => {
+      let selection = { dialect: dialect, profile: profile }
+      return Ok((selection, "workspace"))
+    }
+    _ => ()
+  }
+  // (3) user-configured languageId mapping (possibly changed)
+  match document.language_id {
+    Some(language_id) => match state.language_mapping {
+      Some(mapping) => match mapping.get(language_id) {
+        Some(selection) => {
+          let validated = match validate_selection(selection) {
+            Ok(selection) => selection
+            Err(error) => return Err(error)
+          }
+          return Ok((validated, "language"))
+        }
+        None => ()
+      }
+      None => ()
+    }
+    None => ()
+  }
+  Err(MissingSelection)
+}
+
+/// D-03 re-resolution on a settings change: every open document whose
+/// selection did NOT come from document-level explicit config is re-resolved
+/// and its stored context updated. Task 4 adds the reparse-and-publish half
+/// (dialect-switch reparse + version-guarded stale drop); this arm stores and
+/// resolves so later parse/format/completion calls use the new context.
+fn re_resolve_open_documents(state : ServerState) -> Array[Bytes] {
+  let responses : Array[Bytes] = []
+  for document in state.docs.documents() {
+    if document.selection_source == "document" { continue }
+    match re_resolve_document(state, document) {
+      Ok((selection, source)) => {
+        ignore(state.docs.update_selection(document.uri, selection.dialect, selection.profile, source))
+      }
+      Err(_) => ()
+    }
+  }
+  responses
+}
+
+/// The optional workspace/configuration pull (A2, option-c arm): the server
+/// may request the fathom settings section once after "initialized"; the
+/// correlated response applies like didChangeConfiguration.
+fn config_request() -> Bytes {
+  let value : Json = {
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(0.0),
+    "method": Json::string("workspace/configuration"),
+    "params": { "items": Json::array([{ "section": Json::string("fathom") }]) },
+  }
+  @utf8.encode(value.stringify())
+}
+
+fn show_message(message_type : Int, message : String) -> Bytes {
+   notification("window/showMessage", {
+    "type": Json::number(message_type.to_double()),
+    "message": Json::string(message),
+  })
+}
+
 pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes] {
   match message.method {
     "initialize" => {
@@ -523,7 +671,17 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
         Err(message) => [ error_response(id, -32602, message)]
       }
     }
-    "initialized" => []
+    "initialized" => {
+      // Optional workspace/configuration pull (A2): the server may request
+      // the fathom settings section once; the correlated response updates
+      // the workspace default + language mapping like didChangeConfiguration.
+      if state.pending_config_request.is_none() {
+        state.pending_config_request = Some(RpcId::IntId(value=0))
+        [config_request()]
+      } else {
+        []
+      }
+    }
     "shutdown" => {
       let id = match message.id {
         Some(id) => id
@@ -547,7 +705,7 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
               Some((uri, version, text)) => {
                 match resolve_selection_with_source(state, params, language_id_from_params(params, "textDocument")) {
                   Ok((selection, source)) => {
-                    if state.docs.open(uri, version, text, selection.dialect, selection.profile, source) {
+                    if state.docs.open(uri, version, text, selection.dialect, selection.profile, source, language_id_from_params(params, "textDocument")) {
                       match state.docs.get(uri) {
                         Some(document) => parse_document(state, document)
                         None => []
@@ -588,7 +746,7 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
                     }
                     match resolved {
                       Ok((selection, source)) => {
-                        if state.docs.change(uri, version, text, selection.dialect, selection.profile, source) {
+                        if state.docs.change(uri, version, text, selection.dialect, selection.profile, source, current.language_id) {
                           match state.docs.get(uri) {
                             Some(document) => parse_document(state, document)
                             None => []
@@ -620,6 +778,52 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       match (result, message.id) {
         (Some(message), Some(id)) => [error_response(id, -32602, message)]
         _ => []
+      }
+    }
+    "workspace/didChangeConfiguration" => {
+      // Push arm (primary, A2): the client's settings payload carries the
+      // fathom section { dialect?, profile?, languageMapping? } under
+      // params.settings.fathom (VS Code's standard push shape).
+      let section = match message.params {
+        Some(params) => match object_field(params, "settings") {
+          Some(settings) => object_field(settings, "fathom")
+          None => None
+        }
+        None => None
+      }
+      match section {
+        None => []
+        Some(section) => match apply_settings(state, section) {
+          Ok(_) => re_resolve_open_documents(state)
+          Err(message) => [show_message(1, message)]
+        }
+      }
+    }
+    "workspace/configuration" => {
+      // Pull arm (optional, A2): the correlated response to the server's
+      // workspace/configuration request (pending_config_request) carries the
+      // fathom section under params.fathom. Uncorrelated requests are
+      // method-not-found (the server does not answer client pulls).
+      let id = match message.id {
+        Some(id) => id
+        None => return []
+      }
+      match state.pending_config_request {
+        Some(pending) if id == pending => {
+          state.pending_config_request = None
+          let section = match message.params {
+            Some(params) => object_field(params, "fathom")
+            None => None
+          }
+          match section {
+            None => [show_message(1, "workspace/configuration response is missing the fathom section")]
+            Some(section) => match apply_settings(state, section) {
+              Ok(_) => re_resolve_open_documents(state)
+              Err(message) => [show_message(1, message)]
+            }
+          }
+        }
+        _ => [ error_response(id, -32601, "method not found")]
       }
     }
     "textDocument/completion" => {
