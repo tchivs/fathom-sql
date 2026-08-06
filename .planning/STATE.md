@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 9
 current_phase_name: Dialect Boundary and Neutral Naming
 status: executing
-stopped_at: Completed 09-04-PLAN.md
-last_updated: "2026-08-06T16:02:32.374Z"
-last_activity: 2026-08-06
+stopped_at: Completed 09-05-PLAN.md
+last_updated: "2026-08-07T00:00:00.000Z"
+last_activity: 2026-08-07
 last_activity_desc: Phase 9 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 4
-  percent: 57
+  completed_plans: 5
+  percent: 71
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 9 (Dialect Boundary and Neutral Naming) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
-**Progress:** [██████░░░░] 57%
-Last activity: 2026-08-06 — Phase 9 execution started
+**Progress:** [███████░░░] 71%
+Last activity: 2026-08-07 — Phase 9 execution started
 
 ## Performance Metrics
 
@@ -87,6 +87,7 @@ Last activity: 2026-08-06 — Phase 9 execution started
 | Phase 09-dialect-boundary-and-neutral-naming P02 | 33 | 3 tasks | 163 files |
 | Phase 09 P03 | 25 | 2 tasks | 140 files |
 | Phase 09 P09-04 | 34 | 3 tasks | 35 files |
+| Phase 09 P05 | 38 | 2 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,11 @@ Recent decisions affecting current work:
 - [Phase ?]: CLI import surface grows to api/lsp/binding + core: run_parse serializes via @binding.parse_result_json (fathom.parse.v1), run_lsp calls @lsp.serve_stdio (single server loop, T-09-15)
 - [Phase ?]: Parity CLI homomorph needs no byte change - it already passes 'doris' (now sourced from Command.dialect); approved-changes.md section 10 documents the CLI contract (usage text, Command.dialect, exit-2 matrix)
 - [Phase ?]: LSP serverInfo.name/source and parity fixtures stay untouched this wave (09-05/09-06 own them); bare moon build --target native link failure is pre-existing (deferred-items.md)
+- [Phase ?]: UnknownDialect serializes to FATHOM-SCHEMA-007 (with ConflictingSelection, OQ3) — the 09-05 code mapping distinguishes dialect errors from UnsupportedProfile (stays 003)
+- [Phase ?]: validate_schema_version accepts exactly the four fathom.*.v1 namespaces (parse/format/error/capabilities, D-09); fathom.dialect.v1 is a metadata-query schema, not a result envelope
+- [Phase ?]: fathom_dialect_v1(dialect) under fathom.dialect.v1 returns per-dialect profiles with exact_release/feature_introduction from DorisProfile metadata only (T-09-18 provenance); flink empty profile set in Phase 9 (A1); unknown dialect -> FATHOM-SCHEMA-007 error envelope
+- [Phase ?]: fathom_capabilities_v1() under fathom.capabilities.v1 returns the global dialect list with per-dialect profile availability (doris 2.1/3.x/4.x, flink empty)
+- [Phase ?]: Parity test callsites migrated in the Task 1 commit (Rule 3 — the export rename blocks parity compilation; same-commit rule Pitfall 8); web facade wire references + docs/README code strings migrated per 09-03 deferral; lsp-tracer.json + lsp identity + vscode host assertions + offline-smoke.mjs deferred to 09-06/09-07 (deferred-items.md)
 
 ### Pending Todos
 
@@ -195,8 +201,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-06T16:02:32.351Z
-Stopped at: Completed 09-04-PLAN.md
+Last session: 2026-08-07T00:00:00.000Z
+Stopped at: Completed 09-05-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
