@@ -235,3 +235,43 @@ case any future snapshot captures them):
 
 field: dialects
 field: profiles
+
+## 12. 09-06 (LSP document-level dialect context: selection resolution + neutral identity)
+
+This plan delivers the LSP boundary of the D-01/D-02/D-03 selection contract:
+document-level DialectContext on the LSP state machine, three-level selection
+resolution with structured config errors, dialect-switch reparse with
+version-guarded publication, and the neutral LSP identity. Sections 1-5
+already approve every byte class this plan touches (schema namespaces,
+FATHOM-* codes, `serverInfo.name` doris-lsp -> fathom-lsp, LSP diagnostic
+`source` doris -> fathom, and the `dialect`/`profile`/`exact_release`
+fields). The NEW bytes this plan mints:
+
+1. **parity/fixtures/lsp-tracer.json (09-05 deferral, row 80):** the trace
+   fixture moves to the fathom wire identity — `doris.parse.v1` ->
+   `fathom.parse.v1`, `doris.format.v1` -> `fathom.format.v1` (section 1
+   key rules), plus the `"dialect":"doris"` field (section 3 `field:
+   dialect`). The `"profile":"4.x"`/`"mode":"editor"` fields stay.
+2. **LSP homomorph snapshot bytes:** the `*.lsp.json` snapshots may gain
+   `dialect`/`profile` fields and any remaining `doris` -> `fathom` identity
+   tokens where the frozen parse/format envelopes carry them (sections 1-5
+   cover the code/schema/identity strings; `field: dialect`/`field: profile`
+   cover the metadata fields). Expected byte-identical in practice — the
+   homomorph callsites have passed `"doris"` since 09-02 — but registered as
+   the approval path for any snapshot drift the single approved `--update`
+   captures.
+3. **Document-level config extension fields (A2 transport):** didOpen/didChange
+   `textDocument` objects may carry `"dialect"`/`"profile"` extension fields;
+   `workspace/didChangeConfiguration` settings carry the fathom section
+   `{ dialect?, profile?, languageMapping? }`. No frozen snapshot captures
+   these transport shapes; registered for auditability of the LSP contract.
+
+Machine-readable additions (all transitions below already exist in sections
+1-5; re-listed so the 09-06 update's diff classification is self-contained):
+
+key:schema_version: doris.parse.v1 -> fathom.parse.v1
+key:schema_version: doris.format.v1 -> fathom.format.v1
+prefix: doris-lsp -> fathom-lsp
+prefix: doris -> fathom
+field: dialect
+field: profile

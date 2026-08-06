@@ -24,7 +24,7 @@ test "diagnostics_and_formatting_contract" {
 
 test "lsp_publishes_diagnostics_and_one_full_document_edit" {
   let state =  ServerState::new()
-  let init = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"profile\":\"4.x\"}}}")) {
+  let init = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")) {
     Ok(message) => message
     Err(_) => panic()
   }
@@ -35,7 +35,24 @@ test "lsp_publishes_diagnostics_and_one_full_document_edit" {
   }
   let published =  handle_message(state, open)
   assert_eq(published.length(), 1)
-  assert_true(@utf8.decode_lossy(published[0]).contains("publishDiagnostics"))
+  let published_body = @utf8.decode_lossy(published[0])
+  assert_true(published_body.contains("publishDiagnostics"))
+  // The valid document's publish carries no diagnostics, but the server
+  // identity is neutral in the notification shape itself (NAME-03).
+  assert_true(!published_body.contains("doris-lsp"))
+  // A document with a parse error publishes neutral FATHOM-* diagnostics with
+  // source fathom — never doris / DORIS-* (NAME-03, D-10).
+  let bad_open = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///broken.sql\",\"version\":1,\"text\":\"SELEC 1\"}}}")) {
+    Ok(message) => message
+    Err(_) => panic()
+  }
+  let bad_published =  handle_message(state, bad_open)
+  assert_eq(bad_published.length(), 1)
+  let bad_body = @utf8.decode_lossy(bad_published[0])
+  assert_true(bad_body.contains("\"source\":\"fathom\""))
+  assert_true(bad_body.contains("FATHOM-PARSE-"))
+  assert_true(!bad_body.contains("\"source\":\"doris\""))
+  assert_true(!bad_body.contains("DORIS-"))
   let format = match  parse_message(@utf8.encode("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///tracer.sql\"}}}")) {
     Ok(message) => message
     Err(_) => panic()

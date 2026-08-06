@@ -1,15 +1,46 @@
 /// LSP lifecycle and editor handlers. All parsing/formatting is delegated to the
 /// shared api facade; this module only maps primitive results to LSP values.
+///
+/// Dialect selection (D-01/D-02/D-03): every document carries its own resolved
+/// dialect/profile context (Document.dialect/profile), resolved through the
+/// three-level precedence — document-level explicit config (didOpen/didChange
+/// extension fields) > workspace/session explicit default (serve_stdio args /
+/// initializationOptions) > user-configured languageId mapping. A missing,
+/// unknown, or conflicting selection is a structured config error
+/// (FATHOM-SCHEMA-007 over publishDiagnostics, -32602 over initialize) — never
+/// an implicit languageId fallback.
+
+/// One explicit dialect+profile selection (D-01). `dialect` is the closed-enum
+/// id ("doris" | "flink"); `profile` is the released-profile id (2.1/3.x/4.x
+/// for doris; any string for flink in Phase 9 — the parse is the explicit
+/// not-implemented route).
+pub struct DialectSelection {
+  pub dialect : String
+  pub profile : String
+} derive(Eq, @debug.Debug)
+
+/// Structured selection-resolution failures (D-01/D-02): missing at every
+/// level, unknown dialect, unknown profile, or same-priority-source conflict.
+pub enum SelectionError {
+  MissingSelection
+  UnknownDialect(dialect_id~ : String)
+  UnknownProfile(profile_id~ : String)
+  ConflictingSelection(source_a~ : String, source_b~ : String)
+} derive(Eq, @debug.Debug)
 
 pub(all) struct ServerState {
   pub mut docs :  DocumentStore
-  pub mut profile : String
   // Workspace/session explicit defaults (D-01 seam): set by serve_stdio from
-  // the CLI's --dialect/--profile (or None for the standalone fathom-lsp
-  // binary). Consumed by the 09-06 selection-resolution logic; until then the
-  // existing profile field and handler logic stay untouched.
+  // the CLI's --dialect/--profile, or by initialize's initializationOptions.
   pub mut default_dialect : String?
   pub mut default_profile : String?
+  // User-configured languageId -> selection table (D-02): participates ONLY
+  // when a client supplies it via the fathom settings section
+  // (workspace/didChangeConfiguration or workspace/configuration).
+  pub mut language_mapping : Map[String, DialectSelection]?
+  // Optional workspace/configuration pull correlation: the pending
+  // server-to-client request id awaiting the settings response.
+  pub mut pending_config_request : RpcId?
   pub mut initialized : Bool
   pub mut shutdown : Bool
   pub mut exited : Bool
@@ -18,9 +49,10 @@ pub(all) struct ServerState {
 pub fn ServerState::new() -> ServerState {
   {
     docs:  DocumentStore::new(),
-    profile: "",
     default_dialect: None,
     default_profile: None,
+    language_mapping: None,
+    pending_config_request: None,
     initialized: false,
     shutdown: false,
     exited: false,
@@ -56,7 +88,7 @@ fn diagnostic_json(raw : Bytes, severity : String, code : String, message : Stri
     "range": range_json(range),
     "severity": Json::number(severity_value(severity).to_double()),
     "code": Json::string(code),
-    "source": Json::string("doris"),
+    "source": Json::string("fathom"),
     "message": Json::string(message),
     "data": {
       "start_byte": Json::number(start_byte.to_double()),
@@ -89,18 +121,60 @@ fn publish_diagnostics(uri : String, version : Int, raw : Bytes, diagnostics : J
   })
 }
 
-fn parse_document(state : ServerState, document :  Document) -> Bytes {
-  let diagnostics = match @api.parse_with_ids(document.text, "doris", state.profile, "editor") {
+/// D-03 version guard: publish diagnostics for `document` only when the
+/// current stored version still matches. A stale async result computed under
+/// an old version or an old selection is dropped — the publish path never
+/// overwrites newer diagnostics.
+fn publish_diagnostics_current(state : ServerState, document :  Document, diagnostics : Json) -> Array[Bytes] {
+  match state.docs.get(document.uri) {
+    Some(current) if current.version == document.version => {
+      [publish_diagnostics(document.uri, document.version, document.text, diagnostics)]
+    }
+    _ => []
+  }
+}
+
+/// D-02 no-guess rule: an unresolvable document selection publishes exactly
+/// one structured config diagnostic (FATHOM-SCHEMA-007) and the document is
+/// NOT parsed — no silent empty diagnostics, no languageId guess.
+fn config_diagnostic(uri : String, version : Int, message : String) -> Bytes {
+  let diagnostic : Json = {
+    "range": { "start": { "line": Json::number(0.0), "character": Json::number(0.0) }, "end": { "line": Json::number(0.0), "character": Json::number(0.0) } },
+    "severity": Json::number(1.0),
+    "code": Json::string("FATHOM-SCHEMA-007"),
+    "source": Json::string("fathom"),
+    "message": Json::string(message),
+  }
+   notification("textDocument/publishDiagnostics", {
+    "uri": Json::string(uri),
+    "version": Json::number(version.to_double()),
+    "diagnostics": Json::array([diagnostic]),
+  })
+}
+
+/// Parse under the document's own dialect/profile context. flink documents
+/// route through the 09-02 explicit not-implemented path (FATHOM-PARSE-008),
+/// never a Doris parse (DIALECT-03, T-09-23).
+fn parse_document_context(document :  Document) -> Result[@api.ParseResult, @api.ParseError] {
+  if document.dialect == "flink" {
+    @api.parse_flink_not_implemented(document.text, document.profile, "editor")
+  } else {
+    @api.parse_with_ids(document.text, document.dialect, document.profile, "editor")
+  }
+}
+
+fn parse_document(state : ServerState, document :  Document) -> Array[Bytes] {
+  let diagnostics = match parse_document_context(document) {
     Ok(result) => parse_diagnostics_json(document.text, result)
-    Err(_) => Json::array([{ 
+    Err(_) => Json::array([{
       "range": { "start": { "line": Json::number(0.0), "character": Json::number(0.0) }, "end": { "line": Json::number(0.0), "character": Json::number(0.0) } },
       "severity": Json::number(1.0),
-      "code": Json::string("DORIS-LSP-001"),
-      "source": Json::string("doris"),
+      "code": Json::string("FATHOM-LSP-001"),
+      "source": Json::string("fathom"),
       "message": Json::string("document could not be parsed"),
     }])
   }
-  publish_diagnostics(document.uri, document.version, document.text, diagnostics)
+  publish_diagnostics_current(state, document, diagnostics)
 }
 
 fn document_from_params(params : Json, key : String) -> (String, Int, Bytes)? {
@@ -155,12 +229,144 @@ fn changed_document(params : Json) -> (String, Int, Bytes)? {
   Some((uri, version, @utf8.encode(text)))
 }
 
-fn initialize_profile(params : Json) -> String? {
-  let options = match  object_field(params, "initializationOptions") {
-    Some(options) => options
+/// Document-level explicit config from the didOpen/didChange textDocument
+/// extension fields (D-01 level 1, A2 transport). Absent fields mean the
+/// client did not assert a document-level selection.
+fn selection_from_params(params : Json) -> DialectSelection? {
+  let document = match  object_field(params, "textDocument") {
+    Some(document) => document
     None => return None
   }
-   string_field(options, "profile")
+  let dialect = match  string_field(document, "dialect") {
+    Some(dialect) => dialect
+    None => return None
+  }
+  let profile = match  string_field(document, "profile") {
+    Some(profile) => profile
+    None => return None
+  }
+  Some({ dialect: dialect, profile: profile })
+}
+
+fn language_id_from_params(params : Json, key : String) -> String? {
+  let document = match  object_field(params, key) {
+    Some(document) => document
+    None => return None
+  }
+   string_field(document, "languageId")
+}
+
+/// Closed-enum selection validation (T-09-19): unknown dialects are rejected;
+/// doris profiles must pass the binding gate (2.1/3.x/4.x). flink is a legal
+/// selection in Phase 9 (A1) whose parse is the explicit FATHOM-PARSE-008
+/// not-implemented route — the profile string rides as document metadata and
+/// is not profile-validated until Phase 10 pins real Flink profiles.
+fn validate_selection(selection : DialectSelection) -> Result[DialectSelection, SelectionError] {
+  match selection.dialect {
+    "flink" => Ok(selection)
+    _ => match @binding.validate_dialect_profile(selection.dialect, selection.profile) {
+      Ok(_) => Ok(selection)
+      Err(@binding.SchemaError::UnknownDialect(dialect~)) => Err(UnknownDialect(dialect_id= dialect))
+      Err(@binding.SchemaError::UnsupportedProfile(profile~)) => Err(UnknownProfile(profile_id= profile))
+      Err(_) => Err(UnknownProfile(profile_id= selection.profile))
+    }
+  }
+}
+
+fn selection_error_message(error : SelectionError) -> String {
+  match error {
+    MissingSelection => "missing dialect selection: no document-level config, workspace default, or language mapping provides a dialect"
+    UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id}"
+    UnknownProfile(profile_id~) => "unsupported profile: \{profile_id}"
+    ConflictingSelection(source_a~, source_b~) => "conflicting dialect/profile selections: \{source_a} vs \{source_b}"
+  }
+}
+
+/// D-01 three-level precedence: document-level explicit config >
+/// workspace/session explicit default > user-configured languageId mapping.
+/// The returned source names which level produced the selection so a
+/// workspace-default change re-resolves only documents that were not set at
+/// document level (D-03).
+fn resolve_selection_with_source(state : ServerState, params : Json, language_id : String?) -> Result[(DialectSelection, String), SelectionError] {
+  // (1) document-level explicit config (didOpen/didChange extension fields)
+  match selection_from_params(params) {
+    Some(selection) => {
+      let validated = match validate_selection(selection) {
+        Ok(selection) => selection
+        Err(error) => return Err(error)
+      }
+      return Ok((validated, "document"))
+    }
+    None => ()
+  }
+  // (2) workspace/session explicit default
+  match (state.default_dialect, state.default_profile) {
+    (Some(dialect), Some(profile)) => {
+      let selection = { dialect: dialect, profile: profile }
+      return Ok((selection, "workspace"))
+    }
+    _ => ()
+  }
+  // (3) user-configured languageId mapping (D-02: only when configured)
+  match language_id {
+    Some(language_id) => match state.language_mapping {
+      Some(mapping) => match mapping.get(language_id) {
+        Some(selection) => {
+          let validated = match validate_selection(selection) {
+            Ok(selection) => selection
+            Err(error) => return Err(error)
+          }
+          return Ok((validated, "language"))
+        }
+        None => ()
+      }
+      None => ()
+    }
+    None => ()
+  }
+  Err(MissingSelection)
+}
+
+fn resolve_selection(state : ServerState, params : Json, language_id : String?) -> Result[DialectSelection, SelectionError] {
+  match resolve_selection_with_source(state, params, language_id) {
+    Ok((selection, _source)) => Ok(selection)
+    Err(error) => Err(error)
+  }
+}
+
+/// initialize selection intake (D-01): reads initializationOptions
+/// { dialect, profile }, validates the closed-enum selection, and stores the
+/// workspace/session explicit default. A same-source conflict with the
+/// serve_stdio-provided default is a structured -32602 error.
+fn initialize_selection(state : ServerState, params : Json) -> Result[DialectSelection, String] {
+  let options = match  object_field(params, "initializationOptions") {
+    Some(options) => options
+    None => return Err("initialize requires initializationOptions.dialect and initializationOptions.profile")
+  }
+  let dialect = match  string_field(options, "dialect") {
+    Some(dialect) => dialect
+    None => return Err("initialize requires initializationOptions.dialect")
+  }
+  let profile = match  string_field(options, "profile") {
+    Some(profile) => profile
+    None => return Err("initialize requires initializationOptions.profile")
+  }
+  // Same-source conflict (D-01): serve_stdio workspace defaults and
+  // initializationOptions are both workspace/session sources.
+  match (state.default_dialect, state.default_profile) {
+    (Some(default_dialect), Some(default_profile)) if default_dialect != dialect || default_profile != profile => {
+      return Err("conflicting dialect/profile selections: \{default_dialect}/\{default_profile} vs \{dialect}/\{profile}")
+    }
+    _ => ()
+  }
+  let selection = { dialect: dialect, profile: profile }
+  let validated = match validate_selection(selection) {
+    Ok(selection) => selection
+    Err(error) => return Err(selection_error_message(error))
+  }
+  state.default_dialect = Some(validated.dialect)
+  state.default_profile = Some(validated.profile)
+  Ok(validated)
 }
 
 fn initialize_result() -> Json {
@@ -171,7 +377,7 @@ fn initialize_result() -> Json {
       "completionProvider": { "triggerCharacters": Json::array([Json::string(" "), Json::string(".")]) },
       "positionEncoding": Json::string("utf-16"),
     },
-    "serverInfo": { "name": Json::string("doris-lsp"), "version": Json::string("0.1") },
+    "serverInfo": { "name": Json::string("fathom-lsp"), "version": Json::string("0.1") },
   }
 }
 
@@ -180,7 +386,7 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
     Some(document) => document
     None => return [ response(id, Json::array([]))]
   }
-  let result = match @api.format_with_ids(document.text, "doris", state.profile, "strict", @api.FormatOptions::default()) {
+  let result = match @api.format_with_ids(document.text, document.dialect, document.profile, "strict", @api.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => return [ response(id, Json::array([]))]
   }
@@ -280,7 +486,7 @@ fn completion_result(state : ServerState, params : Json, id : RpcId) -> Array[By
     Ok(offset) => offset
     Err(_) => return [error_response(id, -32602, "completion position is outside the current document")]
   }
-  let result = match @completion.complete(document.text, "doris", state.profile, cursor_byte) {
+  let result = match @completion.complete(document.text, document.dialect, document.profile, cursor_byte) {
     Ok(result) => result
     Err(_) => return [error_response(id, -32602, "completion request could not be evaluated")]
   }
@@ -297,7 +503,6 @@ fn completion_result(state : ServerState, params : Json, id : RpcId) -> Array[By
   })]
 }
 
-
 pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes] {
   match message.method {
     "initialize" => {
@@ -308,19 +513,14 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
       if state.initialized { return [ error_response(id, -32600, "server is already initialized")] }
       let params = match message.params {
         Some(params) => params
-        None => return [ error_response(id, -32602, "initialize requires initializationOptions.profile")]
+        None => return [ error_response(id, -32602, "initialize requires initializationOptions.dialect and initializationOptions.profile")]
       }
-      let profile = match initialize_profile(params) {
-        Some(profile) => profile
-        None => return [ error_response(id, -32602, "initialize requires initializationOptions.profile")]
-      }
-      match @binding.validate_dialect_profile("doris", profile) {
+      match initialize_selection(state, params) {
         Ok(_) => {
-          state.profile = profile
           state.initialized = true
           [ response(id, initialize_result())]
         }
-        Err(_) => [ error_response(id, -32602, "unsupported profile for dialect doris")]
+        Err(message) => [ error_response(id, -32602, message)]
       }
     }
     "initialized" => []
@@ -345,13 +545,18 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
           Some(params) => {
             match document_from_params(params, "textDocument") {
               Some((uri, version, text)) => {
-                if state.docs.open(uri, version, text) {
-                  match state.docs.get(uri) {
-                    Some(document) => [parse_document(state, document)]
-                    None => []
+                match resolve_selection_with_source(state, params, language_id_from_params(params, "textDocument")) {
+                  Ok((selection, source)) => {
+                    if state.docs.open(uri, version, text, selection.dialect, selection.profile, source) {
+                      match state.docs.get(uri) {
+                        Some(document) => parse_document(state, document)
+                        None => []
+                      }
+                    } else {
+                      match message.id { Some(id) => [error_response(id, -32602, "didOpen version is stale")]; None => [] }
+                    }
                   }
-                } else {
-                  match message.id { Some(id) => [error_response(id, -32602, "didOpen version is stale")]; None => [] }
+                  Err(error) => [config_diagnostic(uri, version, selection_error_message(error))]
                 }
               }
               None => match message.id { Some(id) => [error_response(id, -32602, "didOpen requires uri, version, and text")]; None => [] }
@@ -369,13 +574,32 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
           Some(params) => {
             match changed_document(params) {
               Some((uri, version, text)) => {
-                if state.docs.change(uri, version, text) {
-                  match state.docs.get(uri) {
-                    Some(document) => [parse_document(state, document)]
-                    None => []
+                match state.docs.get(uri) {
+                  None => match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
+                  Some(current) => {
+                    // Document-level extension fields win; otherwise the
+                    // stored context persists across edits (D-03).
+                    let resolved = match selection_from_params(params) {
+                      Some(selection) => match validate_selection(selection) {
+                        Ok(selection) => Ok((selection, "document"))
+                        Err(error) => Err(error)
+                      }
+                      None => Ok(({ dialect: current.dialect, profile: current.profile }, current.selection_source))
+                    }
+                    match resolved {
+                      Ok((selection, source)) => {
+                        if state.docs.change(uri, version, text, selection.dialect, selection.profile, source) {
+                          match state.docs.get(uri) {
+                            Some(document) => parse_document(state, document)
+                            None => []
+                          }
+                        } else {
+                          match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
+                        }
+                      }
+                      Err(error) => [config_diagnostic(uri, version, selection_error_message(error))]
+                    }
                   }
-                } else {
-                  match message.id { Some(id) => [error_response(id, -32602, "didChange version is stale or document is not open")]; None => [] }
                 }
               }
               None => match message.id { Some(id) => [error_response(id, -32602, "didChange requires a full-content change")]; None => [] }

@@ -7,7 +7,7 @@ fn message(text : String) -> RpcMessage {
 
 test "completion_dispatch_uses_current_utf16_snapshot" {
   let state = ServerState::new()
-  let initialize = message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"profile\":\"4.x\"}}}")
+  let initialize = message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")
   assert_eq(handle_message(state, initialize).length(), 1)
   let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///completion.sql\",\"version\":1,\"text\":\"SELECT \"}}}")
   assert_eq(handle_message(state, open).length(), 1)
@@ -22,7 +22,7 @@ test "completion_dispatch_uses_current_utf16_snapshot" {
 
 test "stale_and_malformed_requests_return_bounded_errors" {
   let state = ServerState::new()
-  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"profile\":\"4.x\"}}}")))
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")))
   ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///stale.sql\",\"version\":2,\"text\":\"SELECT 1\"}}}")))
   let stale = handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/didChange\",\"params\":{\"textDocument\":{\"uri\":\"file:///stale.sql\",\"version\":1},\"contentChanges\":[{\"text\":\"SELECT 2\"}]}}"))
   assert_eq(stale.length(), 1)
@@ -37,7 +37,7 @@ test "stale_and_malformed_requests_return_bounded_errors" {
 
 test "shutdown_and_exit_remain_clean_after_completion_requests" {
   let state = ServerState::new()
-  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"profile\":\"2.1\"}}}")))
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"2.1\"}}}")))
   let shutdown = handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"shutdown\"}"))
   assert_eq(shutdown.length(), 1)
   ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"method\":\"exit\"}")))

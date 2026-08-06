@@ -424,6 +424,36 @@ pub fn parse_with_ids(
   parse(raw, options)
 }
 
+/// Flink-mode parse entry (DIALECT-03, A1/OQ1): Phase 9 has no Flink grammar.
+/// A document whose dialect selection is already validated as `flink` parses
+/// through the 09-02 explicit not-implemented route — `parse_flink_segment`
+/// returns a source-backed FATHOM-PARSE-008 statement node for ANY input,
+/// never a Doris fallback and never a silent empty result. Flink profiles are
+/// still rejected by `ParseOptions::new`/`validate_dialect_profile` at the
+/// selection/parse boundary; this entry is the parse half for document-context
+/// hosts (the LSP document path) whose selection is flink. The context
+/// mirrors the parser's flink route test context: the profile string is
+/// carried as metadata, and the feature-introduction metadata is empty until
+/// Phase 10 pins real Flink profiles.
+pub fn parse_flink_not_implemented(
+  raw : Bytes,
+  profile_id : String,
+  mode_id_value : String,
+) -> Result[ParseResult, ParseError] {
+  let mode = match mode_id_value {
+    "strict" => ParseMode::Strict
+    "editor" => ParseMode::Editor
+    _ => return Err(UnknownMode(mode_id= mode_id_value))
+  }
+  let context : @dialect.DialectContext = {
+    dialect: @dialect.Dialect::Flink,
+    profile_id: profile_id,
+    exact_release: profile_id,
+    feature_introduction: "",
+  }
+  parse(raw, { dialect_context: context, mode: mode, limits: ParseLimits::default() })
+}
+
 // Formatter type re-exports (D-38): api is the shared Phase 4 LSP core entry,
 // so @api.FormatOptions / @api.FormatResult etc. resolve through the facade.
 // Type aliases compile on moon 0.1.20260724 (probe-verified).
