@@ -20,10 +20,15 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] 保持解析与可选语义分析分离，允许无 catalog 元数据时进行纯语法校验，并为后续注入表/列元数据留下接口 — Validated in Phase 2: Doris Completeness and Corpus
 - [x] 提供可配置的 CST Pretty Printer 与 `doris-sql format` CLI，支持注释保留、缩进和关键字风格配置 — Validated in Phase 3: Formatting and Safe Edits
 - [x] 提供 Native CLI/LSP 与 WebAssembly/JavaScript SDK，使同一解析器可用于 LSP、CLI、Web 和 Monaco 集成 — Validated in Phase 4: Ecosystem and Multi-Target Delivery
+- [x] 消费者可在 API、CLI、LSP、JS/Wasm、Web、VS Code、IntelliJ 显式选择 `doris`/`flink` 方言与 profile；缺失/未知/冲突返回结构化配置错误，无自动检测与静默回退 — Validated in Phase 9: Dialect Boundary and Neutral Naming
+- [x] 解析器使用相互独立的 Doris/Flink 词法关键字策略，语句/子句文法显式按方言路由；方言间互不影响标识符接受与恢复行为 — Validated in Phase 9: Dialect Boundary and Neutral Naming
+- [x] 解析、格式化、补全、LSP 与序列化结果携带 dialect/profile/exact-release 元数据，`FATHOM-*` 诊断跨公共边界稳定 — Validated in Phase 9: Dialect Boundary and Neutral Naming
+- [x] 产品层完成 `fathom/sql`、`fathom-sql`、`fathom-lsp` 中立命名 cutover（模块/二进制/导出/schema/错误码/扩展/文档），无旧名 alias；Doris 仅保留为方言/profile/corpus/provenance 语义标识 — Validated in Phase 9: Dialect Boundary and Neutral Naming
+- [x] CI 内置命名 inventory/allowlist 门禁（`check_naming.py`），拒绝产品层 `doris-sql`/`doris-lsp`/`doris.*`/`DORIS-*` 残留 — Validated in Phase 9: Dialect Boundary and Neutral Naming
 
 ### Active
 
-(None — all v1 requirements validated across Phases 1-4)
+(None — all v1 requirements validated across Phases 1-4; v2.0 requirements land with their phases)
 
 ### Out of Scope
 
@@ -62,12 +67,13 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Current State
 
-**v1.0 SHIPPED — 2026-08-05** (override_closeout, 5 documented overrides)
+**v2.0 Phase 9 COMPLETE — 2026-08-07** (Dialect Boundary and Neutral Naming)
 
-- **代码规模:** ~15.5k 行 MoonBit(7 核心包 + lsp/binding/parity/completion/analyzer/formatter/doris-sql)+ ~1.3k 行 TS/Py/MJS(web demo、vscode 扩展、corpus 工具);257 文件,52 个 feat commits,2 天交付。
-- **测试:** 188/188 MoonBit 测试(test/parity/doris-sql/lsp)+ node 7/7 + 23/23 Chromium 断言(executor 实测)+ 全部 --check 绿。
-- **能力:** 无损 CST round-trip、SELECT+DML/DDL 覆盖(2.1/3.x/4.x profile 门控)、44 行官方语料 manifest、配置化格式化(6 维)+ CLI(exit 0/1/2)、Native LSP(诊断/格式化/补全,utf-16)、JS ESM + linear Wasm facade、离线 Monaco 演示、VS Code 扩展。
-- **已知边界:** ECO-07 已在真实 VS Code 1.132.0 宿主验证通过(2026-08-06,3 模式扩展宿主测试);linear-Wasm CI 运行时执行步骤已加入 `.github/workflows/ci.yml` 与发布门禁;FE/Nereids 差分脚本待人工执行;9/44 manifest 行经 formatter harness 覆盖(对应关系手工维护)。
+- **多方言边界已落地:** `dialect/` 层（Dialect/DialectContext 闭合枚举、116 行 Doris 分类表 + 空 Flink 表、无全局 union）；API/CLI/LSP/JS-Wasm/Web/VS Code/IntelliJ 全部显式 `--dialect`/`--profile` 选择，缺失/未知/冲突 → 结构化错误（CLI exit 2），无自动检测、无静默回退；Flink 显式 FATHOM-PARSE-008 not-implemented（profile 全拒，Phase 10 解锁）。
+- **命名中立化完成:** `fathom/sql` 模块、`fathom-sql`/`fathom-lsp` 二进制、`fathom_*_v1` exports、`fathom.*.v1` wire schema、`FATHOM-*` 诊断码、LSP serverInfo/source、扩展/文档/CI 全部 cutover，无旧名 alias；`scripts/check_naming.py` 门禁（349 文件 0 残留，CI 强制）。
+- **Doris v1 baseline 字节级冻结:** 213 快照（CST/诊断/格式化/补全/CLI/LSP/wire × profile × mode）+ sha256 corpus 钉住 + approved-changes.md 注册表 + baseline_diff.py；改造后 228/228 parity（native/js/wasm，无 --update）零漂移。
+- **测试:** 460/460 MoonBit（CI 对齐矩阵）+ web 4/4 + vscode tsc + jetbrains source-smoke 全绿；14/14 代码评审 finding 修复；威胁注册 33/33 关闭（ASVS L1）。
+- **已知边界:** 空 flink 输入静默空诊断（UAT 决策接受为 Phase 9 契约，WINDOWS.md #4 追踪）；真实 VS Code/IntelliJ 宿主 UX smoke 归 Phase 13 SC4；`moon test` 裸调用 4219 边界沿用 CI 每包矩阵。
 
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming
 
@@ -98,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-06 after milestone v2.0 redefined as Multi-Dialect*
+*Last updated: 2026-08-07 after Phase 9 (Dialect Boundary and Neutral Naming) completion*
