@@ -24,11 +24,17 @@ inference or Calcite folklore (Pitfall 3).
     nonReservedKeywords inputs and the codegen/templates/Parser.jj VARIANT
     token are cross-checked against the committed lists.
 
+The manifest.tsv provenance record is re-verified too (MN-03): every flink
+row's calcite_version/parser_config must equal the code values, and when the
+release archive is present under the research root its sha512 must match the
+manifest sha512 column — a tampered manifest fails the gate.
+
 Usage: python3 scripts/extract_flink_lexical.py
 Exit 0 with an "ok:" line when every check matches; exit 1 with "error:" lines
 otherwise (a deliberately wrong pin or row word must make it exit 1).
 """
 
+import hashlib
 import os
 import re
 import sys
@@ -353,6 +359,110 @@ def validate_grammar_crosscheck(problems, release_paths, lists):
                 )
 
 
+def parse_manifest(problems):
+    """Parse parity/fixtures/flink-lexical/manifest.tsv into {fixture_id: row}.
+
+    Only flink-* rows are returned (the doris-4.x provenance row is a
+    docs-grammar record with N/A calcite/sha512 columns and is not part of the
+    Calcite-pin surface). TSV header: fixture_id, profile, exact_release,
+    calcite_version, parser_config, source_archive_url, sha512, git_tag,
+    git_commit.
+    """
+    manifest_path = os.path.join(FLINK_FIXTURES_DIR, "manifest.tsv")
+    if not os.path.isfile(manifest_path):
+        problems.append("missing flink-lexical manifest: %s" % manifest_path)
+        return {}
+    rows = {}
+    with open(manifest_path, encoding="utf-8") as fh:
+        lines = [line.rstrip("\r\n") for line in fh]
+    if not lines:
+        problems.append("flink-lexical manifest is empty: %s" % manifest_path)
+        return rows
+    header = lines[0].split("\t")
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) != len(header):
+            problems.append(
+                "flink-lexical manifest row has %d fields, expected %d: %s"
+                % (len(fields), len(header), line)
+            )
+            continue
+        row = dict(zip(header, fields))
+        fixture_id = row.get("fixture_id", "")
+        if fixture_id.startswith("flink-"):
+            rows[fixture_id] = row
+    return rows
+
+
+def validate_manifest(problems):
+    """Re-verify the committed manifest against the pinned releases (MN-03).
+
+    The manifest is the committed provenance record (D-02): url/sha512/tag/
+    commit frozen next to the code values. This pass closes the gap where
+    nothing mechanically cross-checked the manifest against either the code
+    values or the actual archive bytes. It (a) asserts every flink row's
+    calcite_version/parser_config equal CALCITE_PINS/PARSER_CONFIG, and
+    (b) when the sha512-verified release archive is present under the research
+    root, re-hashes the archive and compares it to the manifest sha512 column
+    — a tampered manifest fails the gate. Returns the number of flink rows
+    whose sha512 was re-verified (0 when no archives are cached).
+    """
+    rows = parse_manifest(problems)
+    if not rows:
+        return 0
+    verified = 0
+    # Archives sit beside the extraction root (research-time fixture cache);
+    # also check inside RESEARCH_SRC itself for alternate layouts.
+    archive_root = os.path.dirname(RESEARCH_SRC)
+    for fixture_id in sorted(rows):
+        row = rows[fixture_id]
+        release = fixture_id[len("flink-"):]
+        expected_pin = CALCITE_PINS.get(release)
+        if expected_pin is None:
+            problems.append(
+                "flink-lexical manifest row %s: unknown release %r"
+                % (fixture_id, release)
+            )
+            continue
+        if row.get("calcite_version") != expected_pin:
+            problems.append(
+                "flink-lexical manifest %s: calcite_version %r != CALCITE_PINS %r"
+                % (fixture_id, row.get("calcite_version"), expected_pin)
+            )
+        if row.get("parser_config") != PARSER_CONFIG:
+            problems.append(
+                "flink-lexical manifest %s: parser_config %r != PARSER_CONFIG %r"
+                % (fixture_id, row.get("parser_config"), PARSER_CONFIG)
+            )
+        archive_name = os.path.basename(row.get("source_archive_url", ""))
+        archive_candidates = []
+        if archive_name:
+            archive_candidates = [
+                os.path.join(archive_root, archive_name),
+                os.path.join(RESEARCH_SRC, archive_name),
+            ]
+        present = [path for path in archive_candidates if os.path.isfile(path)]
+        if not present:
+            # Research-time fixture only — the archive is never shipped, so a
+            # missing archive skips the hash check but keeps the metadata
+            # assertions above.
+            continue
+        archive_path = present[0]
+        with open(archive_path, "rb") as fh:
+            digest = hashlib.sha512(fh.read()).hexdigest()
+        expected_sha = row.get("sha512", "")
+        if expected_sha != "N/A" and digest != expected_sha:
+            problems.append(
+                "flink-lexical manifest %s: sha512 of %s does not match the "
+                "manifest column" % (fixture_id, archive_path)
+            )
+        else:
+            verified += 1
+    return verified
+
+
 def main(argv):
     problems = []
     release_paths = {}
@@ -370,6 +480,8 @@ def main(argv):
     for line in overlap_report:
         print(line)
     row_count = validate_flink_rows(problems, lists)
+    # ---- MN-03: manifest provenance re-verification ----
+    manifest_verified = validate_manifest(problems)
 
     # ---- pinned-archive validation (pins, parser config, grammar cross-check)
     verified_pins = 0
@@ -453,13 +565,15 @@ def main(argv):
     print(
         "ok: %d calcite pins verified against pinned release POMs (%s), "
         "parser config verified (%s), keyword counts verified (%s), "
-        "%d inlined flink rows present in the matching release lists"
+        "%d inlined flink rows present in the matching release lists, "
+        "%d flink manifest rows re-verified against manifest.tsv"
         % (
             verified_pins,
             ", ".join("%s=%s" % (k, v) for k, v in sorted(CALCITE_PINS.items())),
             PARSER_CONFIG,
             counts_summary,
             row_count,
+            manifest_verified,
         )
     )
     return 0
