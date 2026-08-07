@@ -59,7 +59,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 ## Phases
 
-- [ ] **Phase 9: Dialect Boundary and Neutral Naming** - Establish explicit dialect/profile context, isolate Doris policy, freeze the Doris baseline, and complete the clean product-identity cutover.
+- [x] **Phase 9: Dialect Boundary and Neutral Naming** - Establish explicit dialect/profile context, isolate Doris policy, freeze the Doris baseline, and complete the clean product-identity cutover. (completed 2026-08-07)
 - [ ] **Phase 10: Flink Release Profiles and Lexical Core** - Lock Flink release/Calcite contracts and deliver profile-specific Flink lexical behavior.
 - [ ] **Phase 11: Flink Grammar and Recoverable CST** - Deliver Flink statement/DDL/window/pattern grammar with strict/editor lossless recovery.
 - [ ] **Phase 12: Cross-Dialect Corpus and Parity Gates** - Turn pinned sources and the Doris baseline into reproducible cross-dialect and cross-backend release gates.
