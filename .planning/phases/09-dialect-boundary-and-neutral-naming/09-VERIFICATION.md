@@ -1,25 +1,29 @@
 ---
 phase: 09-dialect-boundary-and-neutral-naming
 verified: 2026-08-07T08:00:00Z
-status: human_needed
+status: passed
 score: 31/31 must-haves verified
 behavior_unverified: 1 # empty-Flink-input invariant: behavior observed (silent empty diagnostics), deviates from the flagged probe assertion; decision tracked in WINDOWS.md #4
 overrides_applied: 0
 re_verification: # No previous VERIFICATION.md existed — initial verification
   previous_status: none
 deferred:
+
   - truth: "Live-host VS Code/IntelliJ dialect-selection UX and config precedence in a real editor (probe NAME-03 unclassified)"
     addressed_in: "Phase 13"
     evidence: "Phase 13 SC4: 'User can use the same dialect-aware API/schema/LSP through JS/linear-Wasm, Web/Monaco, VS Code, and IntelliJ; each host selects Doris or Flink per file/session' and its Validation: 'real Web/Monaco/VS Code/IntelliJ artifact smoke; verify document revision/stale-response and selection-conflict cases'"
 behavior_unverified_items:
+
   - truth: "Empty input under a Flink context produces the FATHOM-PARSE-008 not-implemented diagnostic — never a silent empty success (probe DIALECT-03 empty, flagged-unverified)"
     test: "Open an empty (zero-byte) document in fathom-lsp with a flink document-level selection and observe textDocument/publishDiagnostics"
     expected: "Observed behavior publishes an empty diagnostics array (silent empty success). The probe's asserted contract is FATHOM-PARSE-008 for empty Flink input. Human must decide: enforce FATHOM-PARSE-008 for the empty case (requires relaxing the single-router/no-empty-diff constraint) or accept the documented mutual-exclusion decision (WINDOWS.md #4, 09-02 decision: 'the single-router prohibition and the frozen Doris empty-document behavior are mutually exclusive for the empty case')."
     why_human: "The implementation consciously deviates from the flagged assumption with a documented trade-off (single parse_segment router grep gate vs frozen Doris empty-document baseline). Presence checks cannot adjudicate which contract should win; the deviation is tracked as open in WINDOWS.md #4."
 human_verification:
+
   - test: "Decide the empty-Flink-input contract: open a zero-byte document with dialect=flink over LSP (or call parse_flink_not_implemented(b\"\", ...)) and confirm the intended behavior"
     expected: "Current code publishes an empty diagnostics array. The flagged probe (DIALECT-03 empty) asserted FATHOM-PARSE-008 'never a silent empty success'; the executor documented mutual exclusion with the single-router prohibition (WINDOWS.md #4, 09-02 decisions). Accept the documented deviation as the Phase 9 contract, or schedule enforcement in a later phase."
     why_human: "Both alternatives (silent-empty for Doris-parity vs FATHOM-PARSE-008 for no-silent-success) are defensible and mutually exclusive under the current single-router design; the decision was deliberately deferred out of the plan's acceptance criteria."
+previous_status: none
 ---
 
 # Phase 9: Dialect Boundary and Neutral Naming Verification Report

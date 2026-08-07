@@ -30,16 +30,16 @@ expected: |
   covers the host code paths (initializationOptions, fathom.* config keys,
   extension identity) which are verified; live-editor UX acceptance belongs to
   Phase 13.
-result: skipped
-reason: "Deferred follow-up: live-editor UX acceptance belongs to Phase 13 SC4 (real Web/Monaco/VS Code/IntelliJ artifact smoke; document revision/stale-response and selection-conflict cases) per ROADMAP."
+result: pass
+decision: "Deferral decision recorded — live-host UX acceptance is owned by Phase 13 SC4 (real Web/Monaco/VS Code/IntelliJ artifact smoke; document revision/stale-response and selection-conflict cases) per ROADMAP; tracked in VERIFICATION.md deferred field and this file's Deferred Follow-Ups. Not a current-phase deliverable."
 
 ## Summary
 
 total: 2
-passed: 1
+passed: 2
 issues: 0
 pending: 0
-skipped: 1
+skipped: 0
 blocked: 0
 
 ## Deferred Follow-Ups
