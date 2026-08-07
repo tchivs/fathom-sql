@@ -475,17 +475,18 @@ pub fn parse_with_ids(
   parse(raw, options)
 }
 
-/// Flink-mode parse entry (DIALECT-03, A1/OQ1): Phase 9 has no Flink grammar.
-/// A document whose dialect selection is already validated as `flink` parses
-/// through the 09-02 explicit not-implemented route — `parse_flink_segment`
-/// returns a source-backed FATHOM-PARSE-008 statement node for ANY input,
-/// never a Doris fallback and never a silent empty result. Flink profiles are
-/// still rejected by `ParseOptions::new`/`validate_dialect_profile` at the
-/// selection/parse boundary; this entry is the parse half for document-context
-/// hosts (the LSP document path) whose selection is flink. The context
-/// mirrors the parser's flink route test context: the profile string is
-/// carried as metadata, and the feature-introduction metadata is empty until
-/// Phase 10 pins real Flink profiles.
+/// Flink-mode parse entry (DIALECT-03, A1/OQ1): a document whose dialect
+/// selection is validated as `flink` parses through the explicit
+/// not-implemented route — `parse_flink_segment` returns a source-backed
+/// FATHOM-PARSE-008 statement node for ANY input, never a Doris fallback and
+/// never a silent empty result (non-empty input). This entry is the parse
+/// half for document-context hosts (the LSP document path) whose selection is
+/// flink. Phase 10 pins the real Flink profiles (D-01): `profile_id` is gated
+/// through `FlinkProfile::from_id` — unknown profiles (e.g. the Doris-shaped
+/// `4.x`) are rejected with `UnknownProfile` (FATHOM-SCHEMA-003 at the wire,
+/// matching `validate_dialect_profile`), and known profiles populate
+/// `exact_release`/`feature_introduction` from `FlinkProfileMetadata` rather
+/// than carrying the raw profile string / empty metadata.
 pub fn parse_flink_not_implemented(
   raw : Bytes,
   profile_id : String,
@@ -496,11 +497,16 @@ pub fn parse_flink_not_implemented(
     "editor" => ParseMode::Editor
     _ => return Err(UnknownMode(mode_id= mode_id_value))
   }
+  let profile = match @dialect.FlinkProfile::from_id(profile_id) {
+    Some(profile) => profile
+    None => return Err(UnknownProfile(profile_id~))
+  }
+  let metadata = profile.metadata()
   let context : @dialect.DialectContext = {
     dialect: @dialect.Dialect::Flink,
     profile_id: profile_id,
-    exact_release: profile_id,
-    feature_introduction: "",
+    exact_release: metadata.exact_release,
+    feature_introduction: metadata.feature_introduction,
   }
   parse(raw, { dialect_context: context, mode: mode, limits: ParseLimits::default() })
 }
@@ -704,6 +710,28 @@ test "api_requires_explicit_dialect_profile_and_mode" {
   assert_eq(options.profile(), Some(@dialect.DorisProfile::V2_1))
   assert_eq(options.dialect_id(), "doris")
   assert_true(options.mode() is ParseMode::Editor)
+}
+
+test "api_parse_flink_not_implemented_gates_profiles_and_carries_metadata" {
+  // MN-04: the LSP document path's flink parse entry gates the profile through
+  // FlinkProfile::from_id and populates exact_release/feature_introduction
+  // from FlinkProfileMetadata — a valid pinned profile parses to the explicit
+  // FATHOM-PARSE-008 not-implemented route with real metadata, and an unknown
+  // (Doris-shaped or adjacent) profile is rejected with UnknownProfile
+  // (FATHOM-SCHEMA-003 at the wire, matching validate_dialect_profile).
+  let ok = match parse_flink_not_implemented(b"SELECT 1", "flink-2.3.0", "strict") {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(ok.dialect, "flink")
+  assert_eq(ok.profile, "flink-2.3.0")
+  assert_eq(ok.exact_release, "flink-2.3.0")
+  assert_eq(ok.feature_introduction, "primary profile")
+  assert_true(ok.diagnostics.length() > 0)
+  assert_true(ok.diagnostics[0].code == "FATHOM-PARSE-008")
+  assert_true(parse_flink_not_implemented(b"SELECT 1", "4.x", "strict") is Err(UnknownProfile(profile_id="4.x")))
+  assert_true(parse_flink_not_implemented(b"SELECT 1", "flink-2.3", "strict") is Err(UnknownProfile(profile_id="flink-2.3")))
+  assert_true(parse_flink_not_implemented(b"SELECT 1", "flink-2.3.0", "turbo") is Err(UnknownMode(mode_id="turbo")))
 }
 
 test "api_result_owns_source_once_and_has_bounded_descendant_spans" {

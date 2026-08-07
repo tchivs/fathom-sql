@@ -12,8 +12,8 @@
 
 /// One explicit dialect+profile selection (D-01). `dialect` is the closed-enum
 /// id ("doris" | "flink"); `profile` is the released-profile id (2.1/3.x/4.x
-/// for doris; any string for flink in Phase 9 — the parse is the explicit
-/// not-implemented route).
+/// for doris; flink-2.3.0/2.1.3/1.20.5 for flink, Phase 10 D-01 — the parse is
+/// the explicit not-implemented route).
 pub struct DialectSelection {
   pub dialect : String
   pub profile : String
@@ -262,20 +262,20 @@ fn language_id_from_params(params : Json, key : String) -> String? {
    string_field(document, "languageId")
 }
 
-/// Closed-enum selection validation (T-09-19): unknown dialects are rejected;
-/// doris profiles must pass the binding gate (2.1/3.x/4.x). flink is a legal
-/// selection in Phase 9 (A1) whose parse is the explicit FATHOM-PARSE-008
-/// not-implemented route — the profile string rides as document metadata and
-/// is not profile-validated until Phase 10 pins real Flink profiles.
+/// Closed-enum selection validation (T-09-19, D-01): unknown dialects are
+/// rejected, and every profile must pass the shared binding gate
+/// (`validate_dialect_profile`) — doris accepts exactly 2.1/3.x/4.x and flink
+/// accepts exactly the three pinned release profiles (flink-2.3.0/2.1.3/
+/// 1.20.5, Phase 10 D-01). An unknown flink profile (e.g. the Doris-shaped
+/// `4.x`) is therefore rejected here at the selection boundary, matching the
+/// CLI/wire; a valid flink selection's parse stays the explicit
+/// FATHOM-PARSE-008 not-implemented route.
 fn validate_selection(selection : DialectSelection) -> Result[DialectSelection, SelectionError] {
-  match selection.dialect {
-    "flink" => Ok(selection)
-    _ => match @binding.validate_dialect_profile(selection.dialect, selection.profile) {
-      Ok(_) => Ok(selection)
-      Err(@binding.SchemaError::UnknownDialect(dialect~)) => Err(UnknownDialect(dialect_id= dialect))
-      Err(@binding.SchemaError::UnsupportedProfile(profile~)) => Err(UnknownProfile(profile_id= profile))
-      Err(_) => Err(UnknownProfile(profile_id= selection.profile))
-    }
+  match @binding.validate_dialect_profile(selection.dialect, selection.profile) {
+    Ok(_) => Ok(selection)
+    Err(@binding.SchemaError::UnknownDialect(dialect~)) => Err(UnknownDialect(dialect_id= dialect))
+    Err(@binding.SchemaError::UnsupportedProfile(profile~)) => Err(UnknownProfile(profile_id= profile))
+    Err(_) => Err(UnknownProfile(profile_id= selection.profile))
   }
 }
 
