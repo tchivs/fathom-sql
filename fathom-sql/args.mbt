@@ -135,8 +135,9 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
     None => return Err(MissingProfile)
   }
   // Dialect-first validation (Pitfall 6): the profile is checked per dialect;
-  // flink rejects every profile in Phase 9 (A1/OQ1). The dialect travels with
-  // the error so the exit-2 message can say so (MI-02).
+  // flink accepts exactly the three pinned release profiles (Phase 10, D-01).
+  // The dialect travels with the error so the exit-2 message can list the
+  // released values (MI-02).
   if !is_valid_dialect_profile(dialect_value, profile_value) {
     return Err(UnknownProfile(profile_id=profile_value, dialect_id=dialect_value))
   }
@@ -155,11 +156,13 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
 }
 
 /// Explicit dialect+profile validation (D-11, mirrors binding's
-/// validate_dialect_profile): doris accepts 2.1/3.x/4.x; flink accepts no
-/// profile in Phase 9.
+/// validate_dialect_profile): doris accepts 2.1/3.x/4.x; flink accepts the
+/// three pinned release profiles (Phase 10, D-01) — exact match only, no
+/// prefix/suffix/version-compare (Pitfall 6, T-10-01).
 pub fn is_valid_dialect_profile(dialect : String, id : String) -> Bool {
   match dialect {
     "doris" => id == "2.1" || id == "3.x" || id == "4.x"
+    "flink" => id == "flink-2.3.0" || id == "flink-2.1.3" || id == "flink-1.20.5"
     _ => false
   }
 }

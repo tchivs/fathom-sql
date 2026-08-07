@@ -113,7 +113,7 @@ test "cli_usage_errors_are_named_usage_error_variants" {
   assert_true(parse_args(["lsp"]) is Err(MissingDialect))
   assert_true(parse_args(["format", "--dialect", "mysql"]) is Err(UnknownDialect(dialect_id="mysql")))
   assert_true(parse_args(["format", "--dialect", "doris"]) is Err(MissingProfile))
-  // Dialect-first validation: flink rejects every profile in Phase 9.
+  // Dialect-first validation: a Doris profile under flink is rejected.
   assert_true(parse_args(["format", "--dialect", "flink", "--profile", "4.x"]) is Err(UnknownProfile(profile_id="4.x", dialect_id="flink")))
   assert_true(parse_args(["format", "--dialect", "doris", "--profile", "mysql"]) is Err(UnknownProfile(profile_id="mysql", dialect_id="doris")))
   assert_true(parse_args(["format", "--dialect", "doris", "--profile", "4.x", "--indent"]) is Err(MissingValue(flag="--indent")))
@@ -129,12 +129,18 @@ test "cli_d11_exit_2_matrix_through_usage_error_message" {
   // Unknown dialect -> exit 2 naming the value.
   assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "oracle"])).contains("unknown dialect"))
   assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "oracle"])).contains("oracle"))
-  // flink rejects every profile in Phase 9 -> exit 2 (A1/OQ1). The message
-  // must not advertise doris values: it says "no released profiles yet" and
-  // still names the offending value.
+  // flink rejects non-pinned profiles in Phase 10 -> exit 2 (D-01, T-10-01).
+  // The message lists the actual released values and must not advertise
+  // doris values (MI-02): a Doris profile ("4.x") or adjacent id is
+  // "unknown" for flink.
   let flink_message = usage_error_message(parse_error_of(["parse", "--dialect", "flink", "--profile", "4.x"]))
   assert_true(flink_message.contains("unknown --profile value: 4.x"))
-  assert_true(flink_message.contains("flink has no released profiles yet (Phase 9)"))
+  assert_true(flink_message.contains("expected flink-2.3.0, flink-2.1.3, or flink-1.20.5"))
+  assert_true(!flink_message.contains("2.1, 3.x, or 4.x"))
+  // flink-2.3.0 is accepted in Phase 10; the adjacency probes reject.
+  assert_true(parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3.0"]).is_ok())
+  assert_true(parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3"]).is_ok() == false)
+  assert_true(parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3.0-rc1"]).is_ok() == false)
   // doris keeps the released-value hint (MI-02).
   assert_true(usage_error_message(parse_error_of(["parse", "--dialect", "doris", "--profile", "mysql"])).contains("expected 2.1, 3.x, or 4.x"))
   // Missing --profile after a valid dialect -> exit 2.

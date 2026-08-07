@@ -275,13 +275,30 @@ pub fn lex_with_limit(source : @source.SourceText, context : @dialect.DialectCon
       }
       push_token(tokens, source_length, context, @token.TokenKind::Whitespace, start, index, None)
     } else if (byte == 45 && index + 1 < source_length && bytes[index + 1].to_int() == 45) || byte == 35 {
-      let start = index
-      let (end, code) = scan_comment(bytes, if byte == 35 { index } else { index + 1 })
-      match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::Comment, start, end, code, max_tokens) {
-        Some(at) => if truncated_at is None { truncated_at = Some(at) }
-        None => ()
+      if byte == 35 && context.dialect is @dialect.Dialect::Flink {
+        // Flink (D-06, D-03): `#` is NOT a Calcite token (Parser-calcite-*.jj
+        // has no `#` in any comment/symbol token set) — a lexical error token
+        // whose diagnostic surfaces as FATHOM-PARSE-003 through the parser.
+        // Doris keeps `#` as a line comment byte-identically (below).
+        push_token(
+          tokens,
+          source_length,
+          context,
+          @token.TokenKind::Error,
+          index,
+          index + 1,
+          Some("LEX_INVALID_CHARACTER"),
+        )
+        index = index + 1
+      } else {
+        let start = index
+        let (end, code) = scan_comment(bytes, if byte == 35 { index } else { index + 1 })
+        match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::Comment, start, end, code, max_tokens) {
+          Some(at) => if truncated_at is None { truncated_at = Some(at) }
+          None => ()
+        }
+        index = end
       }
-      index = end
     } else if byte == 47 && index + 1 < source_length && bytes[index + 1].to_int() == 42 {
       let (end, code) = scan_comment(bytes, index)
       match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::Comment, index, end, code, max_tokens) {
@@ -476,6 +493,59 @@ test "lexer_retains_unterminated_quote_and_progresses" {
 
 fn test_doris_context(profile_id : String) -> @dialect.DialectContext {
   { dialect: @dialect.Dialect::Doris, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
+}
+
+fn test_flink_context(profile_id : String) -> @dialect.DialectContext {
+  { dialect: @dialect.Dialect::Flink, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
+}
+
+test "lexer_routes_hash_comment_by_dialect_flink_error_doris_comment" {
+  let raw = b"a # comment"
+  let doris_source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let flink_source = match @source.SourceText::new(raw) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  // Doris: `#` is a line comment (byte-identical v1 behavior).
+  let doris_stream = lex(doris_source, test_doris_context("4.x"))
+  let doris_hash = match doris_stream.at(2) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(doris_hash.kind is @token.TokenKind::Comment)
+  assert_eq(doris_hash.raw(doris_source), Some(b"# comment"))
+  // Flink: `#` is not a Calcite token — a single-byte Error token with a
+  // lexical diagnostic code (FATHOM-PARSE-003 surfaces through the parser).
+  let flink_stream = lex(flink_source, test_flink_context("flink-2.3.0"))
+  let flink_hash = match flink_stream.at(2) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(flink_hash.kind is @token.TokenKind::Error)
+  assert_eq(flink_hash.diagnostic_code, Some("LEX_INVALID_CHARACTER"))
+  assert_eq(flink_hash.raw(flink_source), Some(b"#"))
+  // Replay both dialects byte-identically (DIALECT-02: span/trivia preserved).
+  let mut doris_replay = b""
+  for token in doris_stream.tokens {
+    let token_bytes = match token.raw(doris_source) {
+      Some(bytes) => bytes
+      None => b""
+    }
+    doris_replay = doris_replay + token_bytes
+  }
+  let mut flink_replay = b""
+  for token in flink_stream.tokens {
+    let token_bytes = match token.raw(flink_source) {
+      Some(bytes) => bytes
+      None => b""
+    }
+    flink_replay = flink_replay + token_bytes
+  }
+  assert_eq(doris_replay, raw)
+  assert_eq(flink_replay, raw)
 }
 
 test "lexer_calls_are_reentrant_without_shared_state" {

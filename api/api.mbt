@@ -95,7 +95,19 @@ pub fn ParseOptions::new(dialect_id : String, profile_id : String, mode_id : Str
         feature_introduction: metadata.feature_introduction,
       }
     }
-    @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
+    @dialect.Dialect::Flink => {
+      let profile = match @dialect.FlinkProfile::from_id(profile_id) {
+        Some(profile) => profile
+        None => return Err(UnknownProfile(profile_id~))
+      }
+      let metadata = profile.metadata()
+      {
+        dialect: dialect,
+        profile_id: profile_id,
+        exact_release: metadata.exact_release,
+        feature_introduction: metadata.feature_introduction,
+      }
+    }
   }
   let mode = match mode_id {
     "strict" => ParseMode::Strict
@@ -215,6 +227,37 @@ pub fn ParseOptions::profile_metadata(self : ParseOptions) -> @dialect.ProfileMe
     Some(profile) => profile.metadata()
     None => panic()
   }
+}
+
+/// The Flink profile this context resolves to, or None when the context is
+/// not a Flink context (doris) or its profile_id does not resolve — never a
+/// silently fabricated default (D-01, T-10-01). All public constructors
+/// validate a Flink profile for Flink contexts, so None is reachable only
+/// through an externally-constructed pub(all) DialectContext.
+pub fn ParseOptions::flink_profile(self : ParseOptions) -> @dialect.FlinkProfile? {
+  @dialect.FlinkProfile::from_id(self.dialect_context.profile_id)
+}
+
+/// FlinkProfileMetadata for the Flink context (D-01/D-02). Panics on a
+/// context without a resolvable Flink profile — the explicit failure mirrors
+/// profile_metadata; unreachable through public constructors. The wire
+/// (fathom.dialect.v1 / fathom.capabilities.v1) reads calcite_version and
+/// parser_config only through this accessor (T-09-18 provenance discipline —
+/// nothing fabricated).
+pub fn ParseOptions::flink_profile_metadata(self : ParseOptions) -> @dialect.FlinkProfileMetadata {
+  match self.flink_profile() {
+    Some(profile) => profile.metadata()
+    None => panic()
+  }
+}
+
+/// The dialect selection's exact release string (DIALECT-04, D-09): taken
+/// from the validated DialectContext, dialect-agnostic — the same source the
+/// parse envelope's exact_release field uses. Replaces the Doris-only
+/// profile_metadata().exact_release path on the format wire so a Flink
+/// selection never panics profile_metadata (T-10-05).
+pub fn ParseOptions::exact_release(self : ParseOptions) -> String {
+  self.dialect_context.exact_release
 }
 
 /// The dialect selection's canonical id ("doris" | "flink") — the wire
@@ -636,8 +679,21 @@ test "api_requires_explicit_dialect_profile_and_mode" {
   // DIALECT-01 / Pitfall 6: dialect is validated FIRST, then profile.
   assert_true(ParseOptions::new("mysql", "4.x", "strict") is Err(UnknownDialect(..)))
   assert_true(ParseOptions::new("doris", "mysql", "strict") is Err(UnknownProfile(..)))
-  // flink is a legal dialect whose profiles are ALL rejected until Phase 10.
-  assert_true(ParseOptions::new("flink", "flink-2.3.0", "strict") is Err(UnknownProfile(..)))
+  // flink is a legal dialect; Phase 10 accepts exactly the three pinned
+  // release profiles (exact-match only — no prefix/suffix/version-compare,
+  // no Doris profile borrowing, T-10-01). flink-2.3.0 resolves; the
+  // Doris-shaped "2.1" and the adjacent "flink-2.3.0-rc1" are rejected.
+  let flink_options = match ParseOptions::new("flink", "flink-2.3.0", "strict") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  assert_eq(flink_options.dialect_id(), "flink")
+  assert_eq(flink_options.flink_profile(), Some(@dialect.FlinkProfile::V2_3_0))
+  assert_eq(flink_options.flink_profile_metadata().calcite_version, "1.36.0")
+  assert_eq(flink_options.exact_release(), "flink-2.3.0")
+  assert_true(ParseOptions::new("flink", "2.1", "strict") is Err(UnknownProfile(..)))
+  assert_true(ParseOptions::new("flink", "flink-2.3.0-rc1", "strict") is Err(UnknownProfile(..)))
+  assert_true(ParseOptions::new("flink", "flink-2.3", "strict") is Err(UnknownProfile(..)))
   assert_true(ParseOptions::new("doris", "4.x", "unknown") is Err(UnknownMode(..)))
   let options = match ParseOptions::new("doris", "2.1", "editor") {
     Ok(options) => options

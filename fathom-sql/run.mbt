@@ -138,8 +138,9 @@ fn usage_error(message : String) -> CliOutcome {
 /// defense-in-depth (parse_args already validates both -> exit 2); everything
 /// else is an input/processing failure -> exit 1 (T-03-23: InputTooLarge exits
 /// 1 with the message, never a crash). The dialect rides along so the flink
-/// profile-rejection message can say "no released profiles yet" instead of
-/// advertising doris values (MI-02).
+/// profile-rejection message can list the released values (flink-2.3.0|
+/// flink-2.1.3|flink-1.20.5) instead of advertising doris values (MI-02,
+/// T-10-05).
 fn parse_error_outcome(dialect : String, error : @api.ParseError) -> CliOutcome {
   match error {
     @api.ParseError::UnknownDialect(dialect_id~) => {
@@ -147,7 +148,7 @@ fn parse_error_outcome(dialect : String, error : @api.ParseError) -> CliOutcome 
     }
     @api.ParseError::UnknownProfile(profile_id~) => {
       if dialect == "flink" {
-        usage_error("unknown --profile value: \{profile_id} (flink has no released profiles yet (Phase 9))")
+        usage_error("unknown --profile value: \{profile_id} (expected flink-2.3.0, flink-2.1.3, or flink-1.20.5)")
       } else {
         usage_error("unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)")
       }
@@ -198,9 +199,10 @@ pub fn usage_error_message(error : UsageError) -> String {
     MissingProfile => "missing required flag: --profile <2.1|3.x|4.x>\n"
     UnknownProfile(profile_id~, dialect_id~) => {
       if dialect_id == "flink" {
-        // flink rejects EVERY profile in Phase 9 (A1/OQ1) — the message must
-        // not imply that 2.1/3.x/4.x are usable values for it (MI-02).
-        "unknown --profile value: \{profile_id} (flink has no released profiles yet (Phase 9))\n"
+        // flink accepts exactly the three pinned release profiles (Phase 10,
+        // D-01) — the message must not imply that 2.1/3.x/4.x are usable
+        // values for it (MI-02, Pitfall 6).
+        "unknown --profile value: \{profile_id} (expected flink-2.3.0, flink-2.1.3, or flink-1.20.5)\n"
       } else {
         "unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)\n"
       }

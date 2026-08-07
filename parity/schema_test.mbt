@@ -37,15 +37,22 @@ test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
   assert_true(@binding.validate_schema_version("fathom.capabilities.v1") is Ok(_))
   assert_true(@binding.validate_schema_version("fathom.parse.v9") is Err(@binding.SchemaError::UnsupportedSchemaVersion(..)))
   // validate_dialect_profile is the single gate: doris accepts exactly
-  // 2.1/3.x/4.x; every flink profile is rejected in Phase 9; unknown dialects
-  // return UnknownDialect (FATHOM-SCHEMA-007).
+  // 2.1/3.x/4.x; flink accepts exactly the three pinned release profiles
+  // (Phase 10, D-01); unknown dialects return UnknownDialect
+  // (FATHOM-SCHEMA-007).
   assert_true(@binding.validate_dialect_profile("doris", "2.1") is Ok(_))
   assert_true(@binding.validate_dialect_profile("doris", "3.x") is Ok(_))
   assert_true(@binding.validate_dialect_profile("doris", "4.x") is Ok(_))
   assert_true(@binding.validate_dialect_profile("doris", "5.x") is Err(@binding.SchemaError::UnsupportedProfile(..)))
   assert_true(@binding.validate_dialect_profile("mysql", "4.x") is Err(@binding.SchemaError::UnknownDialect(..)))
   assert_true(@binding.validate_dialect_profile("doris", "mysql") is Err(@binding.SchemaError::UnsupportedProfile(..)))
-  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3.0") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3.0") is Ok(_))
+  assert_true(@binding.validate_dialect_profile("flink", "flink-2.1.3") is Ok(_))
+  assert_true(@binding.validate_dialect_profile("flink", "flink-1.20.5") is Ok(_))
+  // Exact-match only: the Doris-shaped "2.1" and adjacent ids are rejected.
+  assert_true(@binding.validate_dialect_profile("flink", "2.1") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3.0-rc1") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3") is Err(@binding.SchemaError::UnsupportedProfile(..)))
 }
 
 test "schema_fixture_requires_leaf_kinds_and_half_open_spans" {

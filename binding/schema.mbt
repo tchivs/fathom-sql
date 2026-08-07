@@ -35,15 +35,21 @@ pub fn validate_source_transport(transport : String) -> Result[Unit, SchemaError
 
 /// Explicit dialect+profile selection validation (Pitfall 6, D-11): the
 /// dialect is validated FIRST (unknown -> UnknownDialect), then the profile is
-/// validated per dialect. flink is a legal dialect whose profiles are ALL
-/// rejected until Phase 10 (A1/OQ1) — no Doris fallback, no silent default.
+/// validated per dialect. flink accepts exactly the three pinned release
+/// profiles (Phase 10, D-01) — no Doris fallback, no silent default; unknown
+/// flink profiles reject with UnsupportedProfile (FATHOM-SCHEMA-003), and
+/// unknown dialects return UnknownDialect (FATHOM-SCHEMA-007) (D-05 — no
+/// FATHOM-FLINK-* namespace, dialect rides in metadata fields).
 pub fn validate_dialect_profile(dialect : String, profile : String) -> Result[Unit, SchemaError] {
   match dialect {
     "doris" => match profile {
       "2.1" | "3.x" | "4.x" => Ok(())
       _ => Err(UnsupportedProfile(profile~))
     }
-    "flink" => Err(UnsupportedProfile(profile~))
+    "flink" => match profile {
+      "flink-2.3.0" | "flink-2.1.3" | "flink-1.20.5" => Ok(())
+      _ => Err(UnsupportedProfile(profile~))
+    }
     _ => Err(UnknownDialect(dialect~))
   }
 }
@@ -183,10 +189,11 @@ pub fn format_error_json(error : @api.FormatError) -> String {
 
 /// Per-dialect profile availability under fathom.dialect.v1 (OQ4): the
 /// dialect's released profiles with exact_release/feature_introduction taken
-/// ONLY from DorisProfile metadata (T-09-18 provenance discipline — nothing
-/// fabricated). flink is a legal dialect whose profile set is empty until
-/// Phase 10 (A1); an unknown dialect is a structured UnknownDialect error
-/// (FATHOM-SCHEMA-007).
+/// ONLY from dialect profile metadata (T-09-18 provenance discipline — nothing
+/// fabricated). flink reports its three pinned release profiles
+/// (flink-2.3.0/2.1.3/1.20.5) with calcite_version/parser_config read only
+/// from FlinkProfileMetadata (D-02); an unknown dialect is a structured
+/// UnknownDialect error (FATHOM-SCHEMA-007).
 pub fn dialect_json(dialect : String) -> String {
   match dialect {
     "doris" => {
@@ -213,11 +220,27 @@ pub fn dialect_json(dialect : String) -> String {
       })
     }
     "flink" => {
+      let profiles = ["flink-2.3.0", "flink-2.1.3", "flink-1.20.5"]
+      let entries : Array[Json] = []
+      for profile in profiles {
+        let selection = match @api.ParseOptions::new("flink", profile, "strict") {
+          Ok(selection) => selection
+          Err(error) => return parse_error_json(error)
+        }
+        let metadata = selection.flink_profile_metadata()
+        entries.push(Json::object({
+          "id": Json::string(profile),
+          "exact_release": Json::string(metadata.exact_release),
+          "calcite_version": Json::string(metadata.calcite_version),
+          "parser_config": Json::string(metadata.parser_config),
+          "feature_introduction": Json::string(metadata.feature_introduction),
+        }))
+      }
       stringify({
         "schema_version": Json::string("fathom.dialect.v1"),
         "dialect": Json::string("flink"),
         "source_transport": Json::string(SOURCE_TRANSPORT),
-        "profiles": Json::array([]),
+        "profiles": Json::array(entries),
         "modes": Json::array([Json::string("strict"), Json::string("editor")]),
       })
     }
@@ -245,7 +268,11 @@ pub fn capabilities_json() -> String {
       }),
       Json::object({
         "dialect": Json::string("flink"),
-        "profiles": Json::array([]),
+        "profiles": Json::array([
+          Json::string("flink-2.3.0"),
+          Json::string("flink-2.1.3"),
+          Json::string("flink-1.20.5"),
+        ]),
       }),
     ]),
     "modes": Json::array([Json::string("strict"), Json::string("editor")]),

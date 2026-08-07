@@ -48,10 +48,11 @@ pub fn fathom_format_v1(
   trailing_newline : Bool,
 ) -> Bytes {
   // Dialect/profile validated FIRST (Pitfall 6, T-09-10): a flink request is
-  // rejected with the structured unsupported-profile error before any option
-  // parsing or formatting — never a Doris-policy format of a flink request.
-  // The ParseOptions also supplies the exact_release metadata for the result
-  // envelope (DIALECT-04).
+  // accepted only for the three pinned release profiles; unknown flink
+  // profiles reject with the structured unsupported-profile error before any
+  // option parsing or formatting — never a Doris-policy format of a flink
+  // request. The ParseOptions also supplies the exact_release metadata for the
+  // result envelope (DIALECT-04).
   let selection = match @api.ParseOptions::new(dialect, profile, mode) {
     Ok(options) => options
     Err(error) => return parse_error_bytes(error)
@@ -87,7 +88,7 @@ pub fn fathom_format_v1(
           result,
           dialect,
           profile,
-          selection.profile_metadata().exact_release,
+          selection.exact_release(),
         ),
       )
     }

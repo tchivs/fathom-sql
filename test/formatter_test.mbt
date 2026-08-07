@@ -1669,15 +1669,27 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
 }
 
 /// DIALECT-03 / Pitfall 6: the format path is dialect-aware end-to-end.
-/// (a) A flink selection is rejected with the structured UnknownProfile error
-/// BEFORE any formatting runs — no Doris-policy output is produced for a flink
-/// request (T-09-10). (b) The refusal diagnostic on malformed input carries
-/// the neutral FATHOM-FORMAT-001 code.
+/// (a) A flink selection is accepted only for the pinned release profiles; the
+/// not-implemented tree is refused with FATHOM-FORMAT-001 (never partial
+/// bytes, never a Doris-policy output for a flink request — T-09-10); an
+/// unknown flink profile rejects with UnknownProfile BEFORE any formatting
+/// runs. (b) The refusal diagnostic on malformed input carries the neutral
+/// FATHOM-FORMAT-001 code.
 test "formatter_dialect_selection_is_validated_first" {
-  // (a) flink is a legal dialect whose profiles are all rejected in Phase 9;
-  // the api entry rejects the selection before any parse/format work.
-  let flink = @api.format_with_ids(b"select 1", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default())
-  assert_true(flink is Err(@api.ParseError::UnknownProfile(profile_id="flink-2.3.0")))
+  // (a) flink-2.3.0 is a valid Phase 10 selection: the formatter refuses the
+  // FATHOM-PARSE-008 not-implemented tree (accepted=false + FATHOM-FORMAT-001,
+  // empty output) — no Doris-policy formatting ever. An unknown flink profile
+  // (the Doris-shaped "2.1") is rejected by the api entry before any work.
+  let flink = match @api.format_with_ids(b"select 1", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!flink.accepted)
+  assert_eq(flink.output.length(), 0)
+  assert_eq(flink.diagnostics[flink.diagnostics.length() - 1].code, "FATHOM-FORMAT-001")
+  assert_true(flink.diagnostics[0].code == "FATHOM-PARSE-008")
+  let flink_unknown = @api.format_with_ids(b"select 1", "flink", "2.1", "strict", @formatter.FormatOptions::default())
+  assert_true(flink_unknown is Err(@api.ParseError::UnknownProfile(profile_id="2.1")))
   // Unknown dialect: structured UnknownDialect, never a Doris fallback.
   let unknown = @api.format_with_ids(b"select 1", "mysql", "4.x", "strict", @formatter.FormatOptions::default())
   assert_true(unknown is Err(@api.ParseError::UnknownDialect(dialect_id="mysql")))
