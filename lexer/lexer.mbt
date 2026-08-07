@@ -78,6 +78,17 @@ fn is_ascii_digit(byte : Int) -> Bool {
   byte >= 48 && byte <= 57
 }
 
+// #CHARSETNAME first char: ["a"-"z","A"-"Z","0"-"9"] — deliberately excludes
+// `_` (which is an identifier char but not a CHARSETNAME start).
+fn is_charsetname_start(byte : Int) -> Bool {
+  (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57)
+}
+
+// #CHARSETNAME continuation: ["a"-"z","A"-"Z","0"-"9",":",".","-","_"].
+fn is_charsetname_continue(byte : Int) -> Bool {
+  is_charsetname_start(byte) || byte == 58 || byte == 46 || byte == 45 || byte == 95
+}
+
 // Multi-character comparison operators are single symbols: <=, >=, <>, !=,
 // and the three-character <=>. Other symbols remain single-byte tokens.
 fn symbol_width(bytes : Bytes, index : Int) -> Int {
@@ -329,10 +340,14 @@ fn flink_supports_escape_literal(context : @dialect.DialectContext) -> Bool {
   }
 }
 
-/// Flink literal-prefix detection at an identifier boundary (D-03): X/U&/N/E
-/// followed by `'` consume the whole prefixed literal as ONE StringLiteral
-/// token. `B` is deliberately absent — no BIT_STRING_LITERAL token exists in
-/// any pinned release (10-RESEARCH.md §9), so `B'..'` stays Identifier+String.
+/// Flink literal-prefix detection at an identifier boundary (D-03):
+/// X/U&/N/E/_CHARSETNAME followed by `'` consume the whole prefixed literal
+/// as ONE StringLiteral token. The `_` form is PREFIXED_STRING_LITERAL's
+/// `("_" <CHARSETNAME> | "N")` alternative (Parser.jj:8778): a CHARSETNAME
+/// run ([A-Za-z0-9] start, then [A-Za-z0-9:._-]*, :8784) must immediately
+/// precede the quote. `B` is deliberately absent — no BIT_STRING_LITERAL
+/// token exists in any pinned release (10-RESEARCH.md §9), so `B'..'` stays
+/// Identifier+String.
 fn flink_prefixed_literal(
   bytes : Bytes,
   start : Int,
@@ -348,6 +363,26 @@ fn flink_prefixed_literal(
     bytes[id_end].to_int() == 38 && bytes[id_end + 1].to_int() == 39 {
     let (end, code) = scan_flink_string(bytes, id_end + 1)
     return Some((end, code))
+  }
+  // _CHARSETNAME'..' PREFIXED_STRING_LITERAL (Parser.jj:8778): the identifier
+  // scanner consumes `_CHARSETNAME` as one run (underscore is an identifier
+  // char), so the single-char gate below can never hold for this form. Scan
+  // the CHARSETNAME suffix ([A-Za-z0-9] start, then [A-Za-z0-9:._-]* per
+  // #CHARSETNAME Parser.jj:8784) and require the immediate `'` before handing
+  // off to scan_flink_string. A bare `_'..'` (no CHARSETNAME) is NOT a
+  // prefixed literal — it stays Identifier `_` + StringLiteral.
+  if bytes[start].to_int() == 95 { // '_'
+    let mut cursor = start + 1
+    if cursor < length && is_charsetname_start(bytes[cursor].to_int()) {
+      cursor = cursor + 1
+      while cursor < length && is_charsetname_continue(bytes[cursor].to_int()) {
+        cursor = cursor + 1
+      }
+      if cursor < length && bytes[cursor].to_int() == 39 {
+        let (end, code) = scan_flink_string(bytes, cursor)
+        return Some((end, code))
+      }
+    }
   }
   // Single-character prefix followed by `'`.
   let quote = bytes[id_end].to_int() == 39
@@ -1065,6 +1100,70 @@ test "flink_lexer_prefixed_literals_and_b_not_prefix" {
   assert_eq(b_id.raw(b_source), Some(b"B"))
   assert_true(b_str.kind is @token.TokenKind::StringLiteral)
   assert_eq(b_str.raw(b_source), Some(b"'101'"))
+}
+
+test "flink_lexer_charsetname_prefixed_literal" {
+  // _UTF8'abc' is ONE literal token (PREFIXED_STRING_LITERAL with the
+  // `_` <CHARSETNAME> alternative, Parser-calcite-1.36.0.jj:8778; #CHARSETNAME
+  // :8784) — NOT Identifier `_UTF8` + StringLiteral `'abc'`.
+  let flink_source = match @source.SourceText::new(b"_UTF8'abc'") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let flink_stream = lex(flink_source, test_flink_context("flink-2.3.0"))
+  assert_eq(flink_stream.length(), 1)
+  let token = match flink_stream.at(0) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(token.kind is @token.TokenKind::StringLiteral)
+  assert_eq(token.raw(flink_source), Some(b"_UTF8'abc'"))
+  assert_eq(token.span.start_byte, 0)
+  assert_eq(token.span.end_byte, 10)
+  // A CHARSETNAME may continue with ':', '.', '-' and '_' after the first
+  // char — the run is scanned past the identifier boundary (bytes[6] `-` is
+  // not an identifier-continue char but IS a CHARSETNAME char).
+  let dotted_source = match @source.SourceText::new(b"_latin-1:win'x'") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let dotted_stream = lex(dotted_source, test_flink_context("flink-2.3.0"))
+  assert_eq(dotted_stream.length(), 1)
+  let dotted = match dotted_stream.at(0) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(dotted.kind is @token.TokenKind::StringLiteral)
+  assert_eq(dotted.raw(dotted_source), Some(b"_latin-1:win'x'"))
+  assert_eq(dotted.span.start_byte, 0)
+  assert_eq(dotted.span.end_byte, 15)
+  // Doris path unchanged: `_UTF8` is an Identifier and `'abc'` a StringLiteral.
+  let doris_source = match @source.SourceText::new(b"_UTF8'abc'") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let doris_stream = lex(doris_source, test_doris_context("4.x"))
+  assert_eq(doris_stream.length(), 2)
+  let id = match doris_stream.at(0) {
+    Some(token) => token
+    None => panic()
+  }
+  let str = match doris_stream.at(1) {
+    Some(token) => token
+    None => panic()
+  }
+  assert_true(id.kind is @token.TokenKind::Identifier)
+  assert_eq(id.raw(doris_source), Some(b"_UTF8"))
+  assert_true(str.kind is @token.TokenKind::StringLiteral)
+  assert_eq(str.raw(doris_source), Some(b"'abc'"))
+  // A bare `_'abc'` (no CHARSETNAME after `_`) is NOT a prefixed literal:
+  // Identifier `_` + StringLiteral `'abc'`.
+  let bare_source = match @source.SourceText::new(b"_'abc'") {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let bare_stream = lex(bare_source, test_flink_context("flink-2.3.0"))
+  assert_eq(bare_stream.length(), 2)
 }
 
 test "flink_lexer_operator_symbols_single_tokens" {
