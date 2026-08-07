@@ -56,7 +56,7 @@ fn flink_lexical_parse_json(id : String, dialect : String, profile : String, mod
   @utf8.decode_lossy(@binding.fathom_parse_v1(fixture.raw, dialect, profile, mode)[:])
 }
 
-fn snapshot_test(t : @test.Test, content : String, filename : String) -> Unit raise SnapshotError {
+fn flink_snapshot_test(t : @test.Test, content : String, filename : String) -> Unit raise SnapshotError {
   t.write(content)
   t.snapshot(filename=filename)
 }
@@ -67,22 +67,22 @@ fn snapshot_test(t : @test.Test, content : String, filename : String) -> Unit ra
 // ---------------------------------------------------------------------------
 test "flink-lexical hash-comment flink-2.3.0 strict" {
   let t = @test.Test("flink-lexical hash-comment flink-2.3.0 strict")
-  snapshot_test(t, flink_lexical_parse_json("hash-comment", "flink", "flink-2.3.0", "strict"), "flink-lexical.hash-comment.flink-2.3.0.strict.json")
+  flink_snapshot_test(t, flink_lexical_parse_json("hash-comment", "flink", "flink-2.3.0", "strict"), "flink-lexical.hash-comment.flink-2.3.0.strict.json")
 }
 
 test "flink-lexical hash-comment flink-2.3.0 editor" {
   let t = @test.Test("flink-lexical hash-comment flink-2.3.0 editor")
-  snapshot_test(t, flink_lexical_parse_json("hash-comment", "flink", "flink-2.3.0", "editor"), "flink-lexical.hash-comment.flink-2.3.0.editor.json")
+  flink_snapshot_test(t, flink_lexical_parse_json("hash-comment", "flink", "flink-2.3.0", "editor"), "flink-lexical.hash-comment.flink-2.3.0.editor.json")
 }
 
 test "flink-lexical hash-comment doris-4.x strict" {
   let t = @test.Test("flink-lexical hash-comment doris-4.x strict")
-  snapshot_test(t, flink_lexical_parse_json("hash-comment", "doris", "4.x", "strict"), "flink-lexical.hash-comment.doris-4.x.strict.json")
+  flink_snapshot_test(t, flink_lexical_parse_json("hash-comment", "doris", "4.x", "strict"), "flink-lexical.hash-comment.doris-4.x.strict.json")
 }
 
 test "flink-lexical hash-comment doris-4.x editor" {
   let t = @test.Test("flink-lexical hash-comment doris-4.x editor")
-  snapshot_test(t, flink_lexical_parse_json("hash-comment", "doris", "4.x", "editor"), "flink-lexical.hash-comment.doris-4.x.editor.json")
+  flink_snapshot_test(t, flink_lexical_parse_json("hash-comment", "doris", "4.x", "editor"), "flink-lexical.hash-comment.doris-4.x.editor.json")
 }
 
 /// D-06 conflict contract: the same input must NOT tokenize identically under
