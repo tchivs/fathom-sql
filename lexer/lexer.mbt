@@ -247,6 +247,149 @@ fn scan_quoted(bytes : Bytes, start : Int, quote : Int) -> (Int, String?) {
   (length, Some("LEX_UNTERMINATED_LITERAL"))
 }
 
+// ---------------------------------------------------------------------------
+// Flink lexical scanners (D-03, grounded in 10-RESEARCH.md §9). The Flink arms
+// never reuse the Doris backslash-escaping policy: QUOTED_STRING doubles `''`
+// with NO backslash escape (Parser-calcite-1.36.0.jj:8715), BTID double-backticks
+// with no backslash escape and no embedded newline (:8951-8962), and
+// C_STYLE_ESCAPED_STRING_LITERAL allows backslash escapes (:8721 / 1.34.0:8469).
+// ---------------------------------------------------------------------------
+
+/// Flink `'...'`: `''` doubling only, no backslash escape, newlines allowed
+/// (`<QUOTED_STRING: <QUOTE> ( (~["'"]) | ("''"))* <QUOTE>>`).
+fn scan_flink_string(bytes : Bytes, start : Int) -> (Int, String?) {
+  let length = bytes.length()
+  let mut index = start + 1
+  while index < length {
+    let byte = bytes[index].to_int()
+    if byte == 39 {
+      if index + 1 < length && bytes[index + 1].to_int() == 39 {
+        index = index + 2
+      } else {
+        return (index + 1, None)
+      }
+    } else {
+      index = index + 1
+    }
+  }
+  (length, Some("LEX_UNTERMINATED_LITERAL"))
+}
+
+/// Flink `E'...'`: C_STYLE_ESCAPED_STRING_LITERAL — `''` doubling AND backslash
+/// escapes (`"E" <QUOTE> ( (~["'", "\\"]) | ("\\" ~[]) | "''")* <QUOTE>`).
+fn scan_flink_escaped_string(bytes : Bytes, start : Int) -> (Int, String?) {
+  let length = bytes.length()
+  let mut index = start + 1
+  while index < length {
+    let byte = bytes[index].to_int()
+    if byte == 92 {
+      index = if index + 1 < length { index + 2 } else { length }
+    } else if byte == 39 {
+      if index + 1 < length && bytes[index + 1].to_int() == 39 {
+        index = index + 2
+      } else {
+        return (index + 1, None)
+      }
+    } else {
+      index = index + 1
+    }
+  }
+  (length, Some("LEX_UNTERMINATED_LITERAL"))
+}
+
+/// Flink backtick identifier: BTID state — double-backtick escape, no backslash
+/// escape, and a raw newline/CR terminates the identifier (unterminated), so
+/// spans stay source-backed and bounded exactly like the shared scanner.
+fn scan_flink_backtick(bytes : Bytes, start : Int) -> (Int, String?) {
+  let length = bytes.length()
+  let mut index = start + 1
+  while index < length {
+    let byte = bytes[index].to_int()
+    if byte == 96 {
+      if index + 1 < length && bytes[index + 1].to_int() == 96 {
+        index = index + 2
+      } else {
+        return (index + 1, None)
+      }
+    } else if byte == 10 || byte == 13 {
+      return (index, Some("LEX_UNTERMINATED_LITERAL"))
+    } else {
+      index = index + 1
+    }
+  }
+  (length, Some("LEX_UNTERMINATED_LITERAL"))
+}
+
+/// The E-literal availability gate reads the selected FlinkProfile
+/// (flink-2.3.0/2.1.3 allow, flink-1.20.5 denies — T-10-08).
+fn flink_supports_escape_literal(context : @dialect.DialectContext) -> Bool {
+  match @dialect.FlinkProfile::from_id(context.profile_id) {
+    Some(profile) => profile.supports_escape_literal()
+    None => false
+  }
+}
+
+/// Flink literal-prefix detection at an identifier boundary (D-03): X/U&/N/E
+/// followed by `'` consume the whole prefixed literal as ONE StringLiteral
+/// token. `B` is deliberately absent — no BIT_STRING_LITERAL token exists in
+/// any pinned release (10-RESEARCH.md §9), so `B'..'` stays Identifier+String.
+fn flink_prefixed_literal(
+  bytes : Bytes,
+  start : Int,
+  id_end : Int,
+  context : @dialect.DialectContext,
+) -> (Int, String?)? {
+  let length = bytes.length()
+  if id_end >= length {
+    return None
+  }
+  // U&'..' UNICODE_STRING_LITERAL: "U" "&" <QUOTED_STRING> (Parser.jj:8719).
+  if id_end + 1 < length && id_end - start == 1 && bytes[start].to_int() == 85 &&
+    bytes[id_end].to_int() == 38 && bytes[id_end + 1].to_int() == 39 {
+    let (end, code) = scan_flink_string(bytes, id_end + 1)
+    return Some((end, code))
+  }
+  // Single-character prefix followed by `'`.
+  let quote = bytes[id_end].to_int() == 39
+  if !quote || id_end - start != 1 {
+    return None
+  }
+  let first = bytes[start].to_int()
+  // X'..' BINARY_STRING_LITERAL: ["x","X"] <QUOTE> ... (:8708).
+  if first == 88 || first == 120 {
+    let (end, code) = scan_flink_string(bytes, id_end)
+    return Some((end, code))
+  }
+  // N'..' PREFIXED_STRING_LITERAL: ("_" <CHARSETNAME> | "N") <QUOTED_STRING> (:8717).
+  if first == 78 {
+    let (end, code) = scan_flink_string(bytes, id_end)
+    return Some((end, code))
+  }
+  // E'..' C_STYLE_ESCAPED_STRING_LITERAL, gated by the pinned Calcite version
+  // (1.36.0/1.34.0 yes, 1.32.0 no — :8721/8469/absent).
+  if first == 69 && flink_supports_escape_literal(context) {
+    let (end, code) = scan_flink_escaped_string(bytes, id_end)
+    return Some((end, code))
+  }
+  None
+}
+
+/// Flink symbol width: adds CONCAT `||`, NAMED_ARGUMENT_ASSIGNMENT `=>`, and
+/// DOUBLE_PERIOD `..` (Parser-calcite-1.36.0.jj:8793-8795) on top of the shared
+/// comparison operators; the Doris width is unchanged for the Doris arm.
+fn symbol_width_flink(bytes : Bytes, index : Int) -> Int {
+  let length = bytes.length()
+  if index + 1 < length {
+    let first = bytes[index].to_int()
+    let second = bytes[index + 1].to_int()
+    if (first == 124 && second == 124) || (first == 61 && second == 62) ||
+      (first == 46 && second == 46) {
+      return 2
+    }
+  }
+  symbol_width(bytes, index)
+}
+
 pub fn lex_with_limit(source : @source.SourceText, context : @dialect.DialectContext, max_tokens : Int) -> @token.TokenStream {
   let bytes = source.bytes()
   let source_length = bytes.length()
@@ -299,6 +442,18 @@ pub fn lex_with_limit(source : @source.SourceText, context : @dialect.DialectCon
         }
         index = end
       }
+    } else if byte == 47 && index + 1 < source_length && bytes[index + 1].to_int() == 47 &&
+      context.dialect is @dialect.Dialect::Flink {
+      // Flink SINGLE_LINE_COMMENT `//` (Parser-calcite-1.36.0.jj:8901 — the
+      // same token accepts "//" and "--"). The Doris arm keeps `//` as two
+      // SLASH symbols byte-identically (below, symbol branch).
+      let start = index
+      let (end, code) = scan_comment(bytes, index)
+      match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::Comment, start, end, code, max_tokens) {
+        Some(at) => if truncated_at is None { truncated_at = Some(at) }
+        None => ()
+      }
+      index = end
     } else if byte == 47 && index + 1 < source_length && bytes[index + 1].to_int() == 42 {
       let (end, code) = scan_comment(bytes, index)
       match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::Comment, index, end, code, max_tokens) {
@@ -308,12 +463,34 @@ pub fn lex_with_limit(source : @source.SourceText, context : @dialect.DialectCon
       index = end
     } else if byte == 39 {
       let start = index
-      let (end, code) = scan_quoted(bytes, index, byte)
+      // Flink `'...'` uses QUOTED_STRING doubling with NO backslash escape
+      // (Parser-calcite-1.36.0.jj:8715); the Doris arm keeps backslash escape.
+      let (end, code) = if context.dialect is @dialect.Dialect::Flink {
+        scan_flink_string(bytes, index)
+      } else {
+        scan_quoted(bytes, index, byte)
+      }
       match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::StringLiteral, start, end, code, max_tokens) {
         Some(at) => if truncated_at is None { truncated_at = Some(at) }
         None => ()
       }
       index = end
+    } else if byte == 96 && context.dialect is @dialect.Dialect::Flink {
+      // Flink backtick identifier per BTID (double-backtick escape, no
+      // backslash escape, no raw newline) — Parser-calcite-1.36.0.jj:8951-8962.
+      let start = index
+      let (end, code) = scan_flink_backtick(bytes, index)
+      match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::Quoted, start, end, code, max_tokens) {
+        Some(at) => if truncated_at is None { truncated_at = Some(at) }
+        None => ()
+      }
+      index = end
+    } else if byte == 34 && context.dialect is @dialect.Dialect::Flink {
+      // Flink DOUBLE_QUOTE symbol (Parser-calcite-1.36.0.jj:8797): no consuming
+      // production — at the lexical layer `"` is a Symbol, the parse-level
+      // error is Phase 11 grammar's concern. Doris keeps `"` as Quoted below.
+      push_token(tokens, source_length, context, @token.TokenKind::Symbol, index, index + 1, None)
+      index = index + 1
     } else if byte == 34 || byte == 96 {
       let start = index
       let (end, code) = scan_quoted(bytes, index, byte)
@@ -349,7 +526,24 @@ pub fn lex_with_limit(source : @source.SourceText, context : @dialect.DialectCon
           }
         }
       }
-      push_token(tokens, source_length, context, @token.TokenKind::Identifier, start, index, None)
+      let id_end = index
+      if context.dialect is @dialect.Dialect::Flink {
+        // Flink literal prefixes (X/U&/N/E'..') are ONE literal token — D-03.
+        match flink_prefixed_literal(bytes, start, id_end, context) {
+          Some((literal_end, code)) => {
+            match push_scanned_with_invalid(tokens, bytes, source_length, context, @token.TokenKind::StringLiteral, start, literal_end, code, max_tokens) {
+              Some(at) => if truncated_at is None { truncated_at = Some(at) }
+              None => ()
+            }
+            index = literal_end
+          }
+          None => {
+            push_token(tokens, source_length, context, @token.TokenKind::Identifier, start, id_end, None)
+          }
+        }
+      } else {
+        push_token(tokens, source_length, context, @token.TokenKind::Identifier, start, id_end, None)
+      }
     } else {
       match utf8_width(bytes, index) {
         Some(width) if byte >= 128 => {
@@ -373,7 +567,11 @@ pub fn lex_with_limit(source : @source.SourceText, context : @dialect.DialectCon
           )
         }
         _ => {
-          let width = symbol_width(bytes, index)
+          let width = if context.dialect is @dialect.Dialect::Flink {
+            symbol_width_flink(bytes, index)
+          } else {
+            symbol_width(bytes, index)
+          }
           push_token(tokens, source_length, context, @token.TokenKind::Symbol, index, index + width, None)
           index = index + width
         }
@@ -820,7 +1018,7 @@ test "flink_lexer_prefixed_literals_and_b_not_prefix" {
   assert_true(x_tok.kind is @token.TokenKind::StringLiteral)
   assert_eq(x_tok.raw(x_source), Some(b"X'AB'"))
   assert_eq(x_tok.span.start_byte, 0)
-  assert_eq(x_tok.span.end_byte, 6)
+  assert_eq(x_tok.span.end_byte, 5)
   // U&'d\0061t' -> ONE literal token (UNICODE_STRING_LITERAL, :8719).
   let u_source = match @source.SourceText::new(b"U&'d\\0061t'") {
     Ok(source) => source

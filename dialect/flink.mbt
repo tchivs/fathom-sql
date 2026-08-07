@@ -61,6 +61,17 @@ pub fn FlinkProfile::id(self : FlinkProfile) -> String {
   self.metadata().id
 }
 
+/// C_STYLE_ESCAPED_STRING_LITERAL availability (`E'..'`): present in Calcite
+/// 1.36.0 (Parser-calcite-1.36.0.jj:8721) and 1.34.0 (:8469), ABSENT in
+/// 1.32.0 (flink-1.20.5). The lexer's E-literal profile gate (T-10-08) reads
+/// this — never a hand-written Calcite folklore guess.
+pub fn FlinkProfile::supports_escape_literal(self : FlinkProfile) -> Bool {
+  match self {
+    V2_3_0 | V2_1_3 => true
+    V1_20_5 => false
+  }
+}
+
 /// Closed exact-match lookup (D-01, Pitfall 6): only the three pinned release
 /// profile ids resolve. `flink-2.3`, `flink-2.3.0-rc1`, and the Doris-shaped
 /// `2.1` return None — no prefix/suffix matching, no version comparison, no
