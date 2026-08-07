@@ -115,6 +115,31 @@ fn doris_test_context() -> DialectContext {
   }
 }
 
+fn flink_test_context(profile_id : String) -> DialectContext {
+  { dialect: Dialect::Flink, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
+}
+
+fn flink_2_3_0_context() -> DialectContext {
+  flink_test_context("flink-2.3.0")
+}
+
+fn flink_2_1_3_context() -> DialectContext {
+  flink_test_context("flink-2.1.3")
+}
+
+fn flink_1_20_5_context() -> DialectContext {
+  flink_test_context("flink-1.20.5")
+}
+
+/// True iff the word has a Reserved row under the context (D-14 reserved-word
+/// gate). Helper used by the release-aware independence test.
+fn classification_is_reserved(context : DialectContext, raw : Bytes) -> Bool {
+  match classification_of(context, raw) {
+    Some(entry) => entry.classification is Reserved
+    None => false
+  }
+}
+
 test "released_identifier_classification_is_case_insensitive_and_contextual" {
   let context = doris_test_context()
   for raw in [b"SELECT", b"with", b"As", b"AND", b"or", b"FROM", b"window"] {
@@ -129,15 +154,36 @@ test "released_identifier_classification_is_case_insensitive_and_contextual" {
   assert_true(is_unquoted_identifier(context, b"user_name"))
 }
 
-test "classification_is_dialect_independent_and_flink_rows_are_empty" {
+test "classification_is_dialect_independent_and_release_aware" {
   let doris = doris_test_context()
-  let flink = { dialect: Dialect::Flink, profile_id: "flink-2.3.0", exact_release: "flink-2.3.0", feature_introduction: "" }
-  // The same word classified under Doris stays classified under Doris, while
-  // the Flink table is intentionally empty in Phase 9 (DIALECT-02; Phase 10
-  // fills it) — no cross-dialect leakage, no global union.
+  let flink_230 = flink_2_3_0_context()
+  let flink_213 = flink_2_1_3_context()
+  // Flink rows are populated per release (10-03, RESEARCH Open Question 3
+  // RESOLVED) with release-grammar provenance — never empty after this plan
+  // (probe FLINK-01 empty).
+  assert_true(classification_entries(flink_230).length() > 0)
+  // Version-sensitive words classify Reserved under the profiles that
+  // introduced them: VARIANT and QUALIFY are 2.1.3-delta reserved words.
+  assert_true(classification_is_reserved(flink_230, b"VARIANT"))
+  assert_true(classification_is_reserved(flink_213, b"VARIANT"))
+  assert_true(classification_is_reserved(flink_213, b"QUALIFY"))
+  // introduced_profile is the release that first classified the word (W-1
+  // 2.1.3-delta list, RESEARCH §10).
+  match classification_of(flink_213, b"VARIANT") {
+    Some(entry) => assert_eq(entry.introduced_profile, "flink-2.1.3")
+    None => assert_true(false)
+  }
+  match classification_of(flink_213, b"QUALIFY") {
+    Some(entry) => assert_eq(entry.introduced_profile, "flink-2.1.3")
+    None => assert_true(false)
+  }
+  // Doris is byte-identical: 116 rows, VARIANT is not a Doris reserved word,
+  // SELECT is — no cross-dialect leakage, no global union (DIALECT-02,
+  // Pitfall 4, T-10-12).
+  assert_eq(classification_entries(doris).length(), 116)
+  assert_true(!is_reserved_word(doris, b"VARIANT"))
+  assert_true(is_reserved_word(doris, b"SELECT"))
+  // The same core word classifies under both dialects independently.
+  assert_true(classification_of(flink_230, b"SELECT") is Some(_))
   assert_true(classification_of(doris, b"SELECT") is Some(_))
-  assert_true(classification_of(flink, b"SELECT") is None)
-  assert_eq(classification_entries(flink).length(), 0)
-  assert_true(!is_reserved_word(flink, b"SELECT"))
-  assert_true(is_unquoted_identifier(flink, b"SELECT"))
 }
