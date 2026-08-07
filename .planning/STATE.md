@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 10
 current_phase_name: Flink Release Profiles and Lexical Core
-status: executing
-stopped_at: Completed 10-02-PLAN.md (flink lexical core + conflict-matrix snapshots)
-last_updated: "2026-08-07T11:22:17.664Z"
+status: verifying
+stopped_at: Completed 10-03-PLAN.md (flink keyword classification per release)
+last_updated: "2026-08-07T11:40:39.398Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 10
-  completed_plans: 9
-  percent: 20
+  completed_plans: 10
+  percent: 40
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 Phase: 10 (Flink Release Profiles and Lexical Core) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
-**Progress:** [█████████░] 90%
+Status: Phase complete — ready for verification
+**Progress:** [██████████] 100%
 Last activity: 2026-08-07 — Phase 10 execution started
 
 ## Performance Metrics
@@ -93,6 +93,7 @@ Last activity: 2026-08-07 — Phase 10 execution started
 | Phase 09-dialect-boundary-and-neutral-naming P07 | unknown | 4 tasks | 47 files |
 | Phase 10-flink-release-profiles-and-lexical-core P01 | 1.5 | 4 tasks | 15 files |
 | Phase 10-flink-release-profiles-and-lexical-core P02 | 10 | 2 tasks | 27 files |
+| Phase 10-flink-release-profiles-and-lexical-core P03 | 75 | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -187,6 +188,8 @@ Recent decisions affecting current work:
 - [Phase ?]: TokenKind unchanged: Flink prefixed literals (X/U&/N/E'..') map to StringLiteral (minimal-extension bias documented in lexer.mbt); token/token.mbt untouched
 - [Phase ?]: E'..' availability gate lives on FlinkProfile::supports_escape_literal (flink-2.3.0/2.1.3 true, flink-1.20.5 false) — policy authority in dialect/, grounded in Parser-calcite-1.36.0.jj:8721/1.34.0:8469/absent-in-1.32.0
 - [Phase ?]: unknown-profile fixture freezes a Doris-shaped id (4.x) under flink (Pitfall 6 — no profile-id borrowing); FATHOM-SCHEMA-003 envelope is mode-independent
+- [Phase ?]: flink_classification_rows scoped to production/conflict words (142 rows) with release-grammar source per row; full 443/430/412-word lists committed as six parity fixture attachments and validated by scripts/extract_flink_lexical.py (Open Question 3 RESOLVED)
+- [Phase ?]: Flink classification is profile-aware in release order flink-1.20.5 < flink-2.1.3 < flink-2.3.0: VARIANT/QUALIFY (introduced flink-2.1.3) are Reserved under 2.3.0/2.1.3 and ABSENT under flink-1.20.5; Doris selection stays dialect-only with the 116-row table byte-identical (T-10-12/13/15)
 
 ### Pending Todos
 
@@ -218,8 +221,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-07T11:22:17.638Z
-Stopped at: Completed 10-02-PLAN.md (flink lexical core + conflict-matrix snapshots)
+Last session: 2026-08-07T11:40:39.373Z
+Stopped at: Completed 10-03-PLAN.md (flink keyword classification per release)
 Resume file: None
 
 ## Quick Tasks Completed
