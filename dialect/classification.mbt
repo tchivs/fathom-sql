@@ -49,13 +49,49 @@ fn token_bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
   }
 }
 
-/// The dialect's classification rows, selected by context.dialect and nothing
-/// else (Pitfall 7): two independent module-level arrays, no shared mutable
-/// state (DIALECT-02 structural independence).
+/// Release-order rank for the pinned Flink profile ids
+/// (flink-1.20.5 < flink-2.1.3 < flink-2.3.0, D-02). A row introduced in a
+/// later release must be ABSENT under earlier profiles; unknown ids return
+/// None so an unknown/unsupported profile id never leaks rows (Pitfall 6).
+fn flink_release_rank(profile_id : String) -> Int? {
+  match profile_id {
+    "flink-1.20.5" => Some(0)
+    "flink-2.1.3" => Some(1)
+    "flink-2.3.0" => Some(2)
+    _ => None
+  }
+}
+
+/// True iff the row's introduced_profile is <= the selected Flink profile in
+/// release order — the per-release gate for Flink keyword visibility
+/// (T-10-13). Doris rows are never routed through this filter (Pitfall 4).
+fn flink_row_visible(row : KeywordEntry, context : DialectContext) -> Bool {
+  match (flink_release_rank(row.introduced_profile), flink_release_rank(context.profile_id)) {
+    (Some(required), Some(selected)) => required <= selected
+    _ => false
+  }
+}
+
+/// The dialect's classification rows, selected by context.dialect (Pitfall 7):
+/// two independent module-level arrays, no shared mutable state (DIALECT-02
+/// structural independence). Doris rows are selected by context.dialect and
+/// NOTHING else; Flink rows are additionally filtered by
+/// `introduced_profile` <= the selected profile in release order
+/// flink-1.20.5 < flink-2.1.3 < flink-2.3.0, so a 2.1.3-introduced word is
+/// ABSENT under flink-1.20.5 and a 2.3.0-introduced word under both 2.1.3 and
+/// 1.20.5 (T-10-13).
 fn classification_rows_for(context : DialectContext) -> Array[KeywordEntry] {
   match context.dialect {
     Dialect::Doris => doris_classification_rows
-    Dialect::Flink => flink_classification_rows
+    Dialect::Flink => {
+      let rows : Array[KeywordEntry] = []
+      for row in flink_classification_rows {
+        if flink_row_visible(row, context) {
+          rows.push(row)
+        }
+      }
+      rows
+    }
   }
 }
 
@@ -158,6 +194,7 @@ test "classification_is_dialect_independent_and_release_aware" {
   let doris = doris_test_context()
   let flink_230 = flink_2_3_0_context()
   let flink_213 = flink_2_1_3_context()
+  let flink_120 = flink_1_20_5_context()
   // Flink rows are populated per release (10-03, RESEARCH Open Question 3
   // RESOLVED) with release-grammar provenance — never empty after this plan
   // (probe FLINK-01 empty).
@@ -167,6 +204,18 @@ test "classification_is_dialect_independent_and_release_aware" {
   assert_true(classification_is_reserved(flink_230, b"VARIANT"))
   assert_true(classification_is_reserved(flink_213, b"VARIANT"))
   assert_true(classification_is_reserved(flink_213, b"QUALIFY"))
+  // The flink-1.20.5 regression profile sees NEITHER word (T-10-13): the
+  // profile-aware filter keeps 2.1.3-introduced rows ABSENT under 1.20.5.
+  assert_true(classification_of(flink_120, b"VARIANT") is None)
+  assert_true(classification_of(flink_120, b"QUALIFY") is None)
+  // A 2.3.0-introduced word is ABSENT under both 2.1.3 and 1.20.5.
+  assert_true(classification_of(flink_213, b"SAFE_CAST") is None)
+  assert_true(classification_of(flink_120, b"SAFE_CAST") is None)
+  assert_true(classification_is_reserved(flink_230, b"SAFE_CAST"))
+  // Baseline words remain visible under every profile (introduced at 1.20.5).
+  assert_true(classification_is_reserved(flink_120, b"SELECT"))
+  assert_true(classification_is_reserved(flink_213, b"SELECT"))
+  assert_true(classification_is_reserved(flink_230, b"SELECT"))
   // introduced_profile is the release that first classified the word (W-1
   // 2.1.3-delta list, RESEARCH §10).
   match classification_of(flink_213, b"VARIANT") {
