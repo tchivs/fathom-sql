@@ -25,6 +25,7 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] 解析、格式化、补全、LSP 与序列化结果携带 dialect/profile/exact-release 元数据，`FATHOM-*` 诊断跨公共边界稳定 — Validated in Phase 9: Dialect Boundary and Neutral Naming
 - [x] 产品层完成 `fathom/sql`、`fathom-sql`、`fathom-lsp` 中立命名 cutover（模块/二进制/导出/schema/错误码/扩展/文档），无旧名 alias；Doris 仅保留为方言/profile/corpus/provenance 语义标识 — Validated in Phase 9: Dialect Boundary and Neutral Naming
 - [x] CI 内置命名 inventory/allowlist 门禁（`check_naming.py`），拒绝产品层 `doris-sql`/`doris-lsp`/`doris.*`/`DORIS-*` 残留 — Validated in Phase 9: Dialect Boundary and Neutral Naming
+- [x] 消费者可选择钉住的 Flink release profile（`flink-2.3.0` 主 + `flink-2.1.3`/`flink-1.20.5` 回归），每个 profile 记录真实 release 的 Calcite 版本/parser 配置（自该 release 提取），不支持者显式拒绝 — Validated in Phase 10: Flink Release Profiles and Lexical Core
 
 ### Active
 
@@ -67,13 +68,13 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Current State
 
-**v2.0 Phase 9 COMPLETE — 2026-08-07** (Dialect Boundary and Neutral Naming)
+**v2.0 Phase 10 COMPLETE — 2026-08-07** (Flink Release Profiles and Lexical Core)
 
-- **多方言边界已落地:** `dialect/` 层（Dialect/DialectContext 闭合枚举、116 行 Doris 分类表 + 空 Flink 表、无全局 union）；API/CLI/LSP/JS-Wasm/Web/VS Code/IntelliJ 全部显式 `--dialect`/`--profile` 选择，缺失/未知/冲突 → 结构化错误（CLI exit 2），无自动检测、无静默回退；Flink 显式 FATHOM-PARSE-008 not-implemented（profile 全拒，Phase 10 解锁）。
-- **命名中立化完成:** `fathom/sql` 模块、`fathom-sql`/`fathom-lsp` 二进制、`fathom_*_v1` exports、`fathom.*.v1` wire schema、`FATHOM-*` 诊断码、LSP serverInfo/source、扩展/文档/CI 全部 cutover，无旧名 alias；`scripts/check_naming.py` 门禁（349 文件 0 残留，CI 强制）。
-- **Doris v1 baseline 字节级冻结:** 213 快照（CST/诊断/格式化/补全/CLI/LSP/wire × profile × mode）+ sha256 corpus 钉住 + approved-changes.md 注册表 + baseline_diff.py；改造后 228/228 parity（native/js/wasm，无 --update）零漂移。
-- **测试:** 460/460 MoonBit（CI 对齐矩阵）+ web 4/4 + vscode tsc + jetbrains source-smoke 全绿；14/14 代码评审 finding 修复；威胁注册 33/33 关闭（ASVS L1）。
-- **已知边界:** 空 flink 输入静默空诊断（UAT 决策接受为 Phase 9 契约，WINDOWS.md #4 追踪）；真实 VS Code/IntelliJ 宿主 UX smoke 归 Phase 13 SC4；`moon test` 裸调用 4219 边界沿用 CI 每包矩阵。
+- **Flink release profiles 解锁:** `FlinkProfile` 闭合枚举（flink-2.3.0 / flink-2.1.3 / flink-1.20.5）+ `FlinkProfileMetadata`，Calcite pin 从各 release 自身 POM 提取（2.3.0→1.36.0、2.1.3→1.34.0、1.20.5→1.32.0），manifest 记录 url/sha512/tag/commit；`scripts/extract_flink_lexical.py` 提取 + 校验（含 manifest sha512 复验）；未知 profile 显式 FATHOM-SCHEMA-003，无 FATHOM-FLINK-* 命名空间。
+- **Flink 词法核心落地:** lexer 按 `context.dialect` 分支 — `#` 在 Flink 下为词法错误（Doris 为注释）、`--`/`//` 单行注释、反引号标识符双反引号转义、字符串 `''` 加倍无反斜杠、X/U&/N/E/_CHARSETNAME 前缀字面量（E 仅 2.3.0/2.1.3，1.20.5 无）、`||`/`=>`/`..` 运算符；profile-aware 关键字分类（VARIANT/QUALIFY 在 2.1.3+ 为 Reserved、1.20.5 为 ABSENT）；26 个 flink-lexical 冲突矩阵快照。
+- **Doris 零漂移保持:** 260/260 parity（含 213 快照 Doris baseline）无 `--update` 通过；Doris lexer 臂字节级一致。
+- **测试:** 502/502 MoonBit（CI 对齐矩阵）+ extract 脚本 exit 0 + 代码评审 7/7 finding 修复 + 威胁注册 21/21 关闭（ASVS L1）。
+- **已知边界:** Flink grammar（语句级解析）→ Phase 11；Flink 工具链 → Phase 13；全量 Flink corpus/parity → Phase 12；`N..N` 数值相邻双句点 token 化与 Calcite 的偏差已记录（冲突矩阵注释，Phase 11 grammar 落地时重访）。
 
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming
 
@@ -104,4 +105,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-07 after Phase 9 (Dialect Boundary and Neutral Naming) completion*
+*Last updated: 2026-08-07 after Phase 10 (Flink Release Profiles and Lexical Core) completion*
