@@ -3,9 +3,10 @@ English | [简体中文](README.zh-CN.md)
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260724-2f80ed)](https://www.moonbitlang.com/)
 [![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](README.zh-CN.md)
-# Fathom
+# Fathom SQL Parser SDK
 
-Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity parsing, diagnostics, and formatting for editors, formatting tools, and automation pipelines.
+Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity parsing, diagnostics, and formatting for editors, formatting tools, and automation pipelines. **Repository:** https://github.com/tchivs/fathom-sql
+
 
 ## Features
 

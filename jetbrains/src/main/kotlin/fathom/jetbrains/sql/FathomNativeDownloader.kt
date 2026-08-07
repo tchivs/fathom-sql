@@ -270,7 +270,7 @@ internal class FathomNativeDownloader(
     private data class CachedBinary(val metadataPath: Path, val binaryPath: Path)
 
     companion object {
-        const val DEFAULT_REPOSITORY = "tchivs/doris-sql-parser-sdk"
+        const val DEFAULT_REPOSITORY = "tchivs/fathom-sql"
         const val MANIFEST_ASSET_NAME = "fathom-lsp-manifest.json"
         const val MANIFEST_SCHEMA_VERSION = 1
         const val METADATA_FILE_NAME = "latest.json"

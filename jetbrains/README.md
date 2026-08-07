@@ -15,7 +15,7 @@ Configure **Settings | Tools | Fathom SQL**:
 
 Settings are read when a new LSP4IJ server connection starts. Applying settings does not mutate an already-running process; restart the server for changes to take effect. SQL files are mapped by filename (`*.sql`) and receive language id `sql`. The dialect and profile are forwarded as LSP `initializationOptions` (`{"dialect": ..., "profile": ...}`); an empty selection is surfaced as an explicit server-side configuration error, never an implicit fallback.
 
-When managed downloads are enabled, the plugin detects Linux x64, macOS x64, macOS arm64, and Windows x64, downloads the matching `fathom-lsp-*` asset from the latest release of `tchivs/doris-sql-parser-sdk`, verifies the SHA-256 listed in `fathom-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms, missing releases, and hash mismatches fall back to the configured executable.
+When managed downloads are enabled, the plugin detects Linux x64, macOS x64, macOS arm64, and Windows x64, downloads the matching `fathom-lsp-*` asset from the latest release of `tchivs/fathom-sql`, verifies the SHA-256 listed in `fathom-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms, missing releases, and hash mismatches fall back to the configured executable.
 
 ## Build and verification
 
@@ -41,7 +41,7 @@ The root workflow `.github/workflows/fathom-native-release.yml` builds the `fath
 | `macos-aarch64` | `fathom-lsp-macos-aarch64` |
 | `windows-x86_64` | `fathom-lsp-windows-x86_64.exe` |
 
-Every release also contains `fathom-lsp-manifest.json` with `schemaVersion`, the exact release `tag`, and the SHA-256 for each binary. Tag pushes (`v*`) and manual dispatches publish through the `tchivs/doris-sql-parser-sdk` repository.
+Every release also contains `fathom-lsp-manifest.json` with `schemaVersion`, the exact release `tag`, and the SHA-256 for each binary. Tag pushes (`v*`) and manual dispatches publish through the `tchivs/fathom-sql` repository.
 
 ## Marketplace release preparation
 
@@ -62,7 +62,7 @@ After the first manual upload is accepted by JetBrains Marketplace, a signed rel
 
 The first Marketplace publication must be uploaded manually. Before that upload, complete a fresh-IDE check with LSP4IJ installed and verify diagnostics, formatting, completion, dialect/profile propagation, and managed Native fallback behavior. Native release assets are published separately by the root GitHub Actions workflow.
 
-The Marketplace metadata uses the public project homepage `https://github.com/tchivs/doris-sql-parser-sdk` and the monitored vendor contact `maintainers@fathom.dev`.
+The Marketplace metadata uses the public project homepage `https://github.com/tchivs/fathom-sql` and the monitored vendor contact `maintainers@fathom.dev`.
 
 ## CI
 

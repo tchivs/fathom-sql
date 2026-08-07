@@ -4,9 +4,10 @@ English: [README.md](README.md) | 简体中文
 [![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](docs/zh-CN/ARCHITECTURE.md)
 
-# Fathom
+# Fathom SQL Parser SDK
 
-Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供带源码保真度的解析、诊断与格式化能力。
+Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供带源码保真度的解析、诊断与格式化能力。**GitHub 仓库：** https://github.com/tchivs/fathom-sql
+
 
 ## 特性
 

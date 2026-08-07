@@ -12,8 +12,8 @@ Mirror of corpus/tools/check_keywords.py: stdlib problems loop, non-zero exit,
 ok line. The gate is mode+file-scope dual-dimension (research §7 / Pitfall 4):
 only the FORBIDDEN product-surface patterns fail, so the required dialect
 semantics (Dialect::Doris, DorisProfile, doris as a dialect value,
-doris.apache.org, corpus provenance, the tchivs/doris-sql-parser-sdk release
-repository identifier) are never destroyed by a mechanical global rename.
+doris.apache.org, and corpus provenance) are never destroyed by a
+mechanical global rename.
 """
 
 import re
@@ -53,12 +53,8 @@ FORBIDDEN = [
     (r'"Doris SQL"', 'legacy product display title ("Doris SQL")'),
 ]
 
-# Semantic identifiers that may legally contain a forbidden token (D-05 /
-# OQ8). They are stripped from the line before the corresponding pattern runs
-# so only the product-surface usage is reported.
-ALLOWLIST_CONTEXTS = {
-    "doris-sql": ["tchivs/doris-sql-parser-sdk"],  # release repository identifier (OQ8)
-}
+# Doris dialect/provenance identifiers remain legal; no product repository
+# URL is exempted from the naming gate.
 
 # ---------------------------------------------------------------------------
 # Scan scope (research §7.2): product source/config/CI/extension/docs files.
@@ -157,9 +153,6 @@ def main() -> int:
             continue
         for lineno, line in enumerate(lines, start=1):
             for pattern, description in FORBIDDEN:
-                if pattern == "doris-sql" and ALLOWLIST_CONTEXTS["doris-sql"]:
-                    for context in ALLOWLIST_CONTEXTS["doris-sql"]:
-                        line = line.replace(context, "")
                 if re.search(pattern, line):
                     if pattern == r"DORIS-(?!0\d)" and rel in EMBEDDED_FIXTURE_FILES:
                         continue
