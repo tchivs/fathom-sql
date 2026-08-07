@@ -196,7 +196,7 @@ pub fn usage_error_message(error : UsageError) -> String {
     UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, or lsp)\n"
     MissingDialect => "missing required flag: --dialect <doris|flink>\n"
     UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id} (expected doris or flink)\n"
-    MissingProfile => "missing required flag: --profile <2.1|3.x|4.x>\n"
+    MissingProfile => "missing required flag: --profile <doris 2.1|3.x|4.x | flink flink-2.3.0|flink-2.1.3|flink-1.20.5>\n"
     UnknownProfile(profile_id~, dialect_id~) => {
       if dialect_id == "flink" {
         // flink accepts exactly the three pinned release profiles (Phase 10,
