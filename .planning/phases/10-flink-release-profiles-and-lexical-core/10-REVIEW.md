@@ -146,7 +146,7 @@ if first == 95 { // '_'
 
 **Fix:** rename to `flink-lexical.unknown-profile.flink-4x.{strict,editor}.json` (or `...unknown-profile.flink-unknown.{...}.json`) and update the register entry, or leave as-is and document the naming convention in the test header.
 
-**Fixed:** commit 2634dd8 — renamed the two snapshots to `flink-lexical.unknown-profile.flink-4x.{strict,editor}.json` (content byte-identical), updated the register entry in approved-changes.md and the test names/fixture comment; `moon test --package parity` without `--update` stays green (260/260).
+**Fixed:** commit 2634dd8 (rename) + 916816a (superseded-file removal) — renamed the two snapshots to `flink-lexical.unknown-profile.flink-4x.{strict,editor}.json` (content byte-identical), updated the register entry in approved-changes.md and the test names/fixture comment; `moon test --package parity` without `--update` stays green (260/260).
 
 ### IN-03: `classification_entries(doris).length() == 116` is a brittle hard-coded pin
 
