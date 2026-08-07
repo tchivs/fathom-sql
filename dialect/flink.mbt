@@ -249,3 +249,42 @@ let flink_classification_rows : Array[KeywordEntry] = [
   { word: b"RESUME_OR_FROM_TIMESTAMP", classification: NonReserved, introduced_profile: "flink-2.3.0", source: "flink-sql-parser Parser-release-2.3.0.tdd:256 (RESUME_OR_FROM_TIMESTAMP)" },
   { word: b"START_MODE", classification: NonReserved, introduced_profile: "flink-2.3.0", source: "flink-sql-parser Parser-release-2.3.0.tdd:258 (START_MODE)" },
 ]
+
+/// Release-grammar provenance audit (10-03 Task 3, T-10-14): every inlined
+/// flink row's source references the pinned release grammar (path + token
+/// line), never a moving docs URL or Calcite folklore (D-02, Pitfall 3).
+test "flink_classification_rows_source_references_release_grammar" {
+  let rows = flink_classification_rows
+  assert_true(rows.length() > 0)
+  for row in rows {
+    assert_true(
+      row.source.contains("flink-sql-parser") &&
+      (row.source.contains("Parser-release-") ||
+        row.source.contains("Parser-calcite-") ||
+        row.source.contains("codegen/templates/Parser.jj"))
+    )
+    assert_true(!row.source.contains("http"))
+  }
+  // VARIANT/QUALIFY are 2.1.3-delta reserved words with the W-1 introduced
+  // profile and the template/token source.
+  match classification_of(flink_2_3_0_context(), b"VARIANT") {
+    Some(entry) => assert_eq(entry.source, "flink-sql-parser codegen/templates/Parser.jj:8374 (VARIANT)")
+    None => assert_true(false)
+  }
+}
+
+/// Per-profile non-empty row sets (probe FLINK-01 empty): each pinned release
+/// profile has a non-empty row set after this plan, so an empty table is not
+/// possible.
+test "flink_classification_rows_per_profile_are_non_empty" {
+  assert_true(classification_entries(flink_1_20_5_context()).length() > 0)
+  assert_true(classification_entries(flink_2_1_3_context()).length() > 0)
+  assert_true(classification_entries(flink_2_3_0_context()).length() > 0)
+  // Baseline rows (introduced at 1.20.5) are visible under every profile;
+  // a 2.1.3 row is visible under 2.1.3+ but absent under 1.20.5; a 2.3.0 row
+  // only under 2.3.0.
+  assert_true(classification_entries(flink_2_1_3_context()).length() >
+    classification_entries(flink_1_20_5_context()).length())
+  assert_true(classification_entries(flink_2_3_0_context()).length() >
+    classification_entries(flink_2_1_3_context()).length())
+}
