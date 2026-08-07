@@ -219,3 +219,4 @@ Resume file: .planning/phases/10-flink-release-profiles-and-lexical-core/10-CONT
 | Date | Task | Status |
 |------|------|--------|
 | 2026-08-06 | GitHub Releases Native `doris-lsp` delivery and JetBrains managed downloader | Complete |
+| 2026-08-07 | Rename GitHub repository to `tchivs/fathom-sql`; sync README, JetBrains release links, and naming gate | Complete |
