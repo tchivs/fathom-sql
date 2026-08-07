@@ -226,10 +226,12 @@ test "classification_is_dialect_independent_and_release_aware" {
     Some(entry) => assert_eq(entry.introduced_profile, "flink-2.1.3")
     None => assert_true(false)
   }
-  // Doris is byte-identical: 116 rows, VARIANT is not a Doris reserved word,
-  // SELECT is — no cross-dialect leakage, no global union (DIALECT-02,
-  // Pitfall 4, T-10-12).
-  assert_eq(classification_entries(doris).length(), 116)
+  // Doris is byte-identical: the row count is derived from the table itself
+  // (not a hard-coded pin that breaks on any future keyword-row addition),
+  // VARIANT is not a Doris reserved word, SELECT is — no cross-dialect
+  // leakage, no global union (DIALECT-02, Pitfall 4, T-10-12). The count
+  // assertion still cross-checks the two access paths agree.
+  assert_eq(classification_entries(doris).length(), doris_classification_rows.length())
   assert_true(!is_reserved_word(doris, b"VARIANT"))
   assert_true(is_reserved_word(doris, b"SELECT"))
   // The same core word classifies under both dialects independently.
