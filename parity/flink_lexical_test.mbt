@@ -14,6 +14,18 @@
 /// Generation: `moon test --update --package parity` after the approved-changes
 /// register entry is committed (D-08 single-use approval path). CI runs
 /// `moon test --package parity` WITHOUT --update so any byte drift fails.
+///
+/// KNOWN DIVERGENCE (MN-02, documented deferral): numeric-adjacent `..`
+/// (DOUBLE_PERIOD, symbol_width_flink) is swallowed by the shared number
+/// scanner — input `1..2` lexes as ONE LEX_INVALID_NUMBER Error token under
+/// flink, while the real Calcite token manager (JavaCC longest-match) would
+/// split it into `DECIMAL_NUMERIC_LITERAL("1.")` + `DECIMAL_NUMERIC_LITERAL(".2")`
+/// (regex `(["0"-"9"])+(".")?(["0"-"9"])*`). DOUBLE_PERIOD has no grammar
+/// production in any pinned Parser.jj, so `N..N` is not parseable Flink anyway
+/// and the tokenization divergence is confined to an invalid construct. This
+/// is recorded here in the flink-lexical conflict matrix and will be revisited
+/// when the Flink grammar lands (Phase 11): decide then whether `N..N` should
+/// be split per Calcite or remain a number error.
 
 pub(all) struct FlinkLexicalFixture {
   pub fixture_id : String
