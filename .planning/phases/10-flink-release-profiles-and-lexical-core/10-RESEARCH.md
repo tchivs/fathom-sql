@@ -497,7 +497,7 @@ pub fn validate_dialect_profile(dialect : String, profile : String) -> Result[Un
 ```
 `[VERIFIED: /opt/source/Fathom/binding/schema.mbt:40-51 — 上述逐字]`
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`FlinkProfileMetadata` 的精确字段形态与 wire 序列化（D-01 的 parser_config/calcite_version 承载）**
    - What we know: D-01 要求 id/release_family/exact_release/calcite_version/parser_config/feature_introduction；`fathom.dialect.v1`/`fathom.capabilities.v1`（`binding/schema.mbt:169-211,213-246`）现 flink profiles 为 `[]`；SC2 要求 profile 报告 release source/tag/commit、Calcite 版本、parser 配置。
