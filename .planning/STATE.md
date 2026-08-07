@@ -5,10 +5,10 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 10
 current_phase_name: Flink Release Profiles and Lexical Core
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-08-07T10:46:02.519Z"
+stopped_at: Completed 10-01-PLAN.md (flink release profiles + lexical core tracer)
+last_updated: "2026-08-07T11:02:21.858Z"
 last_activity: 2026-08-07
-last_activity_desc: Phase 9 complete, transitioned to Phase 10
+last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 1
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Phase 9 — Dialect Boundary and Neutral Naming
+**Current focus:** Phase 10 — Flink Release Profiles and Lexical Core
 
 ## Current Position
 
-Phase: 10 — Flink Release Profiles and Lexical Core
-Plan: Not started
+Phase: 10 (Flink Release Profiles and Lexical Core) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-**Progress:** [██████████] 100%
-Last activity: 2026-08-07 — Phase 9 complete, transitioned to Phase 10
+**Progress:** [███████░░░] 70%
+Last activity: 2026-08-07 — Phase 10 execution started
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Last activity: 2026-08-07 — Phase 9 complete, transitioned to Phase 10
 | Phase 09 P05 | 38 | 2 tasks | 25 files |
 | Phase 09-dialect-boundary-and-neutral-naming P06 | 8 | 4 tasks | 12 files |
 | Phase 09-dialect-boundary-and-neutral-naming P07 | unknown | 4 tasks | 47 files |
+| Phase 10-flink-release-profiles-and-lexical-core P01 | 1.5 | 4 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -179,6 +180,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Task 1 auto-selected option-a: full host cutover per D-06 (fathom.* config keys, sql language id, fathom-sql-language-client/@fathom/sql-web-demo/fathom-sql-intellij package names, fathom.sql plugin id, FathomSettings/fathom.xml state, no default dialect D-02)
 - [Phase ?]: The ci.yml naming-gate job comment carries no literal forbidden patterns because ci.yml is itself a scanned product file; check_naming.py self-exempts as the inventory carrier
 - [Phase ?]: Final-sweep stragglers outside the explicit file lists (dialect/doris.mbt, lsp/diagnostics_formatting_test.mbt) fixed with 2-line changes each to reach zero product-file hits; 406/406 native suite + intact parity baseline confirm no behavior change
+- [Phase ?]: D-01 FlinkProfile closed enum (V2_3_0|V2_1_3|V1_20_5) + FlinkProfileMetadata (id/release_family/exact_release/calcite_version/parser_config/feature_introduction); exact-match from_id only (flink-2.3.0|flink-2.1.3|flink-1.20.5), no Doris profile borrowing
+- [Phase ?]: D-02 Calcite pins (1.36.0/1.34.0/1.32.0) and parser config (Lex.JAVA,identifierMaxLength=256,conformance=FlinkSqlConformance.DEFAULT) extracted from sha512-verified pinned release archives (scripts/extract_flink_lexical.py + parity manifest), never hand-written
+- [Phase ?]: D-05 unknown/unsupported flink profiles reuse FATHOM-SCHEMA-003/007 family; no FATHOM-FLINK-* namespace minted; dialect rides in metadata fields
 
 ### Pending Todos
 
@@ -210,9 +214,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-07T03:18:54.067Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-flink-release-profiles-and-lexical-core/10-CONTEXT.md
+Last session: 2026-08-07T11:02:21.831Z
+Stopped at: Completed 10-01-PLAN.md (flink release profiles + lexical core tracer)
+Resume file: None
 
 ## Quick Tasks Completed
 

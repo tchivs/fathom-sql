@@ -106,10 +106,10 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Validation**: Verify pinned Flink source archives and checksums, read each release parser configuration/POM, and exercise a lexical conflict matrix for comments, quoting, X/U& literals, identifiers, operators, and unknown profiles in both dialects. Do not use moving `dev`/`stable` docs or a Flink/Calcite runtime.
 **Research flags**: Confirm the exact `flink-2.1.3` Calcite version/config from its release POM/source; validate double-quote, `#`, `//`, X/U&/B literal behavior with executable release fixtures rather than Calcite folklore.
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 **Wave 1**
 
-- [ ] 10-01-PLAN.md — Flink profile identity (flink-2.3.0/2.1.3/1.20.5 + Calcite pins) + end-to-end selection unlock + provenance/flink-lexical scaffold (tracer)
+- [x] 10-01-PLAN.md — Flink profile identity (flink-2.3.0/2.1.3/1.20.5 + Calcite pins) + end-to-end selection unlock + provenance/flink-lexical scaffold (tracer)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
