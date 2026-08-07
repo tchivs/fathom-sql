@@ -110,8 +110,9 @@ let flink_lexical_fixtures : Array[FlinkLexicalFixture] = [
   },
   // Wave 2: unknown-profile — a Doris-shaped profile id under flink is rejected
   // (Pitfall 6, D-01 exact-match from_id) with the shared FATHOM-SCHEMA-003
-  // envelope (D-05, no FATHOM-FLINK-* namespace). Filename uses the doris-4.x
-  // profile slot from the register; the frozen envelope carries the rejection.
+  // envelope (D-05, no FATHOM-FLINK-* namespace). The frozen envelope carries
+  // the rejection under the flink-4x profile slot — the Doris-shaped profile
+  // string the fixture exercises.
   {
     fixture_id: "unknown-profile",
     dialect: "flink",
@@ -362,14 +363,14 @@ test "flink_lexical_backtick_escape_is_dialect_routed_and_independent" {
 // unknown-profile: a Doris-shaped profile id under flink is rejected with the
 // shared FATHOM-SCHEMA-003 envelope (D-05, Pitfall 6, T-10-01).
 // ---------------------------------------------------------------------------
-test "flink-lexical unknown-profile doris-4.x strict" {
-  let t = @test.Test("flink-lexical unknown-profile doris-4.x strict")
-  flink_snapshot_test(t, flink_lexical_parse_json("unknown-profile", "flink", "4.x", "strict"), "flink-lexical.unknown-profile.doris-4.x.strict.json")
+test "flink-lexical unknown-profile flink-4x strict" {
+  let t = @test.Test("flink-lexical unknown-profile flink-4x strict")
+  flink_snapshot_test(t, flink_lexical_parse_json("unknown-profile", "flink", "4.x", "strict"), "flink-lexical.unknown-profile.flink-4x.strict.json")
 }
 
-test "flink-lexical unknown-profile doris-4.x editor" {
-  let t = @test.Test("flink-lexical unknown-profile doris-4.x editor")
-  flink_snapshot_test(t, flink_lexical_parse_json("unknown-profile", "flink", "4.x", "editor"), "flink-lexical.unknown-profile.doris-4.x.editor.json")
+test "flink-lexical unknown-profile flink-4x editor" {
+  let t = @test.Test("flink-lexical unknown-profile flink-4x editor")
+  flink_snapshot_test(t, flink_lexical_parse_json("unknown-profile", "flink", "4.x", "editor"), "flink-lexical.unknown-profile.flink-4x.editor.json")
 }
 
 test "flink_lexical_unknown_profile_freezes_schema_rejection" {

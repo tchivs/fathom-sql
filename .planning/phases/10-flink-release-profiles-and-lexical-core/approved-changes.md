@@ -40,7 +40,7 @@ backtick-escape, unknown-profile):
 | `flink-lexical.e-literal.doris-4.x.{strict,editor}.json` | same raw under doris-4.x: Identifier `E` + StringLiteral `'abc'` (Doris has no E prefix) |
 | `flink-lexical.backtick-escape.flink-2.3.0.{strict,editor}.json` | `` SELECT `a``b` `` under flink-2.3.0: ONE Quoted token (BTID double-backtick, Parser-calcite-1.36.0.jj:8951-8962) |
 | `flink-lexical.backtick-escape.doris-4.x.{strict,editor}.json` | same raw under doris-4.x: ONE Quoted token (scan_quoted doubling, unchanged) |
-| `flink-lexical.unknown-profile.doris-4.x.{strict,editor}.json` | `SELECT 1` with profile `4.x` requested under flink: FATHOM-SCHEMA-003 rejection envelope (Pitfall 6 — Doris-shaped profile id never borrowed by flink; D-05 shared error family) |
+| `flink-lexical.unknown-profile.flink-4x.{strict,editor}.json` | `SELECT 1` with profile `4.x` requested under flink: FATHOM-SCHEMA-003 rejection envelope (Pitfall 6 — Doris-shaped profile id never borrowed by flink; D-05 shared error family) |
 
 The `hash-comment` fixture is the D-06 core conflict: the same raw bytes
 tokenize differently per dialect (Flink `#` = lexical error; Doris `#` = line
