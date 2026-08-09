@@ -673,8 +673,19 @@ fn is_flink_interval_literal(cursor : Cursor) -> Bool {
     return false
   }
   match raw_at(cursor) {
-    Some(raw) => bytes_equal_ci(raw, b"INTERVAL")
-    None => false
+    // MJ-03: INTERVAL is a valid non-reserved column name in Flink. It is an
+    // interval literal only when the next token is a string literal or a
+    // number (the interval value); otherwise it falls through to the ordinary
+    // identifier operand path (`SELECT interval FROM t`).
+    Some(raw) if bytes_equal_ci(raw, b"INTERVAL") => match peek_raw(cursor, 1) {
+      Some(next) if next.length() > 0 => {
+        let c = next[0].to_int()
+        // 39 = single quote (string literal), 48-57 = decimal digits.
+        c == 39 || (c >= 48 && c <= 57)
+      }
+      _ => false
+    }
+    _ => false
   }
 }
 

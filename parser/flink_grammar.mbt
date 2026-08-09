@@ -1295,7 +1295,8 @@ fn parse_flink_create_table_body(
       done = true
     } else {
       any = true
-      if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WATERMARK") {
+      if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WATERMARK") &&
+        peek_raw(cursor, 1) is Some(next) && bytes_equal_ci(next, b"FOR") {
         let wm_ok = parse_flink_watermark(cursor, state, source, statement_id, watermark_seen)
         valid = wm_ok && valid
         watermark_seen = true
@@ -1336,7 +1337,14 @@ fn is_flink_table_constraint_start(cursor : Cursor) -> Bool {
       None => false
     }
     Some(raw) if bytes_equal_ci(raw, b"CONSTRAINT") =>
-      peek_raw(cursor, 1) is Some(_)
+      // MJ-03: CONSTRAINT is a valid non-reserved column name (`constraint
+      // INT`); the table-constraint form is `CONSTRAINT <name>
+      // (PRIMARY KEY | UNIQUE)`, so the gate requires PRIMARY/UNIQUE two
+      // tokens ahead (the name is one token).
+      match peek_raw(cursor, 2) {
+        Some(kind) => bytes_equal_ci(kind, b"PRIMARY") || bytes_equal_ci(kind, b"UNIQUE")
+        None => false
+      }
     _ => false
   }
 }
