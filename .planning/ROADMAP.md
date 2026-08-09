@@ -121,6 +121,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 ### Phase 11: Flink Grammar and Recoverable CST
 
+**UI hint**: no
 **Goal**: Users can parse everyday Flink SQL and its distinctive DDL/window/pattern constructs into a lossless, bounded, recoverable CST without changing Doris acceptance or diagnostics.
 **Mode**: mvp
 **Depends on**: Phase 10
