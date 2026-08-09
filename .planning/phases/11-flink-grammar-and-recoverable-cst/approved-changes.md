@@ -290,21 +290,25 @@ acceptance needs freezing.
 ## 8. Phase 11 code-review-fix snapshot re-freeze (review 2026-08-09)
 
 The 11-REVIEW.md fix pass narrows/extends Flink grammar behavior and rewrites
-one fixture to standard clause order. The only frozen snapshot bytes that
-change are the `match-recognize-subset` goldens, whose fixture SQL is rewritten
-from the non-standard pre-PATTERN `SUBSET ... PATTERN ...` position to the
-standard `PATTERN ... SUBSET ... DEFINE` order (Parser.jj:3182). All other
-gates narrowed in the fix pass (WATERMARK FOR-only, CONSTRAINT form-only,
-INTERVAL value-only; ROW types; WITH [LOCAL] TIME ZONE; AT TIME ZONE; fixed
+one fixture to standard clause order. The frozen snapshot bytes that change
+are the `match-recognize-subset` goldens (fixture SQL rewritten from the
+non-standard pre-PATTERN `SUBSET ... PATTERN ...` position to the standard
+`PATTERN ... SUBSET ... DEFINE` order, Parser.jj:3182) and the
+`tvf-incomplete-interval` goldens (the MJ-03 INTERVAL gate now treats a bare
+`INTERVAL` followed by `)` as an identifier operand instead of an incomplete
+interval literal — `TUMBLE(..., INTERVAL)` is no longer an incomplete-interval
+recovery case). All other gates narrowed in the fix pass (WATERMARK FOR-only,
+CONSTRAINT form-only; ROW types; WITH [LOCAL] TIME ZONE; AT TIME ZONE; fixed
 MATCH_RECOGNIZE pre-PATTERN clause order) have no existing snapshot coverage —
 the existing flink-grammar and Doris 213 snapshots are byte-identical after the
 fixes. Verified by `moon test --target native --package parity` (no `--update`)
-failing ONLY on the two `match-recognize-subset` snapshots, then passing after
-the single approved `--update` re-freeze.
+failing ONLY on these four snapshots, then passing after the single approved
+`--update` re-freeze.
 
 | Changed snapshot file | Meaning |
 |-----------------------|---------|
 | `flink-grammar.match-recognize-subset.flink-2.3.0.{strict,editor}.json` | Fixture rewritten to standard clause order `PATTERN (A B) SUBSET U = (A, B) DEFINE ...` (MJ-02); snapshot re-frozen |
+| `flink-grammar.tvf-incomplete-interval.flink-2.3.0.{strict,editor}.json` | MJ-03 INTERVAL gate: bare `INTERVAL` before `)` parses as an identifier operand (valid=true), no longer an incomplete-literal recovery |
 
 Machine-readable patterns (baseline_diff.py `--approve`):
 
