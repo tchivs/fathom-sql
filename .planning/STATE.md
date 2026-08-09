@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 12
 current_phase_name: Cross-Dialect Corpus and Parity Gates
 status: executing
-stopped_at: Phase 12 context gathered
-last_updated: "2026-08-09T11:56:27.763Z"
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-08-09T12:23:27.095Z"
 last_activity: 2026-08-09
-last_activity_desc: Phase 11 complete, transitioned to Phase 12
+last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 17
-  completed_plans: 14
-  percent: 60
+  completed_plans: 15
+  percent: 88
 ---
 
 # Project State
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Phase 11 — Flink Grammar and Recoverable CST
+**Current focus:** Phase 12 — Cross-Dialect Corpus and Parity Gates
 
 ## Current Position
 
-Phase: 12 — Cross-Dialect Corpus and Parity Gates
-Plan: Not started
+Phase: 12 (Cross-Dialect Corpus and Parity Gates) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-**Progress:** [██████████] 100%
-Last activity: 2026-08-09 — Phase 11 complete, transitioned to Phase 12
+**Progress:** [█████████░] 88%
+Last activity: 2026-08-09 — Phase 12 execution started
 
 ## Performance Metrics
 
@@ -100,6 +100,7 @@ Last activity: 2026-08-09 — Phase 11 complete, transitioned to Phase 12
 | Phase 11-flink-grammar-and-recoverable-cst P02 | 95 | 3 tasks | 65 files |
 | Phase 11 P03 | 3.5h | 4 tasks | 70 files |
 | Phase 11-flink-grammar-and-recoverable-cst P04 | 120 | 3 tasks | 8 files |
+| Phase 12-cross-dialect-corpus-and-parity-gates P01 | 22min | 3 tasks | 118 files |
 
 ## Accumulated Context
 
@@ -213,6 +214,11 @@ Recent decisions affecting current work:
 - [Phase ?]: SUBSET/PERMUTE/{- -} parse structurally, classified known-limitation; no pattern-variable column-scope validation (Pitfall 6, FLINK-06)
 - [Phase ?]: TVF positional args validated in order (table/descriptor/size/offset); named => args recognized without reordering
 - [Phase ?]: Window TVF + MATCH_RECOGNIZE are Flink-only: FATHOM-PARSE-009 gate at the table-ref point under Doris (T-11-22/T-11-23); no planner/execution equivalence (FLINK-05/06)
+- [Phase ?]: D-06 offline gate form: single-entry verify_corpus.py --check with fixture_sha256 resident hash; extract_* stay local (Task 1 auto-selected option-a)
+- [Phase ?]: 6-category semantics frozen at fixture level: generic SQL acceptance != Flink engine support; catalog/planner/known-limitation never engine-supported
+- [Phase ?]: Snapshot segment rule (dialect-correct): flink {id}.{profile}.{mode}.json, doris {id}.doris-{profile}.{mode}.json, unknown-profile {id}.flink-4x.{mode}.json
+- [Phase ?]: D-02 additive migration: old per-area manifests kept; unified manifest adds columns/rows only, never renames fixture_id or snapshot filenames
+- [Phase ?]: fixture_sha256 over committed .sql bytes is the resident CI-checkable hash; archive sha512 present-verify / absent-archive-not-present
 
 ### Pending Todos
 
@@ -244,9 +250,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T11:16:48.259Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-cross-dialect-corpus-and-parity-gates/12-CONTEXT.md
+Last session: 2026-08-09T12:23:27.067Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
 
 ## Quick Tasks Completed
 
