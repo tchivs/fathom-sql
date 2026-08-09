@@ -645,27 +645,31 @@ python3 scripts/diff_parity.py --frozen-only
 | A9 | `diff_parity.py` 的 temp `--update` 工作流（copy + move + restore）在 CI runner 上可安全执行 | §6.2 | 若 MoonBit 不支持目录重定向，需退化为「git clean + `--update` + git diff 还原」 |
 | A10 | CI 增 js 运行时 job 并入现有 `linear-wasm-parity` job 而非新 job | §7.2 | 纯 CI 组织选择，无行为风险 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **6 类是单列枚举还是 `category + prerequisite` 双列？**
+1. **(RESOLVED) 6 类是单列枚举还是 `category + prerequisite` 双列？**
    - What we know: D-01 字面「6 类分类」；部分 fixture 天然命中两类（如 `match-recognize-full` = planner-prerequisite 且无列作用域 = known-limitation 成分）。
    - What's unclear: 单列强制互斥 vs 双列（category 主类 + prerequisite 补充）的取舍。
    - Recommendation: 本文件推荐**单列 6 值 + 可选 `prerequisite_note` 列**（保持 D-01 字面，冲突用优先级规则 §5.3 消解）；planner 定稿后 `verify_corpus.py` 枚举随动。
+   - **RESOLVED (2026-08-09):** 定稿为**单列 6 值 `category`**（positive | negative | recovery | known-limitation | catalog-prerequisite | planner-prerequisite）+ 可选 `prerequisite_note` 补充列（见 §5.3）。
 
-2. **fixture `.sql` 落盘规模（97+13 文件）是否接受？**
+2. **(RESOLVED) fixture `.sql` 落盘规模（97+13 文件）是否接受？**
    - What we know: 无 `.sql` 文件则 `fixture_sha256` 无法被 stdlib 校验；D-01 要求每 fixture hash。
    - What's unclear: 是否可接受 110 个新增小文件，或改用「manifest 级 sha256 文件」（如 `parity/fixtures/flink/manifest.sha256`）替代。
    - Recommendation: 接受落盘（沿袭 corpus/doris-* 先例）；若 team 反对，退化为 manifest 级 hash 文件 + embedded-raw 提取校验。
+   - **RESOLVED (2026-08-09):** 定稿为提交 110 个 `.sql` fixture 文件（97 flink-grammar + 13 flink-lexical，沿袭 `corpus/doris-*/` 先例），使 `fixture_sha256` 可被 stdlib 校验。
 
-3. **CI js 运行时 job 并入现有 job 还是独立 job？**
+3. **(RESOLVED) CI js 运行时 job 并入现有 job 还是独立 job？**
    - What we know: 三 target 均已本地实测 570/570；CI 缺 js runtime。
    - What's unclear: 并入 `linear-wasm-parity`（同名改三目标）vs 独立 `js-parity` job。
    - Recommendation: 并入 `linear-wasm-parity`（一次 checkout/安装，矩阵语义一致），`compare_backends.py` 独立汇总报告。
+   - **RESOLVED (2026-08-09):** 定稿为并入 `linear-wasm-parity` job（三目标矩阵），`compare_backends.py` 独立汇总报告。
 
-4. **`extract_flink_grammar.py`/`extract_flink_lexical.py` 是否进 CI？**
+4. **(RESOLVED) `extract_flink_grammar.py`/`extract_flink_lexical.py` 是否进 CI？**
    - What we know: 它们依赖 `/tmp/flink-research/`（研究 fixture），CI checkout 无此缓存。
    - What's unclear: 是否把归档校验作为「有缓存才跑」的可选 CI 步。
    - Recommendation: **不进 CI**（离线门禁由 `verify_corpus.py` 承担）；归档校验保留为本地维护者工具，manifest 行号由 `verify_corpus.py` 的结构校验 + 提交时 `extract_*` 手动跑覆盖。
+   - **RESOLVED (2026-08-09):** 定稿为**不进 CI**；`extract_*` 保留为本地维护者工具，离线门禁由 `verify_corpus.py` 承担。
 
 ## Environment Availability
 
