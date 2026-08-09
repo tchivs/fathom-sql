@@ -1322,6 +1322,43 @@ fn parse_flink_table_constraint(
   valid
 }
 
+/// Consumes the remainder of a dialect-gated column-body element (up to the
+/// next depth-0 `,` or `)`, both left unconsumed) so the gate is the primary
+/// diagnostic and the body loop / close-paren handling stays intact (D-03,
+/// bounded best-effort recovery). Paren depth is tracked so a nested
+/// `PROCTIME()` / `(a)` in the gated element does not stop the scan early.
+fn consume_body_element_remainder(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Unit {
+  let mut depth = 0
+  let mut done = false
+  while !done {
+    match raw_at(cursor) {
+      None => done = true
+      Some(raw) if raw == b")" => {
+        if depth == 0 {
+          done = true
+        } else {
+          depth = depth - 1
+          advance(cursor)
+        }
+      }
+      Some(raw) if raw == b"(" => {
+        depth = depth + 1
+        advance(cursor)
+      }
+      Some(raw) if raw == b"," && depth == 0 => done = true
+      Some(_) => {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        if consume_recovery_step(state, span, statement_id) { advance(cursor) } else { done = true }
+      }
+    }
+  }
+}
+
 /// A parenthesized simple identifier list — `( col, ... )` used by the
 /// table-level PRIMARY KEY / UNIQUE / PARTITIONED BY column lists.
 fn parse_flink_identifier_list(
@@ -1416,6 +1453,14 @@ fn parse_flink_typed_column(
   statement_id : UInt,
 ) -> Bool {
   let mut valid = parse_flink_data_type(cursor, state, source, statement_id)
+  // Doris-only AUTO_INCREMENT column form under Flink → 009 (T-11-15, §9).
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"AUTO_INCREMENT") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_body_element_remainder(cursor, state, source, statement_id)
+    return valid
+  }
   if consume_word(cursor, b"METADATA") {
     if consume_word(cursor, b"FROM") {
       valid = parse_flink_string_literal(cursor, state, source, statement_id, "metadata alias") && valid
@@ -1481,14 +1526,215 @@ fn parse_flink_watermark(
 }
 
 // Table-level clause sequence [COMMENT][DISTRIBUTED][PARTITIONED BY][WITH]
-// [LIKE|AS] — landed in Task 4 (parse_flink_create_table_tail). For now the
-// tail leaves remaining tokens to the shared trailing-token recovery so a
-// clause-free CREATE TABLE parses cleanly.
+// [LIKE|AS] in the pinned SqlCreateTable order (parserImpls.ftl:1585-1712).
+// Each Doris-only CREATE TABLE sub-form (DUPLICATE/UNIQUE/AGGREGATE KEY,
+// ENGINE =, ROLLUP, PROPERTIES, AUTO PARTITION BY, PARTITION BY, DISTRIBUTED
+// BY ... BUCKETS) is a construct-level FATHOM-PARSE-009 gate here (T-11-15,
+// D-04 §9 matrix).
 fn parse_flink_create_table_tail(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
 ) -> Bool {
-  true
+  let mut valid = true
+  if consume_word(cursor, b"COMMENT") {
+    valid = parse_flink_string_literal(cursor, state, source, statement_id, "table COMMENT") && valid
+  }
+  if consume_word(cursor, b"DISTRIBUTED") {
+    valid = parse_flink_distribution_clause(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"PARTITIONED") {
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITIONED") && valid
+    if raw_at(cursor) is Some(b"(") {
+      advance(cursor)
+      valid = parse_flink_identifier_list(cursor, state, source, statement_id, "PARTITIONED BY") && valid
+      valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing PARTITIONED BY parenthesis") && valid
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected ( after PARTITIONED BY", "partitioned-by", at, statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"WITH") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "table WITH connector options") && valid
+  }
+  if consume_word(cursor, b"LIKE") {
+    valid = parse_flink_table_like(cursor, state, source, statement_id) && valid
+  } else if consume_word(cursor, b"AS") {
+    // CTAS: AS query (SqlCreateTableAs :1650-1690).
+    if is_query_start(cursor) {
+      valid = parse_flink_query(cursor, state, source, statement_id) && valid
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected query after AS in CREATE TABLE", "ctas-query", at, statement_id)
+      valid = false
+    }
+  }
+  // Doris-only CREATE TABLE sub-forms under Flink → FATHOM-PARSE-009
+  // (T-11-15, §9 matrix): DUPLICATE/UNIQUE/AGGREGATE KEY, ENGINE =, ROLLUP,
+  // PROPERTIES, AUTO PARTITION BY, PARTITION BY RANGE/LIST.
+  if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"DUPLICATE") ||
+    bytes_equal_ci(raw, b"UNIQUE") || bytes_equal_ci(raw, b"AGGREGATE") ||
+    bytes_equal_ci(raw, b"ENGINE") || bytes_equal_ci(raw, b"ROLLUP") ||
+    bytes_equal_ci(raw, b"PROPERTIES") || bytes_equal_ci(raw, b"AUTO") ||
+    bytes_equal_ci(raw, b"PARTITION")) {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_gated_remainder(cursor, state, source, statement_id)
+  }
+  valid
+}
+
+/// `DISTRIBUTED [BY [HASH|RANGE](cols)] [INTO n BUCKETS]` (SqlDistribution,
+/// parserImpls.ftl:1560-1600, IntoBuckets :1556-1570). `n` must be a positive
+/// integer (`INTO -3 BUCKETS` / `INTO 0 BUCKETS` are localized errors);
+/// `RANDOM` distribution is unsupported (testCreateTableWithRandomDistribution
+/// .fails); the Doris `DISTRIBUTED BY ... BUCKETS` form is a FATHOM-PARSE-009
+/// gate (T-11-19).
+fn parse_flink_distribution_clause(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if consume_word(cursor, b"BY") {
+    if consume_word(cursor, b"HASH") || consume_word(cursor, b"RANGE") {
+      if raw_at(cursor) is Some(b"(") {
+        advance(cursor)
+        valid = parse_flink_identifier_list(cursor, state, source, statement_id, "DISTRIBUTED BY") && valid
+        valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing DISTRIBUTED BY parenthesis") && valid
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected ( after DISTRIBUTED BY HASH/RANGE", "distribution", at, statement_id)
+        valid = false
+      }
+    } else if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"RANDOM") {
+      // RANDOM distribution is unsupported (testCreateTableWithRandomDistribution
+      // .fails, parserImpls.ftl:1560-1600).
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "RANDOM distribution is not supported", "distribution", at, statement_id)
+      valid = false
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected HASH or RANGE after DISTRIBUTED BY", "distribution", at, statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"INTO") {
+    let count_ok = match token_at(cursor) {
+      Some(token) if token.kind is @token.TokenKind::Number => {
+        let raw = match raw_at(cursor) { Some(raw) => raw; None => b"" }
+        if is_positive_integer_raw(raw) {
+          advance(cursor)
+          true
+        } else {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected positive integer bucket count after INTO", "distribution", at, statement_id)
+          valid = false
+          advance(cursor)
+          false
+        }
+      }
+      _ => {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected positive integer bucket count after INTO", "distribution", at, statement_id)
+        valid = false
+        false
+      }
+    }
+    if count_ok {
+      valid = expect_word(cursor, b"BUCKETS", state, source, statement_id, "expected BUCKETS after bucket count") && valid
+    } else {
+      // The malformed bucket-count remainder is consumed losslessly so the
+      // localized error is the primary diagnostic (no spurious trailing 001).
+      consume_gated_remainder(cursor, state, source, statement_id)
+    }
+  } else if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"RANDOM") {
+    // `DISTRIBUTED RANDOM` (no BY) is also unsupported.
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "RANDOM distribution is not supported", "distribution", at, statement_id)
+    valid = false
+    advance(cursor)
+  } else if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"BUCKETS") {
+    // Doris-only DISTRIBUTED BY ... BUCKETS n|AUTO form under Flink → 009.
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_gated_remainder(cursor, state, source, statement_id)
+  }
+  valid
+}
+
+/// True when the raw bytes are a decimal integer ≥ 1 (the DISTRIBUTED INTO
+/// bucket count; a decimal point or exponent fails — the count must be an
+/// integer, T-11-19).
+fn is_positive_integer_raw(raw : Bytes) -> Bool {
+  if raw.length() == 0 { return false }
+  let mut i = 0
+  while i < raw.length() {
+    let byte = raw[i].to_int()
+    if byte < 48 || byte > 57 { return false }
+    i = i + 1
+  }
+  !(raw.length() == 1 && raw[0].to_int() == 48)
+}
+
+/// `LIKE table [(INCLUDING|EXCLUDING|OVERWRITING <feature> ...)]`
+/// (SqlTableLike, parserImpls.ftl:1714-1790). The feature list is
+/// parenthesized and preserved syntactically; the feature keywords are
+/// ALL/CONSTRAINTS/DISTRIBUTION/GENERATED/METADATA/OPTIONS/PARTITIONS/
+/// WATERMARKS.
+fn parse_flink_table_like(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = parse_qualified_name(cursor, state, source, statement_id, "LIKE source table") && true
+  if raw_at(cursor) is Some(b"(") {
+    advance(cursor)
+    let mut any = false
+    let mut done = false
+    while !done {
+      if raw_at(cursor) is Some(b")") {
+        done = true
+      } else {
+        if consume_word(cursor, b"INCLUDING") || consume_word(cursor, b"EXCLUDING") ||
+          consume_word(cursor, b"OVERWRITING") {
+          if consume_word(cursor, b"ALL") {
+            any = true
+          } else if is_identifier_candidate(cursor) {
+            advance(cursor)
+            any = true
+          } else {
+            let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+            add_diagnostic(state, "FATHOM-PARSE-002", "expected LIKE feature after INCLUDING/EXCLUDING/OVERWRITING", "like-feature", at, statement_id)
+            valid = false
+            done = true
+          }
+        } else {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected INCLUDING, EXCLUDING, or OVERWRITING in LIKE options", "like-option", at, statement_id)
+          valid = false
+          done = true
+        }
+        if consume_symbol(cursor, b",") {
+          if raw_at(cursor) is Some(b")") { done = true }
+        } else {
+          done = true
+        }
+      }
+    }
+    if !any {
+      let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one LIKE feature", "like-feature", make_span(source, at, at), statement_id)
+      valid = false
+    }
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing LIKE options parenthesis") && valid
+  }
+  valid
 }

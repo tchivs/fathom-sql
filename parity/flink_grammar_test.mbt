@@ -426,6 +426,64 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     category: "incomplete",
     raw: b"CREATE TABLE t (a INT, b",
   },
+  // ---- FLINK-04 CREATE TABLE table-level clauses (11-03, wave 3):
+  // SqlCreateTable :1585-1712 clause order [COMMENT][DISTRIBUTED]
+  // [PARTITIONED BY][WITH][LIKE|AS], SqlDistribution :1560-1600, SqlTableLike
+  // :1714-1790, SqlCreateTableAs :1650-1690; Doris-only sub-forms → 009.
+  {
+    fixture_id: "create-table-full-clauses",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TABLE t (a INT) COMMENT 'x' DISTRIBUTED BY HASH(a) INTO 6 BUCKETS PARTITIONED BY (dt) WITH ('connector'='kafka')",
+  },
+  {
+    fixture_id: "create-table-like",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TABLE t2 LIKE t1 (INCLUDING ALL)",
+  },
+  {
+    fixture_id: "create-table-as",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TABLE t3 AS SELECT * FROM src",
+  },
+  {
+    fixture_id: "create-table-with-as",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TABLE t4 WITH ('k'='v') AS SELECT a FROM src",
+  },
+  {
+    fixture_id: "create-table-random-distribution",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t DISTRIBUTED BY RANDOM",
+  },
+  {
+    fixture_id: "create-table-negative-buckets",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t DISTRIBUTED INTO -3 BUCKETS",
+  },
+  {
+    fixture_id: "create-table-doris-key",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t (id INT) DUPLICATE KEY (id)",
+  },
+  {
+    fixture_id: "create-table-doris-engine",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t (id INT) ENGINE = OLAP",
+  },
+  {
+    fixture_id: "create-table-doris-properties",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t (id INT) PROPERTIES (\"k\"=\"v\")",
+  },
 ]
 
 fn flink_grammar_fixture(id : String) -> FlinkGrammarFixture {
@@ -1699,4 +1757,212 @@ test "flink_grammar_create_table_incomplete_col_lossless" {
   let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (a INT, b", "flink", "flink-2.3.0", "strict")[:])
   assert_true(strict.contains("\"valid\":false"))
   assert_true(strict.contains("FATHOM-PARSE-002"))
+}
+
+// ===========================================================================
+// FLINK-04 CREATE TABLE table-level clauses + LIKE/AS (11-03, wave 3)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// create-table-full-clauses: the pinned clause order [COMMENT][DISTRIBUTED]
+// [PARTITIONED BY][WITH] in one statement (valid=true, lossless replay).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-full-clauses flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-full-clauses flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-full-clauses", "strict"), "flink-grammar.create-table-full-clauses.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-full-clauses flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-full-clauses flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-full-clauses", "editor"), "flink-grammar.create-table-full-clauses.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_full_clauses_lossless" {
+  assert_true(flink_grammar_lossless("create-table-full-clauses", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-full-clauses", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (a INT) COMMENT 'x' DISTRIBUTED BY HASH(a) INTO 6 BUCKETS PARTITIONED BY (dt) WITH ('connector'='kafka')", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":true"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-like: SqlTableLike feature list (valid=true, lossless).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-like flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-like flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-like", "strict"), "flink-grammar.create-table-like.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-like flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-like flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-like", "editor"), "flink-grammar.create-table-like.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_like_lossless" {
+  assert_true(flink_grammar_lossless("create-table-like", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-like", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-as / create-table-with-as: SqlCreateTableAs (valid=true).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-as flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-as flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-as", "strict"), "flink-grammar.create-table-as.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-as flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-as flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-as", "editor"), "flink-grammar.create-table-as.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_as_lossless" {
+  assert_true(flink_grammar_lossless("create-table-as", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-as", @parser.ParseMode::Editor))
+}
+
+test "flink-grammar create-table-with-as flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-with-as flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-with-as", "strict"), "flink-grammar.create-table-with-as.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-with-as flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-with-as flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-with-as", "editor"), "flink-grammar.create-table-with-as.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_with_as_lossless" {
+  assert_true(flink_grammar_lossless("create-table-with-as", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-with-as", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-random-distribution: RANDOM is unsupported
+// (testCreateTableWithRandomDistribution .fails) — localized error.
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-random-distribution flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-random-distribution flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-random-distribution", "strict"), "flink-grammar.create-table-random-distribution.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-random-distribution flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-random-distribution flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-random-distribution", "editor"), "flink-grammar.create-table-random-distribution.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_random_distribution_errors" {
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t DISTRIBUTED BY RANDOM", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("RANDOM distribution is not supported"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-negative-buckets: DISTRIBUTED INTO -3 BUCKETS is a parse error
+// with the error span at the offending `-` token.
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-negative-buckets flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-negative-buckets flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-negative-buckets", "strict"), "flink-grammar.create-table-negative-buckets.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-negative-buckets flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-negative-buckets flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-negative-buckets", "editor"), "flink-grammar.create-table-negative-buckets.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_negative_buckets_errors_at_offending_token" {
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t DISTRIBUTED INTO -3 BUCKETS", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("expected positive integer bucket count after INTO"))
+  // The error span is at the offending `-` token (bytes 31-32).
+  assert_true(strict.contains("\"start_byte\":31,\"end_byte\":32"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-doris-key / -engine / -properties: Doris-only CREATE TABLE
+// sub-forms under Flink → FATHOM-PARSE-009 (T-11-15, §9 matrix).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-doris-key flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-doris-key flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-doris-key", "strict"), "flink-grammar.create-table-doris-key.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-doris-key flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-doris-key flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-doris-key", "editor"), "flink-grammar.create-table-doris-key.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_doris_key_is_dialect_gated" {
+  // Doris-only DUPLICATE KEY under Flink → 009; same SQL valid under Doris.
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (id INT) DUPLICATE KEY (id)", "FATHOM-PARSE-009", "\"valid\":true"))
+}
+
+test "flink-grammar create-table-doris-engine flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-doris-engine flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-doris-engine", "strict"), "flink-grammar.create-table-doris-engine.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-doris-engine flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-doris-engine flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-doris-engine", "editor"), "flink-grammar.create-table-doris-engine.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_doris_engine_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (id INT) ENGINE = OLAP", "FATHOM-PARSE-009", "\"valid\":true"))
+}
+
+test "flink-grammar create-table-doris-properties flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-doris-properties flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-doris-properties", "strict"), "flink-grammar.create-table-doris-properties.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-doris-properties flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-doris-properties flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-doris-properties", "editor"), "flink-grammar.create-table-doris-properties.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_doris_properties_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (id INT) PROPERTIES (\"k\"=\"v\")", "FATHOM-PARSE-009", "\"valid\":true"))
+}
+
+// ---------------------------------------------------------------------------
+// Bidirectional negative-gate matrix (D-04, §9): each Flink-only CREATE TABLE
+// form is 009 under Doris and valid under Flink (no double-valid, Pitfall 2).
+// ---------------------------------------------------------------------------
+test "flink_grammar_watermark_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT, WATERMARK FOR a AS a)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_computed_column_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT, proc AS PROCTIME())", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_metadata_column_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT, x STRING METADATA FROM 'x' VIRTUAL)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_primary_key_not_enforced_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT, PRIMARY KEY (a) NOT ENFORCED)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_distributed_into_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT) DISTRIBUTED BY HASH(a) INTO 6 BUCKETS", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_partitioned_by_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT) PARTITIONED BY (dt)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_with_options_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t (a INT) WITH ('connector'='kafka')", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_like_feature_list_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t2 LIKE t1 (INCLUDING ALL)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+// Plain LIKE and plain AS SELECT are shared syntax (valid under both dialects);
+// the Flink-specific variants (LIKE feature list, WITH-before-AS CTAS) gate.
+test "flink_grammar_plain_like_and_ctas_are_shared_with_doris" {
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t2 LIKE t1", "\"valid\":true", "\"valid\":true"))
+  assert_true(flink_grammar_bidirectional(b"CREATE TABLE t3 AS SELECT * FROM src", "\"valid\":true", "\"valid\":true"))
 }

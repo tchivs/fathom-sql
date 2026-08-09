@@ -2894,6 +2894,17 @@ fn parse_create_table(
   // LIKE variant: CREATE TABLE new LIKE existing [ WITH ROLLUP ( list ) ].
   if consume_word(cursor, b"LIKE") {
     valid = parse_qualified_name(cursor, state, source, statement_id, "existing table name") && valid
+    if raw_at(cursor) is Some(b"(") {
+      // D-04 gate: the Flink LIKE feature list `(INCLUDING|EXCLUDING|
+      // OVERWRITING <feature> ...)` (SqlTableLike, parserImpls.ftl:1714-1790)
+      // is construct-level FATHOM-PARSE-009 under Doris (Doris LIKE has no
+      // parenthesized feature list).
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_dialect_gate_diagnostic(state, span, statement_id)
+      valid = false
+      consume_gated_remainder(cursor, state, source, statement_id)
+      return valid
+    }
     if consume_word(cursor, b"WITH") {
       valid = expect_word(cursor, b"ROLLUP", state, source, statement_id, "expected ROLLUP after WITH in LIKE") && valid
       valid = parse_identifier_option(cursor, state, source, statement_id, "LIKE ROLLUP") && valid
@@ -2950,7 +2961,16 @@ fn parse_create_table(
       advance(cursor)
     }
   }
-  if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"AUTO") || bytes_equal_ci(raw, b"PARTITION")) {
+  if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"PARTITIONED") || bytes_equal_ci(raw, b"WITH")) {
+    // D-04 bidirectional negative gate (T-11-16, §9 matrix): the Flink-only
+    // `PARTITIONED BY (cols)` and `WITH (connector options)` table-level
+    // clauses are construct-level FATHOM-PARSE-009 under Doris (Doris uses
+    // `PARTITION BY RANGE/LIST (...)` and `PROPERTIES (...)`).
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_gated_remainder(cursor, state, source, statement_id)
+  } else if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"AUTO") || bytes_equal_ci(raw, b"PARTITION")) {
     valid = parse_partitions_definition(cursor, state, source, statement_id) && valid
   }
   if consume_word(cursor, b"DISTRIBUTED") {
@@ -2982,6 +3002,24 @@ fn parse_create_table(
 }
 
 // Comma-separated column definitions followed by optional INDEX definitions,
+/// True when the cursor sits on a Flink-only column-body form under Doris —
+/// WATERMARK, PRIMARY KEY, or a UNIQUE constraint — which must be a
+/// construct-level FATHOM-PARSE-009 gate (T-11-16, §9 matrix). A Doris column
+/// legitimately named `unique`/`primary` (not followed by KEY/`(`) is not
+/// gated.
+fn is_flink_only_column_start(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"WATERMARK") => true
+    Some(raw) if bytes_equal_ci(raw, b"PRIMARY") =>
+      peek_raw(cursor, 1) is Some(next) && bytes_equal_ci(next, b"KEY")
+    Some(raw) if bytes_equal_ci(raw, b"UNIQUE") => match peek_raw(cursor, 1) {
+      Some(next) => bytes_equal_ci(next, b"KEY") || next == b"("
+      None => false
+    }
+    _ => false
+  }
+}
+
 // inside the table body parenthesis (columns first, then indexes).
 fn parse_create_table_body(
   cursor : Cursor,
@@ -2999,6 +3037,16 @@ fn parse_create_table_body(
       any = true
       if is_index_definition_start(cursor) {
         valid = parse_create_table_index(cursor, state, source, statement_id) && valid
+      } else if is_flink_only_column_start(cursor) {
+        // D-04 bidirectional negative gate (T-11-16, §9 matrix): Flink-only
+        // column-body forms — WATERMARK, PRIMARY KEY NOT ENFORCED, UNIQUE
+        // constraint — are construct-level FATHOM-PARSE-009 under Doris. The
+        // remainder of the Flink element is consumed losslessly so the gate
+        // is the primary diagnostic.
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_dialect_gate_diagnostic(state, span, statement_id)
+        valid = false
+        consume_body_element_remainder(cursor, state, source, statement_id)
       } else {
         valid = parse_column_definition(cursor, state, source, statement_id) && valid
       }
@@ -3035,7 +3083,29 @@ fn parse_column_definition(
     return false
   }
   advance(cursor)
+  // D-04 bidirectional negative gate (T-11-16, §9 matrix): a Flink computed
+  // column `name AS expr` (no type, AS without a following `(`) is
+  // construct-level FATHOM-PARSE-009 under Doris. Doris generated columns use
+  // `name type AS (expr)` / `GENERATED ALWAYS AS (expr)` (parenthesized), so
+  // `AS (` is not gated and the Doris path stays byte-identical.
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"AS") &&
+    peek_raw(cursor, 1) is Some(next) && !(next == b"(") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_body_element_remainder(cursor, state, source, statement_id)
+    return valid
+  }
   valid = parse_column_type(cursor, state, source, statement_id) && valid
+  // D-04 gate: a Flink metadata column `name type METADATA [FROM 'alias']
+  // [VIRTUAL]` is construct-level FATHOM-PARSE-009 under Doris.
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"METADATA") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_body_element_remainder(cursor, state, source, statement_id)
+    return valid
+  }
   if consume_word(cursor, b"KEY") { () }
   if is_aggregate_type(cursor) { advance(cursor) }
   if consume_word(cursor, b"GENERATED") {
@@ -3452,7 +3522,16 @@ fn parse_distribution_clause(
     add_diagnostic(state, "FATHOM-PARSE-002", "expected HASH or RANDOM after DISTRIBUTED BY", "distribution", at, statement_id)
     valid = false
   }
-  if consume_word(cursor, b"BUCKETS") {
+  // D-04 bidirectional negative gate (T-11-16, §9 matrix): the Flink-only
+  // `DISTRIBUTED ... INTO n BUCKETS` form (SqlDistribution, parserImpls.ftl:
+  // 1556-1570) is construct-level FATHOM-PARSE-009 under Doris — the Doris
+  // distribution form is `DISTRIBUTED BY ... BUCKETS n|AUTO`.
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"INTO") {
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_dialect_gate_diagnostic(state, span, statement_id)
+    valid = false
+    consume_gated_remainder(cursor, state, source, statement_id)
+  } else if consume_word(cursor, b"BUCKETS") {
     let auto_token = token_at(cursor)
     match auto_token {
       Some(token) if token.kind is @token.TokenKind::Number => advance(cursor)

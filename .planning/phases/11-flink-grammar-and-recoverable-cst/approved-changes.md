@@ -157,8 +157,8 @@ the SqlCreateTable complex forms (SqlCreateTable :1585-1712, TableColumn
 | `flink-grammar.create-table-like.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t2 LIKE t1 (INCLUDING ALL)` (SqlTableLike :1714-1790) |
 | `flink-grammar.create-table-as.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t3 AS SELECT * FROM src` (SqlCreateTableAs :1650-1690) |
 | `flink-grammar.create-table-with-as.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t4 WITH ('k'='v') AS SELECT a FROM src` |
-| `flink-grammar.create-table-random-distribution.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t DISTRIBUTED ... RANDOM` — localized error (testCreateTableWithRandomDistribution .fails) |
-| `flink-grammar.create-table-negative-buckets.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) DUPLICATE KEY (id)` — Doris-only form → FATHOM-PARSE-009 |
+| `flink-grammar.create-table-random-distribution.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t DISTRIBUTED BY RANDOM` — localized error (testCreateTableWithRandomDistribution .fails) |
+| `flink-grammar.create-table-negative-buckets.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t DISTRIBUTED INTO -3 BUCKETS` — localized error at the offending `-` token |
 | `flink-grammar.create-table-doris-key.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) DUPLICATE KEY (id)` under flink — FATHOM-PARSE-009 (Doris-only KEY) |
 | `flink-grammar.create-table-doris-engine.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) ENGINE = OLAP` — FATHOM-PARSE-009 |
 | `flink-grammar.create-table-doris-properties.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) PROPERTIES ("k"="v")` — FATHOM-PARSE-009 |
