@@ -159,12 +159,12 @@ fn config_diagnostic(uri : String, version : Int, message : String) -> Bytes {
 }
 
 /// Parse under the document's own dialect/profile context. flink documents
-/// route through @api.parse_flink_not_implemented, which since Phase 11 (D-06)
-/// runs the real Flink grammar — FATHOM-PARSE-008 is retired — never a Doris
-/// parse (DIALECT-03, T-09-23).
+/// route through @api.parse_flink, which since Phase 11 (D-06) runs the real
+/// Flink grammar — FATHOM-PARSE-008 is retired — never a Doris parse
+/// (DIALECT-03, T-09-23).
 fn parse_document_context(document :  Document) -> Result[@api.ParseResult, @api.ParseError] {
   if document.dialect == "flink" {
-    @api.parse_flink_not_implemented(document.text, document.profile, "editor")
+    @api.parse_flink(document.text, document.profile, "editor")
   } else {
     @api.parse_with_ids(document.text, document.dialect, document.profile, "editor")
   }

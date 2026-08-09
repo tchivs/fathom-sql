@@ -509,7 +509,7 @@ pub fn parse_with_ids(
 /// `validate_dialect_profile`), and known profiles populate
 /// `exact_release`/`feature_introduction` from `FlinkProfileMetadata` rather
 /// than carrying the raw profile string / empty metadata.
-pub fn parse_flink_not_implemented(
+pub fn parse_flink(
   raw : Bytes,
   profile_id : String,
   mode_id_value : String,
@@ -742,7 +742,7 @@ test "api_parse_flink_gates_profiles_and_carries_metadata" {
   // Flink grammar (valid=true, zero diagnostics), and an unknown (Doris-shaped
   // or adjacent) profile is rejected with UnknownProfile (FATHOM-SCHEMA-003 at
   // the wire, matching validate_dialect_profile).
-  let ok = match parse_flink_not_implemented(b"SELECT 1", "flink-2.3.0", "strict") {
+  let ok = match parse_flink(b"SELECT 1", "flink-2.3.0", "strict") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -752,9 +752,9 @@ test "api_parse_flink_gates_profiles_and_carries_metadata" {
   assert_eq(ok.feature_introduction, "primary profile")
   assert_true(ok.valid)
   assert_eq(ok.diagnostics.length(), 0)
-  assert_true(parse_flink_not_implemented(b"SELECT 1", "4.x", "strict") is Err(UnknownProfile(profile_id="4.x")))
-  assert_true(parse_flink_not_implemented(b"SELECT 1", "flink-2.3", "strict") is Err(UnknownProfile(profile_id="flink-2.3")))
-  assert_true(parse_flink_not_implemented(b"SELECT 1", "flink-2.3.0", "turbo") is Err(UnknownMode(mode_id="turbo")))
+  assert_true(parse_flink(b"SELECT 1", "4.x", "strict") is Err(UnknownProfile(profile_id="4.x")))
+  assert_true(parse_flink(b"SELECT 1", "flink-2.3", "strict") is Err(UnknownProfile(profile_id="flink-2.3")))
+  assert_true(parse_flink(b"SELECT 1", "flink-2.3.0", "turbo") is Err(UnknownMode(mode_id="turbo")))
 }
 
 test "api_result_owns_source_once_and_has_bounded_descendant_spans" {
