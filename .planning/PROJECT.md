@@ -26,6 +26,10 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] 产品层完成 `fathom/sql`、`fathom-sql`、`fathom-lsp` 中立命名 cutover（模块/二进制/导出/schema/错误码/扩展/文档），无旧名 alias；Doris 仅保留为方言/profile/corpus/provenance 语义标识 — Validated in Phase 9: Dialect Boundary and Neutral Naming
 - [x] CI 内置命名 inventory/allowlist 门禁（`check_naming.py`），拒绝产品层 `doris-sql`/`doris-lsp`/`doris.*`/`DORIS-*` 残留 — Validated in Phase 9: Dialect Boundary and Neutral Naming
 - [x] 消费者可选择钉住的 Flink release profile（`flink-2.3.0` 主 + `flink-2.1.3`/`flink-1.20.5` 回归），每个 profile 记录真实 release 的 Calcite 版本/parser 配置（自该 release 提取），不支持者显式拒绝 — Validated in Phase 10: Flink Release Profiles and Lexical Core
+- [x] 消费者可解析 Flink 核心查询与日常语句（SELECT/CTE/JOIN/聚合/集合运算/表达式/类型/INSERT/UPDATE/DELETE/EXPLAIN/SHOW/DESCRIBE/ANALYZE）与 Catalog/DDL 入口（CREATE/ALTER/DROP CATALOG/DATABASE/TABLE/VIEW/FUNCTION），可恢复诊断 — Validated in Phase 11: Flink Grammar and Recoverable CST
+- [x] 消费者可解析 Flink CREATE TABLE 物理/元数据/计算列、WATERMARK、PRIMARY KEY NOT ENFORCED、PARTITIONED BY、分布、WITH 选项、LIKE、AS 形式，保留 token 拼写/trivia/span — Validated in Phase 11: Flink Grammar and Recoverable CST
+- [x] 消费者可解析 Window TVF（TUMBLE/HOP/CUMULATE/SESSION，含 TABLE/DESCRIPTOR/区间字面量/命名参数/窗口输出列）与语法级 MATCH_RECOGNIZE（PATTERN/DEFINE/MEASURES/skip/变量/量词），不声称 planner/执行等价 — Validated in Phase 11: Flink Grammar and Recoverable CST
+- [x] 消费者可在严格/编辑器模式将 Flink 输入解析为可恢复无损 CST：注释/空白/换行/未知/错误/缺失/跳过材料/源码字节/span 全部 round-trip 无丢失 — Validated in Phase 11: Flink Grammar and Recoverable CST
 
 ### Active
 
@@ -68,13 +72,14 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Current State
 
-**v2.0 Phase 10 COMPLETE — 2026-08-07** (Flink Release Profiles and Lexical Core)
+**v2.0 Phase 11 COMPLETE — 2026-08-09** (Flink Grammar and Recoverable CST)
 
-- **Flink release profiles 解锁:** `FlinkProfile` 闭合枚举（flink-2.3.0 / flink-2.1.3 / flink-1.20.5）+ `FlinkProfileMetadata`，Calcite pin 从各 release 自身 POM 提取（2.3.0→1.36.0、2.1.3→1.34.0、1.20.5→1.32.0），manifest 记录 url/sha512/tag/commit；`scripts/extract_flink_lexical.py` 提取 + 校验（含 manifest sha512 复验）；未知 profile 显式 FATHOM-SCHEMA-003，无 FATHOM-FLINK-* 命名空间。
-- **Flink 词法核心落地:** lexer 按 `context.dialect` 分支 — `#` 在 Flink 下为词法错误（Doris 为注释）、`--`/`//` 单行注释、反引号标识符双反引号转义、字符串 `''` 加倍无反斜杠、X/U&/N/E/_CHARSETNAME 前缀字面量（E 仅 2.3.0/2.1.3，1.20.5 无）、`||`/`=>`/`..` 运算符；profile-aware 关键字分类（VARIANT/QUALIFY 在 2.1.3+ 为 Reserved、1.20.5 为 ABSENT）；26 个 flink-lexical 冲突矩阵快照。
-- **Doris 零漂移保持:** 260/260 parity（含 213 快照 Doris baseline）无 `--update` 通过；Doris lexer 臂字节级一致。
-- **测试:** 502/502 MoonBit（CI 对齐矩阵）+ extract 脚本 exit 0 + 代码评审 7/7 finding 修复 + 威胁注册 21/21 关闭（ASVS L1）。
-- **已知边界:** Flink grammar（语句级解析）→ Phase 11；Flink 工具链 → Phase 13；全量 Flink corpus/parity → Phase 12；`N..N` 数值相邻双句点 token 化与 Calcite 的偏差已记录（冲突矩阵注释，Phase 11 grammar 落地时重访）。
+- **Flink 语句级 grammar 落地:** `parse_flink_segment` 从 FATHOM-PARSE-008 占位替换为真实 grammar — 核心查询（SELECT/CTE/JOIN/聚合/集合运算/表达式/类型，含 ROW<...>）、DML（INSERT/UPDATE/DELETE）、辅助（EXPLAIN/SHOW/DESCRIBE/ANALYZE）、Catalog/DDL（CREATE/ALTER/DROP CATALOG/DATABASE/TABLE/VIEW/FUNCTION）、CREATE TABLE 复杂形式（物理/元数据/计算列、WATERMARK、PRIMARY KEY NOT ENFORCED、PARTITIONED BY、分布、WITH、LIKE/AS）、Window TVF（TUMBLE/HOP/CUMULATE/SESSION + TABLE/DESCRIPTOR/命名参数/区间字面量）、MATCH_RECOGNIZE 语法级（PATTERN/DEFINE/MEASURES/skip/变量/量词）。
+- **Recoverable lossless CST（CST-01）:** 严格/编辑器双模式，注释/空白/错误/缺失/跳过材料/span 全 round-trip；有界恢复（深度预算防递归栈溢出、with_prefix_verb 边界修复、MATCH_RECOGNIZE/TVF 子句边界）。
+- **双向方言负门禁:** Flink-only（WATERMARK/TVF/MATCH_RECOGNIZE/DDL 族）在 Doris 模式拒绝、Doris-only 在 Flink 模式拒绝 — FATHOM-PARSE-009 构造级 + 007 整句；`watermark` 等非保留字列名回归已修复。
+- **Doris 零漂移保持:** parity 570/570（含 213 快照 Doris baseline）无 `--update`；WR-01 裸 CREATE 回归测试绿。
+- **测试:** 812/812 MoonBit（CI 对齐矩阵）；extract_flink_grammar.py 校验 production 行号/清单；代码评审 16/16 finding 修复（4 BLOCKER 含递归崩溃 + Doris 回归 + OOB abort，4 MAJOR，4 MINOR，2 INFO）；威胁注册 32/32 关闭（ASVS L1）。
+- **已知边界:** Flink 工具链（format/completion/analyzer）→ Phase 13；全量 Flink corpus/parity → Phase 12；MATCH_RECOGNIZE 仅语法级（无 planner/执行等价、无 pattern 变量作用域校验，Pitfall 6 冻结）；`IN-02 argument_list_has_arrow` O(n²) 共享热路径与 `IN-04` 全项目 native build 链接怪癖已记录接受。
 
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming
 
@@ -105,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-07 after Phase 10 (Flink Release Profiles and Lexical Core) completion*
+*Last updated: 2026-08-09 after Phase 11 (Flink Grammar and Recoverable CST) completion*
