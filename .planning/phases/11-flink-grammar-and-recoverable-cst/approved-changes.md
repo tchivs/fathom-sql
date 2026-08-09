@@ -140,13 +140,23 @@ of the flink-lexical group are byte-identical (Doris unchanged):
 | `flink-lexical.backtick-escape.flink-2.3.0.{strict,editor}.json` | `` SELECT `a``b` `` is now valid=true (BTID quoted identifier) — no 008 |
 | `flink-lexical.unknown-profile.flink-4x.{strict,editor}.json` | UNCHANGED — the FATHOM-SCHEMA-003 selection rejection envelope never reaches the parser |
 
-## 5. Doris 213-snapshot zero-drift confirmation
+## 6. Doris 213-snapshot zero-drift confirmation
 
 The Doris 213 baseline snapshots are byte-identical after every Phase 11 wave.
 Any shared parser/CST change is re-run against `moon test --package parity`
 (no `--update`) BEFORE landing; `git diff --name-only -- parity/__snapshot__`
 shows only `flink-grammar.*` and the registered `flink-lexical.*` re-generation
 after the approved `--update`, never a doris-named file.
+
+## 7. MERGE-INTO under Flink — [ASSUMED] A1 fixture outcome (11-02)
+
+The FLINK-02 MERGE probe ([ASSUMED] A1) is resolved by fixture: `MERGE INTO t
+USING s ...` under flink-2.3.0 routes to the Flink dispatch's unsupported path
+(FATHOM-PARSE-007, source-backed Error node) — no `parse_flink_merge` arm is
+added in 11-02. Calcite base has a SqlMerge production
+(Parser-calcite-1.36.0.jj:1837) but Flink's planner does not support MERGE; a
+later plan may add `parse_flink_merge` if the pinned grammar's syntactic
+acceptance needs freezing.
 
 Machine-readable patterns (baseline_diff.py `--approve`):
 
