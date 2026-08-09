@@ -3086,7 +3086,11 @@ fn parse_create_table(
 /// gated.
 fn is_flink_only_column_start(cursor : Cursor) -> Bool {
   match raw_at(cursor) {
-    Some(raw) if bytes_equal_ci(raw, b"WATERMARK") => true
+    // CR-03/MJ-03: WATERMARK is a valid Doris column name (not a Doris
+    // reserved word). The Flink-only gate fires only for the sub-clause form
+    // WATERMARK FOR ... — a bare `watermark` column parses as an identifier.
+    Some(raw) if bytes_equal_ci(raw, b"WATERMARK") =>
+      peek_raw(cursor, 1) is Some(next) && bytes_equal_ci(next, b"FOR")
     Some(raw) if bytes_equal_ci(raw, b"PRIMARY") =>
       peek_raw(cursor, 1) is Some(next) && bytes_equal_ci(next, b"KEY")
     Some(raw) if bytes_equal_ci(raw, b"UNIQUE") => match peek_raw(cursor, 1) {
