@@ -297,6 +297,10 @@ fn precedence_flink(cursor : Cursor) -> Int? {
     Some(precedence) => Some(precedence)
     None => match raw_at(cursor) {
       Some(raw) if raw == b"||" => Some(3)
+      // MJ-04: AT TIME ZONE (SqlStdOperatorTable.AT_TIME_ZONE) sits at the
+      // same level as comparison/CONCAT (A3); the binary-operator loop
+      // consumes the TIME ZONE qualifier before parsing the RHS operand.
+      Some(raw) if bytes_equal_ci(raw, b"AT") => Some(3)
       _ => None
     }
   }
@@ -1137,7 +1141,17 @@ fn parse_expression_context(
     while keep_going {
       match precedence(cursor.stream.context, cursor) {
         Some(operator_precedence) if operator_precedence >= minimum_precedence => {
+          // MJ-04: AT TIME ZONE is a Flink-only binary operator whose RHS is
+          // prefixed by the TIME ZONE qualifier (SqlStdOperatorTable
+          // .AT_TIME_ZONE). The operator is consumed first, then the
+          // qualifier, then the RHS operand. Under Doris `AT` has no
+          // precedence entry, so this branch never fires there.
+          let operator_raw = match raw_at(cursor) { Some(raw) => raw; None => b"" }
           advance(cursor)
+          if bytes_equal_ci(operator_raw, b"AT") && (cursor.stream.context.dialect is @dialect.Dialect::Flink) {
+            valid = expect_word(cursor, b"TIME", state, source, statement_id, "expected TIME after AT in AT TIME ZONE") && valid
+            valid = expect_word(cursor, b"ZONE", state, source, statement_id, "expected ZONE after AT TIME in AT TIME ZONE") && valid
+          }
           let rhs = parse_expression_context(cursor, operator_precedence + 1, depth + 1, state, source, statement_id, ExpressionContext::Ordinary)
           valid = rhs && valid
           if !rhs { keep_going = false }

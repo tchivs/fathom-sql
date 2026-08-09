@@ -652,6 +652,16 @@ fn parse_flink_data_type(
       valid = expect_symbol(cursor, b">", state, source, statement_id, "expected closing type generic bracket") && valid
     }
   }
+  // Optional [ WITH [LOCAL] TIME ZONE ] suffix (SqlTimestampTypeName /
+  // SqlTimeTypeName, dataTypeParserMethods Parser.tdd:759-765). Accepted
+  // after any type at the syntax level; the temporal forms
+  // TIMESTAMP(p) WITH [LOCAL] TIME ZONE / TIME(p) WITH [LOCAL] TIME ZONE
+  // are the in-scope targets (MJ-04).
+  if consume_word(cursor, b"WITH") {
+    ignore(consume_word(cursor, b"LOCAL"))
+    valid = expect_word(cursor, b"TIME", state, source, statement_id, "expected TIME after WITH in data type") && valid
+    valid = expect_word(cursor, b"ZONE", state, source, statement_id, "expected ZONE after WITH TIME in data type") && valid
+  }
   // Optional nullability suffix: [NOT] NULL (ExtendedDataType,
   // parserImpls.ftl:1395-1420).
   if consume_word(cursor, b"NOT") {
