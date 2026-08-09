@@ -42,17 +42,18 @@ test "dialect_selection_is_explicit_end_to_end" {
   let envelope_error = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "doris", "9.x", "strict")[:])
   assert_true(envelope_error.contains("fathom.error.v1"))
   assert_true(envelope_error.contains("FATHOM-SCHEMA-003"))
-  // (c) flink-2.3.0 is a valid Phase 10 selection: the parse envelope carries
-  // dialect=flink/profile=flink-2.3.0 with the explicit FATHOM-PARSE-008
-  // not-implemented diagnostic — never a Doris parse and never a silent
-  // default (DIALECT-03). An unknown flink profile (the Doris-shaped "2.1")
-  // still rejects with the structured FATHOM-SCHEMA-003 profile error.
+  // (c) flink-2.3.0 is a valid Phase 11 selection: the parse envelope carries
+  // dialect=flink/profile=flink-2.3.0 and a valid SELECT parses through the
+  // real Flink grammar (valid=true — FATHOM-PARSE-008 is retired, D-06) —
+  // never a Doris parse and never a silent default (DIALECT-03). An unknown
+  // flink profile (the Doris-shaped "2.1") still rejects with the structured
+  // FATHOM-SCHEMA-003 profile error.
   let flink = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "flink", "flink-2.3.0", "strict")[:])
   assert_true(flink.contains("fathom.parse.v1"))
   assert_true(flink.contains("\"dialect\":\"flink\""))
   assert_true(flink.contains("\"profile\":\"flink-2.3.0\""))
   assert_true(flink.contains("\"exact_release\":\"flink-2.3.0\""))
-  assert_true(flink.contains("FATHOM-PARSE-008"))
+  assert_true(flink.contains("\"valid\":true"))
   assert_true(!flink.contains("Doris"))
   let flink_unknown = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "flink", "2.1", "strict")[:])
   assert_true(flink_unknown.contains("fathom.error.v1"))
@@ -95,11 +96,11 @@ test "format_export_is_dialect_aware_with_neutral_wire_identity" {
   )
   assert_true(bad_option.contains("fathom.error.v1"))
   assert_true(bad_option.contains("FATHOM-FORMAT-002"))
-  // (c) flink-2.3.0 is a valid Phase 10 selection: the formatter refuses the
-  // not-implemented tree (FATHOM-FORMAT-001, never partial bytes) inside the
-  // fathom.format.v1 envelope — no Doris-policy formatting of a flink request
-  // (Pitfall 6, T-09-10). An unknown flink profile (the Doris-shaped "2.1")
-  // still rejects with the structured FATHOM-SCHEMA-003 profile error.
+  // (c) flink-2.3.0 is a valid Phase 11 selection: a valid Flink SELECT parses
+  // through the real grammar and the formatter ACCEPTS it (accepted=true) —
+  // FATHOM-PARSE-008 is retired (D-06), so the not-implemented refusal is
+  // gone. An unknown flink profile (the Doris-shaped "2.1") still rejects with
+  // the structured FATHOM-SCHEMA-003 profile error.
   let flink = @utf8.decode_lossy(
     @binding.fathom_format_v1(
       b"select 1", "flink", "flink-2.3.0", "strict", "upper", 2, 100, "trailing", "follow", true,
@@ -108,8 +109,7 @@ test "format_export_is_dialect_aware_with_neutral_wire_identity" {
   assert_true(flink.contains("fathom.format.v1"))
   assert_true(flink.contains("\"dialect\":\"flink\""))
   assert_true(flink.contains("\"profile\":\"flink-2.3.0\""))
-  assert_true(flink.contains("\"accepted\":false"))
-  assert_true(flink.contains("FATHOM-FORMAT-001"))
+  assert_true(flink.contains("\"accepted\":true"))
   let flink_unknown = @utf8.decode_lossy(
     @binding.fathom_format_v1(
       b"select 1", "flink", "2.1", "strict", "upper", 2, 100, "trailing", "follow", true,
@@ -127,10 +127,11 @@ test "format_export_is_dialect_aware_with_neutral_wire_identity" {
   assert_true(unknown.contains("unknown dialect"))
 }
 
-test "flink_internal_route_returns_not_implemented_statement" {
+test "flink_internal_route_parses_select" {
   // (d) The internal Flink route (parser entry, bypassing profile rejection):
-  // a directly constructed Flink DialectContext parses to a Statement node
-  // carrying FATHOM-PARSE-008 — no Doris grammar runs.
+  // a directly constructed Flink DialectContext parses a valid SELECT through
+  // the real Flink grammar (valid=true, zero diagnostics) — FATHOM-PARSE-008
+  // is retired (D-06) and never reused.
   let source = match @source.SourceText::new(b"SELECT 1") {
     Ok(source) => source
     Err(_) => panic()
@@ -142,10 +143,8 @@ test "flink_internal_route_returns_not_implemented_statement" {
     feature_introduction: "",
   } : @dialect.DialectContext)
   let parsed = @parser.parse(source, context, @parser.ParseMode::Strict)
-  assert_true(!parsed.valid)
-  assert_eq(parsed.diagnostics.length(), 1)
-  assert_eq(parsed.diagnostics[0].code, "FATHOM-PARSE-008")
-  assert_eq(parsed.diagnostics[0].message, "flink grammar is not yet implemented in this release")
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
   let statements = parsed.root.children()
   assert_true(statements.length() >= 1)
   assert_true(statements[0].span().end_byte == source.byte_length())

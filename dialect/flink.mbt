@@ -185,6 +185,19 @@ let flink_classification_rows : Array[KeywordEntry] = [
   { word: b"COLUMNS", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:174 (COLUMNS)" },
   { word: b"FUNCTIONS", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:187 (FUNCTIONS)" },
   { word: b"CALL", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7353 (CALL)" },
+  // ---- Calcite base MATCH_RECOGNIZE-family reserved tokens (Pitfall 9) ----
+  // Phase 10 missed these because they are generated Calcite base tokens
+  // (codegen/templates/Parser.jj token list), absent from the Parser.tdd
+  // keyword extraction that produced the committed reserved lists. Present in
+  // every pinned release (Calcite 1.32.0/1.34.0/1.36.0), so they classify as
+  // Reserved under every Flink profile; backtick-quoting is required to use
+  // them as identifiers (RESEARCH §5.6, Parser-calcite-1.36.0.jj:8214/8213/
+  // 8217/8305/8043).
+  { word: b"MATCH_RECOGNIZE", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7618 (MATCH_RECOGNIZE)" },
+  { word: b"MATCH_NUMBER", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7617 (MATCH_NUMBER)" },
+  { word: b"MEASURES", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7621 (MEASURES)" },
+  { word: b"PATTERN", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7707 (PATTERN)" },
+  { word: b"DEFINE", classification: Reserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7449 (DEFINE)" },
   // ---- Baseline flink-1.20.5 NonReserved (Parser.tdd nonReservedKeywords) ----
   { word: b"ASC", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:245 (ASC)" },
   { word: b"DESC", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:301 (DESC)" },

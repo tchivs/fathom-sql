@@ -212,6 +212,18 @@ test "classification_is_dialect_independent_and_release_aware" {
   assert_true(classification_of(flink_213, b"SAFE_CAST") is None)
   assert_true(classification_of(flink_120, b"SAFE_CAST") is None)
   assert_true(classification_is_reserved(flink_230, b"SAFE_CAST"))
+  // MATCH_RECOGNIZE is a Calcite base reserved token present in all three
+  // pinned releases (Pitfall 9 — Phase 10 missed the row): Reserved under
+  // every Flink profile; backtick-quoting is required to use it as an
+  // identifier (RESEARCH §5.6, Parser-calcite-1.36.0.jj:8214).
+  assert_true(classification_is_reserved(flink_230, b"MATCH_RECOGNIZE"))
+  assert_true(classification_is_reserved(flink_213, b"MATCH_RECOGNIZE"))
+  assert_true(classification_is_reserved(flink_120, b"MATCH_RECOGNIZE"))
+  // The MATCH_RECOGNIZE-family reserved rows share the baseline profile.
+  assert_true(classification_is_reserved(flink_120, b"MATCH_NUMBER"))
+  assert_true(classification_is_reserved(flink_120, b"MEASURES"))
+  assert_true(classification_is_reserved(flink_120, b"PATTERN"))
+  assert_true(classification_is_reserved(flink_120, b"DEFINE"))
   // Baseline words remain visible under every profile (introduced at 1.20.5).
   assert_true(classification_is_reserved(flink_120, b"SELECT"))
   assert_true(classification_is_reserved(flink_213, b"SELECT"))

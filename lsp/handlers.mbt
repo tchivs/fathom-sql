@@ -159,8 +159,9 @@ fn config_diagnostic(uri : String, version : Int, message : String) -> Bytes {
 }
 
 /// Parse under the document's own dialect/profile context. flink documents
-/// route through the 09-02 explicit not-implemented path (FATHOM-PARSE-008),
-/// never a Doris parse (DIALECT-03, T-09-23).
+/// route through @api.parse_flink_not_implemented, which since Phase 11 (D-06)
+/// runs the real Flink grammar — FATHOM-PARSE-008 is retired — never a Doris
+/// parse (DIALECT-03, T-09-23).
 fn parse_document_context(document :  Document) -> Result[@api.ParseResult, @api.ParseError] {
   if document.dialect == "flink" {
     @api.parse_flink_not_implemented(document.text, document.profile, "editor")
@@ -268,8 +269,8 @@ fn language_id_from_params(params : Json, key : String) -> String? {
 /// accepts exactly the three pinned release profiles (flink-2.3.0/2.1.3/
 /// 1.20.5, Phase 10 D-01). An unknown flink profile (e.g. the Doris-shaped
 /// `4.x`) is therefore rejected here at the selection boundary, matching the
-/// CLI/wire; a valid flink selection's parse stays the explicit
-/// FATHOM-PARSE-008 not-implemented route.
+/// CLI/wire; a valid flink selection's parse runs the real Flink grammar
+/// (FATHOM-PARSE-008 retired, D-06).
 fn validate_selection(selection : DialectSelection) -> Result[DialectSelection, SelectionError] {
   match @binding.validate_dialect_profile(selection.dialect, selection.profile) {
     Ok(_) => Ok(selection)
@@ -421,8 +422,10 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
   // T-09-23 flink surface (MI-06): formatting a flink-selected document is a
   // structured not-implemented error, never a silent empty edit array — a
   // host must be able to distinguish "nothing to format" from "formatting is
-  // not supported for this dialect". The message mirrors the parse-path
-  // FATHOM-PARSE-008 diagnostic text.
+  // not supported for this dialect". The message mirrors the pre-Phase-11
+  // parse-path FATHOM-PARSE-008 diagnostic text; the LSP formatting surface
+  // change for real Flink trees is scheduled with the toolchain wave (Phase
+  // 13, TOOL-01..03), outside this wave's scope.
   if document.dialect == "flink" {
     return [ error_response(id, -32603, "flink grammar is not yet implemented")]
   }

@@ -239,6 +239,14 @@ def validate_keyword_lists(problems):
     return lists, overlap_report
 
 
+# Calcite base reserved tokens (Pitfall 9, Phase 11): generated Calcite base
+# token-list words that ARE reserved in the pinned Parser.jj files but are
+# ABSENT from the Parser.tdd keyword extraction (the source of the committed
+# reserved/nonreserved lists). scripts/extract_flink_grammar.py validates these
+# against the pinned Parser-calcite-{v}.jj token lines directly.
+CALCITE_BASE_ONLY_RESERVED = {"MATCH_RECOGNIZE", "MATCH_NUMBER"}
+
+
 def validate_flink_rows(problems, lists):
     """Validate every inlined flink_classification_rows word against the lists."""
     if not os.path.isfile(FLINK_MBT):
@@ -268,6 +276,16 @@ def validate_flink_rows(problems, lists):
             problems.append(
                 "flink row %s: unknown classification %r" % (word, classification)
             )
+            continue
+        # Calcite base reserved tokens are validated by
+        # scripts/extract_flink_grammar.py against the pinned Parser.jj token
+        # lines instead of the Parser.tdd-derived lists (Pitfall 9).
+        if word in CALCITE_BASE_ONLY_RESERVED:
+            if classification != "Reserved":
+                problems.append(
+                    "flink row %s: Calcite base token must classify Reserved, got %r"
+                    % (word, classification)
+                )
             continue
         if classification == "Reserved":
             candidates = [lists.get((release, "reserved"), set())]

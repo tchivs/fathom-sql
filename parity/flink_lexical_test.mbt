@@ -184,7 +184,11 @@ test "flink_lexical_hash_comment_is_dialect_routed_and_independent" {
   let doris_strict = flink_lexical_parse_json("hash-comment", "doris", "4.x", "strict")
   assert_true(flink_strict.contains("\"dialect\":\"flink\""))
   assert_true(flink_strict.contains("\"profile\":\"flink-2.3.0\""))
-  assert_true(flink_strict.contains("FATHOM-PARSE-008"))
+  // D-06 (Phase 11): FATHOM-PARSE-008 is retired. `a # comment` starts with a
+  // non-SELECT/WITH verb, so the real Flink dispatch routes it to
+  // unsupported_statement (FATHOM-PARSE-007); the `#` lexical error remains
+  // FATHOM-PARSE-003.
+  assert_true(flink_strict.contains("FATHOM-PARSE-007"))
   assert_true(flink_strict.contains("FATHOM-PARSE-003"))
   assert_true(doris_strict.contains("\"dialect\":\"doris\""))
   assert_true(doris_strict.contains("\"profile\":\"4.x\""))
@@ -224,7 +228,10 @@ test "flink_lexical_double_quote_is_dialect_routed_and_independent" {
   let doris_strict = flink_lexical_parse_json("double-quote", "doris", "4.x", "strict")
   assert_true(flink_strict.contains("\"dialect\":\"flink\""))
   assert_true(flink_strict.contains("\"profile\":\"flink-2.3.0\""))
-  assert_true(flink_strict.contains("FATHOM-PARSE-008"))
+  // D-06 (Phase 11): the real Flink grammar parses SELECT to a select node; the
+  // DOUBLE_QUOTE symbol at byte 7 is an expression error (FATHOM-PARSE-002).
+  assert_true(flink_strict.contains("\"kind\":\"select\""))
+  assert_true(flink_strict.contains("FATHOM-PARSE-002"))
   // Flink: `"` at byte 7 is a 1-byte DOUBLE_QUOTE Symbol (7-8); Doris: `"a"` is one Quoted (7-10).
   assert_true(flink_strict.contains("\"start_byte\":7,\"end_byte\":8"))
   assert_true(!flink_strict.contains("\"start_byte\":7,\"end_byte\":10"))
@@ -264,7 +271,9 @@ test "flink_lexical_slash_comment_is_dialect_routed_and_independent" {
   let flink_strict = flink_lexical_parse_json("slash-comment", "flink", "flink-2.3.0", "strict")
   let doris_strict = flink_lexical_parse_json("slash-comment", "doris", "4.x", "strict")
   assert_true(flink_strict.contains("\"dialect\":\"flink\""))
-  assert_true(flink_strict.contains("FATHOM-PARSE-008"))
+  // D-06 (Phase 11): `SELECT a // comment` is valid Flink SQL — the real
+  // grammar accepts it (valid=true, no FATHOM-PARSE-008).
+  assert_true(flink_strict.contains("\"valid\":true"))
   // Flink: `// comment` (9-19) is ONE Comment token; Doris: `/`(9-10) + `/`(10-11).
   assert_true(flink_strict.contains("\"start_byte\":9,\"end_byte\":19"))
   assert_true(!flink_strict.contains("\"start_byte\":9,\"end_byte\":10"))
@@ -364,7 +373,9 @@ test "flink_lexical_backtick_escape_is_dialect_routed_and_independent" {
   assert_true(flink_strict.contains("\"start_byte\":7,\"end_byte\":13"))
   assert_true(doris_strict.contains("\"start_byte\":7,\"end_byte\":13"))
   assert_true(flink_strict.contains("\"dialect\":\"flink\""))
-  assert_true(flink_strict.contains("FATHOM-PARSE-008"))
+  // D-06 (Phase 11): `SELECT `a``b`` is valid Flink SQL — the real grammar
+  // accepts it (valid=true, no FATHOM-PARSE-008).
+  assert_true(flink_strict.contains("\"valid\":true"))
   assert_true(doris_strict.contains("\"dialect\":\"doris\""))
   assert_true(!doris_strict.contains("FATHOM-PARSE-008"))
   assert_true(!flink_strict.contains("\"dialect\":\"doris\""))

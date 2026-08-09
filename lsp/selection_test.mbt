@@ -221,9 +221,10 @@ test "workspace_configuration_pull_applies_settings_by_correlated_id" {
 
 test "did_change_configuration_dialect_switch_reparses_flink" {
   // (h) D-03: a workspace-default dialect switch re-parses the current
-  // revision under the new context and publishes the flink not-implemented
-  // diagnostics (FATHOM-PARSE-008) — never Doris acceptance, never a silent
-  // empty result.
+  // revision under the new context. Phase 11 retires FATHOM-PARSE-008: a
+  // valid `SELECT 1` parses through the real Flink grammar and publishes an
+  // EMPTY diagnostics array — never Doris acceptance and never the old
+  // not-implemented diagnostic.
   let state = ServerState::new()
   ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")))
   let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///switch.sql\",\"version\":1,\"text\":\"SELECT 1\"}}}")
@@ -235,9 +236,8 @@ test "did_change_configuration_dialect_switch_reparses_flink" {
   assert_eq(switched.length(), 1)
   let body = @utf8.decode_lossy(switched[0])
   assert_true(body.contains("publishDiagnostics"))
-  assert_true(body.contains("FATHOM-PARSE-008"))
-  assert_true(body.contains("\"source\":\"fathom\""))
-  assert_true(body.contains("flink grammar is not yet implemented in this release"))
+  assert_true(body.contains("\"diagnostics\":[]"))
+  assert_true(!body.contains("FATHOM-PARSE-008"))
   let document = match state.docs.get("file:///switch.sql") {
     Some(document) => document
     None => panic()
@@ -248,17 +248,18 @@ test "did_change_configuration_dialect_switch_reparses_flink" {
 }
 
 test "flink_document_format_and_completion_reject_without_doris_policy" {
-  // (j) T-09-23: a flink-selected document's parse publishes FATHOM-PARSE-008,
-  // while formatting and completion return the structured rejection (the api
-  // unsupported-profile error) — no Doris policy leak on any surface.
+  // (j) T-09-23: a flink-selected document's valid SELECT parses through the
+  // real Flink grammar (empty diagnostics — FATHOM-PARSE-008 retired, D-06),
+  // while formatting stays the LSP not-implemented refusal and completion the
+  // structured rejection — no Doris policy leak on any surface.
   let state = ServerState::new()
   state.initialized = true
   let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
   let opened = handle_message(state, open)
   assert_eq(opened.length(), 1)
   let parse_body = @utf8.decode_lossy(opened[0])
-  assert_true(parse_body.contains("FATHOM-PARSE-008"))
-  assert_true(parse_body.contains("\"source\":\"fathom\""))
+  assert_true(!parse_body.contains("FATHOM-PARSE-008"))
+  assert_true(parse_body.contains("\"diagnostics\":[]"))
   let format = message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\"}}}")
   let edits = handle_message(state, format)
   assert_eq(edits.length(), 1)

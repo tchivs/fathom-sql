@@ -475,16 +475,16 @@ pub fn parse_with_ids(
   parse(raw, options)
 }
 
-/// Flink-mode parse entry (DIALECT-03, A1/OQ1): a document whose dialect
-/// selection is validated as `flink` parses through the explicit
-/// not-implemented route — `parse_flink_segment` returns a source-backed
-/// FATHOM-PARSE-008 statement node for ANY input, never a Doris fallback and
-/// never a silent empty result (non-empty input). This entry is the parse
-/// half for document-context hosts (the LSP document path) whose selection is
-/// flink. Phase 10 pins the real Flink profiles (D-01): `profile_id` is gated
-/// through `FlinkProfile::from_id` — unknown profiles (e.g. the Doris-shaped
-/// `4.x`) are rejected with `UnknownProfile` (FATHOM-SCHEMA-003 at the wire,
-/// matching `validate_dialect_profile`), and known profiles populate
+/// Flink-mode parse entry (DIALECT-03): a document whose dialect selection is
+/// validated as `flink` parses through the real Flink grammar —
+/// `parse_flink_segment` dispatches SELECT/WITH to `parse_flink_query` and
+/// routes genuinely-unsupported statements to FATHOM-PARSE-007. This entry is
+/// the parse half for document-context hosts (the LSP document path) whose
+/// selection is flink. FATHOM-PARSE-008 is retired as of Phase 11 (D-06): the
+/// code stays vacant and is never reused. `profile_id` is gated through
+/// `FlinkProfile::from_id` — unknown profiles (e.g. the Doris-shaped `4.x`)
+/// are rejected with `UnknownProfile` (FATHOM-SCHEMA-003 at the wire, matching
+/// `validate_dialect_profile`), and known profiles populate
 /// `exact_release`/`feature_introduction` from `FlinkProfileMetadata` rather
 /// than carrying the raw profile string / empty metadata.
 pub fn parse_flink_not_implemented(
@@ -712,13 +712,14 @@ test "api_requires_explicit_dialect_profile_and_mode" {
   assert_true(options.mode() is ParseMode::Editor)
 }
 
-test "api_parse_flink_not_implemented_gates_profiles_and_carries_metadata" {
-  // MN-04: the LSP document path's flink parse entry gates the profile through
-  // FlinkProfile::from_id and populates exact_release/feature_introduction
-  // from FlinkProfileMetadata — a valid pinned profile parses to the explicit
-  // FATHOM-PARSE-008 not-implemented route with real metadata, and an unknown
-  // (Doris-shaped or adjacent) profile is rejected with UnknownProfile
-  // (FATHOM-SCHEMA-003 at the wire, matching validate_dialect_profile).
+test "api_parse_flink_gates_profiles_and_carries_metadata" {
+  // MN-04 + D-06: the LSP document path's flink parse entry gates the profile
+  // through FlinkProfile::from_id and populates exact_release/
+  // feature_introduction from FlinkProfileMetadata. Phase 11 retires
+  // FATHOM-PARSE-008: a valid pinned-profile SELECT now parses to the real
+  // Flink grammar (valid=true, zero diagnostics), and an unknown (Doris-shaped
+  // or adjacent) profile is rejected with UnknownProfile (FATHOM-SCHEMA-003 at
+  // the wire, matching validate_dialect_profile).
   let ok = match parse_flink_not_implemented(b"SELECT 1", "flink-2.3.0", "strict") {
     Ok(result) => result
     Err(_) => panic()
@@ -727,8 +728,8 @@ test "api_parse_flink_not_implemented_gates_profiles_and_carries_metadata" {
   assert_eq(ok.profile, "flink-2.3.0")
   assert_eq(ok.exact_release, "flink-2.3.0")
   assert_eq(ok.feature_introduction, "primary profile")
-  assert_true(ok.diagnostics.length() > 0)
-  assert_true(ok.diagnostics[0].code == "FATHOM-PARSE-008")
+  assert_true(ok.valid)
+  assert_eq(ok.diagnostics.length(), 0)
   assert_true(parse_flink_not_implemented(b"SELECT 1", "4.x", "strict") is Err(UnknownProfile(profile_id="4.x")))
   assert_true(parse_flink_not_implemented(b"SELECT 1", "flink-2.3", "strict") is Err(UnknownProfile(profile_id="flink-2.3")))
   assert_true(parse_flink_not_implemented(b"SELECT 1", "flink-2.3.0", "turbo") is Err(UnknownMode(mode_id="turbo")))

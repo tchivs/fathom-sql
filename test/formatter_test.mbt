@@ -1676,18 +1676,18 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
 /// runs. (b) The refusal diagnostic on malformed input carries the neutral
 /// FATHOM-FORMAT-001 code.
 test "formatter_dialect_selection_is_validated_first" {
-  // (a) flink-2.3.0 is a valid Phase 10 selection: the formatter refuses the
-  // FATHOM-PARSE-008 not-implemented tree (accepted=false + FATHOM-FORMAT-001,
-  // empty output) — no Doris-policy formatting ever. An unknown flink profile
-  // (the Doris-shaped "2.1") is rejected by the api entry before any work.
+  // (a) flink-2.3.0 is a valid Phase 11 selection: a valid Flink SELECT
+  // parses through the real grammar and formats (accepted=true) —
+  // FATHOM-PARSE-008 is retired (D-06), so the not-implemented refusal is
+  // gone. An unknown flink profile (the Doris-shaped "2.1") is rejected by
+  // the api entry before any work.
   let flink = match @api.format_with_ids(b"select 1", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => panic()
   }
-  assert_true(!flink.accepted)
-  assert_eq(flink.output.length(), 0)
-  assert_eq(flink.diagnostics[flink.diagnostics.length() - 1].code, "FATHOM-FORMAT-001")
-  assert_true(flink.diagnostics[0].code == "FATHOM-PARSE-008")
+  assert_true(flink.accepted)
+  assert_true(flink.output.length() > 0)
+  assert_eq(flink.diagnostics.length(), 0)
   let flink_unknown = @api.format_with_ids(b"select 1", "flink", "2.1", "strict", @formatter.FormatOptions::default())
   assert_true(flink_unknown is Err(@api.ParseError::UnknownProfile(profile_id="2.1")))
   // Unknown dialect: structured UnknownDialect, never a Doris fallback.

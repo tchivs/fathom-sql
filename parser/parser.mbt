@@ -260,7 +260,19 @@ fn depth_allowed(cursor : Cursor, state : RecoveryState, source : @source.Source
   }
 }
 
-fn precedence(cursor : Cursor) -> Int? {
+/// Dialect-aware expression precedence (Phase 11, Pattern 4): the Doris arm
+/// returns the frozen v1 table byte-identically (Pitfall 7 — shared-table
+/// edits would alter Doris acceptance); the Flink arm layers the Flink-only
+/// operators on top.
+fn precedence(context : @dialect.DialectContext, cursor : Cursor) -> Int? {
+  match context.dialect {
+    @dialect.Dialect::Doris => precedence_doris(cursor)
+    @dialect.Dialect::Flink => precedence_flink(cursor)
+  }
+}
+
+/// Doris expression precedence — the v1 table verbatim (frozen baseline).
+fn precedence_doris(cursor : Cursor) -> Int? {
   match raw_at(cursor) {
     Some(raw) if bytes_equal_ci(raw, b"OR") => Some(1)
     Some(raw) if bytes_equal_ci(raw, b"AND") => Some(2)
@@ -270,6 +282,23 @@ fn precedence(cursor : Cursor) -> Int? {
     Some(raw) if raw == b"*" || raw == b"/" || raw == b"%" => Some(5)
     Some(raw) if raw == b"|" || raw == b"&" => Some(4)
     _ => None
+  }
+}
+
+/// Flink expression precedence: the Doris table plus the Flink-only CONCAT
+/// operator `||` (Parser-calcite-1.36.0.jj:8793). `||` lexes as ONE token only
+/// under Flink (lexer symbol_width_flink), so the Doris arm stays byte-identical
+/// (DIALECT-02, Pitfall 7). CONCAT precedence sits between comparison and
+/// arithmetic (A3), matching Calcite SqlStdOperatorTable.CONCAT. `=>`
+/// (NAMED_ARGUMENT_ASSIGNMENT, :8794) is consumed at the function-call
+/// argument layer — not as a binary operator (RESEARCH §7.1, deferred to 11-02).
+fn precedence_flink(cursor : Cursor) -> Int? {
+  match precedence_doris(cursor) {
+    Some(precedence) => Some(precedence)
+    None => match raw_at(cursor) {
+      Some(raw) if raw == b"||" => Some(3)
+      _ => None
+    }
   }
 }
 
@@ -372,6 +401,26 @@ fn add_feature_diagnostic(
     metadata.diagnostic_code,
     metadata.diagnostic_message,
     "released-version",
+    span,
+    statement_id,
+  )
+}
+
+/// Construct-level dialect negative gate (D-04, FATHOM-PARSE-009): rejects a
+/// clause/construct that is valid only in the other dialect — never silently
+/// accepted (DIALECT-03). The dialect rides in the parse envelope metadata
+/// (D-10), never in the code prefix. Whole-statement unsupported stays on
+/// FATHOM-PARSE-007 (unsupported_statement).
+fn add_dialect_gate_diagnostic(
+  state : RecoveryState,
+  span : @source.Span,
+  statement_id : UInt,
+) -> Unit {
+  add_diagnostic(
+    state,
+    "FATHOM-PARSE-009",
+    "syntax is not supported in the selected dialect",
+    "dialect-gate",
     span,
     statement_id,
   )
@@ -685,7 +734,7 @@ fn parse_predicate_rhs(
 }
 
 fn wildcard_has_invalid_continuation(cursor : Cursor) -> Bool {
-  let operator = match precedence(cursor) { Some(_) => true; None => false }
+  let operator = match precedence(cursor.stream.context, cursor) { Some(_) => true; None => false }
   let continuation = match raw_at(cursor) {
     Some(raw) if raw == b"." || raw == b"(" => true
     Some(raw) if bytes_equal_ci(raw, b"IS") || bytes_equal_ci(raw, b"NOT") || bytes_equal_ci(raw, b"IN") || bytes_equal_ci(raw, b"LIKE") || bytes_equal_ci(raw, b"REGEXP") || bytes_equal_ci(raw, b"BETWEEN") || bytes_equal_ci(raw, b"OVER") => true
@@ -780,7 +829,7 @@ fn parse_expression_context(
     }
     let mut keep_going = true
     while keep_going {
-      match precedence(cursor) {
+      match precedence(cursor.stream.context, cursor) {
         Some(operator_precedence) if operator_precedence >= minimum_precedence => {
           advance(cursor)
           let rhs = parse_expression_context(cursor, operator_precedence + 1, depth + 1, state, source, statement_id, ExpressionContext::Ordinary)
@@ -906,6 +955,18 @@ fn parse_table_value_option(
   expect_symbol(cursor, b")", state, source, statement_id, "expected closing " + option + " parenthesis") && valid
 }
 
+/// Doris-only table options that the Flink SELECT path must reject with
+/// FATHOM-PARSE-009 (D-04, RESEARCH §9 matrix): PARTITION/TABLET/SAMPLE/
+/// TABLESAMPLE/REPEATABLE (parser.mbt :917-975).
+fn is_doris_only_table_option(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"PARTITION") || bytes_equal_ci(raw, b"TABLET") ||
+      bytes_equal_ci(raw, b"SAMPLE") || bytes_equal_ci(raw, b"TABLESAMPLE") ||
+      bytes_equal_ci(raw, b"REPEATABLE")
+    None => false
+  }
+}
+
 fn parse_table_ref(
   cursor : Cursor,
   context : @dialect.DialectContext,
@@ -939,7 +1000,15 @@ fn parse_table_ref(
   }
   let mut option_done = false
   while !option_done {
-    if consume_word(cursor, b"PARTITION") {
+    // D-04 bidirectional negative gate: PARTITION/TABLET/SAMPLE/TABLESAMPLE/
+    // REPEATABLE are Doris-only table options (parser.mbt :917-975). Under
+    // Flink they are rejected with FATHOM-PARSE-009, never parsed.
+    if context.dialect is @dialect.Dialect::Flink && is_doris_only_table_option(cursor) {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_dialect_gate_diagnostic(state, span, statement_id)
+      valid = false
+      option_done = true
+    } else if consume_word(cursor, b"PARTITION") {
       valid = parse_identifier_option(cursor, state, source, statement_id, "PARTITION") && valid
     } else if raw_at(cursor) is Some(raw) && is_keyword(raw, @dialect.DorisFeature::Tablet.metadata().keyword) && peek_raw(cursor, 1) is Some(b"(") {
       let feature = @dialect.DorisFeature::Tablet
@@ -1171,7 +1240,11 @@ fn parse_select_core(
     None
   }
   let except_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-  if consume_word(cursor, b"EXCEPT") {
+  // The EXCEPT projection modifier is Doris-only (:1174-1183); under Flink
+  // EXCEPT is a set-operation keyword handled by parse_flink_query's
+  // CompoundQuery loop (Parser-calcite-1.36.0.jj:3395), so the modifier arm
+  // stays gated to Doris (D-04, RESEARCH §6.2).
+  if context.dialect is @dialect.Dialect::Doris && consume_word(cursor, b"EXCEPT") {
     has_except = true
     if modifier is Some("ALL") {
       valid = parse_identifier_option(cursor, state, source, statement_id, "ALL EXCEPT") && valid
@@ -1209,20 +1282,39 @@ fn parse_select_core(
   }
   let qualify_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"QUALIFY") {
-    let feature = @dialect.DorisFeature::Qualify
-    if !feature_allowed(state, feature) {
-      add_feature_diagnostic(state, feature, qualify_span, statement_id)
-      valid = false
+    match context.dialect {
+      @dialect.Dialect::Doris => {
+        let feature = @dialect.DorisFeature::Qualify
+        if !feature_allowed(state, feature) {
+          add_feature_diagnostic(state, feature, qualify_span, statement_id)
+          valid = false
+        }
+        valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
+      }
+      @dialect.Dialect::Flink => {
+        // Doris-only QUALIFY clause (D-04): construct-level negative gate.
+        add_dialect_gate_diagnostic(state, qualify_span, statement_id)
+        valid = false
+      }
     }
-    valid = parse_expression(cursor, 1, 1, state, source, statement_id) && valid
   }
   if consume_word(cursor, b"ORDER") { valid = parse_order_by(cursor, state, source, statement_id) && valid }
   if consume_word(cursor, b"LIMIT") { valid = parse_limit(cursor, state, source, statement_id) && valid }
+  let into_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"INTO") {
-    valid = expect_word(cursor, b"OUTFILE", state, source, statement_id, "expected OUTFILE after INTO") && valid
-    let is_string = match token_at(cursor) { Some(token) => token.kind is @token.TokenKind::StringLiteral; None => false }
-    if !is_string { add_diagnostic(state, "FATHOM-PARSE-002", "expected outfile string", "string", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
-    else { advance(cursor) }
+    match context.dialect {
+      @dialect.Dialect::Doris => {
+        valid = expect_word(cursor, b"OUTFILE", state, source, statement_id, "expected OUTFILE after INTO") && valid
+        let is_string = match token_at(cursor) { Some(token) => token.kind is @token.TokenKind::StringLiteral; None => false }
+        if !is_string { add_diagnostic(state, "FATHOM-PARSE-002", "expected outfile string", "string", match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }, statement_id); valid = false }
+        else { advance(cursor) }
+      }
+      @dialect.Dialect::Flink => {
+        // Doris-only INTO OUTFILE (D-04): construct-level negative gate.
+        add_dialect_gate_diagnostic(state, into_span, statement_id)
+        valid = false
+      }
+    }
   }
   valid
 }
@@ -1332,8 +1424,13 @@ fn parse_cte_prefix(
   let mut valid = true
   let recursive_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
   if consume_word(cursor, b"RECURSIVE") {
-    add_diagnostic(state, "FATHOM-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
-    valid = false
+    // Calcite base WithList accepts WITH RECURSIVE (Flink); only Doris gates
+    // it with FATHOM-PARSE-006. The shared diagnostic stays Doris-only so the
+    // Flink arm parses recursive CTEs syntactically (D-04, RESEARCH §6.2).
+    if cursor.stream.context.dialect is @dialect.Dialect::Doris {
+      add_diagnostic(state, "FATHOM-PARSE-006", "feature WITH RECURSIVE is unsupported", "feature", recursive_span, statement_id)
+      valid = false
+    }
   }
   let mut cte_done = false
   while !cte_done {
@@ -3398,10 +3495,13 @@ fn parse_doris_segment(
   }
 }
 
-/// Flink grammar is not implemented until Phase 11 (DIALECT-03, A1/OQ1): any
-/// input — including input that would be valid Doris — produces an explicit
-/// FATHOM-PARSE-008 not-implemented Statement node, source-backed with valid
-/// spans over the whole segment. No Doris parse runs; there is no fallback.
+/// Flink statement grammar (Phase 11, D-04/D-06): keyword-first dispatch
+/// copying the parse_doris_segment skeleton. SELECT/WITH route through the
+/// shared query skeleton's Flink-safe subset (parse_flink_query in
+/// flink_grammar.mbt); unknown starters fall through to
+/// unsupported_statement (FATHOM-PARSE-007). FATHOM-PARSE-008 is retired
+/// (D-06): the code stays vacant and is never reused; genuinely-unsupported
+/// whole statements route through 007.
 fn parse_flink_segment(
   stream : @token.TokenStream,
   start_index : Int,
@@ -3411,20 +3511,24 @@ fn parse_flink_segment(
   context : @dialect.DialectContext,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
-  add_diagnostic(
-    state,
-    "FATHOM-PARSE-008",
-    "flink grammar is not yet implemented in this release",
-    "statement",
-    span,
-    statement_id,
-  )
-  let error = require_node(@syntax.SyntaxNode::new(
-    @syntax.SyntaxKind::Error,
-    span,
-    segment_children(stream, start_index, end_index),
-  ))
-  require_node(@syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span, [@syntax.SyntaxElement::ChildNode(error)]))
+  let indices = significant_indices(stream, start_index, end_index)
+  let cursor = { stream: stream, indices: indices, position: 0, depth: 0 }
+  let verb = match indices.get(0) {
+    Some(first_index) => stream.raw(first_index)
+    None => None
+  }
+  match verb {
+    Some(raw) if bytes_equal_ci(raw, b"SELECT") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_query(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Select, "unexpected tokens after SELECT query")
+    Some(raw) if bytes_equal_ci(raw, b"WITH") => {
+      match with_prefix_verb(stream, indices, 0) {
+        Some(next) if bytes_equal_ci(next, b"SELECT") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_flink_query(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Select, "unexpected tokens after SELECT query")
+        _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
+      }
+    }
+    _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
+  }
 }
 
 
@@ -3605,10 +3709,10 @@ fn test_doris_context(profile_id : String) -> @dialect.DialectContext {
   { dialect: @dialect.Dialect::Doris, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
 }
 
-test "parser_flink_context_rejects_every_input_as_not_implemented" {
-  // DIALECT-03 (A1/OQ1): a directly constructed Flink context parses to an
-  // explicit FATHOM-PARSE-008 Statement node — no Doris grammar runs, no
-  // fallback, no silent success.
+test "parser_flink_context_parses_select" {
+  // D-06 (Phase 11): the Flink branch now runs the real grammar. A valid Flink
+  // SELECT parses valid=true with no diagnostics and no FATHOM-PARSE-008
+  // (the code is retired and never reused).
   let source = match @source.SourceText::new(b"SELECT 1") {
     Ok(source) => source
     Err(_) => panic()
@@ -3620,10 +3724,8 @@ test "parser_flink_context_rejects_every_input_as_not_implemented" {
     feature_introduction: "",
   }
   let parsed = parse(source, context, ParseMode::Strict)
-  assert_true(!parsed.valid)
-  assert_eq(parsed.diagnostics.length(), 1)
-  assert_eq(parsed.diagnostics[0].code, "FATHOM-PARSE-008")
-  assert_eq(parsed.diagnostics[0].message, "flink grammar is not yet implemented in this release")
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
   assert_true(parsed.root.children().length() >= 1)
   let statements = parsed.root.children()
   assert_true(statements[0].span().start_byte == 0)
