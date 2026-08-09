@@ -429,9 +429,23 @@ fn parse_flink_show(
     }
     return valid
   }
-  let type_ok = consume_word(cursor, b"CATALOGS") || consume_word(cursor, b"DATABASES") ||
-    consume_word(cursor, b"TABLES") || consume_word(cursor, b"VIEWS") ||
-    consume_word(cursor, b"FUNCTIONS") || consume_word(cursor, b"COLUMNS")
+  let mut is_columns = false
+  let type_ok = if consume_word(cursor, b"CATALOGS") {
+    true
+  } else if consume_word(cursor, b"DATABASES") {
+    true
+  } else if consume_word(cursor, b"TABLES") {
+    true
+  } else if consume_word(cursor, b"VIEWS") {
+    true
+  } else if consume_word(cursor, b"FUNCTIONS") {
+    true
+  } else if consume_word(cursor, b"COLUMNS") {
+    is_columns = true
+    true
+  } else {
+    false
+  }
   if !type_ok {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
     add_diagnostic(state, "FATHOM-PARSE-002", "expected SHOW target (CATALOGS/DATABASES/TABLES/VIEWS/FUNCTIONS/COLUMNS/CREATE/CURRENT)", "show-target", make_span(source, at, at), statement_id)
@@ -439,6 +453,13 @@ fn parse_flink_show(
   }
   if consume_word(cursor, b"FROM") || consume_word(cursor, b"IN") {
     valid = parse_qualified_name(cursor, state, source, statement_id, "SHOW scope name") && valid
+    // MN-04: `SHOW COLUMNS (FROM|IN) table [(FROM|IN) database]` — the
+    // optional second (database) scope belongs to the COLUMNS target.
+    if is_columns {
+      if consume_word(cursor, b"FROM") || consume_word(cursor, b"IN") {
+        valid = parse_qualified_name(cursor, state, source, statement_id, "SHOW database scope name") && valid
+      }
+    }
   }
   let mut pattern_done = false
   while !pattern_done {
