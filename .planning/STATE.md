@@ -5,8 +5,8 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 12
 current_phase_name: Cross-Dialect Corpus and Parity Gates
 status: planning
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-08-09T11:00:31.155Z"
+stopped_at: Phase 12 context gathered
+last_updated: "2026-08-09T11:16:48.287Z"
 last_activity: 2026-08-09
 last_activity_desc: Phase 11 complete, transitioned to Phase 12
 progress:
@@ -244,9 +244,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T09:56:38.951Z
-Stopped at: Completed 11-04-PLAN.md
-Resume file: None
+Last session: 2026-08-09T11:16:48.259Z
+Stopped at: Phase 12 context gathered
+Resume file: .planning/phases/12-cross-dialect-corpus-and-parity-gates/12-CONTEXT.md
 
 ## Quick Tasks Completed
 
