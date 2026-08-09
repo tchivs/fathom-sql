@@ -80,6 +80,11 @@ jobs:
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
           "$HOME/.moon/bin/moon" version
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
       # The linear-Wasm runtime execution step (CLOSE-02): build the foreign
       # library facade and the parity runner for the linear Wasm backend, then
       # RUN the parity corpus ON the wasm target. `moon test --target wasm`
@@ -98,6 +103,23 @@ jobs:
       # regression cannot silently diverge from the reference target.
       - name: Execute parity suite on native target
         run: moon test --target native --package parity
+
+      # Three-target matrix completion (D-05 / PARITY-02): the JS backend had
+      # only `moon check` in CI (Research §4.5 gap). Running the parity suite on
+      # js closes the gap so a js-only byte regression cannot silently diverge —
+      # the MoonBit snapshot mechanism compares this target against the SAME
+      # committed parity/__snapshot__ files as wasm and native (byte identity of
+      # serialized results, diagnostics, spans, and lossless replay).
+      - name: Execute parity suite on JavaScript target
+        run: moon test --target js --package parity
+
+      # Cross-backend aggregate report: proves the three-target byte parity via a
+      # deterministic sha256 tree digest over the committed snapshot tree (wasm
+      # cannot stdout-dump, A8), names any failing fixture, and fails closed on a
+      # skipped/failed target, an empty tree, or a digest divergence (Pitfall 8).
+      # Read-only: never writes parity/__snapshot__ (no --update anywhere in CI).
+      - name: Cross-backend byte-parity aggregate (compare_backends)
+        run: python3 scripts/compare_backends.py
 
   parity-gate:
     name: v1 baseline parity gate (no --update)
@@ -138,6 +160,16 @@ jobs:
       - name: Baseline corpus hash pin (sha256sum -c)
         run: sha256sum -c parity/baseline-hashes.txt
 
+      # D-03 frozen-vs-current proof (PARITY-01): regenerates the snapshot tree
+      # in a temp `moon test --update` lifecycle (working tree untouched and
+      # restored) and FAILS on ANY byte/path difference vs the committed tree —
+      # strictly stronger than the vacuous left==right self-check above. The
+      # approved-changes register is NOT consulted, so an empty/forged register
+      # cannot mask drift. NEVER --update in CI (Pitfall 1) — this step only
+      # REGENERATES into a temp dir and never writes the committed tree.
+      - name: Frozen-vs-current regeneration proof (diff_parity)
+        run: python3 scripts/diff_parity.py --frozen-only
+
   corpus:
     name: corpus report + keyword check
     runs-on: ubuntu-latest
@@ -149,6 +181,17 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+
+      # D-06 offline Flink corpus gate (PARITY-03): stdlib read-only verifier over
+      # the committed manifest/.sql/snapshot artifacts — header shape, Calcite/
+      # parser-config pins vs dialect/flink.mbt, 6-category enum, expected-status
+      # consistency, fixture_sha256 over committed .sql bytes, and strict+editor
+      # snapshot completeness. No network / Doris FE / Flink cluster / DB access;
+      # a missing research archive degrades to archive-not-present (never fail,
+      # never fabricated). The extended generate_corpus_report.py --check below
+      # enforces the parser-acceptance vs engine-prerequisite distinction.
+      - name: Offline Flink corpus verifier
+        run: python3 scripts/verify_corpus.py --check
 
       - name: Corpus report --check
         run: python3 corpus/tools/generate_corpus_report.py --check
