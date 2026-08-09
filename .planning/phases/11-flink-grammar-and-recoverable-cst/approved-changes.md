@@ -174,6 +174,37 @@ ENFORCED, DISTRIBUTED INTO, PARTITIONED BY, WITH, LIKE, AS-query) reject under
 Doris with FATHOM-PARSE-009 (the unchanged Doris parser never produces them).
 The same Flink-only inputs under flink are valid — no double-valid (Pitfall 2).
 
+Wave 4 (11-04) mints the FLINK-05 Window TVF fixtures first (Task 1), then
+the FLINK-06 MATCH_RECOGNIZE fixtures (Task 2). Window TVF rides the generic
+table-function-call path (TableFunctionCall, Parser.jj:2443-2460 /
+Parser-calcite-1.36.0.jj:2391); TUMBLE/HOP/SESSION/DESCRIPTOR are non-reserved
+(Parser.tdd:587/:384/:509/:351), CUMULATE has no keyword token. MATCH_RECOGNIZE
+is the syntax-level nested sub-language (MatchRecognize, Parser.jj:3062-3346 /
+Parser-calcite-1.36.0.jj:3020) with PATTERN/DEFINE/MEASURES/skip/variables/
+quantifiers; SUBSET/PERMUTE/{- -} parse structurally and are classified
+known-limitation. Both are Flink-only — rejected under Doris with
+FATHOM-PARSE-009 at the table-ref point (T-11-22/T-11-23) — and neither
+claims planner/execution equivalence (FLINK-05/06, T-11-26). Each in strict
+and editor modes:
+
+| New snapshot file | Meaning |
+|-------------------|---------|
+| `flink-grammar.tvf-tumble-day.flink-2.3.0.{strict,editor}.json` | `SELECT window_start, window_end FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY) GROUP BY window_start, window_end` — TUMBLE TVF + window output columns (WindowAggregateITCase.scala:228-263) |
+| `flink-grammar.tvf-hop-four-arg.flink-2.3.0.{strict,editor}.json` | `HOP(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '30' SECONDS, INTERVAL '15' SECONDS)` — four-argument slide+size |
+| `flink-grammar.tvf-cumulate.flink-2.3.0.{strict,editor}.json` | `CUMULATE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' MINUTE, INTERVAL '1' HOUR)` — no keyword token (A2) |
+| `flink-grammar.tvf-session.flink-2.3.0.{strict,editor}.json` | `SESSION(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' HOUR)` — non-reserved (Parser.tdd:509) |
+| `flink-grammar.tvf-table-wrapper.flink-2.3.0.{strict,editor}.json` | `FROM TABLE(TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '3' SECOND))` — explicit wrapper (MatchRecognizeTest.scala:141-148) |
+| `flink-grammar.tvf-offset-interval.flink-2.3.0.{strict,editor}.json` | `TUMBLE(..., INTERVAL '1' DAY, INTERVAL '-8' HOUR)` — negative offset known-limitation |
+| `flink-grammar.tvf-named-arg.flink-2.3.0.{strict,editor}.json` | `TUMBLE(data => TABLE T1, timecol => DESCRIPTOR(rowtime), size => INTERVAL '1' DAY)` — named args (Parser.jj:8794) |
+| `flink-grammar.tvf-missing-table.flink-2.3.0.{strict,editor}.json` | `TUMBLE(DESCRIPTOR(rowtime), INTERVAL '1' DAY)` — localized 002 (first arg not TABLE) |
+| `flink-grammar.tvf-missing-descriptor-size.flink-2.3.0.{strict,editor}.json` | `TUMBLE(TABLE T1)` — localized 002 (too short) |
+| `flink-grammar.tvf-incomplete-interval.flink-2.3.0.{strict,editor}.json` | `TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL)` — bounded Missing, lossless |
+| `flink-grammar.tvf-recovery.flink-2.3.0.{strict,editor}.json` | unclosed TVF + `; SELECT 2` — trailing SELECT its own statement |
+
+The TVF-under-Doris negative-gate assertion is in `parity/flink_grammar_test.mbt`
+(`flink_grammar_tvf_is_dialect_gated`): the same TVF input is valid under
+flink-2.3.0 and FATHOM-PARSE-009 under doris-4.x — no double-valid (Pitfall 2).
+
 The fixtures live under `parity/fixtures/flink-grammar/` with a provenance
 `manifest.tsv` recording the pinned release archive (url/sha512/tag/commit)
 and the grammar production line references (RESEARCH §5, D-05 — never

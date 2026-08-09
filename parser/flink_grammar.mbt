@@ -1738,3 +1738,191 @@ fn parse_flink_table_like(
   }
   valid
 }
+
+// ---------------------------------------------------------------------------
+// FLINK-05 Window TVF (TableFunctionCall, Parser.jj:2443-2460). Syntax-level
+// only: TUMBLE/HOP/CUMULATE/SESSION window table functions (and the explicit
+// TABLE(...) wrapper, MatchRecognizeTest.scala:141-148) parse into
+// source-backed token CST — no event-time / watermark / window-aggregate type
+// inference (FLINK-05 prohibition, T-11-26). The window output columns
+// window_start/window_end/window_time are ordinary projection identifiers
+// (Pitfall 8 — legacy TUMBLE_START()/TUMBLE_ROWTIME() are never TVF output
+// columns here). TUMBLE/HOP/SESSION/DESCRIPTOR are non-reserved words
+// (Parser.tdd:587/:384/:509/:351); CUMULATE has no keyword token (A2), so the
+// call rides the generic table-function-call path with no dedicated dispatch.
+// ---------------------------------------------------------------------------
+
+/// Window TVF entry: the TVF name (TUMBLE/HOP/CUMULATE/SESSION or the
+/// TABLE(...) wrapper) followed by `(`, routed from the Flink parse_table_ref
+/// branch via is_flink_tvf_starter. Positional arguments are validated in
+/// order (table, descriptor, size, optional offset); named-argument `=>`
+/// forms (NAMED_ARGUMENT_ASSIGNMENT, Parser.jj:8794) are recognized in the
+/// argument layer without reordering positional args (probe FLINK-05
+/// ordering).
+fn parse_flink_tvf_call(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = true
+  let is_table_wrapper = match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"TABLE")
+    None => false
+  }
+  // The TVF name token is verified by is_flink_tvf_starter (TUMBLE/HOP/
+  // CUMULATE/SESSION or TABLE followed by `(`), so it is consumed regardless
+  // of keyword classification (CUMULATE has no keyword token at all — A2).
+  match raw_at(cursor) {
+    Some(_) => advance(cursor)
+    None => {
+      let at = source.byte_length()
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected window TVF name", "tvf-name", make_span(source, at, at), statement_id)
+      return false
+    }
+  }
+  valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after window TVF name") && valid
+  if is_table_wrapper {
+    // TABLE( <tvf-call> ): the explicit wrapper form.
+    if is_flink_tvf_starter(cursor) {
+      valid = parse_flink_tvf_call(cursor, state, source, statement_id) && valid
+    } else if is_identifier_candidate(cursor) {
+      valid = parse_qualified_name(cursor, state, source, statement_id, "TABLE wrapper table reference") && valid
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected table function inside TABLE( )", "tvf-argument", make_span(source, at, at), statement_id)
+      valid = false
+    }
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing TABLE wrapper parenthesis") && valid
+  } else {
+    valid = parse_flink_tvf_arguments(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+/// The parenthesized TVF argument list. Position 0 must be a TABLE table
+/// reference (the first argument of every window TVF — consume the TABLE
+/// keyword then parse a qualified name). The standard form requires at least
+/// TABLE + DESCRIPTOR + INTERVAL size (3 positional args); an optional fourth
+/// INTERVAL is the offset. A missing table (position 0 is not TABLE) or a
+/// too-short list (e.g. `TUMBLE(TABLE T1)`) is a localized FATHOM-PARSE-002
+/// at the offending position (probe FLINK-05 empty; negative fixtures).
+fn parse_flink_tvf_arguments(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut arg_index = 0
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      let before = cursor.position
+      let arg_ok = parse_flink_tvf_argument(cursor, state, source, statement_id, arg_index)
+      valid = arg_ok && valid
+      if cursor.position == before {
+        recover_expression(cursor, state, source, statement_id)
+        valid = false
+      }
+      arg_index = arg_index + 1
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") || raw_at(cursor) is None {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected TVF argument after comma", "tvf-argument", make_span(source, at, at), statement_id)
+          valid = false
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one TVF argument", "tvf-argument", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  // Standard TVF arity: TABLE + DESCRIPTOR + INTERVAL size (probe FLINK-05
+  // ordering/empty — a too-short list is a localized error at the offending
+  // position, e.g. the `)` in `TUMBLE(TABLE T1)`).
+  if arg_index < 3 {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "window TVF requires TABLE, DESCRIPTOR, and INTERVAL size arguments", "tvf-argument", at, statement_id)
+    valid = false
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing window TVF parenthesis") && valid
+  valid
+}
+
+/// A single TVF argument: either a named-argument `name => value` form
+/// (NAMED_ARGUMENT_ASSIGNMENT, Parser.jj:8794) or a positional value. The
+/// positional index (arg_index) drives the positional-kind validation.
+fn parse_flink_tvf_argument(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  arg_index : Int,
+) -> Bool {
+  if is_named_argument_arrow(cursor) {
+    // Consume the argument name, then the arrow.
+    advance(cursor)
+    match raw_at(cursor) {
+      Some(raw) if raw == b"=>" => advance(cursor)
+      _ => {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected => after TVF named argument name", "named-argument", span, statement_id)
+        return false
+      }
+    }
+    return parse_flink_tvf_argument_value(cursor, state, source, statement_id, arg_index)
+  }
+  parse_flink_tvf_argument_value(cursor, state, source, statement_id, arg_index)
+}
+
+/// A TVF argument value. Position 0 must be a TABLE table reference (the
+/// first argument of every window TVF — consume the TABLE keyword then parse
+/// a qualified name). Later positions fall through to the shared expression
+/// parser, which covers DESCRIPTOR(col) (a non-reserved function call) and
+/// the INTERVAL size/offset literals.
+fn parse_flink_tvf_argument_value(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  arg_index : Int,
+) -> Bool {
+  if arg_index == 0 {
+    if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"TABLE") {
+      advance(cursor)
+      return parse_qualified_name(cursor, state, source, statement_id, "TVF table reference")
+    }
+    let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "window TVF first argument must be a TABLE reference", "tvf-argument", span, statement_id)
+    // Consume the offending expression so the TVF argument loop advances past
+    // it — never leave the cursor at a nested `)` (e.g. DESCRIPTOR(rowtime)'s
+    // close) that the loop would misread as the TVF close (probe FLINK-05
+    // empty; the shared recovery-step budget caps this).
+    let before = cursor.position
+    let expr_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+    if cursor.position == before {
+      recover_expression(cursor, state, source, statement_id)
+    }
+    ignore(expr_ok)
+    return false
+  }
+  let before = cursor.position
+  let expr_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+  if cursor.position == before {
+    recover_expression(cursor, state, source, statement_id)
+    false
+  } else {
+    expr_ok
+  }
+}

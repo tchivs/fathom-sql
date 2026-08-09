@@ -1273,6 +1273,24 @@ fn is_doris_only_table_option(cursor : Cursor) -> Bool {
   }
 }
 
+/// True when the cursor sits on a Flink Window TVF starter (FLINK-05): a
+/// TUMBLE/HOP/CUMULATE/SESSION identifier or the TABLE(...) wrapper followed
+/// by `(`. TUMBLE/HOP/SESSION/DESCRIPTOR are non-reserved words (Parser.tdd:
+/// 587/:384/:509/:351) and CUMULATE has no keyword token at all (RESEARCH A2),
+/// so the TVF call rides the generic table-function-call path
+/// (TableFunctionCall, Parser.jj:2443-2460). Dialect-neutral — the branch in
+/// parse_table_ref decides parse (Flink) vs FATHOM-PARSE-009 gate (Doris,
+/// T-11-23).
+fn is_flink_tvf_starter(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => peek_raw(cursor, 1) is Some(b"(")
+    Some(raw) if bytes_equal_ci(raw, b"TUMBLE") || bytes_equal_ci(raw, b"HOP") ||
+      bytes_equal_ci(raw, b"CUMULATE") || bytes_equal_ci(raw, b"SESSION") =>
+      peek_raw(cursor, 1) is Some(b"(")
+    _ => false
+  }
+}
+
 fn parse_table_ref(
   cursor : Cursor,
   context : @dialect.DialectContext,
@@ -1281,7 +1299,21 @@ fn parse_table_ref(
   statement_id : UInt,
 ) -> Bool {
   let mut valid = true
-  if consume_symbol(cursor, b"(") {
+  // FLINK-05 Window TVF table-function calls: TUMBLE/HOP/CUMULATE/SESSION or
+  // the TABLE(...) wrapper parse through parse_flink_tvf_call (flink_grammar.
+  // mbt) under Flink; under Doris the same shape is a Flink-only construct →
+  // FATHOM-PARSE-009 at the table-ref point (D-04, T-11-23).
+  if is_flink_tvf_starter(cursor) {
+    if context.dialect is @dialect.Dialect::Flink {
+      valid = parse_flink_tvf_call(cursor, state, source, statement_id) && valid
+    } else {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_dialect_gate_diagnostic(state, span, statement_id)
+      valid = false
+      consume_gated_remainder(cursor, state, source, statement_id)
+      return valid
+    }
+  } else if consume_symbol(cursor, b"(") {
     valid = parse_query(cursor, state, source, statement_id)
     valid = expect_word(cursor, b")", state, source, statement_id, "expected closing subquery parenthesis") && valid
   } else {

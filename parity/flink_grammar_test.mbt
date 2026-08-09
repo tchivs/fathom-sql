@@ -484,6 +484,77 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     category: "negative",
     raw: b"CREATE TABLE t (id INT) PROPERTIES (\"k\"=\"v\")",
   },
+  // ---- FLINK-05 Window TVF (11-04, wave 4): TableFunctionCall
+  // (Parser.jj:2443-2460), WindowAggregateITCase.scala:228-297. TUMBLE/HOP/
+  // SESSION/DESCRIPTOR are non-reserved (Parser.tdd:587/:384/:509/:351);
+  // CUMULATE has no keyword token (A2). window_start/window_end/window_time
+  // are ordinary projection identifiers (Pitfall 8).
+  {
+    fixture_id: "tvf-tumble-day",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT window_start, window_end FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY) GROUP BY window_start, window_end",
+  },
+  {
+    fixture_id: "tvf-hop-four-arg",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM HOP(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '30' SECONDS, INTERVAL '15' SECONDS)",
+  },
+  {
+    fixture_id: "tvf-cumulate",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM CUMULATE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' MINUTE, INTERVAL '1' HOUR)",
+  },
+  {
+    fixture_id: "tvf-session",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM SESSION(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' HOUR)",
+  },
+  {
+    fixture_id: "tvf-table-wrapper",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM TABLE(TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '3' SECOND))",
+  },
+  {
+    fixture_id: "tvf-offset-interval",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY, INTERVAL '-8' HOUR)",
+  },
+  {
+    fixture_id: "tvf-named-arg",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM TUMBLE(data => TABLE T1, timecol => DESCRIPTOR(rowtime), size => INTERVAL '1' DAY)",
+  },
+  {
+    fixture_id: "tvf-missing-table",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"SELECT * FROM TUMBLE(DESCRIPTOR(rowtime), INTERVAL '1' DAY)",
+  },
+  {
+    fixture_id: "tvf-missing-descriptor-size",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"SELECT * FROM TUMBLE(TABLE T1)",
+  },
+  {
+    fixture_id: "tvf-incomplete-interval",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL)",
+  },
+  {
+    fixture_id: "tvf-recovery",
+    profile: "flink-2.3.0",
+    category: "recovery",
+    raw: b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime); SELECT 2",
+  },
 ]
 
 fn flink_grammar_fixture(id : String) -> FlinkGrammarFixture {
@@ -1966,3 +2037,214 @@ test "flink_grammar_plain_like_and_ctas_are_shared_with_doris" {
   assert_true(flink_grammar_bidirectional(b"CREATE TABLE t2 LIKE t1", "\"valid\":true", "\"valid\":true"))
   assert_true(flink_grammar_bidirectional(b"CREATE TABLE t3 AS SELECT * FROM src", "\"valid\":true", "\"valid\":true"))
 }
+
+// ===========================================================================
+// FLINK-05 Window TVF + FLINK-06 MATCH_RECOGNIZE (11-04, wave 4)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// tvf-tumble-day: TUMBLE TVF with window_start/window_end output columns
+// (WindowAggregateITCase.scala:228-263) — window columns are ordinary
+// projection identifiers (Pitfall 8).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-tumble-day flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-tumble-day flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-tumble-day", "strict"), "flink-grammar.tvf-tumble-day.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-tumble-day flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-tumble-day flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-tumble-day", "editor"), "flink-grammar.tvf-tumble-day.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_tumble_day_lossless" {
+  assert_true(flink_grammar_lossless("tvf-tumble-day", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-tumble-day", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-hop-four-arg: HOP four-argument form (slide + size).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-hop-four-arg flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-hop-four-arg flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-hop-four-arg", "strict"), "flink-grammar.tvf-hop-four-arg.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-hop-four-arg flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-hop-four-arg flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-hop-four-arg", "editor"), "flink-grammar.tvf-hop-four-arg.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_hop_four_arg_lossless" {
+  assert_true(flink_grammar_lossless("tvf-hop-four-arg", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-hop-four-arg", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-cumulate: CUMULATE has no keyword token (A2) — generic identifier path.
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-cumulate flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-cumulate flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-cumulate", "strict"), "flink-grammar.tvf-cumulate.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-cumulate flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-cumulate flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-cumulate", "editor"), "flink-grammar.tvf-cumulate.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_cumulate_lossless" {
+  assert_true(flink_grammar_lossless("tvf-cumulate", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-cumulate", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-session: SESSION (non-reserved, Parser.tdd:509).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-session flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-session flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-session", "strict"), "flink-grammar.tvf-session.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-session flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-session flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-session", "editor"), "flink-grammar.tvf-session.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_session_lossless" {
+  assert_true(flink_grammar_lossless("tvf-session", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-session", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-table-wrapper: explicit TABLE(TUMBLE(...)) wrapper
+// (MatchRecognizeTest.scala:141-148).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-table-wrapper flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-table-wrapper flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-table-wrapper", "strict"), "flink-grammar.tvf-table-wrapper.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-table-wrapper flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-table-wrapper flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-table-wrapper", "editor"), "flink-grammar.tvf-table-wrapper.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_table_wrapper_lossless" {
+  assert_true(flink_grammar_lossless("tvf-table-wrapper", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-table-wrapper", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-offset-interval: negative offset INTERVAL '-8' HOUR is syntactically
+// accepted and classified known-limitation (WindowAggregateITCase.scala:290).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-offset-interval flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-offset-interval flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-offset-interval", "strict"), "flink-grammar.tvf-offset-interval.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-offset-interval flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-offset-interval flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-offset-interval", "editor"), "flink-grammar.tvf-offset-interval.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_offset_interval_lossless" {
+  assert_true(flink_grammar_lossless("tvf-offset-interval", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-offset-interval", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-named-arg: named-argument TVF via NAMED_ARGUMENT_ASSIGNMENT
+// (Parser.jj:8794, 11-02 named-arg support).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-named-arg flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-named-arg flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-named-arg", "strict"), "flink-grammar.tvf-named-arg.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-named-arg flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-named-arg flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-named-arg", "editor"), "flink-grammar.tvf-named-arg.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_named_arg_lossless" {
+  assert_true(flink_grammar_lossless("tvf-named-arg", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-named-arg", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-missing-table: TVF whose first argument is not a TABLE reference →
+// localized FATHOM-PARSE-002 (negative, probe FLINK-05 empty).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-missing-table flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-missing-table flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-missing-table", "strict"), "flink-grammar.tvf-missing-table.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-missing-table flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-missing-table flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-missing-table", "editor"), "flink-grammar.tvf-missing-table.flink-2.3.0.editor.json")
+}
+
+// ---------------------------------------------------------------------------
+// tvf-missing-descriptor-size: too-short TVF list `TUMBLE(TABLE T1)` →
+// localized FATHOM-PARSE-002 at the closing paren (negative).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-missing-descriptor-size flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-missing-descriptor-size flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-missing-descriptor-size", "strict"), "flink-grammar.tvf-missing-descriptor-size.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-missing-descriptor-size flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-missing-descriptor-size flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-missing-descriptor-size", "editor"), "flink-grammar.tvf-missing-descriptor-size.flink-2.3.0.editor.json")
+}
+
+// ---------------------------------------------------------------------------
+// tvf-incomplete-interval: truncated INTERVAL literal → bounded Missing nodes
+// with lossless replay (incomplete, CST-01).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-incomplete-interval flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-incomplete-interval flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-incomplete-interval", "strict"), "flink-grammar.tvf-incomplete-interval.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-incomplete-interval flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-incomplete-interval flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-incomplete-interval", "editor"), "flink-grammar.tvf-incomplete-interval.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_incomplete_interval_lossless" {
+  assert_true(flink_grammar_lossless("tvf-incomplete-interval", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-incomplete-interval", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// tvf-recovery: unclosed TVF call recovers at `;` so the trailing SELECT is
+// its own statement (recovery, CST-01).
+// ---------------------------------------------------------------------------
+test "flink-grammar tvf-recovery flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar tvf-recovery flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-recovery", "strict"), "flink-grammar.tvf-recovery.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar tvf-recovery flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar tvf-recovery flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("tvf-recovery", "editor"), "flink-grammar.tvf-recovery.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_tvf_recovery_lossless" {
+  assert_true(flink_grammar_lossless("tvf-recovery", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("tvf-recovery", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// Bidirectional negative gate (D-04, T-11-23): Window TVF is Flink-only —
+// valid under flink-2.3.0, FATHOM-PARSE-009 under doris-4.x. No double-valid
+// (Pitfall 2).
+// ---------------------------------------------------------------------------
+test "flink_grammar_tvf_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
