@@ -6,6 +6,9 @@ Usage:
       --right parity/__snapshot__ \\
       --approve .planning/phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
 
+  --frozen and --current are self-documenting aliases for --left and --right
+  (used by scripts/diff_parity.py's regenerated-comparison wrapper, D-03).
+
 Walks both snapshot directories, compares every *.json file, and groups
 differences into:
 
@@ -212,8 +215,12 @@ def main(argv):
     parser = argparse.ArgumentParser(
         description="Group baseline snapshot diffs into approved vs unexpected."
     )
-    parser.add_argument("--left", required=True, help="left snapshot directory")
-    parser.add_argument("--right", required=True, help="right snapshot directory")
+    # --frozen/--current are self-documenting aliases used by the
+    # scripts/diff_parity.py wrapper (D-03); --left/--right stay canonical.
+    parser.add_argument("--left", "--frozen", dest="left", required=True,
+                        help="left snapshot directory")
+    parser.add_argument("--right", "--current", dest="right", required=True,
+                        help="right snapshot directory")
     parser.add_argument("--approve", required=True, help="approved-change register")
     args = parser.parse_args(argv)
 
