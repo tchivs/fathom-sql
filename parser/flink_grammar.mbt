@@ -1971,7 +1971,7 @@ fn parse_match_recognize(
     valid = pat_open && valid
     // ^ strict-start anchor (Parser.jj:3160).
     ignore(consume_symbol(cursor, b"^"))
-    let pattern_ok = parse_pattern_expr(cursor, state, source, statement_id)
+    let pattern_ok = parse_pattern_expr(cursor, state, source, statement_id, 0)
     valid = pattern_ok && valid
     // $ strict-end anchor (Parser.jj:3166).
     ignore(consume_symbol(cursor, b"$"))
@@ -2255,16 +2255,19 @@ fn parse_flink_match_function_call(
 }
 
 /// `pattern_expr := pattern_concatenation ('|' pattern_concatenation)*`
-/// (PATTERN_ALTER, Parser.jj:3218-3222).
+/// (PATTERN_ALTER, Parser.jj:3218-3222). `depth` bounds nested pattern
+/// recursion (CR-02) so a hostile `{- {- {- ...` PatternExclude chain
+/// recovers with a resource diagnostic instead of overflowing the stack.
 fn parse_pattern_expr(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  depth : Int,
 ) -> Bool {
-  let mut valid = parse_pattern_concat(cursor, state, source, statement_id)
+  let mut valid = parse_pattern_concat(cursor, state, source, statement_id, depth)
   while consume_symbol(cursor, b"|") {
-    valid = parse_pattern_concat(cursor, state, source, statement_id) && valid
+    valid = parse_pattern_concat(cursor, state, source, statement_id, depth) && valid
   }
   valid
 }
@@ -2280,6 +2283,7 @@ fn parse_pattern_concat(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  depth : Int,
 ) -> Bool {
   let mut valid = true
   let mut any = false
@@ -2291,7 +2295,7 @@ fn parse_pattern_concat(
       Some(raw) if is_flink_match_recognize_boundary(raw) => done = true
       Some(_) => {
         let before = cursor.position
-        let factor_ok = parse_pattern_factor(cursor, state, source, statement_id)
+        let factor_ok = parse_pattern_factor(cursor, state, source, statement_id, depth)
         any = any || factor_ok
         valid = factor_ok && valid
         if cursor.position == before {
@@ -2317,8 +2321,9 @@ fn parse_pattern_factor(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  depth : Int,
 ) -> Bool {
-  let primary_ok = parse_pattern_primary(cursor, state, source, statement_id)
+  let primary_ok = parse_pattern_primary(cursor, state, source, statement_id, depth)
   let quantifier_ok = parse_pattern_quantifier(cursor, state, source, statement_id)
   primary_ok && quantifier_ok
 }
@@ -2332,16 +2337,26 @@ fn parse_pattern_primary(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  depth : Int,
 ) -> Bool {
+  // CR-02: PatternExclude `{- ... -}`, groups, and PERMUTE recurse without
+  // increasing parenthesis_depth, so the recursion is bounded by an explicit
+  // depth counter honoring max_recursion_depth — a hostile `{- {- ...`
+  // chain recovers with a resource diagnostic instead of SIGSEGV.
+  if depth > state.limits.max_recursion_depth || !depth_allowed(cursor, state, source, statement_id) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    resource_diagnostic(state, at, statement_id)
+    return false
+  }
   if is_identifier_candidate(cursor) {
     // Pattern variable, or PERMUTE(...) (a Calcite-base pattern combinator,
     // known-limitation — structurally parsed as identifier + parenthesized
     // comma-separated pattern list, Parser.jj:3337-3346).
     advance(cursor)
     if consume_symbol(cursor, b"(") {
-      let mut inner = parse_pattern_expr(cursor, state, source, statement_id)
+      let mut inner = parse_pattern_expr(cursor, state, source, statement_id, depth + 1)
       while consume_symbol(cursor, b",") {
-        inner = parse_pattern_expr(cursor, state, source, statement_id) && inner
+        inner = parse_pattern_expr(cursor, state, source, statement_id, depth + 1) && inner
       }
       let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing PERMUTE parenthesis")
       return inner && closed
@@ -2349,7 +2364,7 @@ fn parse_pattern_primary(
     true
   } else if consume_symbol(cursor, b"(") {
     // Group: ( pattern_expr ).
-    let inner = parse_pattern_expr(cursor, state, source, statement_id)
+    let inner = parse_pattern_expr(cursor, state, source, statement_id, depth + 1)
     let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing pattern group parenthesis")
     inner && closed
   } else if consume_symbol(cursor, b"{") {
@@ -2365,7 +2380,7 @@ fn parse_pattern_primary(
           done = true
         } else {
           let before = cursor.position
-          let factor_ok = parse_pattern_factor(cursor, state, source, statement_id)
+          let factor_ok = parse_pattern_factor(cursor, state, source, statement_id, depth + 1)
           inner_valid = factor_ok && inner_valid
           if cursor.position == before {
             recover_expression(cursor, state, source, statement_id)
