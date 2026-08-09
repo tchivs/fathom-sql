@@ -1,0 +1,8 @@
+profile	category	fixture_count	parser_accepted	parser_rejected	recovery	prerequisite	coverage_note
+doris-4.x	positive	1	1	0	0	none	self-contained syntax, valid=true, no engine prerequisite
+flink-2.3.0	catalog-prerequisite	1	1	0	0	catalog	syntax accepted; catalog/registry prerequisite; engine-supported=0
+flink-2.3.0	known-limitation	1	1	0	0	structural	structural acceptance; known subset gap; engine-supported=0
+flink-2.3.0	negative	1	0	1	0	none	expected rejection (incl. dialect gates)
+flink-2.3.0	planner-prerequisite	1	1	0	0	planner	syntax accepted; planner/engine prerequisite; engine-supported=0
+flink-2.3.0	positive	1	1	0	0	none	self-contained syntax, valid=true, no engine prerequisite
+flink-2.3.0	recovery	1	0	0	1	none	bounded editor recovery + lossless replay

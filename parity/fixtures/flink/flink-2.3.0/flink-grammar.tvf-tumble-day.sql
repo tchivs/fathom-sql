@@ -1,0 +1,1 @@
+SELECT window_start, window_end FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY) GROUP BY window_start, window_end

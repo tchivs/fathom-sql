@@ -35,6 +35,7 @@ MANIFEST = CORPUS / "manifest.tsv"
 COVERAGE = CORPUS / "coverage.tsv"
 KEYWORDS = CORPUS / "keywords.tsv"
 REPORT = CORPUS / "CORPUS-REPORT.md"
+FLINK_COVERAGE = CORPUS / "flink-coverage.tsv"
 
 # Phase 1 coverage rows aggregate several manifest categories under one
 # coverage category; new DML/DDL categories (02-04) map to themselves.
@@ -176,17 +177,136 @@ def render_keywords():
     return lines
 
 
-def render(manifest, coverage):
+# ---------------------------------------------------------------------------
+# Flink cross-dialect coverage (Phase 12, CORPUS-01 / PARITY-03 / D-01/D-06).
+# Reads corpus/flink-coverage.tsv and renders a semantic-distinction section:
+# parser acceptance and engine-semantic prerequisite are reported as distinct
+# totals. catalog-prerequisite / planner-prerequisite / known-limitation rows
+# are NEVER counted as engine-supported (generic SQL acceptance != Flink
+# engine support).
+# ---------------------------------------------------------------------------
+
+FLINK_CATEGORIES = {
+    "positive", "negative", "recovery", "known-limitation",
+    "catalog-prerequisite", "planner-prerequisite",
+}
+PREREQUISITE_CATEGORIES = {"catalog-prerequisite", "planner-prerequisite", "known-limitation"}
+
+
+def read_flink_coverage():
+    if not FLINK_COVERAGE.exists():
+        return []
+    return read_tsv(FLINK_COVERAGE)
+
+
+def render_flink(coverage):
+    lines = [
+        "## Flink Cross-Dialect Coverage (CORPUS-01 / PARITY-03)", "",
+        "Parser acceptance and engine-semantic prerequisite are reported as "
+        "distinct totals. Generic SQL that the parser merely accepts is NEVER "
+        "counted as Flink engine support (D-01): catalog-prerequisite, "
+        "planner-prerequisite, and known-limitation fixtures are reported as "
+        "prerequisite, never as engine-supported.", "",
+        "| Profile | Category | Fixtures | Parser accepted | Parser rejected | Recovery | Prerequisite |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    total_fixtures = total_accepted = total_rejected = total_recovery = 0
+    prereq_fixtures = 0
+    engine_supported = 0
+    for row in coverage:
+        if row.get("profile", "") == "all":
+            continue
+        fixtures = int(row.get("fixture_count", 0))
+        accepted = int(row.get("parser_accepted", 0))
+        rejected = int(row.get("parser_rejected", 0))
+        recovery = int(row.get("recovery", 0))
+        category = row.get("category", "")
+        total_fixtures += fixtures
+        total_accepted += accepted
+        total_rejected += rejected
+        total_recovery += recovery
+        if category in PREREQUISITE_CATEGORIES:
+            prereq_fixtures += fixtures
+        if category == "positive":
+            engine_supported += accepted
+        prereq_note = row.get("prerequisite", "none") or "none"
+        lines.append(
+            f"| {_cell(row.get('profile', ''))} | {_cell(category)} | {fixtures} "
+            f"| {accepted} | {rejected} | {recovery} | {_cell(prereq_note)} |"
+        )
+    lines.append("")
+    lines.append("### Flink totals")
+    lines.append("")
+    lines.append(f"- **Parser accepted (valid syntax):** {total_accepted} fixtures")
+    lines.append(f"- **Parser rejected (expected errors):** {total_rejected} fixtures")
+    lines.append(f"- **Recovery (bounded editor recovery):** {total_recovery} fixtures")
+    lines.append(
+        f"- **Engine-semantic prerequisite (never engine-supported):** "
+        f"{prereq_fixtures} fixtures"
+    )
+    lines.append(
+        f"- **Engine-supported (positive only):** {engine_supported} fixtures"
+    )
+    lines.append("")
+    lines.append(
+        "The engine-supported total counts positive fixtures only; "
+        "catalog-prerequisite, planner-prerequisite, and known-limitation "
+        "fixtures are never reported as engine-supported."
+    )
+    return lines
+
+
+def check_flink_invariants(coverage, problems):
+    """Prerequisite hard rule (Pitfall 2 / D-01) + enum + engine-supported=0."""
+    if not coverage:
+        problems.append("corpus/flink-coverage.tsv is missing or empty (non-empty guard, Pitfall 8)")
+        return
+    seen = set()
+    for row in coverage:
+        profile = row.get("profile", "")
+        category = row.get("category", "")
+        if profile == "all":
+            continue
+        key = (profile, category)
+        if key in seen:
+            problems.append(f"flink coverage duplicate row ({profile}, {category})")
+        seen.add(key)
+        if category not in FLINK_CATEGORIES:
+            problems.append(f"flink coverage ({profile}): unknown category {category!r}")
+            continue
+        # Prerequisite rows must carry a non-none prerequisite and must never
+        # be reported as engine-supported (the renderer only counts positive
+        # rows as engine-supported, so a prerequisite row counted under
+        # engine-supported is a renderer bug the report text asserts against).
+        if category in PREREQUISITE_CATEGORIES:
+            prereq = row.get("prerequisite", "none") or "none"
+            if prereq == "none":
+                problems.append(
+                    f"flink coverage ({profile}, {category}): prerequisite row "
+                    f"carries prerequisite=none (must name catalog/planner/structural)"
+                )
+            if int(row.get("parser_accepted", 0)) > 0 and int(row.get("parser_accepted", 0)) != int(row.get("fixture_count", 0)):
+                problems.append(
+                    f"flink coverage ({profile}, {category}): prerequisite row "
+                    f"parser_accepted must equal fixture_count (syntax-accepted, "
+                    f"not engine-supported)"
+                )
+    return
+
+
+def render(manifest, coverage, flink_coverage):
     lines = ["# CORPUS-REPORT: Doris SQL Parser SDK Corpus Coverage", "",
              "Deterministic, offline-generated report (D-19). Regenerate with:", "",
              "```bash",
              "python3 corpus/tools/generate_corpus_report.py",
              "```", "",
              "`--check` mode fails when this report is stale relative to "
-             "corpus/manifest.tsv and corpus/coverage.tsv, when the "
-             "one-fixture-one-row invariant is violated, or when an "
-             "unqualified compatibility claim appears. No unqualified "
-             "compatibility claim is made anywhere in this report.",
+             "corpus/manifest.tsv, corpus/coverage.tsv, and "
+             "corpus/flink-coverage.tsv, when the one-fixture-one-row "
+             "invariant is violated, when the Flink prerequisite hard rule is "
+             "violated, or when an unqualified compatibility claim appears. "
+             "No unqualified compatibility claim is made anywhere in this "
+             "report.",
              ""]
     lines.extend(render_matrix(manifest, coverage))
     lines.append("")
@@ -196,13 +316,17 @@ def render(manifest, coverage):
     lines.append("")
     lines.extend(render_keywords())
     lines.append("")
+    lines.extend(render_flink(flink_coverage))
+    lines.append("")
     lines.append("---")
     lines.append("")
     lines.append("Report invariants (enforced by `--check`): every manifest "
                  "fixture appears in exactly one coverage row; the report is "
                  "byte-identical to a fresh generation; the known-gaps section "
-                 "is never empty; no `full-compatibility` or `100-percent` "
-                 "claim string appears in the corpus text files.")
+                 "is never empty; Flink catalog/planner/known-limitation rows "
+                 "are never counted as engine-supported; no `full-compatibility` "
+                 "or `100-percent` claim string appears in the corpus text "
+                 "files.")
     lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -238,7 +362,7 @@ def check_invariants(manifest, coverage, report_text):
         if (row["profile"], row["category"]) not in groups:
             problems.append(f"coverage row ({row['profile']}, {row['category']}) has no manifest group")
     # Claim scan over the corpus text files.
-    for path in [MANIFEST, COVERAGE, KEYWORDS, CORPUS / "differential.tsv", REPORT]:
+    for path in [MANIFEST, COVERAGE, KEYWORDS, CORPUS / "differential.tsv", FLINK_COVERAGE, REPORT]:
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
@@ -253,14 +377,16 @@ def check_invariants(manifest, coverage, report_text):
 def main(argv):
     manifest = read_tsv(MANIFEST)
     coverage = read_tsv(COVERAGE)
-    report_text = render(manifest, coverage)
+    flink_coverage = read_flink_coverage()
+    report_text = render(manifest, coverage, flink_coverage)
     problems = check_invariants(manifest, coverage, report_text)
+    check_flink_invariants(flink_coverage, problems)
     if "--check" in argv:
         stale = False
         if REPORT.exists():
             if REPORT.read_text(encoding="utf-8") != report_text:
                 stale = True
-                problems.append("CORPUS-REPORT.md is stale relative to manifest/coverage")
+                problems.append("CORPUS-REPORT.md is stale relative to manifest/coverage/flink-coverage")
         else:
             stale = True
             problems.append("CORPUS-REPORT.md does not exist")
@@ -269,7 +395,7 @@ def main(argv):
             for problem in problems:
                 print("  - " + problem, file=sys.stderr)
             return 1
-        print("ok: CORPUS-REPORT.md is current and consistent (matrix, failures, known-gaps, keywords summary)")
+        print("ok: CORPUS-REPORT.md is current and consistent (matrix, failures, known-gaps, keywords summary, flink cross-dialect)")
         return 0
     if problems:
         print("generate_corpus_report.py: invariant problems found before write:", file=sys.stderr)

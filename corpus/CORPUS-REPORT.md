@@ -6,7 +6,7 @@ Deterministic, offline-generated report (D-19). Regenerate with:
 python3 corpus/tools/generate_corpus_report.py
 ```
 
-`--check` mode fails when this report is stale relative to corpus/manifest.tsv and corpus/coverage.tsv, when the one-fixture-one-row invariant is violated, or when an unqualified compatibility claim appears. No unqualified compatibility claim is made anywhere in this report.
+`--check` mode fails when this report is stale relative to corpus/manifest.tsv, corpus/coverage.tsv, and corpus/flink-coverage.tsv, when the one-fixture-one-row invariant is violated, when the Flink prerequisite hard rule is violated, or when an unqualified compatibility claim appears. No unqualified compatibility claim is made anywhere in this report.
 
 ## Version x Category Matrix
 
@@ -184,7 +184,31 @@ Expected-error rows are explicit failures with recovery/version goldens. Support
 
 By introduced profile: 2.1: 112, 3.x: 2, 4.x: 2 (total 116 words).
 
+## Flink Cross-Dialect Coverage (CORPUS-01 / PARITY-03)
+
+Parser acceptance and engine-semantic prerequisite are reported as distinct totals. Generic SQL that the parser merely accepts is NEVER counted as Flink engine support (D-01): catalog-prerequisite, planner-prerequisite, and known-limitation fixtures are reported as prerequisite, never as engine-supported.
+
+| Profile | Category | Fixtures | Parser accepted | Parser rejected | Recovery | Prerequisite |
+|---|---|---|---|---|---|---|
+| doris-4.x | positive | 1 | 1 | 0 | 0 | none |
+| flink-2.3.0 | catalog-prerequisite | 1 | 1 | 0 | 0 | catalog |
+| flink-2.3.0 | known-limitation | 1 | 1 | 0 | 0 | structural |
+| flink-2.3.0 | negative | 1 | 0 | 1 | 0 | none |
+| flink-2.3.0 | planner-prerequisite | 1 | 1 | 0 | 0 | planner |
+| flink-2.3.0 | positive | 1 | 1 | 0 | 0 | none |
+| flink-2.3.0 | recovery | 1 | 0 | 0 | 1 | none |
+
+### Flink totals
+
+- **Parser accepted (valid syntax):** 5 fixtures
+- **Parser rejected (expected errors):** 1 fixtures
+- **Recovery (bounded editor recovery):** 1 fixtures
+- **Engine-semantic prerequisite (never engine-supported):** 3 fixtures
+- **Engine-supported (positive only):** 2 fixtures
+
+The engine-supported total counts positive fixtures only; catalog-prerequisite, planner-prerequisite, and known-limitation fixtures are never reported as engine-supported.
+
 ---
 
-Report invariants (enforced by `--check`): every manifest fixture appears in exactly one coverage row; the report is byte-identical to a fresh generation; the known-gaps section is never empty; no `full-compatibility` or `100-percent` claim string appears in the corpus text files.
+Report invariants (enforced by `--check`): every manifest fixture appears in exactly one coverage row; the report is byte-identical to a fresh generation; the known-gaps section is never empty; Flink catalog/planner/known-limitation rows are never counted as engine-supported; no `full-compatibility` or `100-percent` claim string appears in the corpus text files.
 
