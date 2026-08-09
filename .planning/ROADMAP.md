@@ -167,7 +167,15 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Validation**: Run an offline manifest/hash verifier, frozen Doris diff harness, cross-dialect positive/negative/recovery snapshots, and Native/JS/linear-Wasm serialized comparisons; keep source provenance and docs-vs-parser conflicts visible rather than bulk-updating snapshots.
 **Research flags**: Design the auditable extraction/diff workflow, resolve docs/source/Calcite conflicts, and define category semantics so generic SQL acceptance is never reported as Flink engine support.
-**Plans**: TBD
+**Plans**: 3 plans
+**Wave 1**
+
+- [ ] 12-01-PLAN.md — Unified Flink corpus manifest + offline verifier (CORPUS-01, PARITY-03; tracer: all-6-category seed end-to-end, then full 110-fixture migration + semantic-distinction coverage report)
+- [ ] 12-02-PLAN.md — Doris frozen diff harness (PARITY-01; diff_parity.py --frozen-only regeneration harness + Phase 12 approved-changes register)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 12-03-PLAN.md — Cross-backend parity + offline CI gates (PARITY-02, PARITY-03; compare_backends.py three-target digest + js runtime CI job + wiring of verify_corpus/diff_parity/report into CI)
 
 ### Phase 13: Toolchain and Editor Packaging
 
