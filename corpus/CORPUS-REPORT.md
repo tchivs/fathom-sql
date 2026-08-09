@@ -190,21 +190,25 @@ Parser acceptance and engine-semantic prerequisite are reported as distinct tota
 
 | Profile | Category | Fixtures | Parser accepted | Parser rejected | Recovery | Prerequisite |
 |---|---|---|---|---|---|---|
-| doris-4.x | positive | 1 | 1 | 0 | 0 | none |
-| flink-2.3.0 | catalog-prerequisite | 1 | 1 | 0 | 0 | catalog |
-| flink-2.3.0 | known-limitation | 1 | 1 | 0 | 0 | structural |
-| flink-2.3.0 | negative | 1 | 0 | 1 | 0 | none |
-| flink-2.3.0 | planner-prerequisite | 1 | 1 | 0 | 0 | planner |
-| flink-2.3.0 | positive | 1 | 1 | 0 | 0 | none |
-| flink-2.3.0 | recovery | 1 | 0 | 0 | 1 | none |
+| doris-4.x | negative | 3 | 0 | 3 | 0 | none |
+| doris-4.x | positive | 2 | 2 | 0 | 0 | none |
+| flink-1.20.5 | negative | 1 | 0 | 1 | 0 | none |
+| flink-2.1.3 | positive | 1 | 1 | 0 | 0 | none |
+| flink-2.3.0 | catalog-prerequisite | 3 | 3 | 0 | 0 | catalog |
+| flink-2.3.0 | known-limitation | 3 | 3 | 0 | 0 | structural |
+| flink-2.3.0 | negative | 20 | 0 | 20 | 0 | none |
+| flink-2.3.0 | planner-prerequisite | 13 | 13 | 0 | 0 | planner |
+| flink-2.3.0 | positive | 46 | 46 | 0 | 0 | none |
+| flink-2.3.0 | recovery | 17 | 0 | 0 | 17 | none |
+| flink-4x | negative | 1 | 0 | 1 | 0 | none |
 
 ### Flink totals
 
-- **Parser accepted (valid syntax):** 5 fixtures
-- **Parser rejected (expected errors):** 1 fixtures
-- **Recovery (bounded editor recovery):** 1 fixtures
-- **Engine-semantic prerequisite (never engine-supported):** 3 fixtures
-- **Engine-supported (positive only):** 2 fixtures
+- **Parser accepted (valid syntax):** 68 fixtures
+- **Parser rejected (expected errors):** 25 fixtures
+- **Recovery (bounded editor recovery):** 17 fixtures
+- **Engine-semantic prerequisite (never engine-supported):** 19 fixtures
+- **Engine-supported (positive only):** 49 fixtures
 
 The engine-supported total counts positive fixtures only; catalog-prerequisite, planner-prerequisite, and known-limitation fixtures are never reported as engine-supported.
 

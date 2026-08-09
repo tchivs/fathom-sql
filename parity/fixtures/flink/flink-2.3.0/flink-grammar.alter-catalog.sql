@@ -1,0 +1,1 @@
+ALTER CATALOG c SET ('k'='v')

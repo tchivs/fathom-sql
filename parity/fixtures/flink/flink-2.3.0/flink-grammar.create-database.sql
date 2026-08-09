@@ -1,0 +1,1 @@
+CREATE DATABASE db COMMENT 'sales db' WITH ('k'='v')

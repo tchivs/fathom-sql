@@ -1,0 +1,1 @@
+CREATE TABLE t (id INT) PROPERTIES ("k"="v")

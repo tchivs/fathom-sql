@@ -481,6 +481,230 @@ def validate_manifest(problems):
     return verified
 
 
+# ---------------------------------------------------------------------------
+# Phase 12 (12-01) extension: flink-lexical fixture expansion validation.
+# Parses the flink_lexical_test.mbt fixture array (13 entries), byte-compares
+# each against the committed parity/fixtures/flink/**/*.sql file, and
+# validates the unified manifest's lexical rows: 6-category enum, expected
+# status, token-source column, fixture_sha256.
+# ---------------------------------------------------------------------------
+
+# Unified 19-column manifest (Phase 12, D-01).
+UNIFIED_MANIFEST = os.path.join(REPO_ROOT, "parity", "fixtures", "flink", "manifest.tsv")
+FLINK_SQL_ROOT = os.path.join(REPO_ROOT, "parity", "fixtures", "flink")
+LEXICAL_TEST_MBT = os.path.join(REPO_ROOT, "parity", "flink_lexical_test.mbt")
+
+UNIFIED_HEADER = [
+    "fixture_id", "dialect", "profile", "exact_release", "calcite_version",
+    "parser_config", "source_archive_url", "sha512", "git_tag", "git_commit",
+    "source_url", "heading", "retrieval_date", "category", "expected_status",
+    "fixture_sha256", "grammar_path", "line_range", "mode",
+]
+
+CATEGORY_ENUM = {
+    "positive", "negative", "recovery", "known-limitation",
+    "catalog-prerequisite", "planner-prerequisite",
+}
+
+EXPECTED_STATUS = {
+    "positive": "valid",
+    "negative": "error",
+    "recovery": "recovered",
+    "known-limitation": "valid",
+    "catalog-prerequisite": "valid",
+    "planner-prerequisite": "valid",
+}
+
+# Expected lexical 6-category mapping: (fixture_id, dialect, profile) -> category.
+LEXICAL_CATEGORY_MAP = {
+    ("hash-comment", "flink", "flink-2.3.0"): "negative",
+    ("hash-comment", "doris", "4.x"): "negative",
+    ("double-quote", "flink", "flink-2.3.0"): "negative",
+    ("double-quote", "doris", "4.x"): "positive",
+    ("slash-comment", "flink", "flink-2.3.0"): "positive",
+    ("slash-comment", "doris", "4.x"): "negative",
+    ("e-literal", "flink", "flink-2.3.0"): "positive",
+    ("e-literal", "flink", "flink-2.1.3"): "positive",
+    ("e-literal", "flink", "flink-1.20.5"): "negative",
+    ("e-literal", "doris", "4.x"): "negative",
+    ("backtick-escape", "flink", "flink-2.3.0"): "positive",
+    ("backtick-escape", "doris", "4.x"): "positive",
+    ("unknown-profile", "flink", "4.x"): "negative",
+}
+
+# Lexical rows must carry a token-source reference in grammar_path.
+TOKEN_SOURCE_PREFIXES = (
+    "Parser-calcite-",
+    "Doris ",
+    "FATHOM-",
+    "absent in Calcite ",
+)
+
+
+def decode_lexical_bytes(literal):
+    out = bytearray()
+    i = 0
+    n = len(literal)
+    while i < n:
+        c = literal[i]
+        if c != "\\":
+            out.extend(c.encode("utf-8"))
+            i += 1
+            continue
+        i += 1
+        if i >= n:
+            raise ValueError("dangling backslash in byte literal")
+        e = literal[i]
+        if e == "n":
+            out.append(0x0A); i += 1
+        elif e == "t":
+            out.append(0x09); i += 1
+        elif e == "r":
+            out.append(0x0D); i += 1
+        elif e == "0":
+            out.append(0x00); i += 1
+        elif e == "\\":
+            out.append(0x5C); i += 1
+        elif e == '"':
+            out.append(0x22); i += 1
+        elif e == "'":
+            out.append(0x27); i += 1
+        elif e == "x":
+            out.append(int(literal[i + 1:i + 3], 16)); i += 3
+        elif e == "u":
+            m = re.search(r"\{([0-9a-fA-F]+)\}", literal[i + 1:])
+            if not m:
+                raise ValueError("bad unicode escape")
+            cp = int(m.group(1), 16)
+            out.extend(chr(cp).encode("utf-8"))
+            i += 1 + m.end()
+        else:
+            raise ValueError("unknown escape \\%s" % e)
+    return bytes(out)
+
+
+def parse_embedded_lexical_fixtures(problems):
+    """Parse the flink_lexical_test.mbt fixture array -> {(id,dialect,profile): bytes}."""
+    if not os.path.isfile(LEXICAL_TEST_MBT):
+        problems.append("missing parity/flink_lexical_test.mbt: %s" % LEXICAL_TEST_MBT)
+        return {}
+    with open(LEXICAL_TEST_MBT, encoding="utf-8") as fh:
+        text = fh.read()
+    pattern = re.compile(
+        r'fixture_id:\s*"([^"]+)"\s*,\s*'
+        r'dialect:\s*"([^"]+)"\s*,\s*'
+        r'profile:\s*"([^"]+)"\s*,\s*'
+        r'(?://[^\n]*\n\s*)*'
+        r'raw:\s*b"((?:[^"\\]|\\.)*)"',
+        re.S,
+    )
+    fixtures = {}
+    for m in pattern.finditer(text):
+        fixture_id, dialect, profile, raw_literal = m.groups()
+        raw = decode_lexical_bytes(raw_literal)
+        fixtures[(fixture_id, dialect, profile)] = raw
+    return fixtures
+
+
+def sql_dir(profile):
+    return "doris-4.x" if profile == "4.x" else profile
+
+
+def validate_embedded_lexical_bytes(problems, fixtures):
+    verified = 0
+    for (fixture_id, dialect, profile), raw in sorted(fixtures.items()):
+        fid = "flink-lexical." + fixture_id
+        sql_path = os.path.join(FLINK_SQL_ROOT, sql_dir(profile), fid + ".sql")
+        if not os.path.isfile(sql_path):
+            problems.append(
+                "embedded-raw %s: missing committed .sql file %s" % (fid, sql_path)
+            )
+            continue
+        with open(sql_path, "rb") as fh:
+            on_disk = fh.read()
+        if on_disk != raw:
+            problems.append(
+                "embedded-raw %s: committed .sql bytes do not match the "
+                "flink_lexical_test.mbt b\"...\" literal (D-08)" % fid
+            )
+            continue
+        verified += 1
+    return verified
+
+
+def validate_unified_lexical_rows(problems):
+    """Validate the unified manifest's 13 flink-lexical rows."""
+    if not os.path.isfile(UNIFIED_MANIFEST):
+        problems.append("missing unified flink manifest: %s" % UNIFIED_MANIFEST)
+        return 0
+    with open(UNIFIED_MANIFEST, encoding="utf-8") as fh:
+        lines = [line.rstrip("\r\n") for line in fh]
+    if not lines:
+        problems.append("unified flink manifest is empty: %s" % UNIFIED_MANIFEST)
+        return 0
+    header = lines[0].split("\t")
+    if header != UNIFIED_HEADER:
+        problems.append(
+            "unified flink manifest header mismatch: got %d columns, expected %d"
+            % (len(header), len(UNIFIED_HEADER))
+        )
+        return 0
+    rows = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) != len(header):
+            continue
+        rows.append(dict(zip(header, fields)))
+    lexical_rows = [r for r in rows if r["fixture_id"].startswith("flink-lexical.")]
+    if len(lexical_rows) != 13:
+        problems.append(
+            "unified manifest has %d flink-lexical rows, expected 13"
+            % len(lexical_rows)
+        )
+    verified = 0
+    for row in lexical_rows:
+        fid = row["fixture_id"]
+        fixture_id = fid[len("flink-lexical."):]
+        key = (fixture_id, row["dialect"], row["profile"])
+        expected_category = LEXICAL_CATEGORY_MAP.get(key)
+        if expected_category is None:
+            problems.append(
+                "%s: (fixture_id, dialect, profile) %r not in the expected "
+                "13-row lexical map" % (fid, key)
+            )
+            continue
+        category = row["category"]
+        if category != expected_category:
+            problems.append(
+                "%s: category %r != expected lexical category %r"
+                % (fid, category, expected_category)
+            )
+        if row["expected_status"] != EXPECTED_STATUS.get(category, "?"):
+            problems.append(
+                "%s: expected_status %r inconsistent with category %r"
+                % (fid, row["expected_status"], category)
+            )
+        grammar_path = row.get("grammar_path", "")
+        if not grammar_path.startswith(TOKEN_SOURCE_PREFIXES):
+            problems.append(
+                "%s: grammar_path %r does not carry a token-source reference "
+                "(Parser-calcite / Doris / FATHOM / absent-in-Calcite)" % (fid, grammar_path)
+            )
+        sql_path = os.path.join(FLINK_SQL_ROOT, sql_dir(row["profile"]), fid + ".sql")
+        if os.path.isfile(sql_path):
+            with open(sql_path, "rb") as fh:
+                digest = hashlib.sha256(fh.read()).hexdigest()
+            if digest != row["fixture_sha256"]:
+                problems.append(
+                    "%s: fixture_sha256 drift (%s != %s)"
+                    % (fid, digest[:16], row["fixture_sha256"][:16])
+                )
+        verified += 1
+    return verified
+
+
 def main(argv):
     problems = []
     release_paths = {}
@@ -500,6 +724,10 @@ def main(argv):
     row_count = validate_flink_rows(problems, lists)
     # ---- MN-03: manifest provenance re-verification ----
     manifest_verified = validate_manifest(problems)
+    # ---- Phase 12: embedded-raw + unified lexical rows ----
+    fixtures = parse_embedded_lexical_fixtures(problems)
+    embedded_verified = validate_embedded_lexical_bytes(problems, fixtures)
+    unified_lexical_verified = validate_unified_lexical_rows(problems)
 
     # ---- pinned-archive validation (pins, parser config, grammar cross-check)
     verified_pins = 0
@@ -584,7 +812,10 @@ def main(argv):
         "ok: %d calcite pins verified against pinned release POMs (%s), "
         "parser config verified (%s), keyword counts verified (%s), "
         "%d inlined flink rows present in the matching release lists, "
-        "%d flink manifest rows re-verified against manifest.tsv"
+        "%d flink manifest rows re-verified against manifest.tsv, "
+        "%d embedded b\"...\" literals byte-match committed .sql files "
+        "(embedded-raw provenance, D-08), %d unified flink-lexical rows pass "
+        "6-category + token-source + fixture_sha256"
         % (
             verified_pins,
             ", ".join("%s=%s" % (k, v) for k, v in sorted(CALCITE_PINS.items())),
@@ -592,6 +823,8 @@ def main(argv):
             counts_summary,
             row_count,
             manifest_verified,
+            embedded_verified,
+            unified_lexical_verified,
         )
     )
     return 0

@@ -1,0 +1,1 @@
+UPSERT INTO t VALUES (1, 2)

@@ -1,0 +1,1 @@
+CREATE VIEW v (a, b) AS SELECT a, b FROM t

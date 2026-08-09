@@ -36,6 +36,7 @@ COVERAGE = CORPUS / "coverage.tsv"
 KEYWORDS = CORPUS / "keywords.tsv"
 REPORT = CORPUS / "CORPUS-REPORT.md"
 FLINK_COVERAGE = CORPUS / "flink-coverage.tsv"
+FLINK_MANIFEST = ROOT / "parity" / "fixtures" / "flink" / "manifest.tsv"
 
 # Phase 1 coverage rows aggregate several manifest categories under one
 # coverage category; new DML/DDL categories (02-04) map to themselves.
@@ -257,7 +258,13 @@ def render_flink(coverage):
 
 
 def check_flink_invariants(coverage, problems):
-    """Prerequisite hard rule (Pitfall 2 / D-01) + enum + engine-supported=0."""
+    """Prerequisite hard rule (Pitfall 2 / D-01) + enum + engine-supported=0.
+
+    Also cross-checks the coverage aggregation against the unified manifest:
+    every manifest row's (snapshot-segment, category) group must have exactly
+    one coverage row whose fixture_count matches — a prerequisite row relabeled
+    as positive (or any count drift) fails the gate.
+    """
     if not coverage:
         problems.append("corpus/flink-coverage.tsv is missing or empty (non-empty guard, Pitfall 8)")
         return
@@ -291,7 +298,56 @@ def check_flink_invariants(coverage, problems):
                     f"parser_accepted must equal fixture_count (syntax-accepted, "
                     f"not engine-supported)"
                 )
+
+    # Cross-check coverage aggregation against the unified manifest.
+    try:
+        manifest_rows = read_tsv(FLINK_MANIFEST)
+    except OSError:
+        manifest_rows = []
+    if not manifest_rows:
+        problems.append("parity/fixtures/flink/manifest.tsv is missing or empty (cross-check)")
+        return
+    groups = {}
+    for row in manifest_rows:
+        key = (flink_segment(row), row["category"])
+        groups.setdefault(key, 0)
+        groups[key] += 1
+    cov_by_key = {}
+    for row in coverage:
+        if row.get("profile", "") == "all":
+            continue
+        cov_by_key.setdefault((row["profile"], row["category"]), []).append(row)
+    for (profile, category), count in sorted(groups.items()):
+        cov_rows = cov_by_key.get((profile, category), [])
+        if len(cov_rows) != 1:
+            problems.append(
+                f"flink manifest group ({profile}, {category}) has {count} "
+                f"fixtures but {len(cov_rows)} coverage rows (expected exactly one)"
+            )
+            continue
+        if int(cov_rows[0].get("fixture_count", 0)) != count:
+            problems.append(
+                f"flink coverage ({profile}, {category}) fixture_count "
+                f"{cov_rows[0]['fixture_count']} != manifest rows {count}"
+            )
+    for row in coverage:
+        if row.get("profile", "") == "all":
+            continue
+        if (row["profile"], row["category"]) not in groups:
+            problems.append(
+                f"flink coverage row ({row['profile']}, {row['category']}) has "
+                f"no manifest group"
+            )
     return
+
+
+def flink_segment(row):
+    """Dialect-correct snapshot segment for a unified manifest row."""
+    if row["dialect"] == "doris":
+        return "doris-" + row["profile"]
+    if row["profile"].startswith("flink-"):
+        return row["profile"]
+    return "flink-" + row["profile"].replace(".", "")
 
 
 def render(manifest, coverage, flink_coverage):

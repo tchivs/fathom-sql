@@ -25,6 +25,7 @@ Exit 0 with an "ok:" line when every check matches; exit 1 with "error:"
 lines otherwise.
 """
 
+import hashlib
 import os
 import re
 import sys
@@ -311,11 +312,215 @@ def validate_manifest(problems):
     return verified
 
 
+# ---------------------------------------------------------------------------
+# Phase 12 (12-01) extension: embedded-raw provenance (D-08) + 6-category enum.
+# Parses the flink_grammar_test.mbt b"..." literals and byte-compares them
+# against the committed parity/fixtures/flink/**/*.sql files; validates the
+# unified manifest's 6-category enum.
+# ---------------------------------------------------------------------------
+
+# Unified 19-column manifest (Phase 12, D-01). Located at
+# parity/fixtures/flink/manifest.tsv.
+UNIFIED_MANIFEST = os.path.join(
+    REPO_ROOT, "parity", "fixtures", "flink", "manifest.tsv"
+)
+FLINK_SQL_ROOT = os.path.join(REPO_ROOT, "parity", "fixtures", "flink")
+GRAMMAR_TEST_MBT = os.path.join(REPO_ROOT, "parity", "flink_grammar_test.mbt")
+
+UNIFIED_HEADER = [
+    "fixture_id", "dialect", "profile", "exact_release", "calcite_version",
+    "parser_config", "source_archive_url", "sha512", "git_tag", "git_commit",
+    "source_url", "heading", "retrieval_date", "category", "expected_status",
+    "fixture_sha256", "grammar_path", "line_range", "mode",
+]
+
+CATEGORY_ENUM = {
+    "positive", "negative", "recovery", "known-limitation",
+    "catalog-prerequisite", "planner-prerequisite",
+}
+
+EXPECTED_STATUS = {
+    "positive": "valid",
+    "negative": "error",
+    "recovery": "recovered",
+    "known-limitation": "valid",
+    "catalog-prerequisite": "valid",
+    "planner-prerequisite": "valid",
+}
+
+
+def decode_moonbit_bytes(literal):
+    """Decode a MoonBit b\"...\" literal body (without the b\"\" quotes)."""
+    out = bytearray()
+    i = 0
+    n = len(literal)
+    while i < n:
+        c = literal[i]
+        if c != "\\":
+            out.extend(c.encode("utf-8"))
+            i += 1
+            continue
+        i += 1
+        if i >= n:
+            raise ValueError("dangling backslash in byte literal")
+        e = literal[i]
+        if e == "n":
+            out.append(0x0A); i += 1
+        elif e == "t":
+            out.append(0x09); i += 1
+        elif e == "r":
+            out.append(0x0D); i += 1
+        elif e == "0":
+            out.append(0x00); i += 1
+        elif e == "\\":
+            out.append(0x5C); i += 1
+        elif e == '"':
+            out.append(0x22); i += 1
+        elif e == "'":
+            out.append(0x27); i += 1
+        elif e == "x":
+            out.append(int(literal[i + 1:i + 3], 16)); i += 3
+        elif e == "u":
+            m = re.search(r"\{([0-9a-fA-F]+)\}", literal[i + 1:])
+            if not m:
+                raise ValueError("bad unicode escape")
+            cp = int(m.group(1), 16)
+            out.extend(chr(cp).encode("utf-8"))
+            i += 1 + m.end()
+        else:
+            raise ValueError("unknown escape \\%s" % e)
+    return bytes(out)
+
+
+def parse_embedded_grammar_fixtures(problems):
+    """Parse the flink_grammar_test.mbt fixture array -> {fixture_id: bytes}."""
+    if not os.path.isfile(GRAMMAR_TEST_MBT):
+        problems.append("missing parity/flink_grammar_test.mbt: %s" % GRAMMAR_TEST_MBT)
+        return {}
+    with open(GRAMMAR_TEST_MBT, encoding="utf-8") as fh:
+        text = fh.read()
+    pattern = re.compile(
+        r'fixture_id:\s*"([^"]+)"\s*,\s*'
+        r'profile:\s*"([^"]+)"\s*,\s*'
+        r'category:\s*"([^"]+)"\s*,\s*'
+        r'(?://[^\n]*\n\s*)*'
+        r'raw:\s*b"((?:[^"\\]|\\.)*)"',
+        re.S,
+    )
+    fixtures = {}
+    for m in pattern.finditer(text):
+        fixture_id, profile, category, raw_literal = m.groups()
+        raw = decode_moonbit_bytes(raw_literal)
+        fixtures["flink-grammar." + fixture_id] = {
+            "raw": raw,
+            "profile": profile,
+            "test_category": category,
+        }
+    return fixtures
+
+
+def sql_dir(profile):
+    return "doris-4.x" if profile == "4.x" else profile
+
+
+def validate_embedded_grammar_bytes(problems, fixtures):
+    """Byte-compare embedded b\"...\" literals against committed .sql files."""
+    verified = 0
+    for fixture_id in sorted(fixtures):
+        fx = fixtures[fixture_id]
+        sql_path = os.path.join(
+            FLINK_SQL_ROOT, sql_dir(fx["profile"]), fixture_id + ".sql"
+        )
+        if not os.path.isfile(sql_path):
+            problems.append(
+                "embedded-raw %s: missing committed .sql file %s"
+                % (fixture_id, sql_path)
+            )
+            continue
+        with open(sql_path, "rb") as fh:
+            on_disk = fh.read()
+        if on_disk != fx["raw"]:
+            problems.append(
+                "embedded-raw %s: committed .sql bytes do not match the "
+                "flink_grammar_test.mbt b\"...\" literal (embedded-raw "
+                "provenance drift, D-08)" % fixture_id
+            )
+            continue
+        verified += 1
+    return verified
+
+
+def validate_unified_manifest(problems):
+    """Validate the unified 110-row manifest: header, 6-category enum,
+    expected_status consistency, and per-fixture .sql sha256."""
+    if not os.path.isfile(UNIFIED_MANIFEST):
+        problems.append("missing unified flink manifest: %s" % UNIFIED_MANIFEST)
+        return 0
+    with open(UNIFIED_MANIFEST, encoding="utf-8") as fh:
+        lines = [line.rstrip("\r\n") for line in fh]
+    if not lines:
+        problems.append("unified flink manifest is empty: %s" % UNIFIED_MANIFEST)
+        return 0
+    header = lines[0].split("\t")
+    if header != UNIFIED_HEADER:
+        problems.append(
+            "unified flink manifest header mismatch: got %d columns, expected %d"
+            % (len(header), len(UNIFIED_HEADER))
+        )
+        return 0
+    rows = []
+    for lineno, line in enumerate(lines[1:], start=2):
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) != len(header):
+            problems.append(
+                "unified manifest line %d: %d fields, expected %d"
+                % (lineno, len(fields), len(header))
+            )
+            continue
+        rows.append(dict(zip(header, fields)))
+    if not rows:
+        problems.append("unified manifest has no data rows (non-empty guard)")
+        return 0
+    verified = 0
+    for row in rows:
+        fixture_id = row["fixture_id"]
+        category = row["category"]
+        if category not in CATEGORY_ENUM:
+            problems.append(
+                "%s: category %r is not in the 6-value enum" % (fixture_id, category)
+            )
+            continue
+        expected = EXPECTED_STATUS[category]
+        if row["expected_status"] != expected:
+            problems.append(
+                "%s: expected_status %r inconsistent with category %r (expected %r)"
+                % (fixture_id, row["expected_status"], category, expected)
+            )
+        sql_path = os.path.join(
+            FLINK_SQL_ROOT, sql_dir(row["profile"]), fixture_id + ".sql"
+        )
+        if os.path.isfile(sql_path):
+            with open(sql_path, "rb") as fh:
+                digest = hashlib.sha256(fh.read()).hexdigest()
+            if digest != row["fixture_sha256"]:
+                problems.append(
+                    "%s: fixture_sha256 drift (%s != %s)"
+                    % (fixture_id, digest[:16], row["fixture_sha256"][:16])
+                )
+        verified += 1
+    return verified
+
+
 def main(argv):
     problems = []
     production_verified = validate_production_refs(problems)
     rows_verified = validate_calcite_base_rows(problems)
     manifest_verified = validate_manifest(problems)
+    fixtures = parse_embedded_grammar_fixtures(problems)
+    embedded_verified = validate_embedded_grammar_bytes(problems, fixtures)
+    unified_verified = validate_unified_manifest(problems)
 
     if problems:
         for problem in problems:
@@ -326,8 +531,16 @@ def main(argv):
         "ok: %d production line refs verified against pinned Parser-calcite "
         "files, %d Calcite-base reserved row sources verified "
         "(MATCH_RECOGNIZE/MATCH_NUMBER, Pitfall 9), %d flink-grammar manifest "
-        "rows verified"
-        % (production_verified, rows_verified, manifest_verified)
+        "rows verified, %d embedded b\"...\" literals byte-match committed "
+        ".sql files (embedded-raw provenance, D-08), %d unified manifest rows "
+        "pass 6-category enum + expected_status + fixture_sha256"
+        % (
+            production_verified,
+            rows_verified,
+            manifest_verified,
+            embedded_verified,
+            unified_verified,
+        )
     )
     return 0
 

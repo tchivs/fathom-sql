@@ -1,0 +1,1 @@
+CREATE CATALOG c WITH ('type'='generic_in_memory')

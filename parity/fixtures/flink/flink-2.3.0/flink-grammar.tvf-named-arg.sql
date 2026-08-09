@@ -1,0 +1,1 @@
+SELECT * FROM TUMBLE(data => TABLE T1, timecol => DESCRIPTOR(rowtime), size => INTERVAL '1' DAY)

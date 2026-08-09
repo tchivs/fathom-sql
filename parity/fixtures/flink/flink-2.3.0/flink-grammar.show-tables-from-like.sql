@@ -1,0 +1,1 @@
+SHOW TABLES FROM db1 LIKE '%'

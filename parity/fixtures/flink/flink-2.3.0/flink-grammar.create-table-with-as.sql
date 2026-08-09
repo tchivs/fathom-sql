@@ -1,0 +1,1 @@
+CREATE TABLE t4 WITH ('k'='v') AS SELECT a FROM src

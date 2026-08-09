@@ -1,0 +1,1 @@
+ALTER FUNCTION f AS 'com.example.UDF' LANGUAGE SCALA

@@ -1,5 +1,7 @@
 .ace-tool/
 _build/
+__pycache__/
+*.pyc
 
 web/node_modules/
 vscode/node_modules/
