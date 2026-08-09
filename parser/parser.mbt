@@ -2309,14 +2309,18 @@ fn is_doris_create_form(
 ) -> Bool {
   let mut i = start_index + 1
   let length = indices.length()
-  if i >= length { return false }
+  // No form word (bare CREATE / CREATE TEMPORARY / CREATE EXTERNAL at EOF):
+  // this is a Doris incomplete-statement case, NOT a non-Doris form — route
+  // to parse_create so it emits the WR-01 FATHOM-PARSE-002 + missing node.
+  if i >= length { return true }
   let modifier = match stream.raw(indices[i]) {
     Some(raw) => bytes_equal_ci(raw, b"TEMPORARY") || bytes_equal_ci(raw, b"EXTERNAL") ||
       bytes_equal_ci(raw, b"ASYNC")
     None => false
   }
   if modifier { i = i + 1 }
-  if i >= length { return false }
+  // Same rule after an optional modifier: no form word => Doris bare-create.
+  if i >= length { return true }
   match stream.raw(indices[i]) {
     Some(raw) if bytes_equal_ci(raw, b"TABLE") || bytes_equal_ci(raw, b"VIEW") ||
       bytes_equal_ci(raw, b"INDEX") || bytes_equal_ci(raw, b"MATERIALIZED") => true
