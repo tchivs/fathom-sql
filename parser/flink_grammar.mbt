@@ -589,8 +589,17 @@ fn parse_flink_data_type(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  depth : Int,
 ) -> Bool {
-  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  // CR-01: nested `< ... >` generics never register in parenthesis_depth, so
+  // the recursion is bounded by an explicit depth counter honoring
+  // max_recursion_depth — a hostile ARRAY<ARRAY<...>> chain recovers with a
+  // resource diagnostic instead of overflowing the native stack (SIGSEGV).
+  if depth > state.limits.max_recursion_depth || !depth_allowed(cursor, state, source, statement_id) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    resource_diagnostic(state, at, statement_id)
+    return false
+  }
   let mut valid = true
   if is_identifier_candidate(cursor) {
     advance(cursor)
@@ -613,7 +622,7 @@ fn parse_flink_data_type(
     if !consume_symbol(cursor, b">") {
       let mut element_done = false
       while !element_done {
-        valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
+        valid = parse_flink_data_type(cursor, state, source, statement_id, depth + 1) && valid
         if is_identifier_candidate(cursor) && !(raw_at(cursor) is Some(b",")) && !(raw_at(cursor) is Some(b">")) {
           advance(cursor)
         }
@@ -1040,7 +1049,7 @@ fn parse_flink_view_field_list(
         advance(cursor)
         // Optional field type.
         if raw_at(cursor) is Some(raw) && !(raw == b",") && !(raw == b")") {
-          valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
+          valid = parse_flink_data_type(cursor, state, source, statement_id, 0) && valid
         }
       } else {
         let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
@@ -1452,7 +1461,7 @@ fn parse_flink_typed_column(
   source : @source.SourceText,
   statement_id : UInt,
 ) -> Bool {
-  let mut valid = parse_flink_data_type(cursor, state, source, statement_id)
+  let mut valid = parse_flink_data_type(cursor, state, source, statement_id, 0)
   // Doris-only AUTO_INCREMENT column form under Flink → 009 (T-11-15, §9).
   if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"AUTO_INCREMENT") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }

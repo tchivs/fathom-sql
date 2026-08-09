@@ -877,7 +877,7 @@ fn parse_flink_cast_arguments(
     valid = false
   }
   if consume_word(cursor, b"AS") {
-    valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
+    valid = parse_flink_data_type(cursor, state, source, statement_id, 0) && valid
   } else {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
     add_diagnostic(state, "FATHOM-PARSE-002", "expected AS in CAST expression", "cast", make_span(source, at, at), statement_id)
