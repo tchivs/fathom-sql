@@ -380,6 +380,52 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     category: "recovery",
     raw: b"CREATE VIEW v AS SELECT * FROM t; SELECT 2",
   },
+  // ---- FLINK-04 CREATE TABLE column body (11-03, wave 3): TableColumn
+  // four-way dispatch (parserImpls.ftl:1103-1145), Watermark (:1121-1140),
+  // UniqueSpec (:1432-1504), ComputedColumn (:1150-1176), MetadataColumn
+  // (:1176-1210), TypedColumn (:1146-1130).
+  {
+    fixture_id: "create-table-columns",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TABLE t (log_ts TIMESTAMP_LTZ(3), proc AS PROCTIME(), x STRING METADATA FROM 'x' VIRTUAL, PRIMARY KEY (id) NOT ENFORCED, WATERMARK FOR log_ts AS log_ts - INTERVAL '5' SECOND)",
+  },
+  {
+    fixture_id: "create-table-typed-column",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TABLE t (a INT, b STRING)",
+  },
+  {
+    fixture_id: "create-table-watermark-second",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t (a INT, WATERMARK FOR a AS a, WATERMARK FOR b AS b)",
+  },
+  {
+    fixture_id: "create-table-pk-enforced",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t (id INT, PRIMARY KEY (id) ENFORCED)",
+  },
+  {
+    fixture_id: "create-table-trailing-comma",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"CREATE TABLE t (a INT,)",
+  },
+  {
+    fixture_id: "create-table-incomplete-wm",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"CREATE TABLE t (WATERMARK FOR ts AS)",
+  },
+  {
+    fixture_id: "create-table-incomplete-col",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"CREATE TABLE t (a INT, b",
+  },
 ]
 
 fn flink_grammar_fixture(id : String) -> FlinkGrammarFixture {
@@ -1507,4 +1553,150 @@ test "flink_grammar_view_recovery_lossless_and_independent_statements" {
   let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE VIEW v AS SELECT * FROM t; SELECT 2", "flink", "flink-2.3.0", "strict")[:])
   assert_true(strict.contains("\"kind\":\"create_view\""))
   assert_true(strict.contains("\"kind\":\"select\""))
+}
+
+// ===========================================================================
+// FLINK-04 CREATE TABLE column body (11-03, wave 3)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// create-table-columns: the four column kinds + table constraint + WATERMARK
+// in one body (valid=true, create_table kind, lossless replay).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-columns flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-columns flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-columns", "strict"), "flink-grammar.create-table-columns.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-columns flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-columns flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-columns", "editor"), "flink-grammar.create-table-columns.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_columns_lossless" {
+  assert_true(flink_grammar_lossless("create-table-columns", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-columns", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (log_ts TIMESTAMP_LTZ(3), proc AS PROCTIME(), x STRING METADATA FROM 'x' VIRTUAL, PRIMARY KEY (id) NOT ENFORCED, WATERMARK FOR log_ts AS log_ts - INTERVAL '5' SECOND)", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"create_table\""))
+  assert_true(strict.contains("\"valid\":true"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-typed-column: physical typed columns (a INT, b STRING).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-typed-column flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-typed-column flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-typed-column", "strict"), "flink-grammar.create-table-typed-column.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-typed-column flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-typed-column flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-typed-column", "editor"), "flink-grammar.create-table-typed-column.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_typed_column_lossless" {
+  assert_true(flink_grammar_lossless("create-table-typed-column", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-typed-column", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-watermark-second: a second WATERMARK is a localized
+// multipleWatermarksUnsupported error — never a silent overwrite (T-11-17).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-watermark-second flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-watermark-second flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-watermark-second", "strict"), "flink-grammar.create-table-watermark-second.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-watermark-second flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-watermark-second flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-watermark-second", "editor"), "flink-grammar.create-table-watermark-second.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_watermark_second_errors" {
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (a INT, WATERMARK FOR a AS a, WATERMARK FOR b AS b)", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("multiple WATERMARK clauses are not supported"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-pk-enforced: bare ENFORCED is a localized error (Flink has no
+// enforced primary-key support in the SDK subset).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-pk-enforced flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-pk-enforced flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-pk-enforced", "strict"), "flink-grammar.create-table-pk-enforced.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-pk-enforced flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-pk-enforced flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-pk-enforced", "editor"), "flink-grammar.create-table-pk-enforced.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_pk_enforced_errors" {
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (id INT, PRIMARY KEY (id) ENFORCED)", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("expected NOT ENFORCED after PRIMARY KEY"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-trailing-comma: `(a INT,)` is a bounded trailing-comma error.
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-trailing-comma flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-trailing-comma flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-trailing-comma", "strict"), "flink-grammar.create-table-trailing-comma.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-trailing-comma flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-trailing-comma flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-trailing-comma", "editor"), "flink-grammar.create-table-trailing-comma.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_trailing_comma_lossless_and_errors" {
+  assert_true(flink_grammar_lossless("create-table-trailing-comma", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-trailing-comma", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (a INT,)", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("expected column definition after comma"))
+}
+
+// ---------------------------------------------------------------------------
+// create-table-incomplete-wm / create-table-incomplete-col: bounded
+// Missing/Error nodes with lossless replay, recovering at the clause boundary
+// rather than swallowing the statement (is_flink_create_table_clause_boundary).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-table-incomplete-wm flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-incomplete-wm flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-incomplete-wm", "strict"), "flink-grammar.create-table-incomplete-wm.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-incomplete-wm flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-incomplete-wm flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-incomplete-wm", "editor"), "flink-grammar.create-table-incomplete-wm.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_incomplete_wm_lossless" {
+  assert_true(flink_grammar_lossless("create-table-incomplete-wm", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-incomplete-wm", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (WATERMARK FOR ts AS)", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("FATHOM-PARSE-002"))
+}
+
+test "flink-grammar create-table-incomplete-col flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-table-incomplete-col flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-incomplete-col", "strict"), "flink-grammar.create-table-incomplete-col.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-table-incomplete-col flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-table-incomplete-col flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-table-incomplete-col", "editor"), "flink-grammar.create-table-incomplete-col.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_table_incomplete_col_lossless" {
+  assert_true(flink_grammar_lossless("create-table-incomplete-col", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-table-incomplete-col", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TABLE t (a INT, b", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("FATHOM-PARSE-002"))
 }

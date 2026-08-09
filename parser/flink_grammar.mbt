@@ -1164,11 +1164,19 @@ fn parse_flink_alter_function(
   valid
 }
 
-// Minimal CREATE TABLE body (fleshed out in 11-03 Tasks 3-4): TABLE + name
-// + optional parenthesized column body. The full four-column dispatch,
-// WATERMARK single-instance enforcement, constraints, and the table-level
-// clause sequence [COMMENT][DISTRIBUTED][PARTITIONED BY][WITH][LIKE|AS] land
-// in Tasks 3-4.
+// ---------------------------------------------------------------------------
+// FLINK-04 CREATE TABLE (SqlCreateTable, parserImpls.ftl:1585-1712). The
+// optional parenthesized column body dispatches the four Flink column forms
+// per TableColumn (:1103-1145): typed physical column, computed column
+// `name AS expr`, metadata column `name type METADATA [FROM 'alias'] [VIRTUAL]`,
+// and table constraint / WATERMARK. The table-level clause sequence
+// [COMMENT][DISTRIBUTED][PARTITIONED BY][WITH][LIKE|AS] lands in Task 4
+// (parse_flink_create_table_tail).
+// ---------------------------------------------------------------------------
+
+/// `CREATE [TEMPORARY] TABLE [IF NOT EXISTS] name [ ( column_defs ) ]
+///   [table-level clauses]`. The [TEMPORARY] prefix is consumed by
+/// parse_flink_create before dispatch.
 fn parse_flink_create_table(
   cursor : Cursor,
   state : RecoveryState,
@@ -1183,27 +1191,162 @@ fn parse_flink_create_table(
   }
   valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
   if raw_at(cursor) is Some(b"(") {
+    advance(cursor)
     valid = parse_flink_create_table_body(cursor, state, source, statement_id) && valid
+    let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing table body parenthesis")
+    if !closed {
+      recover_to_clause_boundary(cursor, state, source, statement_id, is_flink_create_table_clause_boundary)
+    }
+    valid = closed && valid
   }
+  valid = parse_flink_create_table_tail(cursor, state, source, statement_id) && valid
   valid
 }
 
-// Minimal column body (fleshed out in 11-03 Task 3).
+/// The parenthesized column body loop: while-comma shape copying the Doris
+/// parse_create_table_body skeleton (:2881-2919) but dispatching the four
+/// Flink column forms per TableColumn (:1103-1145). WATERMARK is
+/// single-instance (a second one is a localized multipleWatermarksUnsupported
+/// error, never a silent overwrite — :1121-1140); a trailing comma is a
+/// bounded FATHOM-PARSE-002 at the closing parenthesis (D-03).
 fn parse_flink_create_table_body(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
 ) -> Bool {
-  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after CREATE TABLE name")
+  let mut valid = true
   let mut any = false
+  let mut watermark_seen = false
   let mut done = false
   while !done {
     if raw_at(cursor) is Some(b")") {
       done = true
     } else {
       any = true
-      valid = parse_flink_typed_column(cursor, state, source, statement_id) && valid
+      if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"WATERMARK") {
+        let wm_ok = parse_flink_watermark(cursor, state, source, statement_id, watermark_seen)
+        valid = wm_ok && valid
+        watermark_seen = true
+      } else if is_flink_table_constraint_start(cursor) {
+        valid = parse_flink_table_constraint(cursor, state, source, statement_id) && valid
+      } else {
+        valid = parse_flink_column(cursor, state, source, statement_id) && valid
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected column definition after comma", "table-body", make_span(source, at, at), statement_id)
+          valid = false
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one column definition", "table-body", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// True when the cursor sits on a Flink table-constraint starter: `PRIMARY
+/// KEY`, `UNIQUE (cols)` / `UNIQUE KEY`, or `CONSTRAINT name` (UniqueSpec +
+/// ConstraintEnforcement, parserImpls.ftl:1432-1504).
+fn is_flink_table_constraint_start(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"PRIMARY") =>
+      peek_raw(cursor, 1) is Some(next) && bytes_equal_ci(next, b"KEY")
+    Some(raw) if bytes_equal_ci(raw, b"UNIQUE") => match peek_raw(cursor, 1) {
+      Some(next) => bytes_equal_ci(next, b"KEY") || next == b"("
+      None => false
+    }
+    Some(raw) if bytes_equal_ci(raw, b"CONSTRAINT") =>
+      peek_raw(cursor, 1) is Some(_)
+    _ => false
+  }
+}
+
+/// Table/column constraint: `[CONSTRAINT name] (PRIMARY KEY | UNIQUE)
+/// [(cols)] [NOT ENFORCED]` (UniqueSpec + ConstraintEnforcement,
+/// parserImpls.ftl:1432-1504). The column list is present for the table-level
+/// form (`PRIMARY KEY (id) NOT ENFORCED`) and absent for the column-level form
+/// (`a INT PRIMARY KEY NOT ENFORCED`). A bare `ENFORCED` (or a missing
+/// enforcement tail) is a localized FATHOM-PARSE-002 — Flink does not support
+/// enforced primary-key constraints (testCreateTableWithPrimaryKeyEnforced
+/// .fails family).
+fn parse_flink_table_constraint(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if consume_word(cursor, b"CONSTRAINT") {
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected constraint name after CONSTRAINT", "constraint-name", at, statement_id)
+      valid = false
+    }
+  }
+  if consume_word(cursor, b"PRIMARY") {
+    valid = expect_word(cursor, b"KEY", state, source, statement_id, "expected KEY after PRIMARY") && valid
+  } else if consume_word(cursor, b"UNIQUE") {
+    ignore(consume_word(cursor, b"KEY"))
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected PRIMARY KEY or UNIQUE in table constraint", "constraint", at, statement_id)
+    valid = false
+  }
+  // Table-level form has a parenthesized simple identifier list.
+  if raw_at(cursor) is Some(b"(") {
+    advance(cursor)
+    valid = parse_flink_identifier_list(cursor, state, source, statement_id, "constraint") && valid
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing constraint parenthesis") && valid
+  }
+  // ConstraintEnforcement: NOT ENFORCED required; bare ENFORCED is a localized
+  // error (Flink has no enforced-constraint support in the SDK subset).
+  if consume_word(cursor, b"NOT") {
+    valid = expect_word(cursor, b"ENFORCED", state, source, statement_id, "expected ENFORCED after NOT") && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected NOT ENFORCED after PRIMARY KEY", "constraint", at, statement_id)
+    valid = false
+    ignore(consume_word(cursor, b"ENFORCED"))
+  }
+  valid
+}
+
+/// A parenthesized simple identifier list — `( col, ... )` used by the
+/// table-level PRIMARY KEY / UNIQUE / PARTITIONED BY column lists.
+fn parse_flink_identifier_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  what : String,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      if is_identifier_candidate(cursor) {
+        any = true
+        advance(cursor)
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected identifier in " + what, "identifier", at, statement_id)
+        valid = false
+        done = true
+      }
       if consume_symbol(cursor, b",") {
         if raw_at(cursor) is Some(b")") { done = true }
       } else {
@@ -1213,28 +1356,139 @@ fn parse_flink_create_table_body(
   }
   if !any {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
-    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one column definition", "column", make_span(source, at, at), statement_id)
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one identifier in " + what, "identifier", make_span(source, at, at), statement_id)
     valid = false
   }
-  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing table body parenthesis") && valid
   valid
 }
 
-// Minimal typed column (fleshed out in 11-03 Task 3).
+/// A column body element that is not WATERMARK / a table constraint: reads the
+/// column name, then dispatches computed (`name AS expr`, ComputedColumn
+/// :1150-1176) vs typed / metadata (`name type [METADATA ...]`, TypedColumn
+/// :1146-1130 / MetadataColumn :1176-1210).
+fn parse_flink_column(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected column name", "identifier", at, statement_id)
+    return false
+  }
+  if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"AS") {
+    return parse_flink_computed_column(cursor, state, source, statement_id)
+  }
+  parse_flink_typed_column(cursor, state, source, statement_id)
+}
+
+/// Computed column tail: `AS expr [COMMENT '...']` (ComputedColumn,
+/// parserImpls.ftl:1150-1176). The expression uses the shared Pratt parser.
+fn parse_flink_computed_column(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in computed column")
+  let before = cursor.position
+  let expr_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+  if cursor.position == before {
+    recover_expression(cursor, state, source, statement_id)
+    valid = false
+  } else {
+    valid = expr_ok && valid
+  }
+  valid = parse_flink_column_comment(cursor, state, source, statement_id) && valid
+  valid
+}
+
+/// Typed physical column tail: `type [METADATA ...] [constraint] [COMMENT]`
+/// (TypedColumn :1146-1130, MetadataColumn :1176-1210). A metadata column is
+/// `name type METADATA [FROM 'alias'] [VIRTUAL] [COMMENT '...']`.
 fn parse_flink_typed_column(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
 ) -> Bool {
-  let mut valid = true
-  if is_identifier_candidate(cursor) {
-    advance(cursor)
+  let mut valid = parse_flink_data_type(cursor, state, source, statement_id)
+  if consume_word(cursor, b"METADATA") {
+    if consume_word(cursor, b"FROM") {
+      valid = parse_flink_string_literal(cursor, state, source, statement_id, "metadata alias") && valid
+    }
+    ignore(consume_word(cursor, b"VIRTUAL"))
+    valid = parse_flink_column_comment(cursor, state, source, statement_id) && valid
+    return valid
+  }
+  // Column-level constraint: [CONSTRAINT name] (PRIMARY KEY | UNIQUE)
+  // [NOT ENFORCED].
+  if raw_at(cursor) is Some(raw) && (bytes_equal_ci(raw, b"CONSTRAINT") || bytes_equal_ci(raw, b"PRIMARY") || bytes_equal_ci(raw, b"UNIQUE")) {
+    valid = parse_flink_table_constraint(cursor, state, source, statement_id) && valid
+  }
+  valid = parse_flink_column_comment(cursor, state, source, statement_id) && valid
+  valid
+}
+
+/// `COMMENT '...'` on a column (or computed column). Returns true when no
+/// COMMENT follows.
+fn parse_flink_column_comment(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if consume_word(cursor, b"COMMENT") {
+    return parse_flink_string_literal(cursor, state, source, statement_id, "column COMMENT")
+  }
+  true
+}
+
+/// WATERMARK body: `WATERMARK FOR <col> AS <expr>` (parserImpls.ftl:
+/// 1121-1140). The event-time column is a qualified name and the strategy
+/// expression uses the shared Pratt parser (including Flink INTERVAL
+/// literals). A second WATERMARK emits the localized
+/// multipleWatermarksUnsupported error at the WATERMARK token — never a
+/// silent overwrite (T-11-17).
+fn parse_flink_watermark(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  already_seen : Bool,
+) -> Bool {
+  let start_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+  let mut valid = expect_word(cursor, b"WATERMARK", state, source, statement_id, "expected WATERMARK")
+  valid = expect_word(cursor, b"FOR", state, source, statement_id, "expected FOR after WATERMARK") && valid
+  valid = parse_qualified_name(cursor, state, source, statement_id, "watermark event-time column") && valid
+  valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS in WATERMARK") && valid
+  let before = cursor.position
+  let expr_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+  if cursor.position == before {
+    recover_expression(cursor, state, source, statement_id)
+    valid = false
   } else {
-    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-    add_diagnostic(state, "FATHOM-PARSE-002", "expected column name", "identifier", at, statement_id)
+    valid = expr_ok && valid
+  }
+  if already_seen {
+    add_diagnostic(state, "FATHOM-PARSE-002", "multiple WATERMARK clauses are not supported", "watermark", start_span, statement_id)
     valid = false
   }
-  valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
   valid
+}
+
+// Table-level clause sequence [COMMENT][DISTRIBUTED][PARTITIONED BY][WITH]
+// [LIKE|AS] — landed in Task 4 (parse_flink_create_table_tail). For now the
+// tail leaves remaining tokens to the shared trailing-token recovery so a
+// clause-free CREATE TABLE parses cleanly.
+fn parse_flink_create_table_tail(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  true
 }

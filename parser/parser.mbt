@@ -660,6 +660,77 @@ fn is_flink_expression_prefix(cursor : Cursor) -> Bool {
   }
 }
 
+/// True when the cursor sits on a Flink INTERVAL literal start (`INTERVAL`).
+/// Gated to Flink: under Doris INTERVAL stays a plain identifier operand
+/// (used as a function argument in DATE_ADD etc.), so the Doris expression
+/// prefix path stays byte-identical (Pitfall 7).
+fn is_flink_interval_literal(cursor : Cursor) -> Bool {
+  if !(cursor.stream.context.dialect is @dialect.Dialect::Flink) {
+    return false
+  }
+  match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"INTERVAL")
+    None => false
+  }
+}
+
+/// Flink INTERVAL literal: `INTERVAL <value> <unit> [TO <unit>]` where
+/// <value> is a string literal or (optionally signed) number and <unit> is an
+/// identifier (SECOND/MINUTE/HOUR/DAY/...). Syntax-level only — no interval
+/// semantics (the WATERMARK strategy and Window TVF sizes use it as a plain
+/// literal; IntervalLiteral, Parser-calcite-1.36.0.jj:4943-4990).
+fn parse_flink_interval_literal(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_word(cursor, b"INTERVAL", state, source, statement_id, "expected INTERVAL")
+  let value_ok = match token_at(cursor) {
+    Some(token) if token.kind is @token.TokenKind::StringLiteral || token.kind is @token.TokenKind::Number => {
+      advance(cursor)
+      true
+    }
+    Some(_) if raw_at(cursor) is Some(b"+") || raw_at(cursor) is Some(b"-") => {
+      advance(cursor)
+      match token_at(cursor) {
+        Some(token) if token.kind is @token.TokenKind::Number => {
+          advance(cursor)
+          true
+        }
+        _ => {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected number after sign in INTERVAL value", "interval", at, statement_id)
+          false
+        }
+      }
+    }
+    _ => {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected interval value after INTERVAL", "interval", at, statement_id)
+      false
+    }
+  }
+  valid = value_ok && valid
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected interval unit after INTERVAL value", "interval-unit", at, statement_id)
+    valid = false
+  }
+  if consume_word(cursor, b"TO") {
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected interval unit after TO", "interval-unit", at, statement_id)
+      valid = false
+    }
+  }
+  valid
+}
+
 /// True when the cursor sits on an identifier followed by the
 /// NAMED_ARGUMENT_ASSIGNMENT `=>` arrow (Parser-calcite-1.36.0.jj:8794). Under
 /// Flink the arrow is a single `=>` symbol token (lexer symbol_width_flink);
@@ -998,6 +1069,12 @@ fn parse_expression_context(
   let mut wildcard_prefix = false
   let mut function_star_allowed = false
   match token_at(cursor) {
+    Some(token) if is_flink_interval_literal(cursor) => {
+      // Flink INTERVAL literal `INTERVAL '5' SECOND` (IntervalLiteral,
+      // Parser-calcite-1.36.0.jj:4943-4990). Gated to Flink so the Doris
+      // expression-prefix path stays byte-identical (Pitfall 7, A4).
+      prefix_ok = parse_flink_interval_literal(cursor, state, source, statement_id)
+    }
     Some(token) if is_expression_operand(cursor, token) => {
       function_star_allowed = if token.kind is @token.TokenKind::Identifier {
         match raw_at(cursor) {
@@ -2216,6 +2293,34 @@ fn create_form_kind(
     Some(raw) if bytes_equal_ci(raw, b"INDEX") => @syntax.SyntaxKind::CreateIndex
     Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") => @syntax.SyntaxKind::CreateMaterializedView
     _ => @syntax.SyntaxKind::CreateTable
+  }
+}
+
+/// True when the CREATE statement's form word (after the optional
+/// TEMPORARY/EXTERNAL/ASYNC modifier) is a form the Doris parser actually
+/// implements — TABLE/VIEW/INDEX/MATERIALIZED. Any other second word
+/// (CATALOG/DATABASE/FUNCTION/USER/ROLE/...) means the whole statement is
+/// unsupported under Doris and routes to FATHOM-PARSE-007 (D-04 whole-
+/// statement gate in parse_doris_segment's CREATE arm).
+fn is_doris_create_form(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> Bool {
+  let mut i = start_index + 1
+  let length = indices.length()
+  if i >= length { return false }
+  let modifier = match stream.raw(indices[i]) {
+    Some(raw) => bytes_equal_ci(raw, b"TEMPORARY") || bytes_equal_ci(raw, b"EXTERNAL") ||
+      bytes_equal_ci(raw, b"ASYNC")
+    None => false
+  }
+  if modifier { i = i + 1 }
+  if i >= length { return false }
+  match stream.raw(indices[i]) {
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") || bytes_equal_ci(raw, b"VIEW") ||
+      bytes_equal_ci(raw, b"INDEX") || bytes_equal_ci(raw, b"MATERIALIZED") => true
+    _ => false
   }
 }
 
@@ -3742,7 +3847,17 @@ fn parse_doris_segment(
       finish_statement(stream, cursor, start_index, end_index, span, parse_merge(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Merge, "unexpected tokens after MERGE statement")
     Some(raw) if bytes_equal_ci(raw, b"CREATE") => {
       let kind = create_form_kind(stream, indices, 0)
-      finish_statement(stream, cursor, start_index, end_index, span, parse_create(cursor, state, stream.source, statement_id), state, statement_id, kind, "unexpected tokens after CREATE statement")
+      // D-04 whole-statement gate: Doris has no CREATE CATALOG/DATABASE/
+      // FUNCTION/USER/ROLE production (parse_create only knows TABLE/VIEW/
+      // INDEX/MATERIALIZED). A statement Doris simply does not support routes
+      // to FATHOM-PARSE-007 (unsupported_statement) — never a spurious 002
+      // "malformed CREATE" error. This preserves the frozen 213-snapshot
+      // baseline (no snapshot covers a non-Doris CREATE form).
+      if is_doris_create_form(stream, indices, 0) {
+        finish_statement(stream, cursor, start_index, end_index, span, parse_create(cursor, state, stream.source, statement_id), state, statement_id, kind, "unexpected tokens after CREATE statement")
+      } else {
+        unsupported_statement(stream, start_index, end_index, span, state, statement_id)
+      }
     }
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
