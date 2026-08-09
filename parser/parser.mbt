@@ -634,6 +634,187 @@ fn parse_window_spec(
   valid
 }
 
+/// Raw bytes of the significant token before the cursor (used by the
+/// function-call argument layer to identify the callable name, e.g. CAST).
+fn previous_raw(cursor : Cursor) -> Bytes? {
+  if cursor.position > 0 {
+    cursor.indices.get(cursor.position - 1).map(index => cursor.stream.raw(index)).flatten()
+  } else {
+    None
+  }
+}
+
+/// Flink reserved words that still start an expression: CAST (:7359) and ROW
+/// (:7779) constructors (RESEARCH §7.3). Gated to Flink so the Doris
+/// expression-prefix behavior stays byte-identical (Pitfall 7). ARRAY/MAP/
+/// MULTISET are not in the flink classification rows, so they already parse as
+/// identifier prefixes (the `[` postfix branch below consumes the collection
+/// literal).
+fn is_flink_expression_prefix(cursor : Cursor) -> Bool {
+  if !(cursor.stream.context.dialect is @dialect.Dialect::Flink) {
+    return false
+  }
+  match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"CAST") || bytes_equal_ci(raw, b"ROW")
+    None => false
+  }
+}
+
+/// True when the cursor sits on an identifier followed by the
+/// NAMED_ARGUMENT_ASSIGNMENT `=>` arrow (Parser-calcite-1.36.0.jj:8794). Under
+/// Flink the arrow is a single `=>` symbol token (lexer symbol_width_flink);
+/// under Doris it lexes as the two-token `=` `>` sequence, which this predicate
+/// also detects so the Doris argument layer can reject it with FATHOM-PARSE-009
+/// (D-04 bidirectional gate — a plain `a = b` comparison never matches because
+/// the token after `=` is not `>`).
+fn is_named_argument_arrow(cursor : Cursor) -> Bool {
+  if !is_identifier_candidate(cursor) {
+    return false
+  }
+  match peek_raw(cursor, 1) {
+    Some(raw) if raw == b"=>" => true
+    _ => match (peek_raw(cursor, 1), peek_raw(cursor, 2)) {
+      (Some(raw), Some(next)) if raw == b"=" && next == b">" => true
+      _ => false
+    }
+  }
+}
+
+/// Scans the current function-call argument list (up to the matching `)`) for
+/// a named-argument arrow. Returns true when a `=>` (Flink) or `= >` (Doris)
+/// sequence appears at the argument-list depth. The shared argument-list path
+/// stays byte-identical for arrow-free lists; only arrow lists route through
+/// parse_named_argument_list (D-04).
+fn argument_list_has_arrow(cursor : Cursor) -> Bool {
+  let mut index = cursor.position
+  let mut depth = 0
+  while index < cursor.indices.length() {
+    match cursor.stream.raw(cursor.indices[index]) {
+      Some(raw) if raw == b"(" => depth = depth + 1
+      Some(raw) if raw == b")" && depth == 0 => return false
+      Some(raw) if raw == b")" => depth = depth - 1
+      Some(raw) if depth == 0 && raw == b"=>" => return true
+      Some(raw) if depth == 0 && raw == b"=" => {
+        if index + 1 < cursor.indices.length() {
+          match cursor.stream.raw(cursor.indices[index + 1]) {
+            Some(next) if next == b">" => return true
+            _ => ()
+          }
+        }
+      }
+      _ => ()
+    }
+    index = index + 1
+  }
+  false
+}
+
+/// Function-call argument list with Flink NAMED_ARGUMENT_ASSIGNMENT `=>`
+/// (`name => expr`, Parser-calcite-1.36.0.jj:8794). Entered only when the
+/// list contains an arrow (argument_list_has_arrow). Under Flink the named
+/// argument parses as the name identifier, the arrow, and the value
+/// expression; under Doris the two-token `= >` arrow is a construct-level
+/// dialect-gate rejection (FATHOM-PARSE-009, D-04). Non-arrow items keep the
+/// shared item behavior so arrow-free Doris lists remain byte-identical.
+fn parse_named_argument_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  context : ExpressionContext,
+) -> Bool {
+  let mut any = false
+  let mut valid = true
+  let mut done = false
+  while !done {
+    match raw_at(cursor) {
+      None => done = true
+      Some(raw) if raw == b")" => done = true
+      Some(raw) if raw == b"," => {
+        let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after comma", "expression", span, statement_id)
+        valid = false
+        advance(cursor)
+      }
+      Some(_) => {
+        any = true
+        let before = cursor.position
+        if is_named_argument_arrow(cursor) {
+          // Consume the argument name.
+          advance(cursor)
+          // Consume the arrow: a single `=>` under Flink, or `= >` under Doris.
+          match raw_at(cursor) {
+            Some(raw) if raw == b"=>" => advance(cursor)
+            Some(raw) if raw == b"=" => {
+              let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+              if cursor.stream.context.dialect is @dialect.Dialect::Doris {
+                // Flink-only NAMED_ARGUMENT_ASSIGNMENT under Doris: D-04 gate.
+                add_dialect_gate_diagnostic(state, span, statement_id)
+                valid = false
+              }
+              advance(cursor)
+              ignore(consume_symbol(cursor, b">"))
+            }
+            _ => {
+              let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+              add_diagnostic(state, "FATHOM-PARSE-002", "expected => after named argument name", "named-argument", span, statement_id)
+              valid = false
+            }
+          }
+          let value_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, ExpressionContext::Ordinary)
+          valid = value_ok && valid
+          if cursor.position == before { recover_expression(cursor, state, source, statement_id); valid = false }
+        } else {
+          let item_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, context)
+          valid = item_ok && valid
+          if cursor.position == before { recover_expression(cursor, state, source, statement_id); valid = false }
+        }
+        if !consume_symbol(cursor, b",") {
+          done = true
+        } else if raw_at(cursor) is None || raw_at(cursor) is Some(b")") {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after comma", "expression", make_span(source, at, at), statement_id)
+          valid = false
+          done = true
+        }
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected expression", "expression", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  any && valid
+}
+
+/// Flink-only CAST(x AS type) arguments: the value expression, AS, and the
+/// Flink data type (RESEARCH §7.3, dataTypeParserMethods Parser.tdd:759-765).
+/// Gated to Flink so the Doris CAST path stays byte-identical.
+fn parse_flink_cast_arguments(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let before = cursor.position
+  let expr_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, ExpressionContext::Ordinary)
+  valid = expr_ok && valid
+  if cursor.position == before {
+    recover_expression(cursor, state, source, statement_id)
+    valid = false
+  }
+  if consume_word(cursor, b"AS") {
+    valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected AS in CAST expression", "cast", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
 fn parse_expression_postfix(
   cursor : Cursor,
   state : RecoveryState,
@@ -669,11 +850,53 @@ fn parse_expression_postfix(
         valid = false
         keep_going = false
       }
-    } else if consume_symbol(cursor, b"(") {
+    } else if raw_at(cursor) is Some(b"(") {
+      let callable = previous_raw(cursor)
+      advance(cursor)
       if !consume_symbol(cursor, b")") {
         let argument_context = if function_star_allowed { ExpressionContext::CountArgument } else { ExpressionContext::Ordinary }
-        valid = parse_expression_list_context(cursor, state, source, statement_id, true, argument_context) && valid
+        let is_cast = match callable {
+          Some(raw) => bytes_equal_ci(raw, b"CAST")
+          None => false
+        }
+        if cursor.stream.context.dialect is @dialect.Dialect::Flink && is_cast {
+          // Flink-only CAST(x AS type): the AS-type argument (RESEARCH §7.3).
+          valid = parse_flink_cast_arguments(cursor, state, source, statement_id) && valid
+        } else if argument_list_has_arrow(cursor) {
+          // Flink-only NAMED_ARGUMENT_ASSIGNMENT `=>` (:8794) in the argument
+          // layer; under Doris the `= >` two-token arrow is a 009 gate.
+          valid = parse_named_argument_list(cursor, state, source, statement_id, argument_context) && valid
+        } else {
+          valid = parse_expression_list_context(cursor, state, source, statement_id, true, argument_context) && valid
+        }
         valid = expect_word(cursor, b")", state, source, statement_id, "expected closing function parenthesis") && valid
+      }
+      ()
+    } else if raw_at(cursor) is Some(b"[") && cursor.stream.context.dialect is @dialect.Dialect::Flink {
+      // Flink collection literal `[ ... ]` (ARRAY/MAP constructors — Calcite
+      // Collection/Map, Parser-calcite-1.36.0.jj). Gated to Flink so Doris
+      // never sees a `[` postfix.
+      advance(cursor)
+      if !consume_symbol(cursor, b"]") {
+        let mut array_valid = true
+        let mut array_done = false
+        while !array_done {
+          let before = cursor.position
+          let item_ok = parse_expression_context(cursor, 1, 1, state, source, statement_id, ExpressionContext::Ordinary)
+          array_valid = item_ok && array_valid
+          if cursor.position == before { recover_expression(cursor, state, source, statement_id); array_valid = false }
+          if consume_symbol(cursor, b",") {
+            if raw_at(cursor) is Some(b"]") || raw_at(cursor) is None {
+              let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+              add_diagnostic(state, "FATHOM-PARSE-002", "expected expression after comma in collection literal", "expression", make_span(source, at, at), statement_id)
+              array_valid = false
+              array_done = true
+            }
+          } else {
+            array_done = true
+          }
+        }
+        valid = expect_symbol(cursor, b"]", state, source, statement_id, "expected closing collection bracket") && valid && array_valid
       }
       ()
     } else if consume_word(cursor, b"OVER") {
@@ -808,6 +1031,12 @@ fn parse_expression_context(
     Some(_) if raw_at(cursor) is Some(b"+") || raw_at(cursor) is Some(b"-") || bytes_equal_ci(match raw_at(cursor) { Some(raw) => raw; None => b"" }, b"NOT") => {
       advance(cursor)
       prefix_ok = parse_expression_context(cursor, 6, depth + 1, state, source, statement_id, ExpressionContext::Ordinary)
+    }
+    Some(token) if is_flink_expression_prefix(cursor) => {
+      // Flink-only reserved-word expression starts: CAST/ROW constructors
+      // (RESEARCH §7.3). Gated to Flink; Doris prefix behavior unchanged.
+      advance(cursor)
+      prefix_ok = true
     }
     Some(token) => add_diagnostic(state, "FATHOM-PARSE-002", "expected literal, identifier, or subquery expression", "expression", token.span, statement_id)
     None => add_diagnostic(state, "FATHOM-PARSE-002", "expected expression", "expression", current_span, statement_id)
@@ -1673,6 +1902,16 @@ fn is_merge_clause_boundary(raw : Bytes) -> Bool {
     bytes_equal_ci(raw, b"AND") || bytes_equal_ci(raw, b"THEN") ||
     bytes_equal_ci(raw, b"UPDATE") || bytes_equal_ci(raw, b"DELETE") ||
     bytes_equal_ci(raw, b"INSERT")
+}
+
+/// Flink RichSqlInsert recovery boundary (parserImpls.ftl:2306-2379, D-03):
+/// an unclosed PARTITION/column list recovers to the next insert clause —
+/// PARTITION, ON CONFLICT, the source (SELECT/VALUES), or the closing
+/// parenthesis — rather than swallowing the statement (CST-01, T-11-12).
+fn is_flink_insert_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"PARTITION") || bytes_equal_ci(raw, b"ON") ||
+    bytes_equal_ci(raw, b"CONFLICT") || bytes_equal_ci(raw, b"SELECT") ||
+    bytes_equal_ci(raw, b"VALUES") || raw == b")"
 }
 
 // Bounded best-effort recovery to the next per-family clause keyword; the
@@ -3524,9 +3763,36 @@ fn parse_flink_segment(
       match with_prefix_verb(stream, indices, 0) {
         Some(next) if bytes_equal_ci(next, b"SELECT") =>
           finish_statement(stream, cursor, start_index, end_index, span, parse_flink_query(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Select, "unexpected tokens after SELECT query")
+        Some(next) if bytes_equal_ci(next, b"UPDATE") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_flink_update(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Update, "unexpected tokens after UPDATE statement")
+        Some(next) if bytes_equal_ci(next, b"DELETE") =>
+          finish_statement(stream, cursor, start_index, end_index, span, parse_flink_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
         _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
       }
     }
+    // FLINK-02 DML: RichSqlInsert (parserImpls.ftl:2306-2379) — INSERT/UPSERT
+    // with INTO/OVERWRITE/PARTITION/columns/source/ON CONFLICT.
+    Some(raw) if bytes_equal_ci(raw, b"INSERT") || bytes_equal_ci(raw, b"UPSERT") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_insert(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Insert, "unexpected tokens after INSERT statement")
+    // FLINK-02 DML: Calcite base SqlUpdate (Parser-calcite-1.36.0.jj:1794-1832).
+    Some(raw) if bytes_equal_ci(raw, b"UPDATE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_update(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Update, "unexpected tokens after UPDATE statement")
+    // FLINK-02 DML: Calcite base SqlDelete (:1768-1789).
+    Some(raw) if bytes_equal_ci(raw, b"DELETE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_delete(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::Delete, "unexpected tokens after DELETE statement")
+    // FLINK-02 auxiliary statements (D-02 kinds locked in 11-01).
+    Some(raw) if bytes_equal_ci(raw, b"EXPLAIN") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_explain(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::ExplainStatement, "unexpected tokens after EXPLAIN statement")
+    Some(raw) if bytes_equal_ci(raw, b"SHOW") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_show(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::ShowStatement, "unexpected tokens after SHOW statement")
+    Some(raw) if bytes_equal_ci(raw, b"DESCRIBE") || bytes_equal_ci(raw, b"DESC") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_describe(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::DescribeStatement, "unexpected tokens after DESCRIBE statement")
+    Some(raw) if bytes_equal_ci(raw, b"ANALYZE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_analyze(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::AnalyzeStatement, "unexpected tokens after ANALYZE statement")
+    Some(raw) if bytes_equal_ci(raw, b"USE") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_use(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::UseStatement, "unexpected tokens after USE statement")
+    Some(raw) if bytes_equal_ci(raw, b"SET") || bytes_equal_ci(raw, b"RESET") =>
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_set_reset(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::SetOption, "unexpected tokens after SET/RESET statement")
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
 }

@@ -70,6 +70,54 @@ positives UNION [ALL] / INTERSECT / EXCEPT, both strict and editor modes):
 | `flink-grammar.set-intersect-all.flink-2.3.0.{strict,editor}.json` | `SELECT a FROM t1 INTERSECT ALL SELECT a FROM t2` |
 | `flink-grammar.set-except-all.flink-2.3.0.{strict,editor}.json` | `SELECT a FROM t1 EXCEPT ALL SELECT a FROM t2` |
 
+Wave 2 (11-02) mints the FLINK-02 DML + auxiliary fixtures — INSERT/UPSERT
+(RichSqlInsert, parserImpls.ftl:2306-2379), UPDATE/DELETE (Calcite SqlUpdate
+:1794-1832 / SqlDelete :1768-1789), EXPLAIN/SHOW/DESCRIBE/ANALYZE (SqlRichExplain
+:3079-3117, SqlShow* family, SqlRichDescribeTable :867-880, SqlAnalyzeTable
+:3413-3443), USE/SET/RESET, and the Flink expression/type breadth (`=>`
+NAMED_ARGUMENT_ASSIGNMENT Parser-calcite-1.36.0.jj:8794, CAST with
+parse_flink_data_type mapping dataTypeParserMethods Parser.tdd:759-765, ROW/ARRAY
+constructors) — each in strict and editor modes:
+
+| New snapshot file | Meaning |
+|-------------------|---------|
+| `flink-grammar.insert-into-select.flink-2.3.0.{strict,editor}.json` | `INSERT INTO t SELECT * FROM s` (RichSqlInsert INTO + query source) |
+| `flink-grammar.insert-overwrite-partition.flink-2.3.0.{strict,editor}.json` | `INSERT OVERWRITE t PARTITION (dt='1') SELECT * FROM s` (OVERWRITE + PARTITION spec) |
+| `flink-grammar.upsert-into-values.flink-2.3.0.{strict,editor}.json` | `UPSERT INTO t VALUES (1, 2)` (Flink-only UPSERT) |
+| `flink-grammar.insert-columns-on-conflict.flink-2.3.0.{strict,editor}.json` | `INSERT INTO t (a, b) VALUES (1, 2) ON CONFLICT DO NOTHING` (column list + ON CONFLICT tail) |
+| `flink-grammar.insert-distributed.flink-2.3.0.{strict,editor}.json` | `INSERT INTO t DISTRIBUTED BY HASH(k) BUCKETS 10` under flink — FATHOM-PARSE-009 (Doris-only distribution form) |
+| `flink-grammar.insert-incomplete.flink-2.3.0.{strict,editor}.json` | `INSERT INTO t (a,` — bounded Missing node, lossless replay |
+| `flink-grammar.insert-recovery.flink-2.3.0.{strict,editor}.json` | `INSERT INTO t (a, b; SELECT 2` — recovers at `;`, trailing SELECT is its own statement |
+| `flink-grammar.update-where.flink-2.3.0.{strict,editor}.json` | `UPDATE t SET a = 1 WHERE id = 5` (SqlUpdate Flink-safe subset) |
+| `flink-grammar.delete-where.flink-2.3.0.{strict,editor}.json` | `DELETE FROM t WHERE id = 5` (SqlDelete Flink-safe subset) |
+| `flink-grammar.update-comment.flink-2.3.0.{strict,editor}.json` | `UPDATE t SET a = 1 COMMENT 'x'` — FATHOM-PARSE-009 (Doris-only COMMENT) |
+| `flink-grammar.delete-partition.flink-2.3.0.{strict,editor}.json` | `DELETE FROM t PARTITION (p1)` — FATHOM-PARSE-009 (Doris-only PARTITION) |
+| `flink-grammar.update-incomplete.flink-2.3.0.{strict,editor}.json` | `UPDATE t SET` — bounded Missing/Error nodes, lossless replay |
+| `flink-grammar.delete-incomplete.flink-2.3.0.{strict,editor}.json` | `DELETE FROM t WHERE` — bounded Missing/Error nodes, lossless replay |
+| `flink-grammar.update-recovery.flink-2.3.0.{strict,editor}.json` | `UPDATE t SET a = 1 WHERE id = 5; SELECT 1` — trailing SELECT its own statement |
+| `flink-grammar.explain-plan-for.flink-2.3.0.{strict,editor}.json` | `EXPLAIN PLAN FOR SELECT * FROM t` (SqlRichExplain) |
+| `flink-grammar.show-tables-from-like.flink-2.3.0.{strict,editor}.json` | `SHOW TABLES FROM db1 LIKE '%'` (SqlShowTables) |
+| `flink-grammar.show-catalogs.flink-2.3.0.{strict,editor}.json` | `SHOW CATALOGS` (SqlShowCatalogs) |
+| `flink-grammar.show-negative.flink-2.3.0.{strict,editor}.json` | `SHOW TABLES db1` — localized FATHOM-PARSE-002 at the offending `db1` token |
+| `flink-grammar.describe-table.flink-2.3.0.{strict,editor}.json` | `DESCRIBE TABLE t` (SqlRichDescribeTable) |
+| `flink-grammar.describe-extended-database.flink-2.3.0.{strict,editor}.json` | `DESCRIBE EXTENDED DATABASE db` |
+| `flink-grammar.analyze-table.flink-2.3.0.{strict,editor}.json` | `ANALYZE TABLE t` (SqlAnalyzeTable) |
+| `flink-grammar.analyze-buckets.flink-2.3.0.{strict,editor}.json` | `ANALYZE TABLE t BUCKETS 10` — FATHOM-PARSE-009 (Doris-only BUCKETS) |
+| `flink-grammar.use-catalog.flink-2.3.0.{strict,editor}.json` | `USE CATALOG c` (SqlUseCatalog) |
+| `flink-grammar.set-option.flink-2.3.0.{strict,editor}.json` | `SET 'k' = 'v'` (SqlSetOption) |
+| `flink-grammar.reset-option.flink-2.3.0.{strict,editor}.json` | `RESET 'k'` (SqlReset) |
+| `flink-grammar.named-arg.flink-2.3.0.{strict,editor}.json` | `SELECT f(a => 1)` (NAMED_ARGUMENT_ASSIGNMENT Parser-calcite-1.36.0.jj:8794) |
+| `flink-grammar.cast-timestamp-ltz.flink-2.3.0.{strict,editor}.json` | `SELECT CAST(x AS TIMESTAMP_LTZ(3))` (parse_flink_data_type) |
+| `flink-grammar.cast-map-type.flink-2.3.0.{strict,editor}.json` | `SELECT CAST(a AS MAP<STRING, INT>)` (generic type) |
+| `flink-grammar.row-ctor.flink-2.3.0.{strict,editor}.json` | `SELECT ROW(1, 'a')` (SqlRow constructor) |
+| `flink-grammar.array-ctor.flink-2.3.0.{strict,editor}.json` | `SELECT ARRAY[1, 2]` (collection literal) |
+
+The bidirectional dialect-gate assertions for the DML/aux surface are in
+`parity/flink_grammar_test.mbt` (Flink-only DML rejected under Doris with
+FATHOM-PARSE-007/001/009 as the frozen baseline provides; Doris-only DML/aux
+rejected under Flink with FATHOM-PARSE-009; SHOW/DESCRIBE/ANALYZE whole
+statements rejected under Doris with FATHOM-PARSE-007).
+
 The fixtures live under `parity/fixtures/flink-grammar/` with a provenance
 `manifest.tsv` recording the pinned release archive (url/sha512/tag/commit)
 and the grammar production line references (RESEARCH §5, D-05 — never
