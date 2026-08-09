@@ -1894,10 +1894,18 @@ fn with_prefix_verb(
     if i >= length { return None }
     // CTE name (single token)
     i = i + 1
+    // CR-04: the loop skips the CTE name without re-checking the bound — a
+    // `WITH t` input (two significant tokens, no AS/statement tail) leaves
+    // i == length and `stream.raw(indices[i])` aborted with an out-of-bounds
+    // Array::at panic (SIGABRT, EXIT 134). Bail with None before any read.
+    if i >= length { return None }
     // Optional ( column list ): consume to the matching close parenthesis.
-    let has_column_list = match stream.raw(indices[i]) {
-      Some(raw) if i < length => raw == b"("
-      _ => false
+    // The former `Some(raw) if i < length` guard was dead — its scrutinee
+    // was evaluated before the guard — and is removed (IN-03); the bound is
+    // enforced by the check above and the guarded `.get(i)` read.
+    let has_column_list = match indices.get(i).map(index => stream.raw(index)).flatten() {
+      Some(raw) => raw == b"("
+      None => false
     }
     if has_column_list {
       i = i + 1
