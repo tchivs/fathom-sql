@@ -963,10 +963,12 @@ fn parse_flink_drop_table(
   valid
 }
 
-// Minimal ALTER TABLE body (fleshed out in 11-03 Task 2): RENAME TO / SET
-// forms parse; the wider ADD/DROP/MODIFY column clause set is beyond this
-// wave's enumerated surface (must-have truths cover CATALOG/DATABASE/VIEW/
-// FUNCTION and DROP TABLE).
+/// `ALTER TABLE name RENAME TO name` / `ALTER TABLE name SET (...)`
+/// (SqlAlterTable, statementParserMethods Parser.tdd:692 area). The full
+/// ALTER TABLE clause set (ADD/DROP/MODIFY columns) is beyond this wave's
+/// enumerated surface (must-have truths cover CATALOG/DATABASE/VIEW/FUNCTION
+/// and DROP TABLE); the RENAME/SET forms parse so the ALTER TABLE starter
+/// never falls through to a spurious trailing error.
 fn parse_flink_alter_table(
   cursor : Cursor,
   state : RecoveryState,
@@ -985,8 +987,10 @@ fn parse_flink_alter_table(
   valid
 }
 
-// Minimal CREATE VIEW body (fleshed out in 11-03 Task 2): VIEW + name +
-// optional field list + optional COMMENT + AS query.
+/// `CREATE VIEW [IF NOT EXISTS] name [(field_list)] [COMMENT '...'] AS query`
+/// (SqlCreateView, parserImpls.ftl:2414-2439). The AS query reuses the shared
+/// query skeleton's Flink-safe subset (parse_flink_query). The field list is
+/// preserved as a parenthesized ( name [type], ... ) list.
 fn parse_flink_create_view(
   cursor : Cursor,
   state : RecoveryState,
@@ -1060,8 +1064,12 @@ fn parse_flink_view_field_list(
   valid
 }
 
-// Minimal CREATE FUNCTION body (fleshed out in 11-03 Task 2): FUNCTION +
-// name + AS 'class' + optional LANGUAGE.
+/// `CREATE [TEMPORARY [SYSTEM]] FUNCTION [IF NOT EXISTS] name AS 'class'
+/// [LANGUAGE JAVA|SCALA|PYTHON]` (SqlCreateFunction, parserImpls.ftl:
+/// 390-480). The class string is a single-quoted string literal; all three
+/// LANGUAGE values are accepted syntactically (no function resolution,
+/// FLINK-03). The [TEMPORARY [SYSTEM]] prefix is consumed by
+/// parse_flink_create before dispatch.
 fn parse_flink_create_function(
   cursor : Cursor,
   state : RecoveryState,

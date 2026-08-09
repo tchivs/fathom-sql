@@ -304,6 +304,82 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     category: "incomplete",
     raw: b"DROP DATABASE",
   },
+  // ---- FLINK-03 VIEW + FUNCTION DDL (11-03, wave 3): SqlCreateView
+  // (parserImpls.ftl:2414-2439), SqlCreateFunction (:390-480), SqlDropView/
+  // SqlDropFunction, SqlAlterView (Parser.tdd:692), SqlAlterFunction
+  // (Parser.tdd:665).
+  {
+    fixture_id: "create-view",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE VIEW v AS SELECT * FROM t",
+  },
+  {
+    fixture_id: "create-view-field-list",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE VIEW v (a, b) AS SELECT a, b FROM t",
+  },
+  {
+    fixture_id: "create-function",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TEMPORARY FUNCTION f AS 'com.example.UDF' LANGUAGE JAVA",
+  },
+  {
+    fixture_id: "create-function-python",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE TEMPORARY SYSTEM FUNCTION f AS 'x' LANGUAGE PYTHON",
+  },
+  {
+    fixture_id: "drop-view",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"DROP VIEW IF EXISTS v",
+  },
+  {
+    fixture_id: "drop-function",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"DROP FUNCTION IF EXISTS f",
+  },
+  {
+    fixture_id: "alter-view-rename",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"ALTER VIEW v RENAME TO v2",
+  },
+  {
+    fixture_id: "alter-view-as",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"ALTER VIEW v AS SELECT 1",
+  },
+  {
+    fixture_id: "alter-function",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"ALTER FUNCTION f AS 'com.example.UDF' LANGUAGE SCALA",
+  },
+  {
+    fixture_id: "create-view-incomplete",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"CREATE VIEW v AS",
+  },
+  {
+    fixture_id: "create-function-incomplete",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"CREATE FUNCTION f AS",
+  },
+  {
+    fixture_id: "view-recovery",
+    profile: "flink-2.3.0",
+    category: "recovery",
+    raw: b"CREATE VIEW v AS SELECT * FROM t; SELECT 2",
+  },
 ]
 
 fn flink_grammar_fixture(id : String) -> FlinkGrammarFixture {
@@ -1181,4 +1257,254 @@ test "flink_grammar_drop_database_incomplete_lossless" {
   let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"DROP DATABASE", "flink", "flink-2.3.0", "strict")[:])
   assert_true(strict.contains("\"valid\":false"))
   assert_true(strict.contains("FATHOM-PARSE-002"))
+}
+
+// ===========================================================================
+// FLINK-03 VIEW + FUNCTION DDL fixtures (11-03, wave 3)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// create-view: SqlCreateView AS query (valid=true, create_view kind).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-view flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-view flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-view", "strict"), "flink-grammar.create-view.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-view flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-view flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-view", "editor"), "flink-grammar.create-view.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_view_lossless" {
+  assert_true(flink_grammar_lossless("create-view", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-view", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE VIEW v AS SELECT * FROM t", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"create_view\""))
+}
+
+// CREATE VIEW is shared syntax (Doris also supports CREATE VIEW AS query), so
+// no Doris-side 007 gate fires — the form parses valid under both dialects.
+test "flink_grammar_create_view_is_shared_with_doris" {
+  assert_true(flink_grammar_bidirectional(b"CREATE VIEW v AS SELECT * FROM t", "\"valid\":true", "\"valid\":true"))
+}
+
+// ---------------------------------------------------------------------------
+// create-view-field-list: the optional ( a, b ) field list is preserved.
+// ---------------------------------------------------------------------------
+test "flink-grammar create-view-field-list flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-view-field-list flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-view-field-list", "strict"), "flink-grammar.create-view-field-list.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-view-field-list flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-view-field-list flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-view-field-list", "editor"), "flink-grammar.create-view-field-list.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_view_field_list_lossless" {
+  assert_true(flink_grammar_lossless("create-view-field-list", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-view-field-list", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// create-function / create-function-python: CREATE [TEMPORARY [SYSTEM]]
+// FUNCTION ... AS 'class' [LANGUAGE JAVA|SCALA|PYTHON] (create_function kind).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-function flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-function flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-function", "strict"), "flink-grammar.create-function.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-function flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-function flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-function", "editor"), "flink-grammar.create-function.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_function_lossless" {
+  assert_true(flink_grammar_lossless("create-function", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-function", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE TEMPORARY FUNCTION f AS 'com.example.UDF' LANGUAGE JAVA", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"create_function\""))
+}
+
+test "flink-grammar create-function-python flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-function-python flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-function-python", "strict"), "flink-grammar.create-function-python.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-function-python flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-function-python flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-function-python", "editor"), "flink-grammar.create-function-python.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_function_python_lossless" {
+  assert_true(flink_grammar_lossless("create-function-python", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-function-python", @parser.ParseMode::Editor))
+}
+
+// The FUNCTION family is whole-statement unsupported under Doris (no CREATE
+// FUNCTION production) → FATHOM-PARSE-007 (D-04, §9 matrix).
+test "flink_grammar_create_function_is_unsupported_under_doris" {
+  assert_true(flink_grammar_bidirectional(b"CREATE FUNCTION f AS 'com.example.UDF' LANGUAGE JAVA", "\"valid\":true", "FATHOM-PARSE-007"))
+}
+
+// ---------------------------------------------------------------------------
+// drop-view / drop-function: SqlDropView/SqlDropFunction [IF EXISTS] name.
+// ---------------------------------------------------------------------------
+test "flink-grammar drop-view flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar drop-view flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-view", "strict"), "flink-grammar.drop-view.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar drop-view flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar drop-view flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-view", "editor"), "flink-grammar.drop-view.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_drop_view_lossless" {
+  assert_true(flink_grammar_lossless("drop-view", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("drop-view", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"DROP VIEW IF EXISTS v", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"drop_view\""))
+}
+
+test "flink-grammar drop-function flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar drop-function flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-function", "strict"), "flink-grammar.drop-function.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar drop-function flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar drop-function flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-function", "editor"), "flink-grammar.drop-function.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_drop_function_lossless" {
+  assert_true(flink_grammar_lossless("drop-function", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("drop-function", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"DROP FUNCTION IF EXISTS f", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"drop_function\""))
+}
+
+// DROP has no Doris dispatch arm → whole-statement FATHOM-PARSE-007.
+test "flink_grammar_drop_view_is_unsupported_under_doris" {
+  assert_true(flink_grammar_bidirectional(b"DROP VIEW IF EXISTS v", "\"valid\":true", "FATHOM-PARSE-007"))
+}
+
+// ---------------------------------------------------------------------------
+// alter-view-rename / alter-view-as / alter-function: SqlAlterView /
+// SqlAlterFunction (alter_table kind for the whole ALTER family, D-02).
+// ---------------------------------------------------------------------------
+test "flink-grammar alter-view-rename flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar alter-view-rename flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-view-rename", "strict"), "flink-grammar.alter-view-rename.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar alter-view-rename flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar alter-view-rename flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-view-rename", "editor"), "flink-grammar.alter-view-rename.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_alter_view_rename_lossless" {
+  assert_true(flink_grammar_lossless("alter-view-rename", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("alter-view-rename", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"ALTER VIEW v RENAME TO v2", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"alter_table\""))
+}
+
+test "flink-grammar alter-view-as flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar alter-view-as flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-view-as", "strict"), "flink-grammar.alter-view-as.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar alter-view-as flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar alter-view-as flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-view-as", "editor"), "flink-grammar.alter-view-as.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_alter_view_as_lossless" {
+  assert_true(flink_grammar_lossless("alter-view-as", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("alter-view-as", @parser.ParseMode::Editor))
+}
+
+test "flink-grammar alter-function flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar alter-function flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-function", "strict"), "flink-grammar.alter-function.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar alter-function flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar alter-function flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-function", "editor"), "flink-grammar.alter-function.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_alter_function_lossless" {
+  assert_true(flink_grammar_lossless("alter-function", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("alter-function", @parser.ParseMode::Editor))
+}
+
+// ALTER has no Doris dispatch arm → whole-statement FATHOM-PARSE-007.
+test "flink_grammar_alter_is_unsupported_under_doris" {
+  assert_true(flink_grammar_bidirectional(b"ALTER VIEW v AS SELECT 1", "\"valid\":true", "FATHOM-PARSE-007"))
+}
+
+// ---------------------------------------------------------------------------
+// create-view-incomplete / create-function-incomplete: missing AS-query /
+// class string → bounded Missing/Error nodes, lossless replay.
+// ---------------------------------------------------------------------------
+test "flink-grammar create-view-incomplete flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-view-incomplete flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-view-incomplete", "strict"), "flink-grammar.create-view-incomplete.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-view-incomplete flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-view-incomplete flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-view-incomplete", "editor"), "flink-grammar.create-view-incomplete.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_view_incomplete_lossless" {
+  assert_true(flink_grammar_lossless("create-view-incomplete", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-view-incomplete", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE VIEW v AS", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("FATHOM-PARSE-002"))
+}
+
+test "flink-grammar create-function-incomplete flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-function-incomplete flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-function-incomplete", "strict"), "flink-grammar.create-function-incomplete.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-function-incomplete flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-function-incomplete flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-function-incomplete", "editor"), "flink-grammar.create-function-incomplete.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_function_incomplete_lossless" {
+  assert_true(flink_grammar_lossless("create-function-incomplete", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-function-incomplete", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE FUNCTION f AS", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("FATHOM-PARSE-002"))
+}
+
+// ---------------------------------------------------------------------------
+// view-recovery: the trailing SELECT after `;` is its own statement (no
+// cross-statement token swallowing, CST-01).
+// ---------------------------------------------------------------------------
+test "flink-grammar view-recovery flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar view-recovery flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("view-recovery", "strict"), "flink-grammar.view-recovery.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar view-recovery flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar view-recovery flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("view-recovery", "editor"), "flink-grammar.view-recovery.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_view_recovery_lossless_and_independent_statements" {
+  assert_true(flink_grammar_lossless("view-recovery", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("view-recovery", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE VIEW v AS SELECT * FROM t; SELECT 2", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"create_view\""))
+  assert_true(strict.contains("\"kind\":\"select\""))
 }
