@@ -5,15 +5,15 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 11
 current_phase_name: Flink Grammar and Recoverable CST
 status: executing
-stopped_at: Completed 11-01-PLAN.md (Flink SELECT tracer)
-last_updated: "2026-08-09T08:10:34.505Z"
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-08-09T08:34:37.220Z"
 last_activity: 2026-08-09
 last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 40
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 11 (Flink Grammar and Recoverable CST) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
-**Progress:** [████████░░] 79%
+**Progress:** [█████████░] 86%
 Last activity: 2026-08-09 — Phase 11 execution started
 
 ## Performance Metrics
@@ -96,6 +96,7 @@ Last activity: 2026-08-09 — Phase 11 execution started
 | Phase 10-flink-release-profiles-and-lexical-core P02 | 10 | 2 tasks | 27 files |
 | Phase 10-flink-release-profiles-and-lexical-core P03 | 75 | 3 tasks | 9 files |
 | Phase 11-flink-grammar-and-recoverable-cst P01 | 92 | 4 tasks | 45 files |
+| Phase 11-flink-grammar-and-recoverable-cst P02 | 95 | 3 tasks | 65 files |
 
 ## Accumulated Context
 
@@ -197,6 +198,9 @@ Recent decisions affecting current work:
 - [Phase ?]: D-06: FATHOM-PARSE-008 retired and vacant (never reused); valid Flink SQL routes through real parse_flink_segment grammar; genuinely-unsupported whole statements route through FATHOM-PARSE-007
 - [Phase ?]: MATCH_RECOGNIZE + MATCH_NUMBER/MEASURES/PATTERN/DEFINE are Calcite-base reserved tokens present in all three pinned releases (Pitfall 9); introduced_profile flink-1.20.5 makes them Reserved under every Flink profile; extract_flink_grammar.py owns their provenance validation
 - [Phase ?]: Flink precedence arm adds only || CONCAT (A3); => (NAMED_ARGUMENT_ASSIGNMENT) consumption deferred to 11-02 (function-call argument layer)
+- [Phase ?]: Flink DML/aux slice implemented as one cohesive change set (two atomic commits: implementation+register+manifest, then snapshot goldens) rather than three per-task commits; dispatch arms, is_flink_insert_boundary, and expression-layer gates are one interleaved change set
+- [Phase ?]: Doris-side rejection of Flink-only DML forms (INSERT OVERWRITE/UPSERT/ON CONFLICT) relies on the frozen baseline (007/001/002, valid=false) — the plan's Doris-parser-untouched hard gate takes precedence over the aspirational 009 phrasing; the named-arg => case IS a real 009 under Doris via the shared expression argument layer
+- [Phase ?]: MERGE under Flink stays on the unsupported path (FATHOM-PARSE-007) per [ASSUMED] A1 — no parse_flink_merge arm in this wave
 
 ### Pending Todos
 
@@ -228,9 +232,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T08:10:34.478Z
-Stopped at: Completed 11-01-PLAN.md (Flink SELECT tracer)
-Resume file: .planning/phases/11-flink-grammar-and-recoverable-cst/11-02-PLAN.md
+Last session: 2026-08-09T08:34:37.192Z
+Stopped at: Completed 11-02-PLAN.md
+Resume file: None
 
 ## Quick Tasks Completed
 
