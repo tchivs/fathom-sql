@@ -601,7 +601,15 @@ fn parse_flink_data_type(
     return false
   }
   let mut valid = true
+  let mut type_name : Bytes = b""
   if is_identifier_candidate(cursor) {
+    type_name = match raw_at(cursor) { Some(raw) => raw; None => b"" }
+    advance(cursor)
+  } else if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"ROW") {
+    // MJ-01: ROW is a Reserved word used as a data-type name
+    // (ExtendedSqlRowTypeName, Parser.tdd:764) — it is not an identifier
+    // candidate, so it is accepted explicitly.
+    type_name = raw
     advance(cursor)
   } else {
     let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
@@ -615,16 +623,20 @@ fn parse_flink_data_type(
       valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing type precision parenthesis") && valid
     }
   }
-  // Optional generic args: < ... > (nested types; ROW field names are
-  // consumed as a trailing identifier per element — syntax-level only).
+  // Optional generic args: < ... > (nested types). ROW elements are
+  // `[field_name] type` (ExtendedSqlFieldType) and parse through
+  // parse_flink_row_element; other generics (ARRAY/MAP/MULTISET) are plain
+  // element types (MJ-01).
   if raw_at(cursor) is Some(b"<") {
     advance(cursor)
     if !consume_symbol(cursor, b">") {
+      let is_row = bytes_equal_ci(type_name, b"ROW")
       let mut element_done = false
       while !element_done {
-        valid = parse_flink_data_type(cursor, state, source, statement_id, depth + 1) && valid
-        if is_identifier_candidate(cursor) && !(raw_at(cursor) is Some(b",")) && !(raw_at(cursor) is Some(b">")) {
-          advance(cursor)
+        if is_row {
+          valid = parse_flink_row_element(cursor, state, source, statement_id, depth + 1) && valid
+        } else {
+          valid = parse_flink_data_type(cursor, state, source, statement_id, depth + 1) && valid
         }
         if consume_symbol(cursor, b",") {
           if raw_at(cursor) is Some(b">") || raw_at(cursor) is None {
@@ -647,6 +659,46 @@ fn parse_flink_data_type(
   } else {
     ignore(consume_word(cursor, b"NULL"))
   }
+  valid
+}
+
+/// True when the raw token begins with a letter or underscore — i.e. it is a
+/// word token (identifier / non-reserved keyword), never a symbol. Used to
+/// distinguish a ROW field name (an identifier followed by a word that starts
+/// the field type) from a bare unnamed field type (followed by `,` or `>`).
+fn is_word_raw(raw : Bytes) -> Bool {
+  if raw.length() == 0 { return false }
+  let c = raw[0].to_int()
+  (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
+}
+
+/// A ROW generic element: `[field_name] type` (ExtendedSqlFieldType,
+/// Parser.tdd:764). The optional field name is an identifier immediately
+/// followed by a word token (the field type's leading identifier);
+/// `ROW<INT, STRING>` / `ROW<MAP<STRING, INT>>` have no field name — the
+/// leading word IS the type. Field types are parsed through
+/// parse_flink_data_type so `(p,s)` / `<...>` suffixes are consumed
+/// (MJ-01). Syntax-level only — no field-name/type resolution.
+fn parse_flink_row_element(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  depth : Int,
+) -> Bool {
+  let mut valid = true
+  let field_name_present = if is_identifier_candidate(cursor) {
+    match peek_raw(cursor, 1) {
+      Some(next) => is_word_raw(next)
+      None => false
+    }
+  } else {
+    false
+  }
+  if field_name_present {
+    advance(cursor)
+  }
+  valid = parse_flink_data_type(cursor, state, source, statement_id, depth) && valid
   valid
 }
 
