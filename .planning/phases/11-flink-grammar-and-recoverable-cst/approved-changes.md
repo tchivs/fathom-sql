@@ -287,6 +287,25 @@ added in 11-02. Calcite base has a SqlMerge production
 later plan may add `parse_flink_merge` if the pinned grammar's syntactic
 acceptance needs freezing.
 
+## 8. Phase 11 code-review-fix snapshot re-freeze (review 2026-08-09)
+
+The 11-REVIEW.md fix pass narrows/extends Flink grammar behavior and rewrites
+one fixture to standard clause order. The only frozen snapshot bytes that
+change are the `match-recognize-subset` goldens, whose fixture SQL is rewritten
+from the non-standard pre-PATTERN `SUBSET ... PATTERN ...` position to the
+standard `PATTERN ... SUBSET ... DEFINE` order (Parser.jj:3182). All other
+gates narrowed in the fix pass (WATERMARK FOR-only, CONSTRAINT form-only,
+INTERVAL value-only; ROW types; WITH [LOCAL] TIME ZONE; AT TIME ZONE; fixed
+MATCH_RECOGNIZE pre-PATTERN clause order) have no existing snapshot coverage —
+the existing flink-grammar and Doris 213 snapshots are byte-identical after the
+fixes. Verified by `moon test --target native --package parity` (no `--update`)
+failing ONLY on the two `match-recognize-subset` snapshots, then passing after
+the single approved `--update` re-freeze.
+
+| Changed snapshot file | Meaning |
+|-----------------------|---------|
+| `flink-grammar.match-recognize-subset.flink-2.3.0.{strict,editor}.json` | Fixture rewritten to standard clause order `PATTERN (A B) SUBSET U = (A, B) DEFINE ...` (MJ-02); snapshot re-frozen |
+
 Machine-readable patterns (baseline_diff.py `--approve`):
 
 ```
