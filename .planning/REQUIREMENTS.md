@@ -18,7 +18,7 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 ### Flink SQL Language Coverage
 
 - [x] **FLINK-01**: Consumer can select pinned Flink release profiles with auditable source and parser contracts: `flink-2.3.0` as the primary profile plus `flink-2.1.3` and `flink-1.20.5` regression profiles; each profile records its actual release Calcite version/config, and unsupported profiles are rejected explicitly.
-- [ ] **FLINK-02**: Consumer can parse Flink core queries and everyday statements including SELECT, CTE, JOIN, aggregation, set operations, expressions, types, INSERT, UPDATE, DELETE, EXPLAIN, SHOW, DESCRIBE, and ANALYZE with recoverable diagnostics.
+- [x] **FLINK-02**: Consumer can parse Flink core queries and everyday statements including SELECT, CTE, JOIN, aggregation, set operations, expressions, types, INSERT, UPDATE, DELETE, EXPLAIN, SHOW, DESCRIBE, and ANALYZE with recoverable diagnostics.
 - [ ] **FLINK-03**: Consumer can parse Flink Catalog and DDL entry points including CREATE/ALTER/DROP CATALOG, DATABASE, TABLE, VIEW, and FUNCTION as structured CST statement families.
 - [ ] **FLINK-04**: Consumer can parse Flink CREATE TABLE physical, metadata, and computed columns; WATERMARK; PRIMARY KEY NOT ENFORCED; PARTITIONED BY; distribution; WITH connector options; LIKE; and AS forms while retaining token spelling, trivia, and spans.
 - [ ] **FLINK-05**: Consumer can parse Window TVF forms for TUMBLE, HOP, CUMULATE, and SESSION, including TABLE/DESCRIPTOR arguments, interval literals, named arguments, and window output columns.
@@ -26,7 +26,7 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 
 ### Lossless CST and Toolchain
 
-- [ ] **CST-01**: Consumer can parse Flink input in strict or editor mode into a recoverable lossless CST where comments, whitespace, newlines, unknown material, error nodes, missing nodes, skipped material, source bytes, and spans round-trip without loss.
+- [x] **CST-01**: Consumer can parse Flink input in strict or editor mode into a recoverable lossless CST where comments, whitespace, newlines, unknown material, error nodes, missing nodes, skipped material, source bytes, and spans round-trip without loss.
 - [ ] **TOOL-01**: Consumer can format supported Flink CST using the existing refusal-first contract: canonical formatting is separate from lossless replay, and trees containing unsafe error/missing/skipped material produce an explicit refusal without partial output.
 - [ ] **TOOL-02**: Consumer can request bounded Flink syntax completion for keywords, DDL, WATERMARK, Window TVF, and MATCH_RECOGNIZE contexts and receive safe source-range edits based on the selected dialect/profile.
 - [ ] **TOOL-03**: Consumer can run the syntax-only analyzer for Flink with an optional catalog to resolve supported table, column, and identifier references; parser validity is independent of catalog, connector, planner, or execution semantics.
@@ -81,12 +81,12 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | DIALECT-03 | Phase 9 | Complete |
 | DIALECT-04 | Phase 9 | Complete |
 | FLINK-01 | Phase 10 | Complete |
-| FLINK-02 | Phase 11 | Pending |
+| FLINK-02 | Phase 11 | Complete |
 | FLINK-03 | Phase 11 | Pending |
 | FLINK-04 | Phase 11 | Pending |
 | FLINK-05 | Phase 11 | Pending |
 | FLINK-06 | Phase 11 | Pending |
-| CST-01 | Phase 11 | Pending |
+| CST-01 | Phase 11 | Complete |
 | TOOL-01 | Phase 13 | Pending |
 | TOOL-02 | Phase 13 | Pending |
 | TOOL-03 | Phase 13 | Pending |

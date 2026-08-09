@@ -5,15 +5,15 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 11
 current_phase_name: Flink Grammar and Recoverable CST
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-08-09T07:42:34.132Z"
-last_activity: 2026-08-07
-last_activity_desc: Phase 10 complete, transitioned to Phase 11
+stopped_at: Completed 11-01-PLAN.md (Flink SELECT tracer)
+last_updated: "2026-08-09T08:10:34.505Z"
+last_activity: 2026-08-09
+last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 11
   percent: 40
 ---
 
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Phase 10 — Flink Release Profiles and Lexical Core
+**Current focus:** Phase 11 — Flink Grammar and Recoverable CST
 
 ## Current Position
 
-Phase: 11 — Flink Grammar and Recoverable CST
-Plan: Not started
+Phase: 11 (Flink Grammar and Recoverable CST) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-**Progress:** [██████████] 100%
-Last activity: 2026-08-07 — Phase 10 complete, transitioned to Phase 11
+**Progress:** [████████░░] 79%
+Last activity: 2026-08-09 — Phase 11 execution started
 
 ## Performance Metrics
 
@@ -95,6 +95,7 @@ Last activity: 2026-08-07 — Phase 10 complete, transitioned to Phase 11
 | Phase 10-flink-release-profiles-and-lexical-core P01 | 1.5 | 4 tasks | 15 files |
 | Phase 10-flink-release-profiles-and-lexical-core P02 | 10 | 2 tasks | 27 files |
 | Phase 10-flink-release-profiles-and-lexical-core P03 | 75 | 3 tasks | 9 files |
+| Phase 11-flink-grammar-and-recoverable-cst P01 | 92 | 4 tasks | 45 files |
 
 ## Accumulated Context
 
@@ -191,6 +192,11 @@ Recent decisions affecting current work:
 - [Phase ?]: unknown-profile fixture freezes a Doris-shaped id (4.x) under flink (Pitfall 6 — no profile-id borrowing); FATHOM-SCHEMA-003 envelope is mode-independent
 - [Phase ?]: flink_classification_rows scoped to production/conflict words (142 rows) with release-grammar source per row; full 443/430/412-word lists committed as six parity fixture attachments and validated by scripts/extract_flink_lexical.py (Open Question 3 RESOLVED)
 - [Phase ?]: Flink classification is profile-aware in release order flink-1.20.5 < flink-2.1.3 < flink-2.3.0: VARIANT/QUALIFY (introduced flink-2.1.3) are Reserved under 2.3.0/2.1.3 and ABSENT under flink-1.20.5; Doris selection stays dialect-only with the 116-row table byte-identical (T-10-12/13/15)
+- [Phase ?]: D-04 locked (auto-selected option-a): mint FATHOM-PARSE-009 'syntax is not supported in the selected dialect' for construct-level dialect-gate rejection; 007 stays whole-statement unsupported; dialect rides in envelope metadata (D-10)
+- [Phase ?]: D-02 locked (auto-selected option-a): coarse per-statement-family SyntaxKind variants appended at the enum end + snake_case kind_id wire strings; sub-type detail rides in metadata/spans
+- [Phase ?]: D-06: FATHOM-PARSE-008 retired and vacant (never reused); valid Flink SQL routes through real parse_flink_segment grammar; genuinely-unsupported whole statements route through FATHOM-PARSE-007
+- [Phase ?]: MATCH_RECOGNIZE + MATCH_NUMBER/MEASURES/PATTERN/DEFINE are Calcite-base reserved tokens present in all three pinned releases (Pitfall 9); introduced_profile flink-1.20.5 makes them Reserved under every Flink profile; extract_flink_grammar.py owns their provenance validation
+- [Phase ?]: Flink precedence arm adds only || CONCAT (A3); => (NAMED_ARGUMENT_ASSIGNMENT) consumption deferred to 11-02 (function-call argument layer)
 
 ### Pending Todos
 
@@ -222,9 +228,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T06:52:40.511Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-flink-grammar-and-recoverable-cst/11-CONTEXT.md
+Last session: 2026-08-09T08:10:34.478Z
+Stopped at: Completed 11-01-PLAN.md (Flink SELECT tracer)
+Resume file: .planning/phases/11-flink-grammar-and-recoverable-cst/11-02-PLAN.md
 
 ## Quick Tasks Completed
 
