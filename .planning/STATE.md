@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 12
 current_phase_name: Cross-Dialect Corpus and Parity Gates
-status: executing
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-08-09T12:41:49.847Z"
+status: complete
+stopped_at: Completed 12-03-PLAN.md
+last_updated: "2026-08-09T12:52:00.000Z"
 last_activity: 2026-08-09
-last_activity_desc: Phase 12 execution started
+last_activity_desc: Phase 12 execution completed
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 17
-  completed_plans: 16
-  percent: 60
+  completed_plans: 17
+  percent: 80
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 ## Current Position
 
-Phase: 12 (Cross-Dialect Corpus and Parity Gates) — EXECUTING
+Phase: 12 (Cross-Dialect Corpus and Parity Gates) — COMPLETE
 Plan: 3 of 3
-Status: Ready to execute
-**Progress:** [█████████░] 94%
-Last activity: 2026-08-09 — Phase 12 execution started
+Status: Complete
+**Progress:** [██████████] 100%
+Last activity: 2026-08-09 — Phase 12 execution completed
 
 ## Performance Metrics
 
@@ -102,6 +102,7 @@ Last activity: 2026-08-09 — Phase 12 execution started
 | Phase 11-flink-grammar-and-recoverable-cst P04 | 120 | 3 tasks | 8 files |
 | Phase 12-cross-dialect-corpus-and-parity-gates P01 | 22min | 3 tasks | 118 files |
 | Phase 12-cross-dialect-corpus-and-parity-gates P02 | 4min | 3 tasks | 3 files |
+| Phase 12-cross-dialect-corpus-and-parity-gates P03 | 7min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -224,6 +225,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 12-02 --frozen-only compares the FULL regenerated tree vs committed (all 433 snapshots) and FAILS on ANY difference, consulting NO register — an empty/forged register cannot mask drift (non-vacuous regeneration proof, T-12-02-02/05).
 - [Phase ?]: 12-02 lifecycle robustness: shutil.move (not os.rename) for cross-device temp dirs; post-update parity/__snapshot__ existence guard catches moon's warn-only exit-0 for a nonexistent package (exit 2 + restore).
 - [Phase ?]: 12-02 Phase 12 register pre-declares NO active snapshot rows: 12-01 migration is data-only, 12-02 harness and 12-03 CI wiring change zero snapshot bytes; the machine-readable skeleton is #-commented so it documents the format without approving anything.
+- [Phase ?]: 12-03 Task 1 auto-selected option-a (D-05 one-way door): merge js runtime into linear-wasm-parity + stdlib compare_backends.py with rc + snapshot-tree sha256 digest proof (wasm cannot stdout-dump, A8); separate js job or per-fixture dump rejected (no added contract value).
+- [Phase ?]: 12-03 failing-fixture naming via content hash: moon prints expected snapshot bytes (the '-' side), not filenames; compare_backends.py maps sha256(content) -> filename over the committed tree, with the failed-test label as fallback.
+- [Phase ?]: 12-03 compare_backends.py reads one shared committed tree: the deterministic sha256 tree digest is verified unchanged before/after the run (read-only violation = exit 1), closing the PARITY-03 concurrency backstop for the aggregate + CI jobs.
+- [Phase ?]: 12-03 CI wiring: js runtime step + compare_backends.py aggregate in linear-wasm-parity, diff_parity.py --frozen-only in parity-gate, verify_corpus.py --check in corpus (keep extended report --check); no --update in any run line; only network step is the MoonBit installer curl.
 
 ### Pending Todos
 
@@ -255,8 +260,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T12:41:49.817Z
-Stopped at: Completed 12-02-PLAN.md
+Last session: 2026-08-09T12:52:00.000Z
+Stopped at: Completed 12-03-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

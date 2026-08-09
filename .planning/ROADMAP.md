@@ -62,7 +62,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 - [x] **Phase 9: Dialect Boundary and Neutral Naming** - Establish explicit dialect/profile context, isolate Doris policy, freeze the Doris baseline, and complete the clean product-identity cutover. (completed 2026-08-07)
 - [x] **Phase 10: Flink Release Profiles and Lexical Core** - Lock Flink release/Calcite contracts and deliver profile-specific Flink lexical behavior. (completed 2026-08-07)
 - [x] **Phase 11: Flink Grammar and Recoverable CST** - Deliver Flink statement/DDL/window/pattern grammar with strict/editor lossless recovery. (completed 2026-08-09)
-- [ ] **Phase 12: Cross-Dialect Corpus and Parity Gates** - Turn pinned sources and the Doris baseline into reproducible cross-dialect and cross-backend release gates.
+- [x] **Phase 12: Cross-Dialect Corpus and Parity Gates** - Turn pinned sources and the Doris baseline into reproducible cross-dialect and cross-backend release gates. (completed 2026-08-09)
 - [ ] **Phase 13: Toolchain and Editor Packaging** - Expose Flink through formatter, analyzer, completion, CLI/LSP, JS/Wasm, Web, VS Code, and IntelliJ.
 
 ## Phase Details
@@ -167,7 +167,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Validation**: Run an offline manifest/hash verifier, frozen Doris diff harness, cross-dialect positive/negative/recovery snapshots, and Native/JS/linear-Wasm serialized comparisons; keep source provenance and docs-vs-parser conflicts visible rather than bulk-updating snapshots.
 **Research flags**: Design the auditable extraction/diff workflow, resolve docs/source/Calcite conflicts, and define category semantics so generic SQL acceptance is never reported as Flink engine support.
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 **Wave 1**
 
 - [x] 12-01-PLAN.md — Unified Flink corpus manifest + offline verifier (CORPUS-01, PARITY-03; tracer: all-6-category seed end-to-end, then full 110-fixture migration + semantic-distinction coverage report)
@@ -175,7 +175,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 12-03-PLAN.md — Cross-backend parity + offline CI gates (PARITY-02, PARITY-03; compare_backends.py three-target digest + js runtime CI job + wiring of verify_corpus/diff_parity/report into CI)
+- [x] 12-03-PLAN.md — Cross-backend parity + offline CI gates (PARITY-02, PARITY-03; compare_backends.py three-target digest + js runtime CI job + wiring of verify_corpus/diff_parity/report into CI)
 
 ### Phase 13: Toolchain and Editor Packaging
 

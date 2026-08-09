@@ -44,7 +44,7 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 
 - [x] **CORPUS-01**: Maintainer can inspect a release-pinned Flink corpus whose manifest records release/tag/commit, Calcite version/config, URL, heading, retrieval date, hash, expected status, and categories for positive, negative, recovery, known limitation, catalog prerequisite, and planner prerequisite cases.
 - [x] **PARITY-01**: Doris 2.1, 3.x, and 4.x valid/invalid/recovery/CST/span/diagnostic/formatter/completion behavior remains equal to a frozen baseline after dialect and naming refactors, unless an intentional change is explicitly recorded.
-- [ ] **PARITY-02**: The same fixture produces byte-identical serialized results, diagnostics, spans, and lossless replay across Native, JavaScript, and linear-Wasm targets.
+- [x] **PARITY-02**: The same fixture produces byte-identical serialized results, diagnostics, spans, and lossless replay across Native, JavaScript, and linear-Wasm targets.
 - [x] **PARITY-03**: CI and release checks run from pinned offline artifacts without Doris FE, Flink cluster, database, or network access, and coverage reports distinguish parser acceptance from engine semantic support across both dialects.
 
 ## Future Requirements
@@ -98,7 +98,7 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | NAME-04 | Phase 9 | Complete |
 | CORPUS-01 | Phase 12 | Complete |
 | PARITY-01 | Phase 12 | Complete |
-| PARITY-02 | Phase 12 | Pending |
+| PARITY-02 | Phase 12 | Complete |
 | PARITY-03 | Phase 12 | Complete |
 
 **Coverage:**
