@@ -6,6 +6,7 @@ import {
   "fathom/sql/source" @source,
   "fathom/sql/dialect" @dialect,
   "fathom/sql/parser" @parser,
+  "fathom/sql/printer" @printer,
   "moonbitlang/core/encoding/utf8" @utf8,
 }
 

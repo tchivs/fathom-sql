@@ -23,6 +23,33 @@ pub(all) enum SyntaxKind {
   Error
   Skipped
   Missing
+  // Flink statement-family kinds (Phase 11, D-02 one-way contract): appended
+  // at the enum END — never reordered — so the frozen Doris wire output
+  // (kind_id ordinal positions) never shifts (Pitfall 1). Coarse per-family
+  // kinds per RESEARCH §6.1; statement sub-types (SHOW TABLES vs SHOW
+  // CATALOGS) ride in node metadata/spans, not extra kinds.
+  ShowStatement
+  DescribeStatement
+  ExplainStatement
+  AnalyzeStatement
+  CreateCatalog
+  CreateDatabase
+  CreateFunction
+  DropCatalog
+  DropDatabase
+  DropTable
+  DropView
+  DropFunction
+  AlterTable
+  WatermarkClause
+  ComputedColumn
+  MetadataColumn
+  PrimaryKeyClause
+  TableLikeClause
+  WindowTvf
+  MatchRecognize
+  SetOption
+  UseStatement
 } derive(Eq, @debug.Debug)
 
 pub(all) enum LeafKind {
