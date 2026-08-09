@@ -30,6 +30,10 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] 消费者可解析 Flink CREATE TABLE 物理/元数据/计算列、WATERMARK、PRIMARY KEY NOT ENFORCED、PARTITIONED BY、分布、WITH 选项、LIKE、AS 形式，保留 token 拼写/trivia/span — Validated in Phase 11: Flink Grammar and Recoverable CST
 - [x] 消费者可解析 Window TVF（TUMBLE/HOP/CUMULATE/SESSION，含 TABLE/DESCRIPTOR/区间字面量/命名参数/窗口输出列）与语法级 MATCH_RECOGNIZE（PATTERN/DEFINE/MEASURES/skip/变量/量词），不声称 planner/执行等价 — Validated in Phase 11: Flink Grammar and Recoverable CST
 - [x] 消费者可在严格/编辑器模式将 Flink 输入解析为可恢复无损 CST：注释/空白/换行/未知/错误/缺失/跳过材料/源码字节/span 全部 round-trip 无丢失 — Validated in Phase 11: Flink Grammar and Recoverable CST
+- [x] 维护者可检查 release-pinned Flink corpus manifest（release/tag/commit、Calcite 版本/config、URL/标题/检索日期/hash、期望状态、positive/negative/recovery/known-limitation/catalog/planner 6 类） — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
+- [x] Doris 2.1/3.x/4.x 的 valid/invalid/recovery/CST/span/diagnostic/formatter/completion 行为与冻结 baseline 保持相等，或每项故意差异显式记录批准 — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
+- [x] 同一 fixture 在 Native/JavaScript/linear-Wasm 目标产生字节级一致的序列化结果/诊断/span/lossless replay — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
+- [x] CI/release 检查仅从钉住离线工件运行（无 Doris FE/Flink cluster/数据库/网络），覆盖报告区分 parser 接受与引擎语义前置 — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
 
 ### Active
 
@@ -72,14 +76,14 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Current State
 
-**v2.0 Phase 11 COMPLETE — 2026-08-09** (Flink Grammar and Recoverable CST)
+**v2.0 Phase 12 COMPLETE — 2026-08-10** (Cross-Dialect Corpus and Parity Gates)
 
-- **Flink 语句级 grammar 落地:** `parse_flink_segment` 从 FATHOM-PARSE-008 占位替换为真实 grammar — 核心查询（SELECT/CTE/JOIN/聚合/集合运算/表达式/类型，含 ROW<...>）、DML（INSERT/UPDATE/DELETE）、辅助（EXPLAIN/SHOW/DESCRIBE/ANALYZE）、Catalog/DDL（CREATE/ALTER/DROP CATALOG/DATABASE/TABLE/VIEW/FUNCTION）、CREATE TABLE 复杂形式（物理/元数据/计算列、WATERMARK、PRIMARY KEY NOT ENFORCED、PARTITIONED BY、分布、WITH、LIKE/AS）、Window TVF（TUMBLE/HOP/CUMULATE/SESSION + TABLE/DESCRIPTOR/命名参数/区间字面量）、MATCH_RECOGNIZE 语法级（PATTERN/DEFINE/MEASURES/skip/变量/量词）。
-- **Recoverable lossless CST（CST-01）:** 严格/编辑器双模式，注释/空白/错误/缺失/跳过材料/span 全 round-trip；有界恢复（深度预算防递归栈溢出、with_prefix_verb 边界修复、MATCH_RECOGNIZE/TVF 子句边界）。
-- **双向方言负门禁:** Flink-only（WATERMARK/TVF/MATCH_RECOGNIZE/DDL 族）在 Doris 模式拒绝、Doris-only 在 Flink 模式拒绝 — FATHOM-PARSE-009 构造级 + 007 整句；`watermark` 等非保留字列名回归已修复。
-- **Doris 零漂移保持:** parity 570/570（含 213 快照 Doris baseline）无 `--update`；WR-01 裸 CREATE 回归测试绿。
-- **测试:** 812/812 MoonBit（CI 对齐矩阵）；extract_flink_grammar.py 校验 production 行号/清单；代码评审 16/16 finding 修复（4 BLOCKER 含递归崩溃 + Doris 回归 + OOB abort，4 MAJOR，4 MINOR，2 INFO）；威胁注册 32/32 关闭（ASVS L1）。
-- **已知边界:** Flink 工具链（format/completion/analyzer）→ Phase 13；全量 Flink corpus/parity → Phase 12；MATCH_RECOGNIZE 仅语法级（无 planner/执行等价、无 pattern 变量作用域校验，Pitfall 6 冻结）；`IN-02 argument_list_has_arrow` O(n²) 共享热路径与 `IN-04` 全项目 native build 链接怪癖已记录接受。
+- **统一 release-pinned Flink corpus:** `parity/fixtures/flink/manifest.tsv`（110 行 × 19 列，release/tag/commit、Calcite 版本/config、URL/标题/检索日期/hash/期望状态、6 类分类 positive 49 / negative 25 / recovery 17 / planner-prereq 13 / known-limitation 3 / catalog-prereq 3）+ 110 个已提交 .sql fixture（embedded b"..." 字节匹配）。
+- **离线门禁:** `verify_corpus.py --check`（纯 stdlib，110 行 + 104 归档 sha512 复验，无网络）；`diff_parity.py --frozen-only`（CI 模式对任何差异 exit 1、不 consult 注册表；`--approve <register>` 本地批准流；restore 保证）；`compare_backends.py`（三目标 fail-closed + 快照树确定性 digest）。
+- **跨后端字节一致:** native/js/wasm 三目标 570/570，快照树 sha256 digest 完全一致（5e9bb887…）；CI linear-wasm-parity 增 js 运行时 + compare_backends 汇总。
+- **语义区分:** coverage 报告 parser-accepted 68 vs engine-semantic-prerequisite 19 vs engine-supported 49（仅 positive）；catalog/planner/known-limitation 永不计入引擎支持。
+- **Doris 零漂移:** diff_parity 433 快照 0 差异；812/812 测试；CI 无任何 `--update`。
+- **测试:** 812/812 MoonBit + 三目标 parity 570/570 + 全部门禁 exit 0；威胁注册 20/20 关闭（ASVS L1）。
 
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming
 
@@ -110,4 +114,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-09 after Phase 11 (Flink Grammar and Recoverable CST) completion*
+*Last updated: 2026-08-10 after Phase 12 (Cross-Dialect Corpus and Parity Gates) completion*
