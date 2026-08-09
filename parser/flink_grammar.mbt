@@ -1877,6 +1877,10 @@ fn parse_flink_tvf_call(
     Some(raw) => bytes_equal_ci(raw, b"TABLE")
     None => false
   }
+  // The TVF name (TUMBLE/HOP/CUMULATE/SESSION or TABLE for the wrapper) is
+  // captured so named-argument validation (MN-03) can whitelist the
+  // per-TVF parameter names.
+  let tvf_name : Bytes = match raw_at(cursor) { Some(raw) => raw; None => b"" }
   // The TVF name token is verified by is_flink_tvf_starter (TUMBLE/HOP/
   // CUMULATE/SESSION or TABLE followed by `(`), so it is consumed regardless
   // of keyword classification (CUMULATE has no keyword token at all — A2).
@@ -1902,7 +1906,7 @@ fn parse_flink_tvf_call(
     }
     valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing TABLE wrapper parenthesis") && valid
   } else {
-    valid = parse_flink_tvf_arguments(cursor, state, source, statement_id) && valid
+    valid = parse_flink_tvf_arguments(cursor, state, source, statement_id, tvf_name) && valid
   }
   valid
 }
@@ -1919,6 +1923,7 @@ fn parse_flink_tvf_arguments(
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
+  tvf_name : Bytes,
 ) -> Bool {
   let mut valid = true
   let mut arg_index = 0
@@ -1930,7 +1935,7 @@ fn parse_flink_tvf_arguments(
     } else {
       any = true
       let before = cursor.position
-      let arg_ok = parse_flink_tvf_argument(cursor, state, source, statement_id, arg_index)
+      let arg_ok = parse_flink_tvf_argument(cursor, state, source, statement_id, arg_index, tvf_name)
       valid = arg_ok && valid
       if cursor.position == before {
         recover_expression(cursor, state, source, statement_id)
@@ -1968,15 +1973,23 @@ fn parse_flink_tvf_arguments(
 
 /// A single TVF argument: either a named-argument `name => value` form
 /// (NAMED_ARGUMENT_ASSIGNMENT, Parser.jj:8794) or a positional value. The
-/// positional index (arg_index) drives the positional-kind validation.
+/// positional index (arg_index) drives the positional-kind validation; the
+/// named-argument name is validated against the TVF's parameter whitelist
+/// (MN-03 — unknown names are a localized FATHOM-PARSE-002).
 fn parse_flink_tvf_argument(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
   arg_index : Int,
+  tvf_name : Bytes,
 ) -> Bool {
   if is_named_argument_arrow(cursor) {
+    let name_span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    let arg_name : Bytes = match raw_at(cursor) { Some(raw) => raw; None => b"" }
+    if !is_flink_tvf_named_arg_name(tvf_name, arg_name) {
+      add_diagnostic(state, "FATHOM-PARSE-002", "unknown named argument for window TVF", "named-argument", name_span, statement_id)
+    }
     // Consume the argument name, then the arrow.
     advance(cursor)
     match raw_at(cursor) {
@@ -1990,6 +2003,35 @@ fn parse_flink_tvf_argument(
     return parse_flink_tvf_argument_value(cursor, state, source, statement_id, arg_index)
   }
   parse_flink_tvf_argument_value(cursor, state, source, statement_id, arg_index)
+}
+
+/// Allowed named-argument names per window TVF (named arguments, Parser.jj:
+/// 8794; the window TVF parameter surface DATA/TIMECOL/SIZE/OFFSET etc.).
+/// Unknown names are rejected with a localized FATHOM-PARSE-002 (MN-03).
+fn is_flink_tvf_named_arg_name(tvf_name : Bytes, arg_name : Bytes) -> Bool {
+  if bytes_equal_ci(tvf_name, b"TUMBLE") {
+    return bytes_equal_ci(arg_name, b"DATA") || bytes_equal_ci(arg_name, b"TIMECOL") ||
+      bytes_equal_ci(arg_name, b"SIZE") || bytes_equal_ci(arg_name, b"OFFSET")
+  }
+  if bytes_equal_ci(tvf_name, b"HOP") {
+    return bytes_equal_ci(arg_name, b"DATA") || bytes_equal_ci(arg_name, b"TIMECOL") ||
+      bytes_equal_ci(arg_name, b"SLIDE") || bytes_equal_ci(arg_name, b"SIZE") ||
+      bytes_equal_ci(arg_name, b"OFFSET")
+  }
+  if bytes_equal_ci(tvf_name, b"CUMULATE") {
+    return bytes_equal_ci(arg_name, b"DATA") || bytes_equal_ci(arg_name, b"TIMECOL") ||
+      bytes_equal_ci(arg_name, b"STEP") || bytes_equal_ci(arg_name, b"SIZE") ||
+      bytes_equal_ci(arg_name, b"OFFSET")
+  }
+  if bytes_equal_ci(tvf_name, b"SESSION") {
+    return bytes_equal_ci(arg_name, b"DATA") || bytes_equal_ci(arg_name, b"TIMECOL") ||
+      bytes_equal_ci(arg_name, b"GAP")
+  }
+  // Unknown TVF name: fall back to the standard union to stay permissive.
+  bytes_equal_ci(arg_name, b"DATA") || bytes_equal_ci(arg_name, b"TIMECOL") ||
+    bytes_equal_ci(arg_name, b"SIZE") || bytes_equal_ci(arg_name, b"OFFSET") ||
+    bytes_equal_ci(arg_name, b"SLIDE") || bytes_equal_ci(arg_name, b"STEP") ||
+    bytes_equal_ci(arg_name, b"GAP")
 }
 
 /// A TVF argument value. Position 0 must be a TABLE table reference (the
