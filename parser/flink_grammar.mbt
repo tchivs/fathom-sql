@@ -524,6 +524,12 @@ fn parse_flink_analyze(
   if consume_word(cursor, b"PARTITION") {
     valid = parse_flink_partition_spec(cursor, state, source, statement_id) && valid
   }
+  // MN-01: Flink ANALYZE tail `[COMPUTE STATISTICS [NOSCAN]]`
+  // (SqlAnalyzeTable, parserImpls.ftl:3413-3443).
+  if consume_word(cursor, b"COMPUTE") {
+    valid = expect_word(cursor, b"STATISTICS", state, source, statement_id, "expected STATISTICS after COMPUTE") && valid
+    ignore(consume_word(cursor, b"NOSCAN"))
+  }
   if raw_at(cursor) is Some(raw) && bytes_equal_ci(raw, b"BUCKETS") {
     let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
     add_dialect_gate_diagnostic(state, span, statement_id)
