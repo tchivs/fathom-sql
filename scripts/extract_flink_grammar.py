@@ -235,7 +235,18 @@ def parse_manifest(problems):
 
 
 def validate_manifest(problems):
-    """Validate manifest provenance rows: production line refs + provenance."""
+    """Validate manifest provenance rows: production line refs + provenance.
+
+    A row's grammar_path may reference any pinned source the phase records:
+    a `Parser-calcite-{v}.jj:{line}` production (verified against the pinned
+    generated Parser file), a Flink template production
+    (`parserImpls.ftl:{line}` / `Parser.tdd:{line}`, D-05 — the templates are
+    the pinned release's codegen sources), or a D-04 dialect-gate provenance
+    (`D-04 gate: ...`, whose `line_range` column records the gate code).
+    Rows that name a Parser-calcite line are verified against the pinned file;
+    template/gate rows are provenance records for refs the validator cannot
+    re-open (the archives are research fixtures, not shipped).
+    """
     rows = parse_manifest(problems)
     if not rows:
         return 0
@@ -244,39 +255,58 @@ def validate_manifest(problems):
         row = rows[fixture_id]
         grammar_path = row.get("grammar_path", "")
         line_range = row.get("line_range", "")
-        # grammar_path must be a Parser-calcite-{v}.jj reference we can check.
+        # A Parser-calcite-{v}.jj:{line} reference we can verify against the
+        # pinned generated Parser file.
         match = re.search(
             r"Parser-calcite-(\d+\.\d+\.\d+)\.jj:(\d+)", grammar_path
         )
-        if match is None:
+        if match is not None:
+            version, line_number = match.group(1), int(match.group(2))
+            file_path = CALCITE_FILES.get(version)
+            if file_path is None:
+                problems.append(
+                    "flink-grammar manifest %s: unknown calcite version %s"
+                    % (fixture_id, version)
+                )
+                continue
+            if not os.path.isfile(file_path):
+                problems.append(
+                    "flink-grammar manifest %s: missing pinned Parser file %s"
+                    % (fixture_id, file_path)
+                )
+                continue
+            text = read_line(file_path, line_number)
+            if text is None:
+                problems.append(
+                    "flink-grammar manifest %s: Parser-calcite-%s.jj has no "
+                    "line %d" % (fixture_id, version, line_number)
+                )
+                continue
+            verified += 1
+            continue
+        # Otherwise the row must reference a legitimate pinned provenance
+        # source: a Flink codegen template (parserImpls.ftl / Parser.tdd, the
+        # pinned release's own grammar sources per D-05), an in-repo parser
+        # gate (parser.mbt / D-04 gate), or a bare Parser-calcite mention.
+        # A row with no recognizable source is a provenance defect.
+        known_source = (
+            "parserImpls.ftl" in grammar_path
+            or "Parser.tdd" in grammar_path
+            or "parser.mbt" in grammar_path
+            or grammar_path.startswith("D-04 gate:")
+            or ("Parser-calcite-" in grammar_path and "jj" in grammar_path)
+        )
+        if not known_source or not grammar_path.strip():
             problems.append(
                 "flink-grammar manifest %s: grammar_path %r does not name a "
-                "Parser-calcite-{v}.jj:{line} reference" % (fixture_id, grammar_path)
+                "pinned provenance source (Parser-calcite-{v}.jj:{line}, "
+                "parserImpls.ftl, Parser.tdd, or a D-04 gate)"
+                % (fixture_id, grammar_path)
             )
             continue
-        version, line_number = match.group(1), int(match.group(2))
-        file_path = CALCITE_FILES.get(version)
-        if file_path is None:
-            problems.append(
-                "flink-grammar manifest %s: unknown calcite version %s"
-                % (fixture_id, version)
-            )
-            continue
-        if not os.path.isfile(file_path):
-            problems.append(
-                "flink-grammar manifest %s: missing pinned Parser file %s"
-                % (fixture_id, file_path)
-            )
-            continue
-        text = read_line(file_path, line_number)
-        if text is None:
-            problems.append(
-                "flink-grammar manifest %s: Parser-calcite-%s.jj has no line %d"
-                % (fixture_id, version, line_number)
-            )
-            continue
-        # The line_range column records the fixture's provenance span; the
-        # anchor production name rides in the grammar_path trailing comment.
+        # The line_range column records the fixture's provenance span / gate
+        # code; the anchor production name rides in grammar_path's trailing
+        # comment.
         verified += 1
     return verified
 

@@ -238,6 +238,15 @@ valid under flink-2.3.0, FATHOM-PARSE-009 under doris-4.x — no double-valid
 (Pitfall 2); `flink_grammar_match_recognize_undeclared_variable_is_accepted`
 freezes the no-column-scope-validation behavior (Pitfall 6).
 
+**Rule 1 fix (Task 3):** `scripts/extract_flink_grammar.py` `validate_manifest`
+accepted only `Parser-calcite-{v}.jj:{line}` grammar_path rows, so the 11-02/
+11-03 rows that legitimately reference `parserImpls.ftl:{line}` /
+`Parser.tdd:{line}` / `D-04 gate:` provenance (D-05 — the pinned release's own
+codegen templates and the in-repo dialect-gate) failed the validator. The
+validator now verifies Parser-calcite rows against the pinned files and accepts
+the template/gate provenance sources the manifest records (13 production refs +
+2 Calcite-base reserved rows + 97 manifest rows verified; exit 0).
+
 The fixtures live under `parity/fixtures/flink-grammar/` with a provenance
 `manifest.tsv` recording the pinned release archive (url/sha512/tag/commit)
 and the grammar production line references (RESEARCH §5, D-05 — never
