@@ -5,15 +5,15 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 11
 current_phase_name: Flink Grammar and Recoverable CST
 status: executing
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-08-09T08:34:37.220Z"
+stopped_at: Completed 11-03-PLAN.md
+last_updated: "2026-08-09T09:18:03.183Z"
 last_activity: 2026-08-09
 last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 40
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 11 (Flink Grammar and Recoverable CST) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
-**Progress:** [█████████░] 86%
+**Progress:** [█████████░] 93%
 Last activity: 2026-08-09 — Phase 11 execution started
 
 ## Performance Metrics
@@ -97,6 +97,7 @@ Last activity: 2026-08-09 — Phase 11 execution started
 | Phase 10-flink-release-profiles-and-lexical-core P03 | 75 | 3 tasks | 9 files |
 | Phase 11-flink-grammar-and-recoverable-cst P01 | 92 | 4 tasks | 45 files |
 | Phase 11-flink-grammar-and-recoverable-cst P02 | 95 | 3 tasks | 65 files |
+| Phase 11 P03 | 3.5h | 4 tasks | 70 files |
 
 ## Accumulated Context
 
@@ -201,6 +202,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Flink DML/aux slice implemented as one cohesive change set (two atomic commits: implementation+register+manifest, then snapshot goldens) rather than three per-task commits; dispatch arms, is_flink_insert_boundary, and expression-layer gates are one interleaved change set
 - [Phase ?]: Doris-side rejection of Flink-only DML forms (INSERT OVERWRITE/UPSERT/ON CONFLICT) relies on the frozen baseline (007/001/002, valid=false) — the plan's Doris-parser-untouched hard gate takes precedence over the aspirational 009 phrasing; the named-arg => case IS a real 009 under Doris via the shared expression argument layer
 - [Phase ?]: MERGE under Flink stays on the unsupported path (FATHOM-PARSE-007) per [ASSUMED] A1 — no parse_flink_merge arm in this wave
+- [Phase ?]: Doris-side 009 gates for Flink-only CREATE TABLE forms (T-11-16) required surgical frozen-Doris-parser edits; each gate fires only on Flink-only shapes (WATERMARK/PRIMARY KEY/UNIQUE/computed AS-without-paren/METADATA/PARTITIONED BY/WITH/DISTRIBUTED INTO/LIKE feature list) so the frozen 213-snapshot baseline stays byte-identical
+- [Phase ?]: CREATE CATALOG/DATABASE/FUNCTION under Doris route to FATHOM-PARSE-007 via a new is_doris_create_form gate in parse_doris_segment's CREATE arm (whole-statement unsupported, D-04 §9); the frozen parser previously emitted a spurious 002
+- [Phase ?]: CREATE VIEW and plain CREATE TABLE LIKE / AS SELECT are shared syntax (the frozen Doris parser accepts them), so only the genuinely Flink-only variants are gated: FUNCTION/DROP/ALTER families → 007 under Doris, LIKE feature list and WITH-before-AS CTAS → 009
+- [Phase ?]: Flink INTERVAL literal parsing (INTERVAL '5' SECOND) added to the shared expression prefix layer gated to Flink, so Doris expression behavior stays byte-identical (Pitfall 7, A4)
 
 ### Pending Todos
 
@@ -232,8 +237,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T08:34:37.192Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-08-09T09:17:52.258Z
+Stopped at: Completed 11-03-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

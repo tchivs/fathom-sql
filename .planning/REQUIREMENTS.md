@@ -19,8 +19,8 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 
 - [x] **FLINK-01**: Consumer can select pinned Flink release profiles with auditable source and parser contracts: `flink-2.3.0` as the primary profile plus `flink-2.1.3` and `flink-1.20.5` regression profiles; each profile records its actual release Calcite version/config, and unsupported profiles are rejected explicitly.
 - [x] **FLINK-02**: Consumer can parse Flink core queries and everyday statements including SELECT, CTE, JOIN, aggregation, set operations, expressions, types, INSERT, UPDATE, DELETE, EXPLAIN, SHOW, DESCRIBE, and ANALYZE with recoverable diagnostics.
-- [ ] **FLINK-03**: Consumer can parse Flink Catalog and DDL entry points including CREATE/ALTER/DROP CATALOG, DATABASE, TABLE, VIEW, and FUNCTION as structured CST statement families.
-- [ ] **FLINK-04**: Consumer can parse Flink CREATE TABLE physical, metadata, and computed columns; WATERMARK; PRIMARY KEY NOT ENFORCED; PARTITIONED BY; distribution; WITH connector options; LIKE; and AS forms while retaining token spelling, trivia, and spans.
+- [x] **FLINK-03**: Consumer can parse Flink Catalog and DDL entry points including CREATE/ALTER/DROP CATALOG, DATABASE, TABLE, VIEW, and FUNCTION as structured CST statement families.
+- [x] **FLINK-04**: Consumer can parse Flink CREATE TABLE physical, metadata, and computed columns; WATERMARK; PRIMARY KEY NOT ENFORCED; PARTITIONED BY; distribution; WITH connector options; LIKE; and AS forms while retaining token spelling, trivia, and spans.
 - [ ] **FLINK-05**: Consumer can parse Window TVF forms for TUMBLE, HOP, CUMULATE, and SESSION, including TABLE/DESCRIPTOR arguments, interval literals, named arguments, and window output columns.
 - [ ] **FLINK-06**: Consumer can inspect syntax-level MATCH_RECOGNIZE CST and diagnostics covering PATTERN, DEFINE, MEASURES, skip policy, pattern variables, and quantifiers; the SDK does not claim planner or execution equivalence.
 
@@ -82,8 +82,8 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | DIALECT-04 | Phase 9 | Complete |
 | FLINK-01 | Phase 10 | Complete |
 | FLINK-02 | Phase 11 | Complete |
-| FLINK-03 | Phase 11 | Pending |
-| FLINK-04 | Phase 11 | Pending |
+| FLINK-03 | Phase 11 | Complete |
+| FLINK-04 | Phase 11 | Complete |
 | FLINK-05 | Phase 11 | Pending |
 | FLINK-06 | Phase 11 | Pending |
 | CST-01 | Phase 11 | Complete |
