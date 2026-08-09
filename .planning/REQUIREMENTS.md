@@ -21,8 +21,8 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 - [x] **FLINK-02**: Consumer can parse Flink core queries and everyday statements including SELECT, CTE, JOIN, aggregation, set operations, expressions, types, INSERT, UPDATE, DELETE, EXPLAIN, SHOW, DESCRIBE, and ANALYZE with recoverable diagnostics.
 - [x] **FLINK-03**: Consumer can parse Flink Catalog and DDL entry points including CREATE/ALTER/DROP CATALOG, DATABASE, TABLE, VIEW, and FUNCTION as structured CST statement families.
 - [x] **FLINK-04**: Consumer can parse Flink CREATE TABLE physical, metadata, and computed columns; WATERMARK; PRIMARY KEY NOT ENFORCED; PARTITIONED BY; distribution; WITH connector options; LIKE; and AS forms while retaining token spelling, trivia, and spans.
-- [ ] **FLINK-05**: Consumer can parse Window TVF forms for TUMBLE, HOP, CUMULATE, and SESSION, including TABLE/DESCRIPTOR arguments, interval literals, named arguments, and window output columns.
-- [ ] **FLINK-06**: Consumer can inspect syntax-level MATCH_RECOGNIZE CST and diagnostics covering PATTERN, DEFINE, MEASURES, skip policy, pattern variables, and quantifiers; the SDK does not claim planner or execution equivalence.
+- [x] **FLINK-05**: Consumer can parse Window TVF forms for TUMBLE, HOP, CUMULATE, and SESSION, including TABLE/DESCRIPTOR arguments, interval literals, named arguments, and window output columns.
+- [x] **FLINK-06**: Consumer can inspect syntax-level MATCH_RECOGNIZE CST and diagnostics covering PATTERN, DEFINE, MEASURES, skip policy, pattern variables, and quantifiers; the SDK does not claim planner or execution equivalence.
 
 ### Lossless CST and Toolchain
 
@@ -84,8 +84,8 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | FLINK-02 | Phase 11 | Complete |
 | FLINK-03 | Phase 11 | Complete |
 | FLINK-04 | Phase 11 | Complete |
-| FLINK-05 | Phase 11 | Pending |
-| FLINK-06 | Phase 11 | Pending |
+| FLINK-05 | Phase 11 | Complete |
+| FLINK-06 | Phase 11 | Complete |
 | CST-01 | Phase 11 | Complete |
 | TOOL-01 | Phase 13 | Pending |
 | TOOL-02 | Phase 13 | Pending |

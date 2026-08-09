@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 11
 current_phase_name: Flink Grammar and Recoverable CST
-status: executing
-stopped_at: Completed 11-03-PLAN.md
-last_updated: "2026-08-09T09:18:03.183Z"
+status: verifying
+stopped_at: Completed 11-04-PLAN.md
+last_updated: "2026-08-09T09:56:38.978Z"
 last_activity: 2026-08-09
 last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 13
-  percent: 40
+  completed_plans: 14
+  percent: 60
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 Phase: 11 (Flink Grammar and Recoverable CST) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
-**Progress:** [█████████░] 93%
+Status: Phase complete — ready for verification
+**Progress:** [██████████] 100%
 Last activity: 2026-08-09 — Phase 11 execution started
 
 ## Performance Metrics
@@ -98,6 +98,7 @@ Last activity: 2026-08-09 — Phase 11 execution started
 | Phase 11-flink-grammar-and-recoverable-cst P01 | 92 | 4 tasks | 45 files |
 | Phase 11-flink-grammar-and-recoverable-cst P02 | 95 | 3 tasks | 65 files |
 | Phase 11 P03 | 3.5h | 4 tasks | 70 files |
+| Phase 11-flink-grammar-and-recoverable-cst P04 | 120 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -206,6 +207,11 @@ Recent decisions affecting current work:
 - [Phase ?]: CREATE CATALOG/DATABASE/FUNCTION under Doris route to FATHOM-PARSE-007 via a new is_doris_create_form gate in parse_doris_segment's CREATE arm (whole-statement unsupported, D-04 §9); the frozen parser previously emitted a spurious 002
 - [Phase ?]: CREATE VIEW and plain CREATE TABLE LIKE / AS SELECT are shared syntax (the frozen Doris parser accepts them), so only the genuinely Flink-only variants are gated: FUNCTION/DROP/ALTER families → 007 under Doris, LIKE feature list and WITH-before-AS CTAS → 009
 - [Phase ?]: Flink INTERVAL literal parsing (INTERVAL '5' SECOND) added to the shared expression prefix layer gated to Flink, so Doris expression behavior stays byte-identical (Pitfall 7, A4)
+- [Phase ?]: Window TVF rides the generic table-function-call path (no dedicated dispatch): TUMBLE/HOP/SESSION/DESCRIPTOR non-reserved, CUMULATE no keyword token (A2)
+- [Phase ?]: MATCH_RECOGNIZE is an independent sub-language with its own sync points (is_flink_match_recognize_boundary) so unclosed PATTERN/DEFINE recovers at the boundary or ';' under the shared budget (Pitfall 4/8)
+- [Phase ?]: SUBSET/PERMUTE/{- -} parse structurally, classified known-limitation; no pattern-variable column-scope validation (Pitfall 6, FLINK-06)
+- [Phase ?]: TVF positional args validated in order (table/descriptor/size/offset); named => args recognized without reordering
+- [Phase ?]: Window TVF + MATCH_RECOGNIZE are Flink-only: FATHOM-PARSE-009 gate at the table-ref point under Doris (T-11-22/T-11-23); no planner/execution equivalence (FLINK-05/06)
 
 ### Pending Todos
 
@@ -237,8 +243,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T09:17:52.258Z
-Stopped at: Completed 11-03-PLAN.md
+Last session: 2026-08-09T09:56:38.951Z
+Stopped at: Completed 11-04-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

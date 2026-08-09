@@ -135,7 +135,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Validation**: Use pinned release grammar positives, negatives, incomplete inputs, and recovery fixtures; assert bounded progress, source-backed nodes, strict/editor shape parity, lossless replay, and bidirectional dialect-negative gates. Re-run the frozen Doris baseline before accepting any shared parser/CST change.
 **Research flags**: Reconcile each release's `flink-sql-parser` productions with matching Calcite tests; define the supported/known-limitation subset for Window TVF and MATCH_RECOGNIZE, especially nested recovery and planner-prerequisite cases.
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 **Wave 1**
 
 - [x] 11-01-PLAN.md — Phase one-way gates (D-02 CST shape, D-04 FATHOM-PARSE-009) + FLINK-02 core-query tracer (real parse_flink_segment dispatch, precedence dialect arm, 008 retirement, flink-grammar snapshot namespace)
@@ -150,7 +150,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 11-04-PLAN.md — FLINK-05/06 Window TVF (TUMBLE/HOP/CUMULATE/SESSION) + syntax-level MATCH_RECOGNIZE + supported/known-limitation subset freeze
+- [x] 11-04-PLAN.md — FLINK-05/06 Window TVF (TUMBLE/HOP/CUMULATE/SESSION) + syntax-level MATCH_RECOGNIZE + supported/known-limitation subset freeze
 
 ### Phase 12: Cross-Dialect Corpus and Parity Gates
 
