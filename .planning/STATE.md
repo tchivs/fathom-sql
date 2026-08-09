@@ -5,16 +5,16 @@ milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
 current_phase: 12
 current_phase_name: Cross-Dialect Corpus and Parity Gates
 status: executing
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-08-09T12:23:27.095Z"
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-08-09T12:41:49.847Z"
 last_activity: 2026-08-09
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 16
+  percent: 60
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 12 (Cross-Dialect Corpus and Parity Gates) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-**Progress:** [█████████░] 88%
+**Progress:** [█████████░] 94%
 Last activity: 2026-08-09 — Phase 12 execution started
 
 ## Performance Metrics
@@ -101,6 +101,7 @@ Last activity: 2026-08-09 — Phase 12 execution started
 | Phase 11 P03 | 3.5h | 4 tasks | 70 files |
 | Phase 11-flink-grammar-and-recoverable-cst P04 | 120 | 3 tasks | 8 files |
 | Phase 12-cross-dialect-corpus-and-parity-gates P01 | 22min | 3 tasks | 118 files |
+| Phase 12-cross-dialect-corpus-and-parity-gates P02 | 4min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -219,6 +220,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Snapshot segment rule (dialect-correct): flink {id}.{profile}.{mode}.json, doris {id}.doris-{profile}.{mode}.json, unknown-profile {id}.flink-4x.{mode}.json
 - [Phase ?]: D-02 additive migration: old per-area manifests kept; unified manifest adds columns/rows only, never renames fixture_id or snapshot filenames
 - [Phase ?]: fixture_sha256 over committed .sql bytes is the resident CI-checkable hash; archive sha512 present-verify / absent-archive-not-present
+- [Phase ?]: 12-02 Task 1 auto-selected option-a: wrapper diff_parity.py reusing the baseline_diff approved-vs-unexpected engine (D-03 one-way door); --frozen-only upgrades the CI proof from self-comparison to regeneration, --approve gives a readable local report, zero behavior change to the classification engine.
+- [Phase ?]: 12-02 --frozen-only compares the FULL regenerated tree vs committed (all 433 snapshots) and FAILS on ANY difference, consulting NO register — an empty/forged register cannot mask drift (non-vacuous regeneration proof, T-12-02-02/05).
+- [Phase ?]: 12-02 lifecycle robustness: shutil.move (not os.rename) for cross-device temp dirs; post-update parity/__snapshot__ existence guard catches moon's warn-only exit-0 for a nonexistent package (exit 2 + restore).
+- [Phase ?]: 12-02 Phase 12 register pre-declares NO active snapshot rows: 12-01 migration is data-only, 12-02 harness and 12-03 CI wiring change zero snapshot bytes; the machine-readable skeleton is #-commented so it documents the format without approving anything.
 
 ### Pending Todos
 
@@ -250,8 +255,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-09T12:23:27.067Z
-Stopped at: Completed 12-01-PLAN.md
+Last session: 2026-08-09T12:41:49.817Z
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
