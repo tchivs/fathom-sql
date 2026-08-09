@@ -555,6 +555,90 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     category: "recovery",
     raw: b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime); SELECT 2",
   },
+  {
+    fixture_id: "match-recognize-full",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM Ticker MATCH_RECOGNIZE (PARTITION BY symbol ORDER BY ts MEASURES MATCH_NUMBER() AS n, A.price AS p ONE ROW PER MATCH AFTER MATCH SKIP TO NEXT ROW PATTERN (A B+ C{2,3}?) DEFINE A AS A.price > 0) AS T",
+  },
+  {
+    fixture_id: "match-recognize-anchors",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (^ A $) DEFINE A AS A.x = 1)",
+  },
+  {
+    fixture_id: "match-recognize-within-interval",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A) WITHIN INTERVAL '1' MINUTE DEFINE A AS A.x = 1)",
+  },
+  {
+    fixture_id: "match-recognize-all-rows",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (ALL ROWS PER MATCH AFTER MATCH SKIP TO FIRST A PATTERN (A) DEFINE A AS A.x = 1)",
+  },
+  {
+    fixture_id: "match-recognize-measures-time",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (MEASURES MATCH_ROWTIME() AS rt, MATCH_PROCTIME() AS pt PATTERN (A) DEFINE A AS A.x = 1)",
+  },
+  {
+    fixture_id: "match-recognize-skip-last",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (AFTER MATCH SKIP PAST LAST ROW PATTERN (A) DEFINE A AS A.x = 1)",
+  },
+  {
+    fixture_id: "match-recognize-subset",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (SUBSET U = (A, B) PATTERN (A B) DEFINE A AS A.x = 1, B AS B.x = 2)",
+  },
+  {
+    fixture_id: "match-recognize-permute",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (PERMUTE(A, B)) DEFINE A AS A.x = 1, B AS B.x = 2)",
+  },
+  {
+    fixture_id: "match-recognize-exclude",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN ({- A -} B) DEFINE A AS A.x = 1, B AS B.x = 2)",
+  },
+  {
+    fixture_id: "match-recognize-empty-pattern",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN () DEFINE A AS A.x = 1)",
+  },
+  {
+    fixture_id: "match-recognize-missing-define-expr",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A) DEFINE A AS)",
+  },
+  {
+    fixture_id: "match-recognize-missing-define",
+    profile: "flink-2.3.0",
+    category: "negative",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A))",
+  },
+  {
+    fixture_id: "match-recognize-incomplete",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A)",
+  },
+  {
+    fixture_id: "match-recognize-recovery",
+    profile: "flink-2.3.0",
+    category: "recovery",
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE ( PATTERN (A+); SELECT 2",
+  },
 ]
 
 fn flink_grammar_fixture(id : String) -> FlinkGrammarFixture {
@@ -2248,3 +2332,270 @@ test "flink_grammar_tvf_is_dialect_gated" {
   assert_true(flink_grammar_bidirectional(b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY)", "\"valid\":true", "FATHOM-PARSE-009"))
 }
 
+// ---------------------------------------------------------------------------
+// match-recognize-full: the tracer MATCH_RECOGNIZE — PARTITION BY / ORDER BY /
+// MEASURES / ONE ROW PER MATCH / AFTER MATCH SKIP / PATTERN with B+ and
+// C{2,3}? reluctant quantifiers / DEFINE (MatchRecognizeTest.scala:60-163).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-full flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-full flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-full", "strict"), "flink-grammar.match-recognize-full.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-full flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-full flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-full", "editor"), "flink-grammar.match-recognize-full.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_full_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-full", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-full", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-anchors: PATTERN (^ A $) strict-start/end anchors
+// (Parser.jj:3160/:3166).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-anchors flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-anchors flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-anchors", "strict"), "flink-grammar.match-recognize-anchors.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-anchors flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-anchors flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-anchors", "editor"), "flink-grammar.match-recognize-anchors.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_anchors_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-anchors", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-anchors", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-within-interval: WITHIN INTERVAL (Parser.jj:3170).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-within-interval flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-within-interval flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-within-interval", "strict"), "flink-grammar.match-recognize-within-interval.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-within-interval flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-within-interval flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-within-interval", "editor"), "flink-grammar.match-recognize-within-interval.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_within_interval_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-within-interval", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-within-interval", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-all-rows: ALL ROWS PER MATCH + AFTER MATCH SKIP TO FIRST var.
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-all-rows flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-all-rows flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-all-rows", "strict"), "flink-grammar.match-recognize-all-rows.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-all-rows flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-all-rows flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-all-rows", "editor"), "flink-grammar.match-recognize-all-rows.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_all_rows_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-all-rows", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-all-rows", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-measures-time: MATCH_ROWTIME()/MATCH_PROCTIME() as ordinary
+// MEASURES function calls.
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-measures-time flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-measures-time flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-measures-time", "strict"), "flink-grammar.match-recognize-measures-time.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-measures-time flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-measures-time flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-measures-time", "editor"), "flink-grammar.match-recognize-measures-time.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_measures_time_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-measures-time", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-measures-time", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-skip-last: AFTER MATCH SKIP PAST LAST ROW.
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-skip-last flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-skip-last flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-skip-last", "strict"), "flink-grammar.match-recognize-skip-last.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-skip-last flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-skip-last flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-skip-last", "editor"), "flink-grammar.match-recognize-skip-last.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_skip_last_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-skip-last", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-skip-last", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-subset: SUBSET U = (A, B) parsed structurally, classified
+// known-limitation (Parser.jj:3182, RESEARCH §8.2).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-subset flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-subset flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-subset", "strict"), "flink-grammar.match-recognize-subset.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-subset flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-subset flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-subset", "editor"), "flink-grammar.match-recognize-subset.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_subset_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-subset", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-subset", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-permute: PERMUTE(A, B) parsed structurally, known-limitation.
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-permute flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-permute flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-permute", "strict"), "flink-grammar.match-recognize-permute.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-permute flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-permute flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-permute", "editor"), "flink-grammar.match-recognize-permute.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_permute_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-permute", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-permute", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-exclude: {- ... -} PatternExclude parsed structurally,
+// known-limitation (Parser.jj:3294-3335).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-exclude flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-exclude flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-exclude", "strict"), "flink-grammar.match-recognize-exclude.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-exclude flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-exclude flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-exclude", "editor"), "flink-grammar.match-recognize-exclude.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_exclude_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-exclude", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-exclude", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-empty-pattern: bare PATTERN () → localized error (negative).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-empty-pattern flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-empty-pattern flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-empty-pattern", "strict"), "flink-grammar.match-recognize-empty-pattern.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-empty-pattern flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-empty-pattern flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-empty-pattern", "editor"), "flink-grammar.match-recognize-empty-pattern.flink-2.3.0.editor.json")
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-missing-define-expr: DEFINE A AS with no expression →
+// localized error (negative).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-missing-define-expr flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-missing-define-expr flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-missing-define-expr", "strict"), "flink-grammar.match-recognize-missing-define-expr.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-missing-define-expr flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-missing-define-expr flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-missing-define-expr", "editor"), "flink-grammar.match-recognize-missing-define-expr.flink-2.3.0.editor.json")
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-missing-define: PATTERN (A) with no DEFINE → localized error
+// (negative).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-missing-define flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-missing-define flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-missing-define", "strict"), "flink-grammar.match-recognize-missing-define.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-missing-define flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-missing-define flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-missing-define", "editor"), "flink-grammar.match-recognize-missing-define.flink-2.3.0.editor.json")
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-incomplete: unclosed PATTERN (A — bounded Missing nodes with
+// lossless replay (incomplete, CST-01).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-incomplete flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-incomplete flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-incomplete", "strict"), "flink-grammar.match-recognize-incomplete.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-incomplete flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-incomplete flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-incomplete", "editor"), "flink-grammar.match-recognize-incomplete.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_incomplete_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-incomplete", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-incomplete", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// match-recognize-recovery: unclosed MATCH_RECOGNIZE recovers at `;` so the
+// trailing SELECT is its own statement (recovery, CST-01, T-11-24).
+// ---------------------------------------------------------------------------
+test "flink-grammar match-recognize-recovery flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar match-recognize-recovery flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-recovery", "strict"), "flink-grammar.match-recognize-recovery.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar match-recognize-recovery flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar match-recognize-recovery flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("match-recognize-recovery", "editor"), "flink-grammar.match-recognize-recovery.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_match_recognize_recovery_lossless" {
+  assert_true(flink_grammar_lossless("match-recognize-recovery", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("match-recognize-recovery", @parser.ParseMode::Editor))
+}
+
+// ---------------------------------------------------------------------------
+// Bidirectional negative gates (D-04, T-11-22/T-11-23): Window TVF and
+// MATCH_RECOGNIZE are Flink-only — valid under flink-2.3.0, FATHOM-PARSE-009
+// under doris-4.x. No double-valid (Pitfall 2).
+// ---------------------------------------------------------------------------
+test "flink_grammar_tvf_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+test "flink_grammar_match_recognize_is_dialect_gated" {
+  assert_true(flink_grammar_bidirectional(b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A) DEFINE A AS A.x = 1)", "\"valid\":true", "FATHOM-PARSE-009"))
+}
+
+// A syntactically valid MATCH_RECOGNIZE referencing an undeclared pattern
+// variable is NOT rejected (Pitfall 6 — no column-scope validation).
+test "flink_grammar_match_recognize_undeclared_variable_is_accepted" {
+  let raw = b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A B) DEFINE A AS B.x > 0)"
+  let flink = @utf8.decode_lossy(@binding.fathom_parse_v1(raw, "flink", "flink-2.3.0", "strict")[:])
+  assert_true(flink.contains("\"valid\":true"))
+}

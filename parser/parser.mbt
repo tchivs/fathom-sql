@@ -1291,6 +1291,17 @@ fn is_flink_tvf_starter(cursor : Cursor) -> Bool {
   }
 }
 
+/// True when the cursor sits on a MATCH_RECOGNIZE suffix: the reserved
+/// MATCH_RECOGNIZE word followed by `(` (MatchRecognize(SqlNode tableRef),
+/// Parser.jj:3062-3183). Dialect-neutral — the branch in parse_table_ref
+/// decides parse (Flink) vs FATHOM-PARSE-009 gate (Doris, T-11-22).
+fn is_match_recognize_suffix(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"MATCH_RECOGNIZE") => peek_raw(cursor, 1) is Some(b"(")
+    _ => false
+  }
+}
+
 fn parse_table_ref(
   cursor : Cursor,
   context : @dialect.DialectContext,
@@ -1379,6 +1390,22 @@ fn parse_table_ref(
       }
     } else {
       option_done = true
+    }
+  }
+  // FLINK-06 MATCH_RECOGNIZE suffix on the table reference (MatchRecognize
+  // (SqlNode tableRef), Parser.jj:3062-3183): under Flink the reserved
+  // MATCH_RECOGNIZE word + `(` routes to parse_match_recognize (flink_grammar.
+  // mbt); under Doris it is a Flink-only construct → FATHOM-PARSE-009
+  // (T-11-22), never misparsed as a table alias.
+  if is_match_recognize_suffix(cursor) {
+    if context.dialect is @dialect.Dialect::Flink {
+      valid = parse_match_recognize(cursor, state, source, statement_id) && valid
+    } else {
+      let span = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_dialect_gate_diagnostic(state, span, statement_id)
+      valid = false
+      consume_gated_remainder(cursor, state, source, statement_id)
+      return valid
     }
   }
   if consume_word(cursor, b"AS") {
@@ -2035,6 +2062,20 @@ fn is_flink_create_table_clause_boundary(raw : Bytes) -> Bool {
     bytes_equal_ci(raw, b"LIKE") || bytes_equal_ci(raw, b"AS") ||
     bytes_equal_ci(raw, b"PRIMARY") || bytes_equal_ci(raw, b"UNIQUE") ||
     bytes_equal_ci(raw, b"WATERMARK")
+}
+
+/// Flink MATCH_RECOGNIZE sub-language recovery boundary (MatchRecognize,
+/// Parser.jj:3062-3346, D-03): the independent sub-language sync points —
+/// PARTITION/ORDER/MEASURES/ONE ROW/ALL ROWS/AFTER MATCH/PATTERN/WITHIN/
+/// DEFINE and the closing `)`. An unclosed PATTERN or DEFINE recovers at the
+/// next sub-language clause or `;` under the shared recovery budget — no
+/// infinite push (Pitfall 4/8, CST-01, T-11-24).
+fn is_flink_match_recognize_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"PARTITION") || bytes_equal_ci(raw, b"ORDER") ||
+    bytes_equal_ci(raw, b"MEASURES") || bytes_equal_ci(raw, b"ONE") ||
+    bytes_equal_ci(raw, b"ALL") || bytes_equal_ci(raw, b"AFTER") ||
+    bytes_equal_ci(raw, b"PATTERN") || bytes_equal_ci(raw, b"WITHIN") ||
+    bytes_equal_ci(raw, b"DEFINE") || raw == b")"
 }
 
 // Bounded best-effort recovery to the next per-family clause keyword; the

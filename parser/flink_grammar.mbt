@@ -1926,3 +1926,515 @@ fn parse_flink_tvf_argument_value(
     expr_ok
   }
 }
+
+// ---------------------------------------------------------------------------
+// FLINK-06 MATCH_RECOGNIZE (MatchRecognize, Parser.jj:3062-3346). Syntax-level
+// CST only — no planner/execution equivalence (FLINK-06 prohibition, T-11-26).
+// Pattern variables parse as plain identifiers with NO column-scope/type
+// validation: a syntactically valid MATCH_RECOGNIZE referencing an undeclared
+// variable is never rejected (Pitfall 6, T-11-25). The sub-language has its
+// own sync points (is_flink_match_recognize_boundary) so an unclosed
+// PATTERN/DEFINE recovers at the sub-language boundary or `;` under the shared
+// recovery budget (Pitfall 4/8, CST-01, T-11-24).
+// ---------------------------------------------------------------------------
+
+/// `MATCH_RECOGNIZE ( [PARTITION BY expr-list] [ORDER BY order-list]
+///   [MEASURES measure-list] [ONE ROW PER MATCH | ALL ROWS PER MATCH]
+///   [AFTER MATCH SKIP ...] PATTERN ( pattern_expr ) [WITHIN INTERVAL literal]
+///   DEFINE var AS expr-list )`. PATTERN and DEFINE are required
+/// (Parser.jj:3157-3178); a missing DEFINE or unclosed PATTERN is a localized
+/// error that recovers at the sub-language boundary (negative/recovery
+/// fixtures).
+fn parse_match_recognize(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"MATCH_RECOGNIZE", state, source, statement_id, "expected MATCH_RECOGNIZE")
+  valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after MATCH_RECOGNIZE") && valid
+  // Optional pre-PATTERN clauses in the pinned order (Parser.jj:3091-3154).
+  valid = parse_match_recognize_pre_pattern_clauses(cursor, state, source, statement_id) && valid
+  // PATTERN ( pattern_expr ) — required (Parser.jj:3157-3176).
+  if consume_word(cursor, b"PATTERN") {
+    let pat_open = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after PATTERN")
+    valid = pat_open && valid
+    // ^ strict-start anchor (Parser.jj:3160).
+    ignore(consume_symbol(cursor, b"^"))
+    let pattern_ok = parse_pattern_expr(cursor, state, source, statement_id)
+    valid = pattern_ok && valid
+    // $ strict-end anchor (Parser.jj:3166).
+    ignore(consume_symbol(cursor, b"$"))
+    let pat_close = expect_symbol(cursor, b")", state, source, statement_id, "expected closing PATTERN parenthesis")
+    valid = pat_close && valid
+    if !pat_close {
+      // An unclosed PATTERN recovers at the next sub-language sync point
+      // (Pitfall 4/8, T-11-24).
+      recover_to_clause_boundary(cursor, state, source, statement_id, is_flink_match_recognize_boundary)
+    }
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected PATTERN clause in MATCH_RECOGNIZE", "match-pattern", at, statement_id)
+    valid = false
+  }
+  // [ WITHIN INTERVAL literal ] (Parser.jj:3170) — parse_flink_interval_literal
+  // consumes the INTERVAL keyword itself.
+  if consume_word(cursor, b"WITHIN") {
+    valid = parse_flink_interval_literal(cursor, state, source, statement_id) && valid
+  }
+  // DEFINE var AS expr-list — required (Parser.jj:3177-3178).
+  if consume_word(cursor, b"DEFINE") {
+    valid = parse_pattern_definition_list(cursor, state, source, statement_id) && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected DEFINE clause in MATCH_RECOGNIZE", "match-define", at, statement_id)
+    valid = false
+  }
+  let close = expect_symbol(cursor, b")", state, source, statement_id, "expected closing MATCH_RECOGNIZE parenthesis")
+  valid = close && valid
+  if !close {
+    recover_to_clause_boundary(cursor, state, source, statement_id, is_flink_match_recognize_boundary)
+  }
+  valid
+}
+
+/// The optional pre-PATTERN clauses in pinned order (Parser.jj:3091-3154):
+/// PARTITION BY expr-list, ORDER BY order-list, MEASURES measure-list,
+/// ONE ROW PER MATCH / ALL ROWS PER MATCH, and AFTER MATCH SKIP. The loop
+/// terminates at PATTERN, `)`, or a non-clause token (which the PATTERN
+/// requirement check then reports).
+fn parse_match_recognize_pre_pattern_clauses(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut done = false
+  while !done {
+    if consume_word(cursor, b"PARTITION") {
+      valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION in MATCH_RECOGNIZE") && valid
+      valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+    } else if consume_word(cursor, b"ORDER") {
+      valid = parse_order_by(cursor, state, source, statement_id) && valid
+    } else if consume_word(cursor, b"MEASURES") {
+      valid = parse_measure_column_list(cursor, state, source, statement_id) && valid
+    } else if consume_word(cursor, b"ONE") {
+      valid = expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after ONE") && valid
+      valid = expect_word(cursor, b"PER", state, source, statement_id, "expected PER after ONE ROW") && valid
+      valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after ONE ROW PER") && valid
+    } else if consume_word(cursor, b"ALL") {
+      valid = expect_word(cursor, b"ROWS", state, source, statement_id, "expected ROWS after ALL") && valid
+      valid = expect_word(cursor, b"PER", state, source, statement_id, "expected PER after ALL ROWS") && valid
+      valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after ALL ROWS PER") && valid
+    } else if consume_word(cursor, b"AFTER") {
+      valid = parse_after_match_skip(cursor, state, source, statement_id) && valid
+    } else if consume_word(cursor, b"SUBSET") {
+      // SUBSET name = ( var [, var]* ) — parsed structurally and classified
+      // known-limitation in fixtures (subsetList, Parser.jj:3182; RESEARCH
+      // §8.2 — syntax accepted, no planner semantics).
+      if is_identifier_candidate(cursor) {
+        advance(cursor)
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected SUBSET name", "subset-name", at, statement_id)
+        valid = false
+      }
+      valid = expect_symbol(cursor, b"=", state, source, statement_id, "expected = after SUBSET name") && valid
+      if consume_symbol(cursor, b"(") {
+        valid = parse_flink_identifier_list(cursor, state, source, statement_id, "SUBSET") && valid
+        valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing SUBSET parenthesis") && valid
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected ( after SUBSET name =", "subset", at, statement_id)
+        valid = false
+      }
+    } else {
+      done = true
+    }
+  }
+  valid
+}
+
+/// `AFTER MATCH SKIP (TO NEXT ROW | TO FIRST var | TO LAST var |
+///   PAST LAST ROW)` (AfterOption, Parser.jj:3123-3154).
+fn parse_after_match_skip(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after AFTER") && true
+  valid = expect_word(cursor, b"SKIP", state, source, statement_id, "expected SKIP after AFTER MATCH") && valid
+  if consume_word(cursor, b"TO") {
+    if consume_word(cursor, b"NEXT") {
+      valid = expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after TO NEXT") && valid
+    } else if consume_word(cursor, b"FIRST") || consume_word(cursor, b"LAST") {
+      if is_identifier_candidate(cursor) {
+        advance(cursor)
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected pattern variable after TO FIRST/LAST", "pattern-variable", at, statement_id)
+        valid = false
+      }
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected NEXT ROW, FIRST, or LAST after TO", "skip-to", at, statement_id)
+      valid = false
+    }
+  } else if consume_word(cursor, b"PAST") {
+    valid = expect_word(cursor, b"LAST", state, source, statement_id, "expected LAST after PAST") && valid
+    valid = expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after PAST LAST") && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected TO or PAST after AFTER MATCH SKIP", "skip-policy", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// `MEASURES expr [AS alias] [, expr [AS alias]]` (MeasureColumnCommaList,
+/// Parser.jj:3101-3103). MATCH_NUMBER()/MATCH_ROWTIME()/MATCH_PROCTIME() are
+/// consumed as ordinary match function calls (MATCH_NUMBER is a Reserved row,
+/// Pitfall 9, so the expression operand gate would reject it — RESEARCH §5.6).
+fn parse_measure_column_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      let before = cursor.position
+      let item_ok = if is_flink_match_function(cursor) {
+        parse_flink_match_function_call(cursor, state, source, statement_id)
+      } else {
+        parse_expression(cursor, 1, 1, state, source, statement_id)
+      }
+      valid = item_ok && valid
+      if cursor.position == before {
+        recover_expression(cursor, state, source, statement_id)
+        valid = false
+      }
+      if consume_word(cursor, b"AS") {
+        if is_identifier_candidate(cursor) {
+          advance(cursor)
+        } else {
+          let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected measure alias after AS", "measure-alias", at, statement_id)
+          valid = false
+        }
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") || raw_at(cursor) is None {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected measure after comma", "measure", make_span(source, at, at), statement_id)
+          valid = false
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one MEASURES column", "measure", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// `DEFINE var AS expr [, var AS expr]` (PatternDefinitionCommaList,
+/// Parser.jj:3177-3178). Pattern variables are plain identifiers; the
+/// definition expression uses the shared Pratt parser. NO column-scope/type
+/// validation — an expression referencing an undeclared pattern variable is
+/// syntactically accepted (Pitfall 6, FLINK-06 prohibition).
+fn parse_pattern_definition_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      if is_identifier_candidate(cursor) {
+        advance(cursor)
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected pattern variable in DEFINE", "pattern-variable", at, statement_id)
+        valid = false
+        done = true
+      }
+      valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS after DEFINE pattern variable") && valid
+      let before = cursor.position
+      let expr_ok = parse_expression(cursor, 1, 1, state, source, statement_id)
+      if cursor.position == before {
+        recover_expression(cursor, state, source, statement_id)
+        valid = false
+      } else {
+        valid = expr_ok && valid
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") || raw_at(cursor) is None {
+          let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+          add_diagnostic(state, "FATHOM-PARSE-002", "expected pattern definition after comma", "pattern-definition", make_span(source, at, at), statement_id)
+          valid = false
+          done = true
+        }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one DEFINE pattern definition", "pattern-definition", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// True when the cursor sits on a MATCH_RECOGNIZE measure function:
+/// MATCH_NUMBER()/MATCH_ROWTIME()/MATCH_PROCTIME() (RESEARCH §5.6).
+/// MATCH_NUMBER is a Reserved Calcite-base row (Pitfall 9) so it is consumed
+/// specially in the MEASURES clause rather than through the identifier operand
+/// gate.
+fn is_flink_match_function(cursor : Cursor) -> Bool {
+  match raw_at(cursor) {
+    Some(raw) => bytes_equal_ci(raw, b"MATCH_NUMBER") || bytes_equal_ci(raw, b"MATCH_ROWTIME") ||
+      bytes_equal_ci(raw, b"MATCH_PROCTIME")
+    None => false
+  }
+}
+
+/// `MATCH_NUMBER()` / `MATCH_ROWTIME()` / `MATCH_PROCTIME()` — ordinary
+/// function calls in MEASURES (RESEARCH §5.6). Syntax-level only; the zero-
+/// argument form parses directly.
+fn parse_flink_match_function_call(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if !is_flink_match_function(cursor) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected MATCH_NUMBER, MATCH_ROWTIME, or MATCH_PROCTIME", "match-function", at, statement_id)
+    return false
+  }
+  advance(cursor)
+  valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after match function") && valid
+  if !consume_symbol(cursor, b")") {
+    valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing match function parenthesis") && valid
+  }
+  valid
+}
+
+/// `pattern_expr := pattern_concatenation ('|' pattern_concatenation)*`
+/// (PATTERN_ALTER, Parser.jj:3218-3222).
+fn parse_pattern_expr(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = parse_pattern_concat(cursor, state, source, statement_id)
+  while consume_symbol(cursor, b"|") {
+    valid = parse_pattern_concat(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+/// `pattern_concatenation := pattern_factor (pattern_factor)*`
+/// (PATTERN_CONCAT, Parser.jj:3236-3240). Stops at the sub-language
+/// boundaries: `)` (group / PATTERN close), `|` (ALTER), `^`/`$` (anchors —
+/// consumed by parse_match_recognize), or a MATCH_RECOGNIZE clause keyword
+/// (is_flink_match_recognize_boundary). A bare `PATTERN ()` (no factor) is a
+/// localized FATHOM-PARSE-002 (negative fixture).
+fn parse_pattern_concat(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  let mut any = false
+  let mut done = false
+  while !done {
+    match raw_at(cursor) {
+      None => done = true
+      Some(raw) if raw == b")" || raw == b"|" || raw == b"^" || raw == b"$" || raw == b"," => done = true
+      Some(raw) if is_flink_match_recognize_boundary(raw) => done = true
+      Some(_) => {
+        let before = cursor.position
+        let factor_ok = parse_pattern_factor(cursor, state, source, statement_id)
+        any = any || factor_ok
+        valid = factor_ok && valid
+        if cursor.position == before {
+          recover_expression(cursor, state, source, statement_id)
+          valid = false
+          done = true
+        }
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected pattern variable or group in PATTERN", "pattern", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// `pattern_factor := pattern_primary [quantifier]` (PatternFactor /
+/// PatternQuantifier, Parser.jj:3314-3317).
+fn parse_pattern_factor(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let primary_ok = parse_pattern_primary(cursor, state, source, statement_id)
+  let quantifier_ok = parse_pattern_quantifier(cursor, state, source, statement_id)
+  primary_ok && quantifier_ok
+}
+
+/// `pattern_primary := pattern_variable | ( pattern_expr ) | PERMUTE(...) |
+///   {- ... -}` (PatternFactor, Parser.jj:3294-3346). PERMUTE and {- ... -}
+/// (PatternExclude) parse structurally and are classified known-limitation in
+/// the fixtures (RESEARCH §8.2 — syntax accepted, no planner semantics).
+fn parse_pattern_primary(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if is_identifier_candidate(cursor) {
+    // Pattern variable, or PERMUTE(...) (a Calcite-base pattern combinator,
+    // known-limitation — structurally parsed as identifier + parenthesized
+    // comma-separated pattern list, Parser.jj:3337-3346).
+    advance(cursor)
+    if consume_symbol(cursor, b"(") {
+      let mut inner = parse_pattern_expr(cursor, state, source, statement_id)
+      while consume_symbol(cursor, b",") {
+        inner = parse_pattern_expr(cursor, state, source, statement_id) && inner
+      }
+      let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing PERMUTE parenthesis")
+      return inner && closed
+    }
+    true
+  } else if consume_symbol(cursor, b"(") {
+    // Group: ( pattern_expr ).
+    let inner = parse_pattern_expr(cursor, state, source, statement_id)
+    let closed = expect_symbol(cursor, b")", state, source, statement_id, "expected closing pattern group parenthesis")
+    inner && closed
+  } else if consume_symbol(cursor, b"{") {
+    // PatternExclude {- ... -} (Parser.jj:3294-3335, known-limitation).
+    if consume_symbol(cursor, b"-") {
+      let mut inner_valid = true
+      let mut done = false
+      while !done {
+        if raw_at(cursor) is Some(b"-") && peek_raw(cursor, 1) is Some(b"}") {
+          done = true
+        } else if raw_at(cursor) is None || raw_at(cursor) is Some(b";") ||
+          raw_at(cursor) is Some(b")") {
+          done = true
+        } else {
+          let before = cursor.position
+          let factor_ok = parse_pattern_factor(cursor, state, source, statement_id)
+          inner_valid = factor_ok && inner_valid
+          if cursor.position == before {
+            recover_expression(cursor, state, source, statement_id)
+            inner_valid = false
+            done = true
+          }
+        }
+      }
+      if raw_at(cursor) is Some(b"-") { advance(cursor) }
+      let closed = expect_symbol(cursor, b"}", state, source, statement_id, "expected } to close pattern exclude")
+      inner_valid && closed
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected - after { in pattern exclude", "pattern-exclude", at, statement_id)
+      advance(cursor)
+      false
+    }
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected pattern variable, group, or exclude in PATTERN", "pattern", at, statement_id)
+    false
+  }
+}
+
+/// `quantifier := {n} | {n,} | {n,m} | {,m} | + | * | ?` with an optional
+/// reluctant `?` suffix (PatternQuantifier, Parser.jj:3314-3317).
+fn parse_pattern_quantifier(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if consume_symbol(cursor, b"{") {
+    let current_raw = match raw_at(cursor) { Some(raw) => raw; None => b"" }
+    if raw_at(cursor) is Some(b"}") {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected quantifier bounds in {}", "pattern-quantifier", at, statement_id)
+      advance(cursor)
+      valid = false
+    } else if raw_at(cursor) is Some(b",") {
+      // {,m}
+      advance(cursor)
+      let upper_raw = match raw_at(cursor) { Some(raw) => raw; None => b"" }
+      if is_positive_integer_raw(upper_raw) {
+        advance(cursor)
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected positive integer quantifier upper bound", "pattern-quantifier", at, statement_id)
+        valid = false
+      }
+      valid = expect_symbol(cursor, b"}", state, source, statement_id, "expected } to close quantifier") && valid
+    } else if is_positive_integer_raw(current_raw) {
+      advance(cursor)
+      if consume_symbol(cursor, b",") {
+        if !(raw_at(cursor) is Some(b"}")) {
+          let upper_raw = match raw_at(cursor) { Some(raw) => raw; None => b"" }
+          if is_positive_integer_raw(upper_raw) {
+            advance(cursor)
+          } else {
+            let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+            add_diagnostic(state, "FATHOM-PARSE-002", "expected positive integer quantifier upper bound", "pattern-quantifier", at, statement_id)
+            valid = false
+          }
+        }
+      }
+      valid = expect_symbol(cursor, b"}", state, source, statement_id, "expected } to close quantifier") && valid
+    } else {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected positive integer quantifier bound", "pattern-quantifier", at, statement_id)
+      valid = false
+      advance(cursor)
+    }
+  } else if consume_symbol(cursor, b"+") || consume_symbol(cursor, b"*") || consume_symbol(cursor, b"?") {
+    ()
+  }
+  // Reluctant quantifier suffix: an additional `?` (PatternQuantifier
+  // reluctant flag, Parser.jj:3314-3317).
+  ignore(consume_symbol(cursor, b"?"))
+  valid
+}

@@ -205,6 +205,39 @@ The TVF-under-Doris negative-gate assertion is in `parity/flink_grammar_test.mbt
 (`flink_grammar_tvf_is_dialect_gated`): the same TVF input is valid under
 flink-2.3.0 and FATHOM-PARSE-009 under doris-4.x — no double-valid (Pitfall 2).
 
+Wave 4 (11-04) then mints the FLINK-06 MATCH_RECOGNIZE fixtures (Task 2) —
+the syntax-level nested sub-language (MatchRecognize, Parser.jj:3062-3346 /
+Parser-calcite-1.36.0.jj:3020). PATTERN (anchors/ALTER/concatenation/
+quantifiers), DEFINE, MEASURES (MATCH_NUMBER()/MATCH_ROWTIME()/MATCH_PROCTIME()
+as ordinary calls), rows-per-match, AFTER MATCH SKIP, WITHIN INTERVAL are
+fully implemented; SUBSET/PERMUTE/{- -} parse structurally and are classified
+known-limitation (RESEARCH §8.2). No pattern-variable column-scope/type
+validation (Pitfall 6, FLINK-06 — an undeclared variable is never rejected).
+Each in strict and editor modes:
+
+| New snapshot file | Meaning |
+|-------------------|---------|
+| `flink-grammar.match-recognize-full.flink-2.3.0.{strict,editor}.json` | `FROM Ticker MATCH_RECOGNIZE (PARTITION BY symbol ORDER BY ts MEASURES MATCH_NUMBER() AS n, A.price AS p ONE ROW PER MATCH AFTER MATCH SKIP TO NEXT ROW PATTERN (A B+ C{2,3}?) DEFINE A AS A.price > 0) AS T` (MatchRecognizeTest.scala:60-163) |
+| `flink-grammar.match-recognize-anchors.flink-2.3.0.{strict,editor}.json` | `PATTERN (^ A $)` strict-start/end anchors |
+| `flink-grammar.match-recognize-within-interval.flink-2.3.0.{strict,editor}.json` | `PATTERN (A) WITHIN INTERVAL '1' MINUTE` |
+| `flink-grammar.match-recognize-all-rows.flink-2.3.0.{strict,editor}.json` | `ALL ROWS PER MATCH AFTER MATCH SKIP TO FIRST A` |
+| `flink-grammar.match-recognize-measures-time.flink-2.3.0.{strict,editor}.json` | `MEASURES MATCH_ROWTIME() AS rt, MATCH_PROCTIME() AS pt` |
+| `flink-grammar.match-recognize-skip-last.flink-2.3.0.{strict,editor}.json` | `AFTER MATCH SKIP PAST LAST ROW` |
+| `flink-grammar.match-recognize-subset.flink-2.3.0.{strict,editor}.json` | `SUBSET U = (A, B)` — known-limitation (structural) |
+| `flink-grammar.match-recognize-permute.flink-2.3.0.{strict,editor}.json` | `PATTERN (PERMUTE(A, B))` — known-limitation (structural) |
+| `flink-grammar.match-recognize-exclude.flink-2.3.0.{strict,editor}.json` | `PATTERN ({- A -} B)` — PatternExclude known-limitation |
+| `flink-grammar.match-recognize-empty-pattern.flink-2.3.0.{strict,editor}.json` | `PATTERN ()` — localized 002 (empty pattern) |
+| `flink-grammar.match-recognize-missing-define-expr.flink-2.3.0.{strict,editor}.json` | `DEFINE A AS` — localized 002 (missing expr) |
+| `flink-grammar.match-recognize-missing-define.flink-2.3.0.{strict,editor}.json` | `PATTERN (A)` — localized 002 (missing DEFINE) |
+| `flink-grammar.match-recognize-incomplete.flink-2.3.0.{strict,editor}.json` | `MATCH_RECOGNIZE (PATTERN (A` — bounded Missing, lossless |
+| `flink-grammar.match-recognize-recovery.flink-2.3.0.{strict,editor}.json` | unclosed MATCH_RECOGNIZE + `; SELECT 2` — trailing SELECT its own statement (T-11-24) |
+
+The MATCH_RECOGNIZE-under-Doris negative-gate assertions are in
+`parity/flink_grammar_test.mbt` (`flink_grammar_match_recognize_is_dialect_gated`):
+valid under flink-2.3.0, FATHOM-PARSE-009 under doris-4.x — no double-valid
+(Pitfall 2); `flink_grammar_match_recognize_undeclared_variable_is_accepted`
+freezes the no-column-scope-validation behavior (Pitfall 6).
+
 The fixtures live under `parity/fixtures/flink-grammar/` with a provenance
 `manifest.tsv` recording the pinned release archive (url/sha512/tag/commit)
 and the grammar production line references (RESEARCH §5, D-05 — never
