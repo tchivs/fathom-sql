@@ -595,7 +595,9 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     fixture_id: "match-recognize-subset",
     profile: "flink-2.3.0",
     category: "positive",
-    raw: b"SELECT * FROM t MATCH_RECOGNIZE (SUBSET U = (A, B) PATTERN (A B) DEFINE A AS A.x = 1, B AS B.x = 2)",
+    // Standard clause order per Parser.jj:3182: PATTERN → WITHIN → SUBSET →
+    // DEFINE. The pre-PATTERN SUBSET position is NOT accepted (MJ-02).
+    raw: b"SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A B) SUBSET U = (A, B) DEFINE A AS A.x = 1, B AS B.x = 2)",
   },
   {
     fixture_id: "match-recognize-permute",

@@ -2062,6 +2062,12 @@ fn parse_match_recognize(
   if consume_word(cursor, b"WITHIN") {
     valid = parse_flink_interval_literal(cursor, state, source, statement_id) && valid
   }
+  // [ SUBSET name = ( var [, var]* ) ] (Parser.jj:3182) — after
+  // PATTERN/WITHIN, before DEFINE (MJ-02); the pre-PATTERN position is no
+  // longer accepted.
+  if consume_word(cursor, b"SUBSET") {
+    valid = parse_flink_match_recognize_subset(cursor, state, source, statement_id) && valid
+  }
   // DEFINE var AS expr-list — required (Parser.jj:3177-3178).
   if consume_word(cursor, b"DEFINE") {
     valid = parse_pattern_definition_list(cursor, state, source, statement_id) && valid
@@ -2078,11 +2084,14 @@ fn parse_match_recognize(
   valid
 }
 
-/// The optional pre-PATTERN clauses in pinned order (Parser.jj:3091-3154):
-/// PARTITION BY expr-list, ORDER BY order-list, MEASURES measure-list,
-/// ONE ROW PER MATCH / ALL ROWS PER MATCH, and AFTER MATCH SKIP. The loop
-/// terminates at PATTERN, `)`, or a non-clause token (which the PATTERN
-/// requirement check then reports).
+/// The optional pre-PATTERN clauses in the pinned fixed order
+/// (Parser.jj:3091-3154): PARTITION BY expr-list, ORDER BY order-list,
+/// MEASURES measure-list, ONE ROW PER MATCH / ALL ROWS PER MATCH, and
+/// AFTER MATCH SKIP. Each clause is optional and appears at most once; an
+/// out-of-order or repeated clause is not consumed here and surfaces at the
+/// PATTERN requirement / trailing-token check (MN-02 — no arbitrary
+/// reordering). SUBSET is NOT a pre-PATTERN clause — it lands after
+/// PATTERN/WITHIN, before DEFINE (Parser.jj:3182, MJ-02).
 fn parse_match_recognize_pre_pattern_clauses(
   cursor : Cursor,
   state : RecoveryState,
@@ -2090,48 +2099,57 @@ fn parse_match_recognize_pre_pattern_clauses(
   statement_id : UInt,
 ) -> Bool {
   let mut valid = true
-  let mut done = false
-  while !done {
-    if consume_word(cursor, b"PARTITION") {
-      valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION in MATCH_RECOGNIZE") && valid
-      valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
-    } else if consume_word(cursor, b"ORDER") {
-      valid = parse_order_by(cursor, state, source, statement_id) && valid
-    } else if consume_word(cursor, b"MEASURES") {
-      valid = parse_measure_column_list(cursor, state, source, statement_id) && valid
-    } else if consume_word(cursor, b"ONE") {
-      valid = expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after ONE") && valid
-      valid = expect_word(cursor, b"PER", state, source, statement_id, "expected PER after ONE ROW") && valid
-      valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after ONE ROW PER") && valid
-    } else if consume_word(cursor, b"ALL") {
-      valid = expect_word(cursor, b"ROWS", state, source, statement_id, "expected ROWS after ALL") && valid
-      valid = expect_word(cursor, b"PER", state, source, statement_id, "expected PER after ALL ROWS") && valid
-      valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after ALL ROWS PER") && valid
-    } else if consume_word(cursor, b"AFTER") {
-      valid = parse_after_match_skip(cursor, state, source, statement_id) && valid
-    } else if consume_word(cursor, b"SUBSET") {
-      // SUBSET name = ( var [, var]* ) — parsed structurally and classified
-      // known-limitation in fixtures (subsetList, Parser.jj:3182; RESEARCH
-      // §8.2 — syntax accepted, no planner semantics).
-      if is_identifier_candidate(cursor) {
-        advance(cursor)
-      } else {
-        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "FATHOM-PARSE-002", "expected SUBSET name", "subset-name", at, statement_id)
-        valid = false
-      }
-      valid = expect_symbol(cursor, b"=", state, source, statement_id, "expected = after SUBSET name") && valid
-      if consume_symbol(cursor, b"(") {
-        valid = parse_flink_identifier_list(cursor, state, source, statement_id, "SUBSET") && valid
-        valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing SUBSET parenthesis") && valid
-      } else {
-        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
-        add_diagnostic(state, "FATHOM-PARSE-002", "expected ( after SUBSET name =", "subset", at, statement_id)
-        valid = false
-      }
-    } else {
-      done = true
-    }
+  if consume_word(cursor, b"PARTITION") {
+    valid = expect_word(cursor, b"BY", state, source, statement_id, "expected BY after PARTITION in MATCH_RECOGNIZE") && valid
+    valid = parse_expression_list(cursor, state, source, statement_id, true) && valid
+  }
+  if consume_word(cursor, b"ORDER") {
+    valid = parse_order_by(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"MEASURES") {
+    valid = parse_measure_column_list(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"ONE") {
+    valid = expect_word(cursor, b"ROW", state, source, statement_id, "expected ROW after ONE") && valid
+    valid = expect_word(cursor, b"PER", state, source, statement_id, "expected PER after ONE ROW") && valid
+    valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after ONE ROW PER") && valid
+  } else if consume_word(cursor, b"ALL") {
+    valid = expect_word(cursor, b"ROWS", state, source, statement_id, "expected ROWS after ALL") && valid
+    valid = expect_word(cursor, b"PER", state, source, statement_id, "expected PER after ALL ROWS") && valid
+    valid = expect_word(cursor, b"MATCH", state, source, statement_id, "expected MATCH after ALL ROWS PER") && valid
+  }
+  if consume_word(cursor, b"AFTER") {
+    valid = parse_after_match_skip(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+/// `SUBSET name = ( var [, var]* )` — parsed structurally and classified
+/// known-limitation in the fixtures (subsetList, Parser.jj:3182; RESEARCH
+/// §8.2 — syntax accepted, no planner semantics). Lives AFTER PATTERN/WITHIN,
+/// before DEFINE (MJ-02).
+fn parse_flink_match_recognize_subset(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected SUBSET name", "subset-name", at, statement_id)
+    valid = false
+  }
+  valid = expect_symbol(cursor, b"=", state, source, statement_id, "expected = after SUBSET name") && valid
+  if consume_symbol(cursor, b"(") {
+    valid = parse_flink_identifier_list(cursor, state, source, statement_id, "SUBSET") && valid
+    valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing SUBSET parenthesis") && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected ( after SUBSET name =", "subset", at, statement_id)
+    valid = false
   }
   valid
 }
