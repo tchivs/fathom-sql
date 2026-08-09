@@ -258,6 +258,52 @@ let flink_grammar_fixtures : Array[FlinkGrammarFixture] = [
     category: "positive",
     raw: b"SELECT ARRAY[1, 2]",
   },
+  // ---- FLINK-03 Catalog/DATABASE DDL (11-03, wave 3): SqlCreateCatalog
+  // (parserImpls.ftl:142-188), SqlCreateDatabase (:301-372), SqlDropCatalog
+  // (:173-188), SqlDropDatabase (:351-372), SqlAlterCatalog (Parser.tdd:659),
+  // SqlAlterDatabase (Parser.tdd:664).
+  {
+    fixture_id: "create-catalog",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE CATALOG c WITH ('type'='generic_in_memory')",
+  },
+  {
+    fixture_id: "create-database",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"CREATE DATABASE db COMMENT 'sales db' WITH ('k'='v')",
+  },
+  {
+    fixture_id: "drop-catalog",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"DROP CATALOG IF EXISTS c",
+  },
+  {
+    fixture_id: "drop-database",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"DROP DATABASE db CASCADE",
+  },
+  {
+    fixture_id: "alter-catalog",
+    profile: "flink-2.3.0",
+    category: "positive",
+    raw: b"ALTER CATALOG c SET ('k'='v')",
+  },
+  {
+    fixture_id: "create-catalog-incomplete",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"CREATE CATALOG c WITH (",
+  },
+  {
+    fixture_id: "drop-database-incomplete",
+    profile: "flink-2.3.0",
+    category: "incomplete",
+    raw: b"DROP DATABASE",
+  },
 ]
 
 fn flink_grammar_fixture(id : String) -> FlinkGrammarFixture {
@@ -981,4 +1027,158 @@ test "flink-grammar array-ctor flink-2.3.0 editor" {
 test "flink_grammar_array_ctor_lossless" {
   assert_true(flink_grammar_lossless("array-ctor", @parser.ParseMode::Strict))
   assert_true(flink_grammar_lossless("array-ctor", @parser.ParseMode::Editor))
+}
+
+// ===========================================================================
+// FLINK-03 Catalog/DATABASE DDL fixtures (11-03, wave 3)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// create-catalog: SqlCreateCatalog WITH Properties() (valid=true, lossless).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-catalog flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-catalog flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-catalog", "strict"), "flink-grammar.create-catalog.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-catalog flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-catalog flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-catalog", "editor"), "flink-grammar.create-catalog.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_catalog_lossless" {
+  assert_true(flink_grammar_lossless("create-catalog", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-catalog", @parser.ParseMode::Editor))
+  // The statement-family kind is create_catalog (D-02 wire string).
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE CATALOG c WITH ('type'='generic_in_memory')", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"create_catalog\""))
+}
+
+// The Catalog family is whole-statement unsupported under Doris (no CREATE
+// CATALOG production) → FATHOM-PARSE-007 (D-04, §9 matrix).
+test "flink_grammar_create_catalog_is_unsupported_under_doris" {
+  assert_true(flink_grammar_bidirectional(b"CREATE CATALOG c WITH ('type'='generic_in_memory')", "\"valid\":true", "FATHOM-PARSE-007"))
+}
+
+// ---------------------------------------------------------------------------
+// create-database: SqlCreateDatabase COMMENT + WITH Properties().
+// ---------------------------------------------------------------------------
+test "flink-grammar create-database flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-database flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-database", "strict"), "flink-grammar.create-database.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-database flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-database flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-database", "editor"), "flink-grammar.create-database.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_database_lossless" {
+  assert_true(flink_grammar_lossless("create-database", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-database", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE DATABASE db COMMENT 'sales db' WITH ('k'='v')", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"create_database\""))
+}
+
+// ---------------------------------------------------------------------------
+// drop-catalog / drop-database: SqlDropCatalog / SqlDropDatabase with the
+// CASCADE tail (valid=true, lossless).
+// ---------------------------------------------------------------------------
+test "flink-grammar drop-catalog flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar drop-catalog flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-catalog", "strict"), "flink-grammar.drop-catalog.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar drop-catalog flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar drop-catalog flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-catalog", "editor"), "flink-grammar.drop-catalog.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_drop_catalog_lossless" {
+  assert_true(flink_grammar_lossless("drop-catalog", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("drop-catalog", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"DROP CATALOG IF EXISTS c", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"drop_catalog\""))
+}
+
+test "flink-grammar drop-database flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar drop-database flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-database", "strict"), "flink-grammar.drop-database.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar drop-database flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar drop-database flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-database", "editor"), "flink-grammar.drop-database.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_drop_database_lossless" {
+  assert_true(flink_grammar_lossless("drop-database", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("drop-database", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"DROP DATABASE db CASCADE", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"drop_database\""))
+}
+
+// ---------------------------------------------------------------------------
+// alter-catalog: SqlAlterCatalog SET (...) (valid=true, lossless).
+// ---------------------------------------------------------------------------
+test "flink-grammar alter-catalog flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar alter-catalog flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-catalog", "strict"), "flink-grammar.alter-catalog.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar alter-catalog flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar alter-catalog flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("alter-catalog", "editor"), "flink-grammar.alter-catalog.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_alter_catalog_lossless" {
+  assert_true(flink_grammar_lossless("alter-catalog", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("alter-catalog", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"ALTER CATALOG c SET ('k'='v')", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"kind\":\"alter_table\""))
+}
+
+// ---------------------------------------------------------------------------
+// create-catalog-incomplete: unclosed WITH ( — bounded Missing/Error nodes,
+// lossless replay (D-03, CST-01).
+// ---------------------------------------------------------------------------
+test "flink-grammar create-catalog-incomplete flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar create-catalog-incomplete flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-catalog-incomplete", "strict"), "flink-grammar.create-catalog-incomplete.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar create-catalog-incomplete flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar create-catalog-incomplete flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("create-catalog-incomplete", "editor"), "flink-grammar.create-catalog-incomplete.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_create_catalog_incomplete_lossless" {
+  assert_true(flink_grammar_lossless("create-catalog-incomplete", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("create-catalog-incomplete", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"CREATE CATALOG c WITH (", "flink", "flink-2.3.0", "strict")[:])
+  // Incomplete statement: valid=false with bounded missing/error diagnostics.
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("FATHOM-PARSE-002"))
+}
+
+// ---------------------------------------------------------------------------
+// drop-database-incomplete: DROP DATABASE with no name — bounded Missing
+// node (the missing-name error at EOF), lossless replay.
+// ---------------------------------------------------------------------------
+test "flink-grammar drop-database-incomplete flink-2.3.0 strict" {
+  let t = @test.Test("flink-grammar drop-database-incomplete flink-2.3.0 strict")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-database-incomplete", "strict"), "flink-grammar.drop-database-incomplete.flink-2.3.0.strict.json")
+}
+
+test "flink-grammar drop-database-incomplete flink-2.3.0 editor" {
+  let t = @test.Test("flink-grammar drop-database-incomplete flink-2.3.0 editor")
+  flink_grammar_snapshot_test(t, flink_grammar_parse_json("drop-database-incomplete", "editor"), "flink-grammar.drop-database-incomplete.flink-2.3.0.editor.json")
+}
+
+test "flink_grammar_drop_database_incomplete_lossless" {
+  assert_true(flink_grammar_lossless("drop-database-incomplete", @parser.ParseMode::Strict))
+  assert_true(flink_grammar_lossless("drop-database-incomplete", @parser.ParseMode::Editor))
+  let strict = @utf8.decode_lossy(@binding.fathom_parse_v1(b"DROP DATABASE", "flink", "flink-2.3.0", "strict")[:])
+  assert_true(strict.contains("\"valid\":false"))
+  assert_true(strict.contains("FATHOM-PARSE-002"))
 }

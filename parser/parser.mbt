@@ -1914,6 +1914,20 @@ fn is_flink_insert_boundary(raw : Bytes) -> Bool {
     bytes_equal_ci(raw, b"VALUES") || raw == b")"
 }
 
+/// Flink CREATE TABLE recovery boundary (SqlCreateTable, parserImpls.ftl:
+/// 1585-1712, D-03): the table-level clause sequence in the pinned order
+/// [COMMENT][DISTRIBUTED][PARTITIONED BY][WITH][LIKE|AS]. An unclosed column
+/// body / incomplete clause recovers at the next table-level clause keyword
+/// (or the LIKE/AS tail) instead of swallowing the statement (CST-01,
+/// T-11-18 — bounded best-effort recovery).
+fn is_flink_create_table_clause_boundary(raw : Bytes) -> Bool {
+  bytes_equal_ci(raw, b"COMMENT") || bytes_equal_ci(raw, b"DISTRIBUTED") ||
+    bytes_equal_ci(raw, b"PARTITIONED") || bytes_equal_ci(raw, b"WITH") ||
+    bytes_equal_ci(raw, b"LIKE") || bytes_equal_ci(raw, b"AS") ||
+    bytes_equal_ci(raw, b"PRIMARY") || bytes_equal_ci(raw, b"UNIQUE") ||
+    bytes_equal_ci(raw, b"WATERMARK")
+}
+
 // Bounded best-effort recovery to the next per-family clause keyword; the
 // statement-level ';' panic-mode and recovery-step cap are unchanged.
 fn recover_to_clause_boundary(
@@ -3734,6 +3748,86 @@ fn parse_doris_segment(
   }
 }
 
+/// Flink CREATE second-word dispatch (SqlCreateExtended, parserImpls.ftl:
+/// 2850-2920): resolves the statement-family kind without consuming the cursor
+/// — CATALOG/DATABASE/TABLE/VIEW/FUNCTION, with the optional [TEMPORARY
+/// [SYSTEM]] prefix before TABLE/FUNCTION (CREATE TEMPORARY TABLE,
+/// CREATE TEMPORARY [SYSTEM] FUNCTION). Copy of the Doris create_form_kind
+/// shape (:2184-2206) but for the Flink families.
+fn flink_create_form_kind(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> @syntax.SyntaxKind {
+  let mut i = start_index + 1
+  let length = indices.length()
+  if i >= length { return @syntax.SyntaxKind::CreateTable }
+  let modifier = match stream.raw(indices[i]) {
+    Some(raw) => bytes_equal_ci(raw, b"TEMPORARY")
+    None => false
+  }
+  if modifier { i = i + 1 }
+  if i >= length { return @syntax.SyntaxKind::CreateTable }
+  if modifier {
+    // CREATE TEMPORARY [SYSTEM] (FUNCTION) | CREATE TEMPORARY (TABLE): skip
+    // an optional SYSTEM before the FUNCTION/TABLE family word.
+    let system = match stream.raw(indices[i]) {
+      Some(raw) => bytes_equal_ci(raw, b"SYSTEM")
+      None => false
+    }
+    if system { i = i + 1 }
+    if i >= length { return @syntax.SyntaxKind::CreateTable }
+  }
+  match stream.raw(indices[i]) {
+    Some(raw) if bytes_equal_ci(raw, b"CATALOG") => @syntax.SyntaxKind::CreateCatalog
+    Some(raw) if bytes_equal_ci(raw, b"DATABASE") => @syntax.SyntaxKind::CreateDatabase
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => @syntax.SyntaxKind::CreateTable
+    Some(raw) if bytes_equal_ci(raw, b"VIEW") => @syntax.SyntaxKind::CreateView
+    Some(raw) if bytes_equal_ci(raw, b"FUNCTION") => @syntax.SyntaxKind::CreateFunction
+    _ => @syntax.SyntaxKind::CreateTable
+  }
+}
+
+/// Flink ALTER second-word dispatch: every family (CATALOG/DATABASE/TABLE/
+/// VIEW/FUNCTION) resolves to the coarse per-family AlterTable kind (D-02 —
+/// statement sub-type rides in node metadata/span, not extra kinds).
+fn flink_alter_form_kind(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> @syntax.SyntaxKind {
+  match indices.get(start_index + 1) {
+    Some(i) => match stream.raw(i) {
+      Some(raw) if bytes_equal_ci(raw, b"CATALOG") || bytes_equal_ci(raw, b"DATABASE") ||
+        bytes_equal_ci(raw, b"TABLE") || bytes_equal_ci(raw, b"VIEW") ||
+        bytes_equal_ci(raw, b"FUNCTION") => @syntax.SyntaxKind::AlterTable
+      _ => @syntax.SyntaxKind::AlterTable
+    }
+    None => @syntax.SyntaxKind::AlterTable
+  }
+}
+
+/// Flink DROP second-word dispatch (SqlDropExtended, parserImpls.ftl:2850-
+/// 2920): CATALOG/DATABASE/TABLE/VIEW/FUNCTION each resolve to their own
+/// per-family Drop kind.
+fn flink_drop_form_kind(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> @syntax.SyntaxKind {
+  match indices.get(start_index + 1) {
+    Some(i) => match stream.raw(i) {
+      Some(raw) if bytes_equal_ci(raw, b"CATALOG") => @syntax.SyntaxKind::DropCatalog
+      Some(raw) if bytes_equal_ci(raw, b"DATABASE") => @syntax.SyntaxKind::DropDatabase
+      Some(raw) if bytes_equal_ci(raw, b"TABLE") => @syntax.SyntaxKind::DropTable
+      Some(raw) if bytes_equal_ci(raw, b"VIEW") => @syntax.SyntaxKind::DropView
+      Some(raw) if bytes_equal_ci(raw, b"FUNCTION") => @syntax.SyntaxKind::DropFunction
+      _ => @syntax.SyntaxKind::DropTable
+    }
+    None => @syntax.SyntaxKind::DropTable
+  }
+}
+
 /// Flink statement grammar (Phase 11, D-04/D-06): keyword-first dispatch
 /// copying the parse_doris_segment skeleton. SELECT/WITH route through the
 /// shared query skeleton's Flink-safe subset (parse_flink_query in
@@ -3793,6 +3887,22 @@ fn parse_flink_segment(
       finish_statement(stream, cursor, start_index, end_index, span, parse_flink_use(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::UseStatement, "unexpected tokens after USE statement")
     Some(raw) if bytes_equal_ci(raw, b"SET") || bytes_equal_ci(raw, b"RESET") =>
       finish_statement(stream, cursor, start_index, end_index, span, parse_flink_set_reset(cursor, state, stream.source, statement_id), state, statement_id, @syntax.SyntaxKind::SetOption, "unexpected tokens after SET/RESET statement")
+    // FLINK-03 DDL (SqlCreateExtended/SqlDropExtended/SqlAlter*
+    // parserImpls.ftl:2850-2920 + statementParserMethods Parser.tdd:651-727):
+    // the second-word dispatch resolves the per-family statement kind, then
+    // parse_flink_create/alter/drop (flink_grammar.mbt) consume the body.
+    Some(raw) if bytes_equal_ci(raw, b"CREATE") => {
+      let kind = flink_create_form_kind(stream, indices, 0)
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_create(cursor, state, stream.source, statement_id), state, statement_id, kind, "unexpected tokens after CREATE statement")
+    }
+    Some(raw) if bytes_equal_ci(raw, b"ALTER") => {
+      let kind = flink_alter_form_kind(stream, indices, 0)
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_alter(cursor, state, stream.source, statement_id), state, statement_id, kind, "unexpected tokens after ALTER statement")
+    }
+    Some(raw) if bytes_equal_ci(raw, b"DROP") => {
+      let kind = flink_drop_form_kind(stream, indices, 0)
+      finish_statement(stream, cursor, start_index, end_index, span, parse_flink_drop(cursor, state, stream.source, statement_id), state, statement_id, kind, "unexpected tokens after DROP statement")
+    }
     _ => unsupported_statement(stream, start_index, end_index, span, state, statement_id)
   }
 }

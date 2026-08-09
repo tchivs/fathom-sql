@@ -118,6 +118,62 @@ FATHOM-PARSE-007/001/009 as the frozen baseline provides; Doris-only DML/aux
 rejected under Flink with FATHOM-PARSE-009; SHOW/DESCRIBE/ANALYZE whole
 statements rejected under Doris with FATHOM-PARSE-007).
 
+Wave 3 (11-03) mints the FLINK-03 DDL + FLINK-04 CREATE TABLE fixtures —
+CREATE/ALTER/DROP CATALOG, DATABASE, TABLE, VIEW, FUNCTION (SqlCreateExtended/
+SqlDropExtended parserImpls.ftl:2850-2920 + SqlAlter* Parser.tdd:651-727) and
+the SqlCreateTable complex forms (SqlCreateTable :1585-1712, TableColumn
+:1103-1145, SqlDistribution :1560-1600, Properties :1506-1556, SqlTableLike
+:1714-1790, AS query :1650-1690) — each in strict and editor modes:
+
+| New snapshot file | Meaning |
+|-------------------|---------|
+| `flink-grammar.create-catalog.flink-2.3.0.{strict,editor}.json` | `CREATE CATALOG c WITH ('type'='generic_in_memory')` (SqlCreateCatalog :142-188, create_catalog kind) |
+| `flink-grammar.create-database.flink-2.3.0.{strict,editor}.json` | `CREATE DATABASE db COMMENT 'sales db' WITH ('k'='v')` (SqlCreateDatabase :301-372) |
+| `flink-grammar.drop-catalog.flink-2.3.0.{strict,editor}.json` | `DROP CATALOG IF EXISTS c` (SqlDropCatalog :173-188) |
+| `flink-grammar.drop-database.flink-2.3.0.{strict,editor}.json` | `DROP DATABASE db CASCADE` (SqlDropDatabase :351-372) |
+| `flink-grammar.alter-catalog.flink-2.3.0.{strict,editor}.json` | `ALTER CATALOG c SET ('k'='v')` (SqlAlterCatalog Parser.tdd:659, alter_table kind) |
+| `flink-grammar.create-catalog-incomplete.flink-2.3.0.{strict,editor}.json` | `CREATE CATALOG c WITH (` — bounded Missing/Error, lossless replay |
+| `flink-grammar.drop-database-incomplete.flink-2.3.0.{strict,editor}.json` | `DROP DATABASE` (missing name) — bounded Missing/Error, lossless replay |
+| `flink-grammar.create-view.flink-2.3.0.{strict,editor}.json` | `CREATE VIEW v AS SELECT * FROM t` (SqlCreateView :2414-2439, create_view kind) |
+| `flink-grammar.create-function.flink-2.3.0.{strict,editor}.json` | `CREATE TEMPORARY FUNCTION f AS 'com.example.UDF' LANGUAGE JAVA` (SqlCreateFunction :390-480, create_function kind) |
+| `flink-grammar.create-function-python.flink-2.3.0.{strict,editor}.json` | `CREATE TEMPORARY SYSTEM FUNCTION f AS 'x' LANGUAGE PYTHON` (all three LANGUAGE values accepted) |
+| `flink-grammar.create-view-field-list.flink-2.3.0.{strict,editor}.json` | `CREATE VIEW v (a, b) AS SELECT a, b FROM t` (field list preserved) |
+| `flink-grammar.drop-view.flink-2.3.0.{strict,editor}.json` | `DROP VIEW IF EXISTS v` (drop_view kind) |
+| `flink-grammar.drop-function.flink-2.3.0.{strict,editor}.json` | `DROP FUNCTION IF EXISTS f` (drop_function kind) |
+| `flink-grammar.alter-view-rename.flink-2.3.0.{strict,editor}.json` | `ALTER VIEW v RENAME TO v2` |
+| `flink-grammar.alter-view-as.flink-2.3.0.{strict,editor}.json` | `ALTER VIEW v AS SELECT 1` |
+| `flink-grammar.alter-function.flink-2.3.0.{strict,editor}.json` | `ALTER FUNCTION f AS 'com.example.UDF' LANGUAGE SCALA` |
+| `flink-grammar.create-view-incomplete.flink-2.3.0.{strict,editor}.json` | `CREATE VIEW v AS` — bounded Missing/Error, lossless replay |
+| `flink-grammar.create-function-incomplete.flink-2.3.0.{strict,editor}.json` | `CREATE FUNCTION f AS` — bounded Missing/Error, lossless replay |
+| `flink-grammar.view-recovery.flink-2.3.0.{strict,editor}.json` | `CREATE VIEW v AS SELECT * FROM t; SELECT 2` — trailing SELECT independent statement |
+| `flink-grammar.create-table-columns.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (log_ts TIMESTAMP_LTZ(3), proc AS PROCTIME(), x STRING METADATA FROM 'x' VIRTUAL, PRIMARY KEY (id) NOT ENFORCED, WATERMARK FOR log_ts AS log_ts - INTERVAL '5' SECOND)` — four column kinds + Watermark + PK |
+| `flink-grammar.create-table-typed-column.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (a INT, b STRING)` — typed physical columns |
+| `flink-grammar.create-table-watermark-second.flink-2.3.0.{strict,editor}.json` | second `WATERMARK FOR` — localized multipleWatermarksUnsupported error (valid=false) |
+| `flink-grammar.create-table-pk-enforced.flink-2.3.0.{strict,editor}.json` | `PRIMARY KEY (id) ENFORCED` — localized error (valid=false) |
+| `flink-grammar.create-table-trailing-comma.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (a INT,)` — trailing-comma error, lossless replay |
+| `flink-grammar.create-table-incomplete-wm.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (WATERMARK FOR ts AS)` — bounded Missing/Error |
+| `flink-grammar.create-table-incomplete-col.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (a INT, b` — recovers at clause boundary, lossless |
+| `flink-grammar.create-table-full-clauses.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (a INT) COMMENT 'x' DISTRIBUTED BY HASH(a) INTO 6 BUCKETS PARTITIONED BY (dt) WITH ('connector'='kafka')` — pinned clause order |
+| `flink-grammar.create-table-like.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t2 LIKE t1 (INCLUDING ALL)` (SqlTableLike :1714-1790) |
+| `flink-grammar.create-table-as.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t3 AS SELECT * FROM src` (SqlCreateTableAs :1650-1690) |
+| `flink-grammar.create-table-with-as.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t4 WITH ('k'='v') AS SELECT a FROM src` |
+| `flink-grammar.create-table-random-distribution.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t DISTRIBUTED ... RANDOM` — localized error (testCreateTableWithRandomDistribution .fails) |
+| `flink-grammar.create-table-negative-buckets.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) DUPLICATE KEY (id)` — Doris-only form → FATHOM-PARSE-009 |
+| `flink-grammar.create-table-doris-key.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) DUPLICATE KEY (id)` under flink — FATHOM-PARSE-009 (Doris-only KEY) |
+| `flink-grammar.create-table-doris-engine.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) ENGINE = OLAP` — FATHOM-PARSE-009 |
+| `flink-grammar.create-table-doris-properties.flink-2.3.0.{strict,editor}.json` | `CREATE TABLE t (id INT) PROPERTIES ("k"="v")` — FATHOM-PARSE-009 |
+
+The bidirectional dialect-gate assertions for the DDL surface are in
+`parity/flink_grammar_test.mbt`: the Catalog/DATABASE/VIEW/FUNCTION whole
+statements reject under Doris with FATHOM-PARSE-007 (unsupported_statement);
+the Doris-only CREATE TABLE sub-forms (DUPLICATE/UNIQUE/AGGREGATE KEY,
+ENGINE =, AUTO_INCREMENT, ROLLUP, AUTO PARTITION BY, PROPERTIES, DISTRIBUTED
+BY ... BUCKETS) reject under Flink with FATHOM-PARSE-009; the Flink-only
+CREATE TABLE sub-forms (WATERMARK, computed/metadata columns, PRIMARY KEY NOT
+ENFORCED, DISTRIBUTED INTO, PARTITIONED BY, WITH, LIKE, AS-query) reject under
+Doris with FATHOM-PARSE-009 (the unchanged Doris parser never produces them).
+The same Flink-only inputs under flink are valid — no double-valid (Pitfall 2).
+
 The fixtures live under `parity/fixtures/flink-grammar/` with a provenance
 `manifest.tsv` recording the pinned release archive (url/sha512/tag/commit)
 and the grammar production line references (RESEARCH §5, D-05 — never

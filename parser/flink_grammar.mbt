@@ -640,3 +640,593 @@ fn parse_flink_data_type(
   }
   valid
 }
+
+// ---------------------------------------------------------------------------
+// FLINK-03 DDL (SqlCreateExtended/SqlDropExtended parserImpls.ftl:2850-2920,
+// SqlAlter* statementParserMethods Parser.tdd:651-727). Syntax-level only:
+// parsing CREATE CATALOG ... WITH (...) or CREATE FUNCTION ... AS 'class' is
+// pure grammar — no connector validation, catalog registration, or function
+// resolution (FLINK-03 prohibitions).
+// ---------------------------------------------------------------------------
+
+/// A single-quoted string literal (Flink DDL class strings, COMMENT, LIKE
+/// patterns, METADATA aliases): consumes a StringLiteral token or reports a
+/// localized FATHOM-PARSE-002 at the offending token.
+fn parse_flink_string_literal(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  what : String,
+) -> Bool {
+  match token_at(cursor) {
+    Some(token) if token.kind is @token.TokenKind::StringLiteral => {
+      advance(cursor)
+      true
+    }
+    _ => {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected string literal for " + what, "string", at, statement_id)
+      false
+    }
+  }
+}
+
+/// `WITH ( 'key' = 'value', ... )` — Flink connector options / catalog and
+/// database properties (Properties(), parserImpls.ftl:1506-1556). The `WITH`
+/// keyword is consumed here and the parenthesized pair list delegates to the
+/// shared parse_properties_clause (identical pair shape; the PropertyList CST
+/// is carried by the raw token children of the statement node).
+fn parse_flink_with_properties(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+  what : String,
+) -> Bool {
+  let mut valid = expect_word(cursor, b"WITH", state, source, statement_id, "expected WITH before " + what + " properties")
+  valid = parse_properties_clause(cursor, state, source, statement_id, what + " WITH options") && valid
+  valid
+}
+
+/// `( 'key', ... )` — the ALTER ... RESET key list (string literals or
+/// identifiers, SqlAlterCatalog/SqlAlterDatabase RESET branch).
+fn parse_flink_reset_key_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after RESET")
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      let is_key = match token_at(cursor) {
+        Some(token) => token.kind is @token.TokenKind::StringLiteral || is_identifier_candidate(cursor)
+        None => false
+      }
+      if !is_key {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected reset key", "key", at, statement_id)
+        valid = false
+        done = true
+      } else {
+        any = true
+        advance(cursor)
+        if consume_symbol(cursor, b",") {
+          if raw_at(cursor) is Some(b")") { done = true }
+        } else {
+          done = true
+        }
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one reset key", "key", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing RESET parenthesis") && valid
+  valid
+}
+
+/// CREATE dispatch: second-word routing after the optional [TEMPORARY
+/// [SYSTEM]] prefix (SqlCreateExtended, parserImpls.ftl:2850-2920). Each
+/// family (CATALOG/DATABASE/TABLE/VIEW/FUNCTION) routes to its own
+/// production; the statement kind is resolved by flink_create_form_kind in
+/// parser.mbt (the CREATE arm of parse_flink_segment).
+fn parse_flink_create(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"CREATE", state, source, statement_id, "expected CREATE statement")
+  // [TEMPORARY [SYSTEM]] prefix before FUNCTION/TABLE.
+  if consume_word(cursor, b"TEMPORARY") {
+    ignore(consume_word(cursor, b"SYSTEM"))
+  }
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"CATALOG") => valid = parse_flink_create_catalog(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"DATABASE") => valid = parse_flink_create_database(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => valid = parse_flink_create_table(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"VIEW") => valid = parse_flink_create_view(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"FUNCTION") => valid = parse_flink_create_function(cursor, state, source, statement_id) && valid
+    _ => {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected CATALOG, DATABASE, TABLE, VIEW, or FUNCTION after CREATE", "create-form", at, statement_id)
+      valid = false
+    }
+  }
+  valid
+}
+
+/// ALTER dispatch (SqlAlterCatalog/SqlAlterDatabase/SqlAlterTable/
+/// SqlAlterView/SqlAlterFunction, statementParserMethods Parser.tdd:651-727).
+/// Every family resolves to the coarse AlterTable statement kind (D-02).
+fn parse_flink_alter(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"ALTER", state, source, statement_id, "expected ALTER statement")
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"CATALOG") => valid = parse_flink_alter_catalog(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"DATABASE") => valid = parse_flink_alter_database(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => valid = parse_flink_alter_table(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"VIEW") => valid = parse_flink_alter_view(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"FUNCTION") => valid = parse_flink_alter_function(cursor, state, source, statement_id) && valid
+    _ => {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected CATALOG, DATABASE, TABLE, VIEW, or FUNCTION after ALTER", "alter-form", at, statement_id)
+      valid = false
+    }
+  }
+  valid
+}
+
+/// DROP dispatch (SqlDropExtended, parserImpls.ftl:2850-2920). The
+/// statement kind is resolved by flink_drop_form_kind in parser.mbt.
+fn parse_flink_drop(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"DROP", state, source, statement_id, "expected DROP statement")
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"CATALOG") => valid = parse_flink_drop_catalog(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"DATABASE") => valid = parse_flink_drop_database(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") => valid = parse_flink_drop_table(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"VIEW") => valid = parse_flink_drop_view(cursor, state, source, statement_id) && valid
+    Some(raw) if bytes_equal_ci(raw, b"FUNCTION") => valid = parse_flink_drop_function(cursor, state, source, statement_id) && valid
+    _ => {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected CATALOG, DATABASE, TABLE, VIEW, or FUNCTION after DROP", "drop-form", at, statement_id)
+      valid = false
+    }
+  }
+  valid
+}
+
+/// `CREATE CATALOG [IF NOT EXISTS] name [COMMENT '...'] [WITH Properties()]`
+/// (SqlCreateCatalog, parserImpls.ftl:142-188). Syntax-level only: the WITH
+/// option list is parsed as a PropertyList CST — no connector registration,
+/// no catalog semantics (FLINK-03).
+fn parse_flink_create_catalog(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"CATALOG", state, source, statement_id, "expected CATALOG after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "catalog name") && valid
+  if consume_word(cursor, b"COMMENT") {
+    valid = parse_flink_string_literal(cursor, state, source, statement_id, "catalog COMMENT") && valid
+  }
+  if consume_word(cursor, b"WITH") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "CATALOG WITH options") && valid
+  }
+  valid
+}
+
+/// `DROP CATALOG [IF EXISTS] name` (SqlDropCatalog, parserImpls.ftl:173-188).
+fn parse_flink_drop_catalog(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"CATALOG", state, source, statement_id, "expected CATALOG after DROP")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "catalog name") && valid
+  valid
+}
+
+/// `ALTER CATALOG name SET (...)` / `ALTER CATALOG name RESET ('key', ...)` /
+/// `ALTER CATALOG name COMMENT '...'` (SqlAlterCatalog,
+/// statementParserMethods Parser.tdd:659).
+fn parse_flink_alter_catalog(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"CATALOG", state, source, statement_id, "expected CATALOG after ALTER")
+  valid = parse_qualified_name(cursor, state, source, statement_id, "catalog name") && valid
+  if consume_word(cursor, b"SET") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "ALTER CATALOG SET options") && valid
+  } else if consume_word(cursor, b"RESET") {
+    valid = parse_flink_reset_key_list(cursor, state, source, statement_id) && valid
+  } else if consume_word(cursor, b"COMMENT") {
+    valid = parse_flink_string_literal(cursor, state, source, statement_id, "catalog COMMENT") && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected SET, RESET, or COMMENT after ALTER CATALOG name", "alter-catalog", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// `CREATE DATABASE [IF NOT EXISTS] name [COMMENT '...'] [WITH Properties()]`
+/// (SqlCreateDatabase, parserImpls.ftl:301-372).
+fn parse_flink_create_database(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"DATABASE", state, source, statement_id, "expected DATABASE after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "database name") && valid
+  if consume_word(cursor, b"COMMENT") {
+    valid = parse_flink_string_literal(cursor, state, source, statement_id, "database COMMENT") && valid
+  }
+  if consume_word(cursor, b"WITH") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "DATABASE WITH options") && valid
+  }
+  valid
+}
+
+/// `DROP DATABASE [IF EXISTS] name [RESTRICT|CASCADE]`
+/// (SqlDropDatabase, parserImpls.ftl:351-372).
+fn parse_flink_drop_database(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"DATABASE", state, source, statement_id, "expected DATABASE after DROP")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "database name") && valid
+  ignore(consume_word(cursor, b"RESTRICT") || consume_word(cursor, b"CASCADE"))
+  valid
+}
+
+/// `ALTER DATABASE name SET (...)` (SqlAlterDatabase,
+/// statementParserMethods Parser.tdd:664).
+fn parse_flink_alter_database(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"DATABASE", state, source, statement_id, "expected DATABASE after ALTER")
+  valid = parse_qualified_name(cursor, state, source, statement_id, "database name") && valid
+  if consume_word(cursor, b"SET") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "ALTER DATABASE SET options") && valid
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected SET after ALTER DATABASE name", "alter-database", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// `DROP TABLE [IF EXISTS] name` (SqlDropTable, parserImpls.ftl:1777-1792).
+fn parse_flink_drop_table(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"TABLE", state, source, statement_id, "expected TABLE after DROP")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  valid
+}
+
+// Minimal ALTER TABLE body (fleshed out in 11-03 Task 2): RENAME TO / SET
+// forms parse; the wider ADD/DROP/MODIFY column clause set is beyond this
+// wave's enumerated surface (must-have truths cover CATALOG/DATABASE/VIEW/
+// FUNCTION and DROP TABLE).
+fn parse_flink_alter_table(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"TABLE", state, source, statement_id, "expected TABLE after ALTER")
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  if consume_word(cursor, b"RENAME") {
+    valid = expect_word(cursor, b"TO", state, source, statement_id, "expected TO after RENAME") && valid
+    valid = parse_qualified_name(cursor, state, source, statement_id, "new table name") && valid
+  } else if consume_word(cursor, b"SET") {
+    valid = parse_properties_clause(cursor, state, source, statement_id, "ALTER TABLE SET options") && valid
+  }
+  valid
+}
+
+// Minimal CREATE VIEW body (fleshed out in 11-03 Task 2): VIEW + name +
+// optional field list + optional COMMENT + AS query.
+fn parse_flink_create_view(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"VIEW", state, source, statement_id, "expected VIEW after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "view name") && valid
+  if raw_at(cursor) is Some(b"(") {
+    valid = parse_flink_view_field_list(cursor, state, source, statement_id) && valid
+  }
+  if consume_word(cursor, b"COMMENT") {
+    valid = parse_flink_string_literal(cursor, state, source, statement_id, "view COMMENT") && valid
+  }
+  if consume_word(cursor, b"AS") {
+    valid = parse_flink_query(cursor, state, source, statement_id) && valid
+  } else if raw_at(cursor) is Some(_) && !(raw_at(cursor) is Some(b";")) {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected AS query in CREATE VIEW", "view-query", at, statement_id)
+    valid = false
+  }
+  valid
+}
+
+/// `( field_name [type], ... )` — the optional CREATE VIEW field list
+/// (SqlCreateView, parserImpls.ftl:2414-2439).
+fn parse_flink_view_field_list(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after CREATE VIEW name")
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      if is_identifier_candidate(cursor) {
+        advance(cursor)
+        // Optional field type.
+        if raw_at(cursor) is Some(raw) && !(raw == b",") && !(raw == b")") {
+          valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
+        }
+      } else {
+        let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+        add_diagnostic(state, "FATHOM-PARSE-002", "expected view field name", "identifier", at, statement_id)
+        valid = false
+        done = true
+      }
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") { done = true }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one view field", "view-field", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing view field list parenthesis") && valid
+  valid
+}
+
+// Minimal CREATE FUNCTION body (fleshed out in 11-03 Task 2): FUNCTION +
+// name + AS 'class' + optional LANGUAGE.
+fn parse_flink_create_function(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"FUNCTION", state, source, statement_id, "expected FUNCTION after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "function name") && valid
+  valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS 'class' in CREATE FUNCTION") && valid
+  valid = parse_flink_string_literal(cursor, state, source, statement_id, "function class") && valid
+  if consume_word(cursor, b"LANGUAGE") {
+    if !(consume_word(cursor, b"JAVA") || consume_word(cursor, b"SCALA") || consume_word(cursor, b"PYTHON")) {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected JAVA, SCALA, or PYTHON after LANGUAGE", "function-language", at, statement_id)
+      valid = false
+    }
+  }
+  valid
+}
+
+fn parse_flink_drop_view(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"VIEW", state, source, statement_id, "expected VIEW after DROP")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "view name") && valid
+  valid
+}
+
+fn parse_flink_drop_function(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"FUNCTION", state, source, statement_id, "expected FUNCTION after DROP")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "function name") && valid
+  valid
+}
+
+fn parse_flink_alter_view(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"VIEW", state, source, statement_id, "expected VIEW after ALTER")
+  valid = parse_qualified_name(cursor, state, source, statement_id, "view name") && valid
+  if consume_word(cursor, b"RENAME") {
+    valid = expect_word(cursor, b"TO", state, source, statement_id, "expected TO after RENAME") && valid
+    valid = parse_qualified_name(cursor, state, source, statement_id, "new view name") && valid
+  } else if consume_word(cursor, b"AS") {
+    valid = parse_flink_query(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+fn parse_flink_alter_function(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"FUNCTION", state, source, statement_id, "expected FUNCTION after ALTER")
+  valid = parse_qualified_name(cursor, state, source, statement_id, "function name") && valid
+  valid = expect_word(cursor, b"AS", state, source, statement_id, "expected AS 'class' in ALTER FUNCTION") && valid
+  valid = parse_flink_string_literal(cursor, state, source, statement_id, "function class") && valid
+  if consume_word(cursor, b"LANGUAGE") {
+    if !(consume_word(cursor, b"JAVA") || consume_word(cursor, b"SCALA") || consume_word(cursor, b"PYTHON")) {
+      let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+      add_diagnostic(state, "FATHOM-PARSE-002", "expected JAVA, SCALA, or PYTHON after LANGUAGE", "function-language", at, statement_id)
+      valid = false
+    }
+  }
+  valid
+}
+
+// Minimal CREATE TABLE body (fleshed out in 11-03 Tasks 3-4): TABLE + name
+// + optional parenthesized column body. The full four-column dispatch,
+// WATERMARK single-instance enforcement, constraints, and the table-level
+// clause sequence [COMMENT][DISTRIBUTED][PARTITIONED BY][WITH][LIKE|AS] land
+// in Tasks 3-4.
+fn parse_flink_create_table(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  if !depth_allowed(cursor, state, source, statement_id) { return false }
+  let mut valid = expect_word(cursor, b"TABLE", state, source, statement_id, "expected TABLE after CREATE")
+  if consume_word(cursor, b"IF") {
+    valid = expect_word(cursor, b"NOT", state, source, statement_id, "expected NOT after IF") && valid
+    valid = expect_word(cursor, b"EXISTS", state, source, statement_id, "expected EXISTS after IF NOT") && valid
+  }
+  valid = parse_qualified_name(cursor, state, source, statement_id, "table name") && valid
+  if raw_at(cursor) is Some(b"(") {
+    valid = parse_flink_create_table_body(cursor, state, source, statement_id) && valid
+  }
+  valid
+}
+
+// Minimal column body (fleshed out in 11-03 Task 3).
+fn parse_flink_create_table_body(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = expect_symbol(cursor, b"(", state, source, statement_id, "expected ( after CREATE TABLE name")
+  let mut any = false
+  let mut done = false
+  while !done {
+    if raw_at(cursor) is Some(b")") {
+      done = true
+    } else {
+      any = true
+      valid = parse_flink_typed_column(cursor, state, source, statement_id) && valid
+      if consume_symbol(cursor, b",") {
+        if raw_at(cursor) is Some(b")") { done = true }
+      } else {
+        done = true
+      }
+    }
+  }
+  if !any {
+    let at = match token_at(cursor) { Some(token) => token.span.start_byte; None => source.byte_length() }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected at least one column definition", "column", make_span(source, at, at), statement_id)
+    valid = false
+  }
+  valid = expect_symbol(cursor, b")", state, source, statement_id, "expected closing table body parenthesis") && valid
+  valid
+}
+
+// Minimal typed column (fleshed out in 11-03 Task 3).
+fn parse_flink_typed_column(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+  } else {
+    let at = match token_at(cursor) { Some(token) => token.span; None => make_span(source, source.byte_length(), source.byte_length()) }
+    add_diagnostic(state, "FATHOM-PARSE-002", "expected column name", "identifier", at, statement_id)
+    valid = false
+  }
+  valid = parse_flink_data_type(cursor, state, source, statement_id) && valid
+  valid
+}
