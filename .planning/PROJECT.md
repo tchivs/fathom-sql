@@ -34,6 +34,10 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] Doris 2.1/3.x/4.x 的 valid/invalid/recovery/CST/span/diagnostic/formatter/completion 行为与冻结 baseline 保持相等，或每项故意差异显式记录批准 — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
 - [x] 同一 fixture 在 Native/JavaScript/linear-Wasm 目标产生字节级一致的序列化结果/诊断/span/lossless replay — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
 - [x] CI/release 检查仅从钉住离线工件运行（无 Doris FE/Flink cluster/数据库/网络），覆盖报告区分 parser 接受与引擎语义前置 — Validated in Phase 12: Cross-Dialect Corpus and Parity Gates
+- [x] 消费者可对受支持的 Flink CST 做 canonical 格式化（独立于 lossless replay）；含 error/missing/skipped 的不安全树显式拒绝且无部分输出 — Validated in Phase 13: Toolchain and Editor Packaging
+- [x] 消费者可获取有界、dialect/profile 感知的 Flink 语法补全（关键字、DDL、WATERMARK、Window TVF、MATCH_RECOGNIZE 上下文），并运行带可选 catalog 的语法级 Flink analyzer，parser validity 与 catalog 无关 — Validated in Phase 13: Toolchain and Editor Packaging
+- [x] 消费者可端到端使用 `fathom-sql parse|format|lsp --dialect flink` 与 `fathom-lsp`（诊断/格式化/补全/UTF-16/文档级方言选择） — Validated in Phase 13: Toolchain and Editor Packaging
+- [x] 消费者可在 JS/linear-Wasm、Web/Monaco、VS Code、IntelliJ 使用同一 dialect-aware API/schema（含新增 `fathom_complete_v1`/`fathom.complete.v1`），每文件/会话显式选择 Doris 或 Flink，无第二套 parser — Validated in Phase 13: Toolchain and Editor Packaging
 
 ### Active
 
@@ -76,14 +80,16 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Current State
 
-**v2.0 Phase 12 COMPLETE — 2026-08-10** (Cross-Dialect Corpus and Parity Gates)
+**v2.0 Phase 13 COMPLETE — 2026-08-10** (Toolchain and Editor Packaging) — **v2.0 全量交付**
 
-- **统一 release-pinned Flink corpus:** `parity/fixtures/flink/manifest.tsv`（110 行 × 19 列，release/tag/commit、Calcite 版本/config、URL/标题/检索日期/hash/期望状态、6 类分类 positive 49 / negative 25 / recovery 17 / planner-prereq 13 / known-limitation 3 / catalog-prereq 3）+ 110 个已提交 .sql fixture（embedded b"..." 字节匹配）。
-- **离线门禁:** `verify_corpus.py --check`（纯 stdlib，110 行 + 104 归档 sha512 复验，无网络）；`diff_parity.py --frozen-only`（CI 模式对任何差异 exit 1、不 consult 注册表；`--approve <register>` 本地批准流；restore 保证）；`compare_backends.py`（三目标 fail-closed + 快照树确定性 digest）。
-- **跨后端字节一致:** native/js/wasm 三目标 570/570，快照树 sha256 digest 完全一致（5e9bb887…）；CI linear-wasm-parity 增 js 运行时 + compare_backends 汇总。
-- **语义区分:** coverage 报告 parser-accepted 68 vs engine-semantic-prerequisite 19 vs engine-supported 49（仅 positive）；catalog/planner/known-limitation 永不计入引擎支持。
-- **Doris 零漂移:** diff_parity 433 快照 0 差异；812/812 测试；CI 无任何 `--update`。
-- **测试:** 812/812 MoonBit + 三目标 parity 570/570 + 全部门禁 exit 0；威胁注册 20/20 关闭（ASVS L1）。
+- **Flink formatter（TOOL-01/D-01）:** `formatter/layout.mbt` 20 族 Flink covered-family gate + 全套 Flink 语句族布局；未覆盖族 → `FATHOM-FORMAT-001` 拒绝（accepted=false、空输出）；`flink-format.*` 快照 22 个 + idempotence/零诊断 reparse/refusal oracle + 覆盖完备性探针。
+- **Flink completion（TOOL-02/D-02）:** `complete()` 真实 Flink DialectContext；`profile_allows` Flink 臂；6 个 Flink `completion_context` 臂（statement-start/ddl-header/watermark/partitioned-by/window-tvf/match-recognize）；`flink_classification_rows` 扩至 169 行（NonReserved，parse-neutral）；MAX_CANDIDATES=32；无第二关键字表（D-28）。
+- **Flink analyzer（TOOL-03/D-03）:** `resolve_table_references` 覆盖 Flink Insert/Update/Delete/CreateTable/CreateView（UPSERT INTO / INSERT OVERWRITE / CREATE [TEMPORARY] VIEW 前缀）；D-21 只读 syntax-view 纪律 + 可选 catalog；表级范围（D-24）。
+- **Wire 契约（TOOL-05/D-04）:** 新增 `fathom_complete_v1` + `fathom.complete.v1`（第五命名空间，注册进 validate_schema_version / binding.js / binding.wasm / docs / 命名门禁）；三目标字节一致 digest。
+- **LSP/CLI（TOOL-04/D-07）:** LSP flink format → `@api.format_with_ids`（-32603 哨兵移除）、completion → `@completion.complete`（-32602 拒绝移除）；UTF-16 单点 `span_to_range`；CLI D-39 退出码（0/1/2）。
+- **三宿主（TOOL-05/D-05/D-06）:** Web/VS Code/IntelliJ 均改为 (dialect, profile) 二元组校验（doris 2.1/3.x/4.x；flink flink-2.3.0/2.1.3/1.20.5），静态常量、服务端权威、离线。
+- **打包 smoke（TOOL-05/D-08）:** VS Code 真 extension-host flink 模式 4 模式、IntelliJ Gradle build+launch、Web Chromium offline-smoke；CI `host-packaging-smoke` job；全程离线。
+- **门禁:** native 876/js 597/wasm 597 测试全绿；diff_parity --frozen-only 455 快照 0 差异；check_naming 602 文件零残留；三目标 digest 一致；verifier 28/28 must-haves 通过。
 
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming
 
@@ -114,4 +120,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-10 after Phase 12 (Cross-Dialect Corpus and Parity Gates) completion*
+*Last updated: 2026-08-10 after Phase 13 (Toolchain and Editor Packaging) completion — v2.0 全量交付*
