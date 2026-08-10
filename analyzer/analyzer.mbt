@@ -350,24 +350,44 @@ fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
   position
 }
 
-/// Target table name of one DML/DDL statement node: the qualified name
-/// (identifier [ "." identifier ]*) immediately following the leading
-/// keywords. Returns None when the name cannot be recovered (e.g. an
-/// incomplete statement with no name token).
-fn target_table_name(node : @syntax.SyntaxNode, source_bytes : Bytes) -> String? {
+/// Target table name segments of one DML/DDL statement node: the qualified
+/// name (identifier [ "." identifier ]*) immediately following the leading
+/// keywords. Each segment returns its identifier text (quotes stripped via
+/// identifier_text, D-03) plus whether the source token was quoted (for the
+/// byte-exact re-check in resolve_table_references). Returns None when the
+/// name cannot be recovered (e.g. an incomplete statement with no name token).
+/// WR-02: quoted targets (`INSERT INTO `t``) and db-qualified targets
+/// (`INSERT INTO db.t`) now resolve instead of being silently missed.
+fn target_table_name(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(String, Bool)]? {
   let tokens = source_token_texts(node, source_bytes)
   let length = tokens.length()
   let mut position = leading_prefix_end(node.kind(), tokens)
   if position >= length {
     return None
   }
-  let mut name = tokens[position]
+  let parts : Array[(String, Bool)] = []
+  parts.push((identifier_text(tokens[position]), is_quoted(tokens[position])))
   position = position + 1
   while position + 1 < length && tokens[position] == b"." {
-    name = name + b"." + tokens[position + 1]
+    parts.push((identifier_text(tokens[position + 1]), is_quoted(tokens[position + 1])))
     position = position + 2
   }
-  Some(utf8_to_string(name))
+  Some(parts)
+}
+
+/// Joins an array of strings with a separator (avoids core `join` dependency).
+fn join_dot(parts : Array[String]) -> String {
+  let mut out = ""
+  let mut first = true
+  for part in parts {
+    if first {
+      out = out + part
+      first = false
+    } else {
+      out = out + "." + part
+    }
+  }
+  out
 }
 
 /// Resolves the target tables of a parsed document's DML/DDL statements
@@ -397,10 +417,35 @@ pub fn[T : Catalog] resolve_table_references(
                   @syntax.SyntaxKind::CreateTable |
                   @syntax.SyntaxKind::CreateView => {
                     match target_table_name(body, source_bytes) {
-                      Some(name) => {
-                        match Catalog::table(catalog, name) {
-                          Some(_) => resolved.push(name)
-                          None => ()
+                      Some(parts) => {
+                        let texts : Array[String] = []
+                        for p in parts {
+                          texts.push(p.0)
+                        }
+                        let name = join_dot(texts)
+                        // WR-02: 1 segment resolves via Catalog::table; 2+
+                        // segments resolve via Catalog::table_in_db (the last
+                        // two segments as db.table). Quoted trailing segments
+                        // are byte-exact re-checked (D-03) so `db.\`T\`` does
+                        // not silently match a catalog `db.t`.
+                        let hit = if parts.length() >= 2 {
+                          let db_text = parts[parts.length() - 2].0
+                          let table_text = parts[parts.length() - 1].0
+                          let table_quoted = parts[parts.length() - 1].1
+                          match Catalog::table_in_db(catalog, db_text, table_text) {
+                            Some(info) => !table_quoted || info.name == table_text
+                            None => false
+                          }
+                        } else {
+                          let name_text = parts[0].0
+                          let quoted = parts[0].1
+                          match Catalog::table(catalog, name_text) {
+                            Some(info) => !quoted || info.name == name_text
+                            None => false
+                          }
+                        }
+                        if hit {
+                          resolved.push(name)
                         }
                       }
                       None => ()
