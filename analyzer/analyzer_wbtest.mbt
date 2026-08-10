@@ -204,3 +204,138 @@ test "wb paren depth limit returns none" {
   let toks = wb_tokens(words)
   assert_true(split_select_model(toks) is None)
 }
+
+test "wb build_select_item binary expr no bare alias" {
+  // CR-01: `price * qty` must not bind the right operand as an alias.
+  let item = build_select_item([
+    { bytes: b"price", start_byte: 0, end_byte: 5 },
+    { bytes: b"*", start_byte: 6, end_byte: 7 },
+    { bytes: b"qty", start_byte: 8, end_byte: 11 },
+  ])
+  assert_eq(item.alias, None)
+  assert_eq(item.refs.length(), 2)
+  assert_eq(item.refs[0].parts[0].bytes, b"price")
+  assert_eq(item.refs[1].parts[0].bytes, b"qty")
+  assert_true(!item.star)
+  // `a + b` also stays an expression, not `b` as an alias.
+  let item2 = build_select_item([
+    { bytes: b"a", start_byte: 0, end_byte: 1 },
+    { bytes: b"+", start_byte: 2, end_byte: 3 },
+    { bytes: b"b", start_byte: 4, end_byte: 5 },
+  ])
+  assert_eq(item2.alias, None)
+  assert_eq(item2.refs.length(), 2)
+  // `a >= b` comparison too.
+  let item3 = build_select_item([
+    { bytes: b"a", start_byte: 0, end_byte: 1 },
+    { bytes: b">=", start_byte: 2, end_byte: 4 },
+    { bytes: b"b", start_byte: 5, end_byte: 6 },
+  ])
+  assert_eq(item3.alias, None)
+  assert_eq(item3.refs.length(), 2)
+}
+
+test "wb build_select_item bare alias still works" {
+  // `a b` is an implicit alias.
+  let item = build_select_item([
+    { bytes: b"a", start_byte: 0, end_byte: 1 },
+    { bytes: b"b", start_byte: 2, end_byte: 3 },
+  ])
+  assert_eq(item.alias, Some("b"))
+  assert_eq(item.refs.length(), 1)
+  assert_eq(item.refs[0].parts[0].bytes, b"a")
+  // `t.a b` — qualified ref + implicit alias.
+  let item2 = build_select_item([
+    { bytes: b"t", start_byte: 0, end_byte: 1 },
+    { bytes: b".", start_byte: 1, end_byte: 2 },
+    { bytes: b"a", start_byte: 2, end_byte: 3 },
+    { bytes: b"b", start_byte: 4, end_byte: 5 },
+  ])
+  assert_eq(item2.alias, Some("b"))
+  assert_eq(item2.refs.length(), 1)
+  assert_eq(item2.refs[0].parts.length(), 2)
+  // `count(*) x` — the `*` sits inside the call parens, so x is still an
+  // implicit alias (not a binary-expression operand).
+  let item3 = build_select_item([
+    { bytes: b"count", start_byte: 0, end_byte: 5 },
+    { bytes: b"(", start_byte: 5, end_byte: 6 },
+    { bytes: b"*", start_byte: 6, end_byte: 7 },
+    { bytes: b")", start_byte: 7, end_byte: 8 },
+    { bytes: b"x", start_byte: 9, end_byte: 10 },
+  ])
+  assert_eq(item3.alias, Some("x"))
+  assert_eq(item3.refs.length(), 1)
+  assert_true(item3.refs[0].is_call)
+}
+
+test "wb from order by not table alias" {
+  // `SELECT a FROM t ORDER BY a` — ORDER BY must not be consumed as a bare
+  // table alias of t (Pitfall 2 clause boundary): t is the only FROM item
+  // and ORDER BY still yields an order_by ref.
+  let toks = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"ORDER", b"BY", b"a"])
+  match split_select_model(toks) {
+    Some(model) => {
+      let core = model.branches[0]
+      assert_eq(core.from.length(), 1)
+      assert_eq(core.from[0].alias, None)
+      assert_eq(core.order_by.length(), 1)
+    }
+    None => panic()
+  }
+  // GROUP BY directly after the table is a boundary too.
+  let toks2 = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"GROUP", b"BY", b"a"])
+  match split_select_model(toks2) {
+    Some(model) => {
+      let core = model.branches[0]
+      assert_eq(core.from.length(), 1)
+      assert_eq(core.from[0].alias, None)
+      assert_eq(core.group_by.length(), 1)
+    }
+    None => panic()
+  }
+  // `FROM t order` (no BY) still binds `order` as a bare table alias.
+  let toks3 = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"order"])
+  match split_select_model(toks3) {
+    Some(model) => {
+      let core = model.branches[0]
+      assert_eq(core.from.length(), 1)
+      assert_eq(core.from[0].alias, Some("order"))
+    }
+    None => panic()
+  }
+}
+
+test "wb collect_refs over window skip" {
+  // WR-03: `SUM(x) OVER (PARTITION BY y ORDER BY z)` must not collect the
+  // window spec tokens (PARTITION/BY/y/ORDER/z) as column references.
+  let refs = collect_refs([
+    { bytes: b"SUM", start_byte: 0, end_byte: 3 },
+    { bytes: b"(", start_byte: 3, end_byte: 4 },
+    { bytes: b"x", start_byte: 4, end_byte: 5 },
+    { bytes: b")", start_byte: 5, end_byte: 6 },
+    { bytes: b"OVER", start_byte: 7, end_byte: 11 },
+    { bytes: b"(", start_byte: 11, end_byte: 12 },
+    { bytes: b"PARTITION", start_byte: 12, end_byte: 21 },
+    { bytes: b"BY", start_byte: 22, end_byte: 24 },
+    { bytes: b"y", start_byte: 25, end_byte: 26 },
+    { bytes: b"ORDER", start_byte: 27, end_byte: 32 },
+    { bytes: b"BY", start_byte: 33, end_byte: 35 },
+    { bytes: b"z", start_byte: 36, end_byte: 37 },
+    { bytes: b")", start_byte: 37, end_byte: 38 },
+  ])
+  assert_eq(refs.length(), 2) // the SUM call and its argument x
+  assert_true(refs[0].is_call)
+  assert_eq(refs[0].parts[0].bytes, b"SUM")
+  assert_eq(refs[1].parts[0].bytes, b"x")
+  // Named-window reference `OVER w` is skipped too.
+  let refs2 = collect_refs([
+    { bytes: b"SUM", start_byte: 0, end_byte: 3 },
+    { bytes: b"(", start_byte: 3, end_byte: 4 },
+    { bytes: b"x", start_byte: 4, end_byte: 5 },
+    { bytes: b")", start_byte: 5, end_byte: 6 },
+    { bytes: b"OVER", start_byte: 7, end_byte: 11 },
+    { bytes: b"w", start_byte: 12, end_byte: 13 },
+  ])
+  assert_eq(refs2.length(), 2)
+  assert_eq(refs2[1].parts[0].bytes, b"x")
+}

@@ -645,3 +645,215 @@ test "analyzer-anal01 ambiguous reference doris-4.x" {
   assert_eq(result.diagnostics[0].end_byte, 8)
   analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.ambiguous-reference.doris-4.x.json")
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5 code-review fixes (05-REVIEW.md): CR-01 and WR-01..WR-06.
+// ---------------------------------------------------------------------------
+
+test "analyzer-anal01 binary expr no fabricated alias doris-4.x" {
+  // CR-01 (BLOCKER): SELECT price * qty FROM orders — the trailing bare-alias
+  // heuristic must NOT bind `qty` as an alias. Both operands resolve as Column
+  // bindings and no Alias binding is fabricated.
+  // SELECT[0,6) price[7,12) *[13,14) qty[15,18) FROM[19,23) orders[24,30)
+  let t = @mtest.Test("analyzer-anal01 binary expr no fabricated alias doris-4.x")
+  let raw = b"SELECT price * qty FROM orders"
+  let catalog = @analyzer.StaticCatalog::new([
+    {
+      name: "orders",
+      columns: [{ name: "price", data_type: "DECIMAL(10,2)" }, { name: "qty", data_type: "INT" }],
+    },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 3)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "orders")
+  assert_eq(result.bindings[0].start_byte, 24)
+  assert_eq(result.bindings[0].end_byte, 30)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[1].name, "price")
+  assert_eq(result.bindings[1].resolved_to, "price")
+  assert_eq(result.bindings[1].data_type, "DECIMAL(10,2)")
+  assert_eq(result.bindings[1].start_byte, 7)
+  assert_eq(result.bindings[1].end_byte, 12)
+  assert_eq(result.bindings[2].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[2].name, "qty")
+  assert_eq(result.bindings[2].resolved_to, "qty")
+  assert_eq(result.bindings[2].data_type, "INT")
+  assert_eq(result.bindings[2].start_byte, 15)
+  assert_eq(result.bindings[2].end_byte, 18)
+  // No fabricated Alias binding for qty.
+  for binding in result.bindings {
+    assert_true(binding.kind != @analyzer.BindingKind::Alias)
+  }
+  assert_eq(result.diagnostics.length(), 0)
+  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.binary-expr-no-alias.doris-4.x.json")
+}
+
+test "analyzer-anal01 window over partition no false unknown doris-4.x" {
+  // WR-03: SUM(x) OVER (PARTITION BY y ORDER BY z) — the window spec must not
+  // produce unknown-column diagnostics for y/z/PARTITION/ORDER. Only the
+  // function and its argument resolve.
+  // SELECT[0,6) SUM[7,10) ([10] x[11,12) )[12] OVER[14,18) ([19]
+  // PARTITION[20,29) BY[30,32) y[33,34) ORDER[35,40) BY[41,43) z[44,45)
+  // )[45] AS[47,49) s[50,51) FROM[52,56) t[57,58)
+  let raw = b"SELECT SUM(x) OVER (PARTITION BY y ORDER BY z) AS s FROM t"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "x", data_type: "INT" }] },
+  ]).with_function(
+    "SUM",
+    { name: "SUM", param_types: ["INT"], return_type: "INT", min_arity: 1 },
+  )
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 4)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t")
+  assert_eq(result.bindings[0].start_byte, 57)
+  assert_eq(result.bindings[0].end_byte, 58)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Function)
+  assert_eq(result.bindings[1].name, "SUM")
+  assert_eq(result.bindings[1].start_byte, 7)
+  assert_eq(result.bindings[1].end_byte, 10)
+  assert_eq(result.bindings[2].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[2].name, "x")
+  assert_eq(result.bindings[2].start_byte, 11)
+  assert_eq(result.bindings[2].end_byte, 12)
+  assert_eq(result.bindings[3].kind, @analyzer.BindingKind::Alias)
+  assert_eq(result.bindings[3].name, "s")
+  assert_eq(result.bindings[3].start_byte, 50)
+  assert_eq(result.bindings[3].end_byte, 51)
+  // No unknown-column for y / z / PARTITION / ORDER.
+  assert_eq(result.diagnostics.length(), 0)
+}
+
+test "analyzer-anal01 correlated subquery no false ambiguous doris-4.x" {
+  // WR-04: SELECT t1.id FROM t1, (SELECT a FROM t2) x — the inner unqualified
+  // `a` resolves against the subquery's own block (t2.a) and must NOT collide
+  // with the outer t1.a. No ambiguous-reference on the inner column.
+  // SELECT[0,6) t1[7,9) .[9] id[10,12) FROM[13,17) t1[18,20) ,[20]
+  // ([22,40) SELECT[23,29) a[30,31) FROM[32,36) t2[37,39) )[39] x[41,42)
+  let raw = b"SELECT t1.id FROM t1, (SELECT a FROM t2) x"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t1", columns: [{ name: "id", data_type: "INT" }, { name: "a", data_type: "INT" }] },
+    { name: "t2", columns: [{ name: "a", data_type: "VARCHAR(5)" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 5)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t1")
+  assert_eq(result.bindings[0].start_byte, 18)
+  assert_eq(result.bindings[0].end_byte, 20)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[1].name, "t2")
+  assert_eq(result.bindings[1].start_byte, 37)
+  assert_eq(result.bindings[1].end_byte, 39)
+  assert_eq(result.bindings[2].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[2].name, "a")
+  assert_eq(result.bindings[2].resolved_to, "a")
+  assert_eq(result.bindings[2].data_type, "VARCHAR(5)")
+  assert_eq(result.bindings[2].start_byte, 30)
+  assert_eq(result.bindings[2].end_byte, 31)
+  assert_eq(result.bindings[3].kind, @analyzer.BindingKind::Alias)
+  assert_eq(result.bindings[3].name, "x")
+  assert_eq(result.bindings[3].start_byte, 41)
+  assert_eq(result.bindings[3].end_byte, 42)
+  assert_eq(result.bindings[4].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[4].name, "id")
+  assert_eq(result.bindings[4].resolved_to, "id")
+  assert_eq(result.bindings[4].data_type, "INT")
+  assert_eq(result.bindings[4].start_byte, 7)
+  assert_eq(result.bindings[4].end_byte, 12)
+  assert_eq(result.diagnostics.length(), 0)
+}
+
+test "analyzer-anal01 anonymous subquery star expansion doris-4.x" {
+  // WR-05: SELECT * FROM (SELECT a FROM t) — the anonymous subquery's columns
+  // must participate in bare `*` expansion (previously skipped because its
+  // scope key is "").
+  // SELECT[0,6) *[7,8) FROM[9,13) ([14,30) SELECT[15,21) a[22,23)
+  // FROM[24,28) t[29,30) )[30]
+  let raw = b"SELECT * FROM (SELECT a FROM t)"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 3)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t")
+  assert_eq(result.bindings[0].start_byte, 29)
+  assert_eq(result.bindings[0].end_byte, 30)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[1].name, "a")
+  assert_eq(result.bindings[1].resolved_to, "a")
+  assert_eq(result.bindings[1].start_byte, 22)
+  assert_eq(result.bindings[1].end_byte, 23)
+  assert_eq(result.bindings[2].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[2].name, "a")
+  assert_eq(result.bindings[2].resolved_to, "a")
+  assert_eq(result.bindings[2].start_byte, 7)
+  assert_eq(result.bindings[2].end_byte, 8)
+  assert_eq(result.diagnostics.length(), 0)
+}
+
+test "analyzer-anal01 order-by projection alias doris-4.x" {
+  // WR-06: SELECT a AS x FROM t ORDER BY x — the ORDER BY projection-alias
+  // reference must resolve (no unknown-column) and binds before table columns.
+  // SELECT[0,6) a[7,8) AS[9,11) x[12,13) FROM[14,18) t[19,20)
+  // ORDER[21,26) BY[27,29) x[30,31)
+  let t = @mtest.Test("analyzer-anal01 order-by projection alias doris-4.x")
+  let raw = b"SELECT a AS x FROM t ORDER BY x"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 4)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t")
+  assert_eq(result.bindings[0].start_byte, 19)
+  assert_eq(result.bindings[0].end_byte, 20)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[1].name, "a")
+  assert_eq(result.bindings[1].start_byte, 7)
+  assert_eq(result.bindings[1].end_byte, 8)
+  assert_eq(result.bindings[2].kind, @analyzer.BindingKind::Alias)
+  assert_eq(result.bindings[2].name, "x")
+  assert_eq(result.bindings[2].resolved_to, "a")
+  assert_eq(result.bindings[2].start_byte, 12)
+  assert_eq(result.bindings[2].end_byte, 13)
+  assert_eq(result.bindings[3].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[3].name, "x")
+  assert_eq(result.bindings[3].resolved_to, "x")
+  assert_eq(result.bindings[3].data_type, "INT")
+  assert_eq(result.bindings[3].start_byte, 30)
+  assert_eq(result.bindings[3].end_byte, 31)
+  assert_eq(result.diagnostics.length(), 0)
+  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.order-by-proj-alias.doris-4.x.json")
+}
+
+test "analyzer-anal01 db quoted star byte recheck doris-4.x" {
+  // WR-01: `db.\`T\`.*` must byte-recheck the quoted table segment (D-03).
+  // A catalog holding only `db.t` (lowercase) must NOT satisfy the quoted
+  // `T` spelling -> unknown-table. The unquoted `db.t.*` form still resolves.
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ]).with_db(
+    "db",
+    "t",
+    { name: "t", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "INT" }] },
+  )
+  // Positive: unquoted db.t.* expands columns.
+  let ok = analyze_sql(b"SELECT db.t.* FROM db.t", catalog)
+  assert_eq(ok.bindings.length(), 3)
+  assert_eq(ok.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(ok.bindings[0].name, "db.t")
+  assert_eq(ok.bindings[1].kind, @analyzer.BindingKind::Column)
+  assert_eq(ok.bindings[1].name, "a")
+  assert_eq(ok.bindings[2].kind, @analyzer.BindingKind::Column)
+  assert_eq(ok.bindings[2].name, "b")
+  assert_eq(ok.diagnostics.length(), 0)
+  // Negative: quoted `T` case-folds to catalog "t" but fails the byte
+  // re-check -> unknown-table on the analyzer channel.
+  let bad = analyze_sql(b"SELECT db.`T`.* FROM db.t", catalog)
+  assert_eq(bad.diagnostics.length(), 1)
+  assert_eq(bad.diagnostics[0].code, "unknown-table")
+  assert_eq(bad.diagnostics[0].message, "table not found in catalog: db.T")
+}

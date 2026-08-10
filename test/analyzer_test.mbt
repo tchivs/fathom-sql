@@ -488,3 +488,34 @@ test "doris_analyzer_behavior_unchanged" {
   // absent and omitted. The Doris leading-prefix arms behave as before.
   assert_eq(resolved, ["t", "t4", "v"])
 }
+
+test "doris_analyzer_resolve_quoted_and_db_qualified_targets" {
+  // WR-02: resolve_table_references must resolve quoted (`INSERT INTO `t``)
+  // and db-qualified (`INSERT INTO db.t`) target tables. A quoted segment
+  // that only case-folds to a catalog name (`` `T` `` vs catalog "t") fails
+  // the D-03 byte-exact re-check and is omitted.
+  let raw = b"INSERT INTO `t` VALUES (1); INSERT INTO db.t VALUES (1); INSERT INTO `T` VALUES (1)"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    doris_context("4.x"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "id", data_type: "INT" }] },
+  ]).with_db(
+    "db",
+    "t",
+    { name: "t", columns: [{ name: "id", data_type: "INT" }] },
+  )
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  // `t` resolves (quoted, byte-exact), db.t resolves (table_in_db), and the
+  // quoted `T` is rejected by the byte re-check.
+  assert_eq(resolved, ["t", "db.t"])
+}

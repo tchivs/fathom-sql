@@ -1,0 +1,9 @@
+{
+  "bindings": [
+    {"kind":"table","name":"orders","resolved_to":"orders","data_type":"","start_byte":24,"end_byte":30},
+    {"kind":"column","name":"price","resolved_to":"price","data_type":"DECIMAL(10,2)","start_byte":7,"end_byte":12},
+    {"kind":"column","name":"qty","resolved_to":"qty","data_type":"INT","start_byte":15,"end_byte":18}
+  ],
+  "diagnostics": [
+  ]
+}
