@@ -1,10 +1,11 @@
 ---
 phase: 13-toolchain-and-editor-packaging
-verified: 2026-08-10T00:00:00Z
+verified: 2026-08-10T07:30:00Z
 status: passed
 score: 28/28 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+re_verified: 2026-08-10T07:30:00Z
 ---
 
 # Phase 13: Toolchain and Editor Packaging — Verification Report
@@ -12,7 +13,7 @@ overrides_applied: 0
 **Phase Goal:** Users can use the selected Flink or Doris dialect through the complete neutral formatter, analyzer, completion, CLI/LSP, Web, VS Code, and IntelliJ toolchain.
 **Verified:** 2026-08-10
 **Status:** passed
-**Re-verification:** No — initial verification
+**Re-verification:** 2026-08-10 — post-verification code-review hardening re-confirmed. The gsd-code-reviewer (standard depth, 42 files) surfaced 5 warnings + 3 info that were fixed (commit `d2927bd`: WR-01 statement_id threading in layout-failure refusal, WR-02 `is_incomplete` honesty, WR-04 partial document-selection structured error + regression test, IN-01..03 doc counts/signatures, IN-06 IntelliJ `isModified`). The phase security register (56 threats) was independently verified closed (`13-SECURITY.md`, threats_open: 0). All 28 must-haves remain verified; the hardening fixes are additive and covered by the full suite (native 841 / js 597 / wasm 597, `diff_parity --frozen-only` 0 drift, `check_naming.py` clean).
 
 ## Verification Methodology
 
