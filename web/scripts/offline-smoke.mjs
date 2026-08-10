@@ -21,8 +21,14 @@ assert.match(indexText, /id="profile"/, 'profile selector present');
 assert.match(adapterText, /_build\/js\/debug\/build\/binding\/binding\.js/);
 assert.doesNotMatch(indexText, /https?:\/\//, 'web host must not require a remote URL');
 assert.match(adapterText, /fathom_parse_v1\(utf8Bytes\(source\), dialect, profile, 'editor'\)/, 'A4 export order (raw, dialect, profile, mode)');
+assert.match(adapterText, /fathom_complete_v1\(utf8Bytes\(source\), dialect, profile, cursorByte\)/, 'A4 export order for completion (raw, dialect, profile, cursor)');
 assert.match(adapterText, /schema_version === 'fathom\.error\.v1'/, 'fathom.error.v1 error envelope');
-assert.deepEqual(['2.1', '3.x', '4.x'].filter((profile) => profile !== 'Auto'), ['2.1', '3.x', '4.x']);
+// D-05: the host validates (dialect, profile) pairs per dialect — the flat
+// ['2.1','3.x','4.x'] list is gone and flink values appear only under flink.
+assert.doesNotMatch(adapterText, /PROFILES = Object\.freeze\(\[/, 'flat profile list removed');
+assert.match(adapterText, /PROFILES_BY_DIALECT = Object\.freeze\(\{/, 'per-dialect profile map present');
+assert.match(adapterText, /doris: \['2\.1', '3\.x', '4\.x'\]/, 'doris profile pair');
+assert.match(adapterText, /flink: \['flink-2\.3\.0', 'flink-2\.1\.3', 'flink-1\.20\.5'\]/, 'flink profile pair');
 const refusal = { accepted: false, formatted: [], diagnostics: [{ code: 'FATHOM-FORMAT-001' }] };
 const sourceBytes = new TextEncoder().encode('SELECT /* hint */');
 assert.equal(refusal.accepted, false);

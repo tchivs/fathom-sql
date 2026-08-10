@@ -1,7 +1,13 @@
 const DEFAULT_ARTIFACT_URL = new URL('../../_build/js/debug/build/binding/binding.js', import.meta.url);
 
 export const DIALECTS = Object.freeze(['doris', 'flink']);
-export const PROFILES = Object.freeze(['2.1', '3.x', '4.x']);
+// D-05: per-dialect (dialect, profile) pairs — the profile list switches with
+// the selected dialect (flink values appear only when flink is selected).
+// Static constants only: no dynamic pull, no shared cross-host JSON.
+export const PROFILES_BY_DIALECT = Object.freeze({
+  doris: ['2.1', '3.x', '4.x'],
+  flink: ['flink-2.3.0', 'flink-2.1.3', 'flink-1.20.5'],
+});
 export const ARTIFACT_FAILURE = 'The local parser artifact could not be loaded. Reload the demo; no network or database connection is required.';
 export const MISSING_SELECTION = 'Choose a dialect and a supported profile before parsing.';
 
@@ -87,10 +93,13 @@ export class ParserAdapter {
     return this.module;
   }
 
-  // D-02: no implicit selection. Both dialect and profile must be chosen
-  // explicitly; a missing or unsupported value is an error, never a default.
+  // D-02/D-05: no implicit selection and no flat profile list. Both dialect
+  // and profile must be chosen explicitly AND form a valid per-dialect pair
+  // (doris -> 2.1/3.x/4.x; flink -> flink-2.3.0/2.1.3/1.20.5); a missing,
+  // unsupported, or cross-dialect value is an error, never a coerced default.
   validateSelection(dialect, profile) {
-    if (!DIALECTS.includes(dialect) || !PROFILES.includes(profile)) {
+    const allowed = PROFILES_BY_DIALECT[dialect];
+    if (!DIALECTS.includes(dialect) || !allowed || !allowed.includes(profile)) {
       throw new Error(MISSING_SELECTION);
     }
   }
@@ -108,6 +117,15 @@ export class ParserAdapter {
       utf8Bytes(source), dialect, profile, 'strict', 'upper', 2, 100, 'trailing', 'follow', true,
     ));
     return { ...result, output: result.formatted ? decodeUtf8(result.formatted) : '' };
+  }
+
+  // D-04/D-05: the Web host calls the same fathom_complete_v1 wire export as
+  // the JS/linear-Wasm host — same dialect-aware API/schema, no second parser.
+  // A4 export order: raw first, dialect second, profile third, cursor fourth.
+  async complete(source, dialect, profile, cursorByte) {
+    this.validateSelection(dialect, profile);
+    const module = await this.load();
+    return decodeResult(module.fathom_complete_v1(utf8Bytes(source), dialect, profile, cursorByte));
   }
 }
 

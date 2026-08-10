@@ -6,6 +6,7 @@
   "description": "Offline Monaco host for the Fathom SQL parser facade",
   "scripts": {
     "start": "node scripts/serve.mjs",
+    "test": "node --test",
     "build": "node scripts/offline-smoke.mjs --offline"
   },
   "dependencies": {

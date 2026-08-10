@@ -2,7 +2,7 @@ import * as monaco from 'monaco-editor';
 import {
   ARTIFACT_FAILURE,
   DIALECTS,
-  PROFILES,
+  PROFILES_BY_DIALECT,
   ParserAdapter,
   byteToPosition,
   diagnosticRange,
@@ -33,12 +33,22 @@ for (const dialect of DIALECTS) {
   option.textContent = dialect;
   dialectSelect.append(option);
 }
-for (const profile of PROFILES) {
-  const option = document.createElement('option');
-  option.value = profile;
-  option.textContent = profile;
-  profileSelect.append(option);
+
+// D-05: the profile dropdown always shows ONLY the selected dialect's
+// profiles — flink values appear only when flink is selected. Repopulate on
+// every dialect change so a stale cross-dialect profile never lingers.
+function repopulateProfileOptions(dialect) {
+  const profiles = PROFILES_BY_DIALECT[dialect] ?? [];
+  profileSelect.replaceChildren();
+  for (const profile of profiles) {
+    const option = document.createElement('option');
+    option.value = profile;
+    option.textContent = profile;
+    profileSelect.append(option);
+  }
 }
+
+repopulateProfileOptions(dialectSelect.value);
 
 monaco.languages.register({ id: 'sql' });
 const model = monaco.editor.createModel(SAMPLE, 'sql');
@@ -253,7 +263,12 @@ function selectionChanged() {
   scheduleParse();
 }
 
-dialectSelect.addEventListener('change', selectionChanged);
+// D-05: switching the dialect repopulates the profile dropdown with that
+// dialect's profiles (flink values only under flink), then re-parses.
+dialectSelect.addEventListener('change', () => {
+  repopulateProfileOptions(dialectSelect.value);
+  selectionChanged();
+});
 profileSelect.addEventListener('change', selectionChanged);
 formatButton.addEventListener('click', formatDocument);
 model.onDidChangeContent(scheduleParse);
