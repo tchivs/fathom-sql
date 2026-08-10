@@ -220,3 +220,92 @@ jobs:
       # bypass to this job.
       - name: Neutral naming inventory
         run: python3 scripts/check_naming.py
+
+  host-packaging-smoke:
+    name: Three-host packaging smoke (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      # The ONLY network-bearing bootstrap in this job is the MoonBit installer
+      # curl (mirrors check/test/parity). The three host smokes themselves are
+      # fully offline — no Doris FE, Flink cluster, database, or runtime registry
+      # pull (PARITY-03, D-08). npm ci / gradle dependency resolution restore
+      # from the pinned action caches when warm; a cold-cache fetch is a
+      # build-time dependency restore (setup-node/setup-java), never a smoke
+      # runtime call. NO --update anywhere (Pitfall 1): this is a smoke job,
+      # never a snapshot writer.
+      - name: Install MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+          "$HOME/.moon/bin/moon" version
+
+      - name: Build native fathom-lsp + JS binding
+        run: |
+          moon build --target native fathom-lsp
+          moon build --target js binding
+
+      - name: Locate built fathom-lsp
+        id: lsp
+        shell: bash
+        run: |
+          for candidate in \
+            "${{ github.workspace }}/_build/native/debug/build/fathom-lsp/fathom-lsp.exe" \
+            "${{ github.workspace }}/target/native/debug/build/fathom-lsp/fathom-lsp.exe"; do
+            if [ -f "$candidate" ]; then
+              echo "path=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::error::fathom-lsp binary not found after moon build" >&2
+          exit 1
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: "**/package-lock.json"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: jetbrains/gradle/wrapper/gradle-wrapper.properties
+
+      # Each host step is fail-closed (no continue-on-error): a skipped or
+      # silently-passed host must red the job (Pitfall 8, ECO-07 precedent).
+      - name: Web Chromium smoke (offline)
+        shell: bash
+        run: |
+          cd web
+          npm ci
+          npm run build
+          node scripts/offline-smoke.mjs
+
+      - name: VS Code real extension-host smoke (Xvfb)
+        shell: bash
+        env:
+          FATHOM_LSP_PATH: ${{ steps.lsp.outputs.path }}
+        run: |
+          cd vscode
+          npm ci
+          npm run build
+          xvfb-run -a node scripts/host-verify.mjs
+
+      - name: IntelliJ Gradle build + LSP launch smoke
+        shell: bash
+        run: |
+          cd jetbrains
+          python3 scripts/source-smoke.py
+          ./gradlew --no-daemon test verifyPlugin buildPlugin

@@ -48,18 +48,21 @@ The parsing API is located in `api/api.mbt`. `api.parse` accepts raw `Bytes` and
 
 Every `ParseOptions` construction must explicitly specify a dialect, a Doris profile, and parsing mode:
 
-- **Dialect**: Only `doris` or `flink` are allowed; an unknown value returns `ParseError::UnknownDialect`. Flink profiles are rejected until a Flink release profile is pinned (Phase 10).
-- **Profile**: Only `2.1`, `3.x`, or `4.x` are allowed (for the doris dialect); an unknown value returns `ParseError::UnknownProfile` and does not fall back to a generic dialect.
+- **Dialect**: Only `doris` or `flink` are allowed; an unknown value returns `ParseError::UnknownDialect`. The Flink release profiles are pinned (Phase 10) and accepted for every toolchain surface.
+- **Profile**: A profile is valid only under its own dialect — `doris` accepts `2.1`, `3.x`, or `4.x`; `flink` accepts `flink-2.3.0`, `flink-2.1.3`, or `flink-1.20.5`. An unknown or cross-dialect value returns `ParseError::UnknownProfile` and does not fall back to a generic dialect.
 - **Mode**: Only `strict` or `editor` are allowed; an unknown value returns `ParseError::UnknownMode`.
 - **Manifest metadata (optional entry point)**: When using `from_manifest`, `exact_release` and `feature_introduction` must exactly match the built-in metadata for the selected profile; otherwise, `ProfileMetadataMismatch` is returned. An unsupported feature introduction returns `UnsupportedFeatureIntroduction`.
 
-The built-in metadata for the three profiles is:
+The built-in metadata for the released profiles is:
 
 | Profile ID | `exact_release` | `feature_introduction` |
 |---|---|---|
 | `2.1` | `2.1` | `2.1 baseline SELECT; DML/DDL released` |
 | `3.x` | `3.x` | `2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY` |
 | `4.x` | `4.x` | `2.1 baseline SELECT; DML/DDL released; 4.x released SELECT` |
+| `flink-2.3.0` | `flink-2.3.0` | `primary profile` |
+| `flink-2.1.3` | `flink-2.1.3` | `flink-2.1.3 regression profile` |
+| `flink-1.20.5` | `flink-1.20.5` | `flink-1.20.5 regression profile` |
 
 Example:
 
@@ -117,7 +120,7 @@ When the formatter encounters a syntax tree containing `error`, `missing`, or `s
 
 Fathom is a library rather than a resident application that requires startup configuration, so no setting causes the process to fail to start because configuration is missing. Required settings exist only at the API-call boundary:
 
-1. Parsing and formatting must select a valid dialect, Doris profile, and mode (no implicit fallback).
+1. Parsing and formatting must select a valid dialect, profile, and mode (no implicit fallback).
 2. When using the manifest entry point, release and feature-introduction metadata must match the profile.
 3. When custom `ParseLimits` are provided, all limits must be non-negative.
 4. When custom `FormatOptions` are provided, `indent` must be non-negative and `line_width` must be greater than zero.
@@ -129,6 +132,34 @@ When custom limits or formatting options are not provided, the defaults listed a
 The repository contains no `.env.development`, `.env.production`, or `.env.test` files, and no `NODE_ENV` conditional branches or other environment-configuration loaders. Development, test, and release environments use the same source code and MoonBit manifests; differences should be supplied explicitly by the caller through `ParseOptions`, `ParseLimits`, and `FormatOptions`, or by explicitly selecting a target through the build command.
 
 For example, an editor scenario can select `editor` mode and lower resource limits, while a batch scenario can select `strict` mode and use the default limits; these are call parameters, not environment-variable overrides.
+
+## Editor Host and CLI Dialect/Profile Selection
+
+The SDK ships editor hosts (VS Code, IntelliJ) and a Web demo that select a dialect and a released profile per workspace/session, exactly like the `api` package: an explicit `(dialect, profile)` pair with no implicit fallback. The host constants mirror the server's authoritative validation (`binding.validate_dialect_profile` / LSP `validate_selection`); a missing, unknown, or cross-dialect pair is an explicit configuration error, never a coerced default.
+
+### Valid (dialect, profile) Pairs
+
+| Dialect | Profiles |
+|---|---|
+| `doris` | `2.1`, `3.x`, `4.x` |
+| `flink` | `flink-2.3.0`, `flink-2.1.3`, `flink-1.20.5` |
+
+A profile is valid only under its own dialect: `flink` + `2.1` and `doris` + `flink-2.3.0` are both rejected. The server remains authoritative — a host that accepts a pair the server rejects is a server-side error, never a silent fallback.
+
+### Per-Host Selection
+
+| Host | Selection surface | Example flink selection |
+|---|---|---|
+| VS Code | `fathom.dialect` + `fathom.profile` settings (plus `fathom.serverPath` for the local `fathom-lsp` executable) | `fathom.dialect: "flink"`, `fathom.profile: "flink-2.3.0"` |
+| IntelliJ | `FathomSettings` application settings — dialect and profile dropdowns; the profile list repopulates to the selected dialect's values | Dialect `flink`, profile `flink-2.3.0` |
+| Web demo | `#dialect` and `#profile` selectors; the profile selector repopulates on dialect change | Dialect `flink`, profile `flink-2.3.0` |
+| CLI | `fathom-sql parse|format|lsp --dialect <d> --profile <p>` | `--dialect flink --profile flink-2.3.0` |
+
+The Web/VS Code/IntelliJ hosts keep static per-dialect profile maps (offline-first, PARITY-03); they never pull profiles dynamically and never share a cross-host JSON definition.
+
+### Per-File LSP Override
+
+In addition to the workspace/session default above, the LSP honors a per-file override through the `didOpen`/`didChange` extension fields `dialect` and `profile`. The precedence is document > workspace/session. No automatic detection and no file-extension guessing is performed — a flink file must carry the flink selection explicitly.
 
 ## Configuration-Related Files
 
