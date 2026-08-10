@@ -1,0 +1,206 @@
+// White-box tests for the analyzer re-parser and resolution helpers (plan
+// 05-03). These exercise internal functions directly — clause boundaries
+// (with GROUP/ORDER two-word detection), paren-depth counting that is immune
+// to string literals, qualified-name splitting, quoted-identifier
+// identification, and case-fold comparison — paths the black-box integration
+// surface cannot trigger without a full parse (lsp/selection_wbtest.mbt
+// convention). No parser import: everything lives inside the analyzer package
+// (D-21).
+
+/// Builds a (bytes, span) token array from bare word bytes, assigning
+/// monotonically increasing dummy byte offsets (spans are not asserted here).
+fn wb_tokens(words : Array[Bytes]) -> Array[(Bytes, Int, Int)] {
+  let out : Array[(Bytes, Int, Int)] = []
+  let mut offset = 0
+  for word in words {
+    out.push((word, offset, offset + word.length()))
+    offset = offset + word.length() + 1
+  }
+  out
+}
+
+test "wb clause_break full boundaries" {
+  let toks = wb_tokens([
+    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"b", b"GROUP", b"BY", b"a",
+    b"HAVING", b"c", b"QUALIFY", b"d", b"ORDER", b"BY", b"e", b"LIMIT", b"5",
+    b"WINDOW", b"w", b"AS", b"(", b")", b"UNION", b"SELECT", b"b", b"FROM", b"u",
+  ])
+  assert_eq(clause_kind_at(toks, 2, 0), Some(From))
+  assert_eq(clause_kind_at(toks, 4, 0), Some(Where))
+  assert_eq(clause_kind_at(toks, 6, 0), Some(GroupBy))
+  assert_eq(clause_kind_at(toks, 9, 0), Some(Having))
+  assert_eq(clause_kind_at(toks, 11, 0), Some(Qualify))
+  assert_eq(clause_kind_at(toks, 13, 0), Some(OrderBy))
+  assert_eq(clause_kind_at(toks, 16, 0), Some(Limit))
+  assert_eq(clause_kind_at(toks, 18, 0), Some(Window))
+  assert_eq(clause_kind_at(toks, 23, 0), Some(SetOpUnion))
+  // None of these boundaries fire at depth > 0.
+  assert_eq(clause_kind_at(toks, 2, 1), None)
+  assert_eq(clause_kind_at(toks, 4, 3), None)
+}
+
+test "wb clause_break group order two word" {
+  // `order` as a column name: not followed by BY -> no boundary.
+  let toks = wb_tokens([b"SELECT", b"order", b"FROM", b"t"])
+  assert_eq(clause_kind_at(toks, 1, 0), None)
+  assert_eq(clause_kind_at(toks, 2, 0), Some(From))
+  // ORDER BY together -> boundary.
+  let toks2 = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"ORDER", b"BY", b"a"])
+  assert_eq(clause_kind_at(toks2, 4, 0), Some(OrderBy))
+  // GROUP BY together -> boundary; bare GROUP not.
+  let toks3 = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"GROUP", b"BY", b"a"])
+  assert_eq(clause_kind_at(toks3, 4, 0), Some(GroupBy))
+  let toks4 = wb_tokens([b"SELECT", b"group", b"FROM", b"t"])
+  assert_eq(clause_kind_at(toks4, 1, 0), None)
+}
+
+test "wb paren depth immune to strings" {
+  // A `'('` string token is not a paren: depth never changes for it.
+  let toks = wb_tokens([b"WHERE", b"a", b"=", b"'('", b"FROM", b"t"])
+  assert_eq(clause_kind_at(toks, 3, 0), None)
+  // `SELECT 'FROM'` must not produce a From boundary inside the select list.
+  let stmt = wb_tokens([b"SELECT", b"'FROM'", b"FROM", b"t"])
+  match split_select_model(stmt) {
+    Some(model) => {
+      assert_eq(model.branches.length(), 1)
+      let core = model.branches[0]
+      assert_eq(core.from.length(), 1)
+      assert_eq(core.select_list.length(), 1)
+      // The string literal contributes no identifier reference.
+      assert_eq(core.select_list[0].refs.length(), 0)
+    }
+    None => panic()
+  }
+}
+
+test "wb paren depth string literal not counted" {
+  // `WHERE a = '(' GROUP BY a`: the `'('` string must not unbalance depth, so
+  // GROUP BY is still recognized as the next clause boundary.
+  let toks = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"a", b"=",
+    b"'('", b"GROUP", b"BY", b"a"])
+  match split_select_model(toks) {
+    Some(model) => {
+      let core = model.branches[0]
+      assert_eq(core.where_refs.length(), 1)
+      assert_eq(core.group_by.length(), 1)
+    }
+    None => panic()
+  }
+}
+
+test "wb qualified name split 1 2 3 parts" {
+  let one = collect_refs([{ bytes: b"a", start_byte: 0, end_byte: 1 }])
+  assert_eq(one.length(), 1)
+  assert_eq(one[0].parts.length(), 1)
+  assert_true(!one[0].star)
+  assert_true(!one[0].is_call)
+  let two = collect_refs([
+    { bytes: b"t", start_byte: 0, end_byte: 1 },
+    { bytes: b".", start_byte: 1, end_byte: 2 },
+    { bytes: b"a", start_byte: 2, end_byte: 3 },
+  ])
+  assert_eq(two[0].parts.length(), 2)
+  let three = collect_refs([
+    { bytes: b"db", start_byte: 0, end_byte: 2 },
+    { bytes: b".", start_byte: 2, end_byte: 3 },
+    { bytes: b"t", start_byte: 3, end_byte: 4 },
+    { bytes: b".", start_byte: 4, end_byte: 5 },
+    { bytes: b"b", start_byte: 5, end_byte: 6 },
+  ])
+  assert_eq(three[0].parts.length(), 3)
+  // t.* star with qualifier.
+  let star = collect_refs([
+    { bytes: b"t", start_byte: 0, end_byte: 1 },
+    { bytes: b".", start_byte: 1, end_byte: 2 },
+    { bytes: b"*", start_byte: 2, end_byte: 3 },
+  ])
+  assert_true(star[0].star)
+  assert_eq(star[0].parts.length(), 1)
+  // count(...) is a function call, not a column ref.
+  let call = collect_refs([
+    { bytes: b"count", start_byte: 0, end_byte: 5 },
+    { bytes: b"(", start_byte: 5, end_byte: 6 },
+    { bytes: b"*", start_byte: 6, end_byte: 7 },
+    { bytes: b")", start_byte: 7, end_byte: 8 },
+  ])
+  assert_eq(call.length(), 1)
+  assert_true(call[0].is_call)
+}
+
+test "wb quoted identification and case fold" {
+  assert_true(is_quoted(b"`T`"))
+  assert_true(is_quoted(b"\"T\""))
+  assert_true(!is_quoted(b"T"))
+  assert_eq(identifier_text(b"`T`"), "T")
+  assert_eq(identifier_text(b"\"col\""), "col")
+  assert_eq(identifier_text(b"col"), "col")
+  // Unquoted matching folds ASCII case; quoted matching is byte-exact (D-03).
+  let cols = [{ name: "A", data_type: "INT" }]
+  match find_column_in(cols, "a", false) {
+    Some(col) => assert_eq(col.name, "A")
+    None => panic()
+  }
+  assert_true(find_column_in(cols, "a", true) is None)
+  match find_column_in(cols, "A", true) {
+    Some(col) => assert_eq(col.name, "A")
+    None => panic()
+  }
+  assert_true(bytes_equal_ci(b"FOO", b"foo"))
+  assert_true(bytes_equal_ci(b"FrOm", b"FROM"))
+  assert_true(!bytes_equal_ci(b"FOO", b"bar"))
+}
+
+test "wb split full select model all clauses" {
+  let toks = wb_tokens([
+    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"b", b"=", b"1",
+    b"GROUP", b"BY", b"a", b"HAVING", b"count", b"(", b"*", b")", b">", b"1",
+    b"QUALIFY", b"a", b">", b"0", b"ORDER", b"BY", b"a", b"LIMIT", b"5",
+  ])
+  match split_select_model(toks) {
+    Some(model) => {
+      assert_eq(model.branches.length(), 1)
+      let core = model.branches[0]
+      assert_eq(core.select_list.length(), 1)
+      assert_eq(core.from.length(), 1)
+      assert_eq(core.where_refs.length(), 1)
+      assert_eq(core.group_by.length(), 1)
+      assert_eq(core.having.length(), 1) // count(*) call
+      assert_eq(core.qualify.length(), 1)
+      assert_eq(core.order_by.length(), 1)
+      assert_eq(core.limit.length(), 1)
+    }
+    None => panic()
+  }
+}
+
+test "wb split union chain model" {
+  let toks = wb_tokens([
+    b"SELECT", b"a", b"FROM", b"t", b"UNION", b"ALL", b"SELECT", b"b", b"FROM", b"u",
+  ])
+  match split_select_model(toks) {
+    Some(model) => {
+      assert_eq(model.branches.length(), 2)
+      assert_eq(model.branches[0].set_op, Some("UNION ALL"))
+      assert_eq(model.branches[1].set_op, None)
+    }
+    None => panic()
+  }
+}
+
+test "wb paren depth limit returns none" {
+  let words : Array[Bytes] = [b"SELECT", b"a"]
+  let mut i = 0
+  while i < 140 {
+    words.push(b"(")
+    i = i + 1
+  }
+  let mut j = 0
+  while j < 140 {
+    words.push(b")")
+    j = j + 1
+  }
+  words.push(b"FROM")
+  words.push(b"t")
+  let toks = wb_tokens(words)
+  assert_true(split_select_model(toks) is None)
+}
