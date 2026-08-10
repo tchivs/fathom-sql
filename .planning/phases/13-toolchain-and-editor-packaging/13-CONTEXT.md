@@ -73,7 +73,7 @@
 - `web/src/monaco-adapter.ts` — `DIALECTS` 含 flink 但 `PROFILES` 仅 Doris（`['2.1','3.x','4.x']`）
 - `vscode/src/extension-contract.ts`、`extension.ts` — `SUPPORTED_PROFILES` 仅 Doris
 - `jetbrains/src/main/kotlin/fathom/jetbrains/sql/FathomSettings.kt` — `ALLOWED_PROFILES` 仅 Doris
-- `dialect/flink.mbt` — FlinkProfile/FlinkProfileMetadata/142 行分类表（补全候选池与 per-profile gating 来源）
+- `dialect/flink.mbt` — FlinkProfile/FlinkProfileMetadata/147 行分类表（补全候选池与 per-profile gating 来源）
 - `syntax/syntax.mbt` — Flink 语句族 SyntaxKind（CreateCatalog/DropDatabase/AlterTable/WatermarkClause/WindowTvf/MatchRecognize 等）
 - `parity/`、`scripts/check_naming.py`、`.github/workflows/ci.yml` — 门禁、命名 inventory、CI 接线点
 
@@ -89,7 +89,7 @@
 ### Reusable Assets
 - `formatter/` 的 `find_first_unsafe` + `FATHOM-FORMAT-001` refusal-first（D-33）：Flink 不安全树拒绝直接复用
 - `completion/` 的 `CompletionItem`/`CompletionList`/`MAX_CANDIDATES=32`/两遍优先级排序：Flink 补全骨架
-- `dialect/flink.mbt` 142 行分类表 + `introduced_profile`：Flink 补全候选池与 per-profile gating
+- `dialect/flink.mbt` 147 行分类表 + `introduced_profile`：Flink 补全候选池与 per-profile gating
 - `binding/coordinates.mbt`（`position_to_byte`/`byte_to_position` UTF-16）：LSP completion textEdit range 与 UTF-16 契约
 - `binding/exports.mbt` ABI 模式（`fathom_*_v1` primitive Bytes、dialect 紧跟 raw，A4）：`fathom_complete_v1` 蓝本
 - `vscode/scripts/host-verify.mjs` + Phase 4 ECO-07 harness：VS Code 真 extension-host 验证
