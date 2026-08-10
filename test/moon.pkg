@@ -9,3 +9,7 @@ import {
   "fathom/sql/formatter" @formatter,
   "fathom/sql/dialect" @dialect,
 }
+
+import {
+  "moonbitlang/core/test" @mtest,
+} for "test"

@@ -99,7 +99,7 @@ pub fn StaticCatalog::with_function(
 
 /// Case-insensitive scan of a String-keyed map (parsing-time ASCII case-fold,
 /// D-03): the first key that folds equal to `name` wins.
-fn case_insensitive_get[V](m : Map[String, V], name : String) -> V? {
+fn[V] case_insensitive_get(m : Map[String, V], name : String) -> V? {
   let mut result : V? = None
   for kv in m.to_array() {
     if kv.0.equal_ignore_ascii_case(name) {

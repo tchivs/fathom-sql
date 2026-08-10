@@ -17,3 +17,43 @@ pub(all) struct FunctionInfo {
   return_type : String
   min_arity : Int
 } derive(Eq, @debug.Debug)
+
+/// The kind of a resolved name binding (D-06).
+pub(all) enum BindingKind {
+  Table
+  Column
+  Function
+  Cte
+  Alias
+} derive(Eq, @debug.Debug)
+
+/// One resolved name binding. `name` preserves the source spelling (D-03);
+/// `resolved_to` is the author's display name from the catalog/scope;
+/// `data_type` carries the column/function type (D-04) and is empty for
+/// Table/Cte/Alias. Spans are flattened byte offsets (D-01/D-06).
+pub(all) struct Binding {
+  kind : BindingKind
+  name : String
+  resolved_to : String
+  data_type : String
+  start_byte : Int
+  end_byte : Int
+} derive(Eq, @debug.Debug)
+
+/// A catalog/scope diagnostic on the analyzer's own channel (D-04): it never
+/// enters the syntax-only valid/diagnostic channel (ANLY-01). Codes are
+/// analyzer-internal stable strings ("unknown-table", "requires-complete-parse"),
+/// not FATHOM-* public codes (D-06).
+pub(all) struct AnalysisDiagnostic {
+  code : String
+  message : String
+  start_byte : Int
+  end_byte : Int
+} derive(Eq, @debug.Debug)
+
+/// The result of analyzing one parsed document: resolved bindings plus
+/// analyzer-channel diagnostics (D-06).
+pub(all) struct AnalysisResult {
+  bindings : Array[Binding]
+  diagnostics : Array[AnalysisDiagnostic]
+} derive(Eq, @debug.Debug)
