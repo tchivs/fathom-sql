@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 assert.equal(process.argv.includes('--protocol'), true, 'protocol smoke must be explicit');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const [manifestText, extensionText, readmeText, distText] = await Promise.all([
+const [manifestText, extensionText, readmeText, distText, contractText] = await Promise.all([
   readFile(resolve(root, 'package.json'), 'utf8'),
   readFile(resolve(root, 'src/extension.ts'), 'utf8'),
   readFile(resolve(root, 'README.md'), 'utf8'),
   readFile(resolve(root, 'dist/extension.js'), 'utf8'),
+  readFile(resolve(root, 'src/extension-contract.ts'), 'utf8'),
 ]);
 const manifest = JSON.parse(manifestText);
 assert.equal(manifest.main, './dist/extension.js', 'extension host must load compiled JS, not TS');
@@ -33,6 +34,15 @@ assert.match(extensionText, /current\.start\(\)/);
 assert.match(extensionText, /current\.stop\(\)/);
 assert.match(readmeText, /Fathom SQL language server unavailable/);
 assert.doesNotMatch(extensionText, /https?:\/\//, 'client must not add remote transport');
+// D-05: the host validates (dialect, profile) pairs per dialect — the flat
+// SUPPORTED_PROFILES list is gone and flink values appear only under flink.
+assert.doesNotMatch(contractText, /SUPPORTED_PROFILES\s*=\s*Object\.freeze/, 'flat profile list removed');
+assert.match(contractText, /PROFILES_BY_DIALECT = Object\.freeze\(\{/, 'per-dialect profile map present');
+assert.match(contractText, /doris: \['2\.1', '3\.x', '4\.x'\]/, 'doris profile pair');
+assert.match(contractText, /flink: \['flink-2\.3\.0', 'flink-2\.1\.3', 'flink-1\.20\.5'\]/, 'flink profile pair');
+assert.doesNotMatch(extensionText, /fathom\.profile \(2\.1\|3\.x\|4\.x\)/, 'old flat profile error removed');
+assert.match(extensionText, /fathom\.profile \(/, 'explicit-config error lists profile values');
+assert.match(extensionText, /profiles\.join\('\|'\)/, 'profile help is built per-dialect from PROFILES_BY_DIALECT');
 const lifecycle = ['initialize', 'initialized', 'didOpen', 'didChange', 'didClose', 'shutdown', 'exit'];
 assert.deepEqual(lifecycle, ['initialize', 'initialized', 'didOpen', 'didChange', 'didClose', 'shutdown', 'exit']);
 console.log('VS Code protocol smoke: pinned client/stdio/dialect/lifecycle/fallback contracts passed');

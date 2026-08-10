@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   SERVER_FAILURE_MESSAGE,
   SUPPORTED_DIALECTS,
-  SUPPORTED_PROFILES,
+  PROFILES_BY_DIALECT,
   resolveFathomConfiguration,
 } from './extension-contract.ts';
 
@@ -13,14 +13,24 @@ function configuration(values = {}) {
 
 test('configuration requires an explicit supported dialect, profile, and local executable', () => {
   assert.deepEqual(SUPPORTED_DIALECTS, ['doris', 'flink']);
-  assert.deepEqual(SUPPORTED_PROFILES, ['2.1', '3.x', '4.x']);
+  // D-05: per-dialect (dialect, profile) pairs — flink values only under flink.
+  assert.deepEqual(PROFILES_BY_DIALECT, {
+    doris: ['2.1', '3.x', '4.x'],
+    flink: ['flink-2.3.0', 'flink-2.1.3', 'flink-1.20.5'],
+  });
   assert.deepEqual(resolveFathomConfiguration(configuration({ dialect: 'doris', profile: '3.x', serverPath: '/opt/bin/fathom-lsp' })), {
     dialect: 'doris', profile: '3.x', serverPath: '/opt/bin/fathom-lsp',
   });
-  // D-02: missing or unsupported dialect/profile are explicit errors, never defaults.
+  assert.deepEqual(resolveFathomConfiguration(configuration({ dialect: 'flink', profile: 'flink-2.3.0' })), {
+    dialect: 'flink', profile: 'flink-2.3.0', serverPath: 'fathom-lsp',
+  });
+  // D-02/D-05: missing, unsupported, or cross-dialect profiles are explicit
+  // errors (undefined), never defaults or coerced values.
   assert.deepEqual(resolveFathomConfiguration(configuration()), { dialect: undefined, profile: undefined, serverPath: 'fathom-lsp' });
   assert.equal(resolveFathomConfiguration(configuration({ dialect: 'Auto' })).dialect, undefined);
   assert.equal(resolveFathomConfiguration(configuration({ profile: 'mysql' })).profile, undefined);
+  assert.equal(resolveFathomConfiguration(configuration({ dialect: 'flink', profile: '2.1' })).profile, undefined);
+  assert.equal(resolveFathomConfiguration(configuration({ dialect: 'doris', profile: 'flink-2.3.0' })).profile, undefined);
 });
 
 test('server failure is actionable while the editor remains a plain document', () => {

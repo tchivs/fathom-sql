@@ -3,11 +3,11 @@ import { LanguageClient, TransportKind } from 'vscode-languageclient/node';
 import {
   SERVER_FAILURE_MESSAGE,
   SUPPORTED_DIALECTS,
-  SUPPORTED_PROFILES,
+  PROFILES_BY_DIALECT,
   resolveFathomConfiguration,
 } from './extension-contract.ts';
 
-export { SERVER_FAILURE_MESSAGE, SUPPORTED_DIALECTS, SUPPORTED_PROFILES, resolveFathomConfiguration } from './extension-contract.ts';
+export { SERVER_FAILURE_MESSAGE, SUPPORTED_DIALECTS, PROFILES_BY_DIALECT, resolveFathomConfiguration } from './extension-contract.ts';
 
 let client;
 let statusItem;
@@ -47,11 +47,15 @@ export async function activate(context) {
   const start = async () => {
     await stopClient();
     const configuration = resolveFathomConfiguration(vscode.workspace.getConfiguration('fathom'));
-    // D-02: no implicit dialect/profile fallback. A missing or unsupported
-    // selection is an explicit configuration error and the client is never
-    // started with a guessed dialect.
+    // D-02/D-05: no implicit dialect/profile fallback. A missing or
+    // unsupported selection is an explicit configuration error and the client
+    // is never started with a guessed dialect. The profile help lists the
+    // per-dialect values so the user can see flink profiles under flink.
     if (!configuration.dialect || !configuration.profile) {
-      const missing = [configuration.dialect ? null : 'fathom.dialect (doris|flink)', configuration.profile ? null : 'fathom.profile (2.1|3.x|4.x)']
+      const profileHelp = Object.entries(PROFILES_BY_DIALECT)
+        .map(([dialect, profiles]) => `${dialect}: ${profiles.join('|')}`)
+        .join('; ');
+      const missing = [configuration.dialect ? null : 'fathom.dialect (doris|flink)', configuration.profile ? null : `fathom.profile (${profileHelp})`]
         .filter(Boolean)
         .join(' and ');
       vscode.window.showErrorMessage(
