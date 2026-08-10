@@ -72,10 +72,11 @@ pub impl Catalog for StaticCatalog with table(self, name) {
 //
 // resolve_table_references walks the Statement children of a parsed document
 // root and, for each DML/DDL statement kind shipped by 02-01/02-02 (Insert,
-// Update, Delete, Merge, CreateTable), collects the target table-name token
-// text and returns only the names whose catalog lookup succeeds. Missing
-// tables are simply absent from the result — name-resolution level only, no
-// diagnostics, no type inference (D-22/D-24).
+// Update, Delete, Merge, CreateTable) plus the Flink CreateView family
+// (D-03), collects the target table-name token text and returns only the
+// names whose catalog lookup succeeds. Missing tables are simply absent from
+// the result — name-resolution level only, no diagnostics, no type inference
+// (D-22/D-24).
 //
 // The CST never owns source bytes (syntax/syntax.mbt invariant), so the
 // caller supplies the source bytes alongside the syntax root; leaf text is
@@ -164,14 +165,20 @@ fn source_token_texts(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[
 
 /// Returns the token index just past the statement-specific leading keyword
 /// sequence (case-insensitive). Optional words (INSERT OVERWRITE TABLE,
-/// CREATE TEMPORARY/EXTERNAL TABLE, IF NOT EXISTS) are consumed when present.
+/// UPSERT INTO, CREATE TEMPORARY/EXTERNAL TABLE, CREATE [TEMPORARY] VIEW,
+/// IF NOT EXISTS) are consumed when present. Flink leading-prefix shapes
+/// (UPSERT INTO, CREATE [TEMPORARY] VIEW) share these arms with Doris (D-03).
 fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
   let length = tokens.length()
   let mut position = 0
   match kind {
     @syntax.SyntaxKind::Insert => {
-      // INSERT ( OVERWRITE TABLE | INTO ) name
-      if position < length && bytes_equal_ci(tokens[position], b"INSERT") {
+      // ( INSERT | UPSERT ) ( OVERWRITE [TABLE] | INTO ) name
+      // UPSERT is the Flink RichSqlInsert form; the Flink parser maps UPSERT
+      // to SyntaxKind::Insert (parser.mbt:4196), so the Insert arm must
+      // recognize the UPSERT leading keyword too. Doris forms unchanged.
+      if position < length && (bytes_equal_ci(tokens[position], b"INSERT") ||
+        bytes_equal_ci(tokens[position], b"UPSERT")) {
         position = position + 1
       }
       if position < length && bytes_equal_ci(tokens[position], b"OVERWRITE") {
@@ -229,6 +236,29 @@ fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
         position = position + 1
       }
     }
+    @syntax.SyntaxKind::CreateView => {
+      // CREATE [TEMPORARY] VIEW [IF NOT EXISTS] name (Flink SqlCreateView).
+      // The Flink parser resolves CREATE [TEMPORARY] VIEW to
+      // SyntaxKind::CreateView via flink_create_form_kind (parser.mbt:4065).
+      if position < length && bytes_equal_ci(tokens[position], b"CREATE") {
+        position = position + 1
+      }
+      if position < length && bytes_equal_ci(tokens[position], b"TEMPORARY") {
+        position = position + 1
+      }
+      if position < length && bytes_equal_ci(tokens[position], b"VIEW") {
+        position = position + 1
+      }
+      if position < length && bytes_equal_ci(tokens[position], b"IF") {
+        position = position + 1
+      }
+      if position < length && bytes_equal_ci(tokens[position], b"NOT") {
+        position = position + 1
+      }
+      if position < length && bytes_equal_ci(tokens[position], b"EXISTS") {
+        position = position + 1
+      }
+    }
     _ => ()
   }
   position
@@ -257,7 +287,9 @@ fn target_table_name(node : @syntax.SyntaxNode, source_bytes : Bytes) -> String?
 /// Resolves the target tables of a parsed document's DML/DDL statements
 /// against the injected catalog, returning only the names present in the
 /// catalog (missing tables are simply absent — name-resolution level only).
-/// Statements of other kinds (SELECT, CREATE VIEW/INDEX/MATERIALIZED VIEW,
+/// Supported statement families: Insert (including the Flink UPSERT INTO
+/// form), Update, Delete, Merge, CreateTable, and CreateView (D-03).
+/// Statements of other kinds (SELECT, CREATE INDEX/MATERIALIZED VIEW,
 /// Error nodes) are ignored. The syntax-only parse path is never consulted:
 /// the same parse with no catalog yields identical results (ANLY-01).
 pub fn[T : Catalog] resolve_table_references(
@@ -276,7 +308,8 @@ pub fn[T : Catalog] resolve_table_references(
                 match body.kind() {
                   @syntax.SyntaxKind::Insert | @syntax.SyntaxKind::Update |
                   @syntax.SyntaxKind::Delete | @syntax.SyntaxKind::Merge |
-                  @syntax.SyntaxKind::CreateTable => {
+                  @syntax.SyntaxKind::CreateTable |
+                  @syntax.SyntaxKind::CreateView => {
                     match target_table_name(body, source_bytes) {
                       Some(name) => {
                         match Catalog::table(catalog, name) {

@@ -223,3 +223,229 @@ test "analyzer_resolve_table_references_empty_catalog_and_no_statements" {
     [],
   )
 }
+
+// ---------------------------------------------------------------------------
+// Flink analyzer (13-03, D-03): resolve_table_references extended in place to
+// the Flink statement families — Insert (incl. UPSERT INTO / INSERT OVERWRITE
+// ... PARTITION), Update, Delete, CreateTable, CreateView — table-level only
+// (D-22/D-24). The D-21 boundary holds: the analyzer consumes only
+// @syntax.SyntaxNode + caller source bytes, never re-entering the parser
+// (ANLY-01).
+// ---------------------------------------------------------------------------
+
+/// Flink DialectContext for @parser.parse_with_limits (mirrors doris_context
+/// in recovery_test.mbt; uses the pinned FlinkProfile metadata).
+fn flink_context(profile_id : String) -> @dialect.DialectContext {
+  let profile = match @dialect.FlinkProfile::from_id(profile_id) {
+    Some(profile) => profile
+    None => panic()
+  }
+  let metadata = profile.metadata()
+  {
+    dialect: @dialect.Dialect::Flink,
+    profile_id: profile_id,
+    exact_release: metadata.exact_release,
+    feature_introduction: metadata.feature_introduction,
+  }
+}
+
+test "flink_analyzer_upsert_into_resolves_target" {
+  // UPSERT INTO is a Flink RichSqlInsert form; the Flink parser maps UPSERT to
+  // SyntaxKind::Insert (parser.mbt:4196), so the Insert leading-prefix arm
+  // must recognize the UPSERT keyword before the table name.
+  let raw = b"UPSERT INTO t VALUES (1)"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([{ name: "t", columns: [{ name: "id", data_type: "INT" }] }])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  assert_eq(resolved, ["t"])
+}
+
+test "flink_analyzer_create_view_resolves_target" {
+  // CREATE VIEW is the Flink CreateView family (shared syntax with Doris);
+  // the CreateView leading-prefix arm lands on the view name. The query body
+  // (t) is NOT walked — table-level only, target-table boundary (D-24).
+  let raw = b"CREATE VIEW v AS SELECT * FROM t"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([{ name: "v", columns: [] }])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  assert_eq(resolved, ["v"])
+}
+
+test "flink_analyzer_no_catalog_empty_and_byte_identical_parse" {
+  // A Flink document analyzed with no catalog resolves nothing, and the
+  // syntax-only parse result is identical whether or not resolution is called
+  // — the analyzer never re-enters the parser (ANLY-01).
+  let raw = b"UPSERT INTO t VALUES (1); CREATE VIEW v AS SELECT * FROM t"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  let empty_catalog = @analyzer.StaticCatalog::new([])
+  assert_eq(
+    @analyzer.resolve_table_references(parsed.root, source.bytes(), empty_catalog),
+    [],
+  )
+  // Building a catalog and resolving must never change parser validity.
+  let catalog = @analyzer.StaticCatalog::new([{ name: "t", columns: [] }])
+  ignore(@analyzer.resolve_table_references(parsed.root, source.bytes(), catalog))
+  let parsed_again = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_eq(parsed_again.valid, parsed.valid)
+  assert_eq(parsed_again.diagnostics.length(), parsed.diagnostics.length())
+  assert_eq(parsed_again.diagnostics.map(d => d.code), parsed.diagnostics.map(d => d.code))
+  assert_eq(parsed_again.root.kind(), parsed.root.kind())
+  assert_eq(parsed_again.root.text_len(), parsed.root.text_len())
+}
+
+test "flink_analyzer_family_matrix_source_order" {
+  // Full Flink target-table family matrix in one script: Insert (UPSERT),
+  // Update, Delete, CreateTable, CreateView — resolved in source order; absent
+  // tables omitted.
+  let raw = b"UPSERT INTO t1 VALUES (1); UPDATE t2 SET a = 1 WHERE id = 1; DELETE FROM t3 WHERE id = 1; CREATE TABLE t4 (a INT); CREATE VIEW v5 AS SELECT * FROM t1"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t1", columns: [] },
+    { name: "t2", columns: [] },
+    { name: "t3", columns: [] },
+    { name: "t4", columns: [] },
+    { name: "v5", columns: [] },
+  ])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  assert_eq(resolved, ["t1", "t2", "t3", "t4", "v5"])
+}
+
+test "flink_analyzer_empty_document_returns_empty" {
+  let raw = b""
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  let empty_catalog = @analyzer.StaticCatalog::new([])
+  assert_eq(
+    @analyzer.resolve_table_references(parsed.root, source.bytes(), empty_catalog),
+    [],
+  )
+}
+
+test "flink_analyzer_insert_select_resolves_only_target" {
+  // The INSERT ... SELECT boundary: only the INSERT target resolves; the
+  // SELECT source table is outside the target-table-only scope (D-24).
+  let raw = b"INSERT INTO dst SELECT * FROM src"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "dst", columns: [] },
+    { name: "src", columns: [] },
+  ])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  assert_eq(resolved, ["dst"])
+}
+
+test "flink_analyzer_insert_overwrite_partition_resolves_target" {
+  // INSERT OVERWRITE ... PARTITION (k=v): the Flink parser places the table
+  // name BEFORE the PARTITION spec (parse_flink_insert consumes the qualified
+  // name first), so the existing INSERT OVERWRITE arm already lands on t.
+  let raw = b"INSERT OVERWRITE t PARTITION (dt='2024') VALUES (1)"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    flink_context("flink-2.3.0"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  assert_eq(parsed.diagnostics.length(), 0)
+  let catalog = @analyzer.StaticCatalog::new([{ name: "t", columns: [] }])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  assert_eq(resolved, ["t"])
+}
+
+test "doris_analyzer_behavior_unchanged" {
+  // The D-03 extension is additive: Doris DML/DDL target-table resolution is
+  // unchanged (existing leading-prefix arms untouched), and Doris CREATE VIEW
+  // is newly covered by the shared CreateView arm (documented one-way change).
+  let raw = b"INSERT INTO t VALUES (1); UPDATE t2 SET a = 1; DELETE FROM t4 WHERE a = 1; CREATE TABLE t3 (a INT); CREATE VIEW v AS SELECT a FROM t"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    doris_context("4.x"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [] },
+    { name: "t4", columns: [] },
+    { name: "v", columns: [] },
+  ])
+  let resolved = @analyzer.resolve_table_references(parsed.root, source.bytes(), catalog)
+  // t (Insert), t4 (Delete), v (CreateView) are in the catalog; t2/t3 are
+  // absent and omitted. The Doris leading-prefix arms behave as before.
+  assert_eq(resolved, ["t", "t4", "v"])
+}
