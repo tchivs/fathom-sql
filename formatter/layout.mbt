@@ -300,6 +300,37 @@ fn statement_family(node : @syntax.SyntaxNode) -> @syntax.SyntaxKind? {
   None
 }
 
+/// Flink covered-family predicate (D-01, 13-01): the layout tables know how to
+/// format exactly these statement families under a Flink context. Any Flink
+/// family NOT in this set is a programming gap and routes through the
+/// covered-family gate in `layout_statement` → `Layout.failed` →
+/// FATHOM-FORMAT-001 refusal (never a silent Doris-layout single line,
+/// RESEARCH Pitfall 1). The predicate is `pub` so the parity covered-set
+/// completeness probe (13-01) can machine-check the enumeration instead of
+/// hand-maintaining it.
+///
+/// Clause-level kinds (WindowTvf, MatchRecognize, WatermarkClause,
+/// ComputedColumn, MetadataColumn, PrimaryKeyClause, TableLikeClause) appear
+/// INSIDE Select/CreateTable bodies — they are NOT statement families and are
+/// deliberately excluded.
+pub fn flink_statement_covered(family : @syntax.SyntaxKind) -> Bool {
+  match family {
+    @syntax.SyntaxKind::Select | @syntax.SyntaxKind::Insert |
+    @syntax.SyntaxKind::Update | @syntax.SyntaxKind::Delete |
+    @syntax.SyntaxKind::CreateTable | @syntax.SyntaxKind::CreateView => true
+    _ => false
+  }
+}
+
+/// The first child element of a node, used as the refusal span anchor for the
+/// Flink covered-family gate (the family node is the narrowest safe span).
+fn first_child_element(node : @syntax.SyntaxNode) -> @syntax.SyntaxElement {
+  match node.children().get(0) {
+    Some(element) => element
+    None => @syntax.SyntaxElement::ChildNode(node)
+  }
+}
+
 fn collect_leaves(node : @syntax.SyntaxNode, out : Array[@syntax.SyntaxElement]) -> Unit {
   for child in node.children() {
     match child {
@@ -861,6 +892,16 @@ fn layout_statement(
   options : FormatOptions,
   out : Layout,
 ) -> Unit {
+  // Flink covered-family gate (D-01, RESEARCH Pitfall 1): under a Flink
+  // context, a statement family the layout tables do not explicitly cover is
+  // a programming gap — route it through Layout.failed so format() converts
+  // it to exactly one FATHOM-FORMAT-001 with empty output (never a silent
+  // Doris-layout single line). The gate is dialect-conditional: it fires only
+  // for Flink, leaving the Doris path byte-identical (PARITY-01).
+  if out.context.dialect is @dialect.Dialect::Flink && !flink_statement_covered(family) {
+    out.failed = Some(first_child_element(node))
+    return
+  }
   let leaves : Array[@syntax.SyntaxElement] = []
   for child in node.children() {
     match child {
