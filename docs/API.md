@@ -29,6 +29,7 @@ This project has no HTTP endpoints, HTTP base URL, request routes, or deployment
 | `format_with_ids` | `fathom/sql/api` | Format using profile/mode strings as a shortcut | Not required |
 | `format_with_metadata` | `fathom/sql/api` | Validate profile metadata, then format | Not required |
 | `resolve_table_references` | `fathom/sql/analyzer` | Resolve target table names for supported DML/DDL using the caller’s catalog | Not required |
+| `analyze` | `fathom/sql/analyzer` | Catalog name resolution and type diagnostics: resolved bindings plus analyzer-channel diagnostics | Not required |
 
 ## Request and Response Formats
 
@@ -287,20 +288,84 @@ pub(all) struct TableInfo {
   columns : Array[ColumnInfo]
 }
 
+/// One catalog function signature (D-05): `min_arity` supports arity checks —
+/// an argument count below `min_arity` or above `param_types.length()` is a
+/// mismatch. Types are opaque strings (D-04).
+pub(all) struct FunctionInfo {
+  name : String
+  param_types : Array[String]
+  return_type : String
+  min_arity : Int
+}
+
+pub(all) enum BindingKind {
+  Table
+  Column
+  Function
+  Cte
+  Alias
+}
+
+/// One resolved name binding. `name` preserves the source spelling (D-03);
+/// `resolved_to` is the catalog/scope display name; `data_type` carries the
+/// column/function type (D-04) and is empty for Table/Cte/Alias. Spans are
+/// flattened byte offsets (D-01/D-06).
+pub(all) struct Binding {
+  kind : BindingKind
+  name : String
+  resolved_to : String
+  data_type : String
+  start_byte : Int
+  end_byte : Int
+}
+
+/// An analyzer-channel diagnostic (D-04): never enters the syntax-only
+/// valid/diagnostic channel (ANLY-01). Codes are stable strings:
+/// `unknown-table`, `unknown-column`, `unknown-function`,
+/// `ambiguous-reference`, `function-arity`, `requires-complete-parse`.
+pub(all) struct AnalysisDiagnostic {
+  code : String
+  message : String
+  start_byte : Int
+  end_byte : Int
+}
+
+/// The result of analyzing one parsed document (D-06): resolved bindings plus
+/// analyzer-channel diagnostics.
+pub(all) struct AnalysisResult {
+  bindings : Array[Binding]
+  diagnostics : Array[AnalysisDiagnostic]
+}
+
 pub(open) trait Catalog {
   table(Self, String) -> TableInfo?
+  table_in_db(Self, db : String, name : String) -> TableInfo?
+  function(Self, String) -> FunctionInfo?
 }
 
 pub fn StaticCatalog::new(entries : Array[TableInfo]) -> StaticCatalog
+pub fn StaticCatalog::with_db(self : StaticCatalog, db : String, name : String, table : TableInfo) -> StaticCatalog
+pub fn StaticCatalog::with_function(self : StaticCatalog, name : String, info : FunctionInfo) -> StaticCatalog
 pub fn StaticCatalog::lookup(self : StaticCatalog, name : String) -> TableInfo?
 pub fn[T : Catalog] resolve_table_references(
   node : @syntax.SyntaxNode,
   source_bytes : Bytes,
   catalog : T,
 ) -> Array[String]
+pub fn[T : Catalog] analyze(
+  node : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+  catalog : T,
+) -> AnalysisResult
 ```
 
-Currently, `resolve_table_references` returns only target table names that exist in the catalog and belong to supported DML/DDL statements; missing table names are omitted, no parser diagnostics are generated, and no type inference or Doris FE execution-semantics analysis is performed. Since Phase 13 (D-03), the supported statement families include the Flink shapes for the same table-level kinds — `INSERT`/`UPSERT INTO` and `INSERT OVERWRITE` (the table name precedes the optional `PARTITION` spec), `UPDATE`, `DELETE`, `CREATE TABLE`, and `CREATE VIEW` — resolved through the same in-place walk with no separate Flink entry point. The scope is table-level only: column/identifier-level reference resolution and type diagnostics are deferred to v2 (D-24); a `CREATE VIEW` or `INSERT ... SELECT` query body is not walked, and a missing table or a no-catalog analysis simply yields an absent/empty result without changing parser validity (ANLY-01). `StaticCatalog` table-name keys are currently case-sensitive, and duplicate table names are overwritten by the last entry.
+`resolve_table_references` returns only target table names that exist in the catalog and belong to supported DML/DDL statements; missing table names are omitted, no parser diagnostics are generated, and no type inference or Doris FE execution-semantics analysis is performed. Since Phase 13 (D-03), the supported statement families include the Flink shapes for the same table-level kinds — `INSERT`/`UPSERT INTO` and `INSERT OVERWRITE` (the table name precedes the optional `PARTITION` spec), `UPDATE`, `DELETE`, `CREATE TABLE`, and `CREATE VIEW` — resolved through the same in-place walk with no separate Flink entry point.
+
+`analyze` resolves Doris tables, columns, functions, and scopes against the injected catalog and returns an `AnalysisResult` with flattened byte spans (D-01/D-06): `start_byte`/`end_byte` are plain Ints, never `@source.Span`, so the analyzer package keeps its D-21 import contract (only `fathom/sql/syntax`). Bindings preserve the source spelling plus the catalog display name and a data type (D-03/D-04). Statement coverage follows D-02: SELECT (including CTEs, subqueries, aliases, qualified `db.table.col` references, and catalog-aware star expansion), plus column-level references in DML (`UPDATE ... SET`/`WHERE`, `DELETE ... WHERE`, `INSERT` column lists, `MERGE ... SET`) and the `CREATE VIEW` query body. The view name itself is a target table, not a reference, and is not resolved by `analyze`.
+
+**Case policy (D-03).** Identifier matching is **case-insensitive** — parsing-time ASCII case-fold: catalog keys keep author casing, lookups fold ASCII case, and bindings preserve the source spelling and span. Quoted identifiers (backtick/`"`) match byte-exactly and keep exact case; they are never treated as keywords.
+
+**Type-diagnostic scope (D-04).** Phase 5 (ANAL-01) delivers the name-resolution and type-diagnostic surface above; nothing here is deferred. Analyzer diagnostics live on their own channel and never enter the syntax valid/diagnostic channel (ANLY-01): parsing the same bytes without a catalog yields byte-identical syntax results. The emitted codes are `unknown-table`, `unknown-column`, `unknown-function`, `ambiguous-reference` (an unqualified column matching multiple visible tables), and `function-arity` (argument count outside `[min_arity, param_types.length()]`). There is no expression-level type unification, literal type propagation, or type inference — that is out of scope (ANAL-02). `StaticCatalog` table-name keys match case-insensitively at lookup time (D-03), and duplicate table names are overwritten by the last entry.
 
 ## Error Codes and Error Responses
 
