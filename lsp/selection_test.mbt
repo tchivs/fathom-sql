@@ -247,11 +247,13 @@ test "did_change_configuration_dialect_switch_reparses_flink" {
   assert_eq(document.selection_source, "workspace")
 }
 
-test "flink_document_format_and_completion_reject_without_doris_policy" {
-  // (j) T-09-23: a flink-selected document's valid SELECT parses through the
-  // real Flink grammar (empty diagnostics — FATHOM-PARSE-008 retired, D-06),
-  // while formatting stays the LSP not-implemented refusal and completion the
-  // structured rejection — no Doris policy leak on any surface.
+test "flink_document_format_rejects_and_completion_returns_real_results" {
+  // (j) T-09-23 / 13-02: a flink-selected document's valid SELECT parses
+  // through the real Flink grammar (empty diagnostics — FATHOM-PARSE-008
+  // retired, D-06); formatting stays the LSP not-implemented refusal
+  // (D-07 formatter swap is 13-04), while completion now returns real results
+  // through the shared completion core (D-02, 13-02) — no Doris policy leak
+  // on any surface.
   let state = ServerState::new()
   state.initialized = true
   let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
@@ -272,5 +274,12 @@ test "flink_document_format_and_completion_reject_without_doris_policy" {
   let completion = message("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":7}}}")
   let completion_responses = handle_message(state, completion)
   assert_eq(completion_responses.length(), 1)
-  assert_true(@utf8.decode_lossy(completion_responses[0]).contains("-32602"))
+  // 13-02 (D-02): flink completion now returns real results through the
+  // shared completion core — the -32602 rejection is gone. The response is a
+  // completion list (echoed id + "result"), never a rejection and never a
+  // Doris fallback.
+  let completion_body = @utf8.decode_lossy(completion_responses[0])
+  assert_true(!completion_body.contains("-32602"))
+  assert_true(completion_body.contains("\"result\""))
+  assert_true(completion_body.contains("\"isIncomplete\""))
 }

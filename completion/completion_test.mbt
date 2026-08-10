@@ -87,3 +87,71 @@ test "doris_statement_start_output_unchanged" {
     assert_eq(item.detail, "SQL syntax keyword")
   }
 }
+
+/// The ddl-header context fires after CREATE/DROP/ALTER and offers the DDL
+/// nouns (CATALOG/DATABASE/FUNCTION/TABLE/VIEW) (D-02).
+test "flink_ddl_header_context" {
+  let result = match complete(b"CREATE ", "flink", "flink-2.3.0", 7) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  for word in [b"CATALOG", b"DATABASE", b"FUNCTION", b"TABLE", b"VIEW"] {
+    assert_true(labels_contain(result.items, @utf8.decode_lossy(word)))
+  }
+  let drop_result = match complete(b"DROP ", "flink", "flink-2.3.0", 5) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(labels_contain(drop_result.items, "TABLE"))
+  assert_true(labels_contain(drop_result.items, "VIEW"))
+  assert_true(labels_contain(drop_result.items, "CATALOG"))
+}
+
+/// The watermark context fires after WATERMARK and offers the column-body
+/// clause words (WATERMARK/PRIMARY/COMPUTED/METADATA); the partitioned-by
+/// context fires after PARTITIONED BY and offers the partition/create-table
+/// continuation words (D-02).
+test "flink_watermark_partitioned_context" {
+  let wm = match complete(b"CREATE TABLE t (id INT, WATERMARK ", "flink", "flink-2.3.0", 34) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  for word in [b"WATERMARK", b"PRIMARY", b"COMPUTED", b"METADATA"] {
+    assert_true(labels_contain(wm.items, @utf8.decode_lossy(word)))
+  }
+  let pb = match complete(b"CREATE TABLE t (id INT) PARTITIONED BY ", "flink", "flink-2.3.0", 39) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(labels_contain(pb.items, "WITH"))
+  assert_true(labels_contain(pb.items, "PRIMARY"))
+  assert_true(labels_contain(pb.items, "WATERMARK"))
+}
+
+/// The window-tvf context fires at the FROM/JOIN table position and offers
+/// the window TVF function names TUMBLE/HOP/CUMULATE/SESSION (D-02).
+test "flink_window_tvf_context" {
+  let result = match complete(b"SELECT * FROM ", "flink", "flink-2.3.0", 14) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  for word in [b"TUMBLE", b"HOP", b"CUMULATE", b"SESSION"] {
+    assert_true(labels_contain(result.items, @utf8.decode_lossy(word)))
+  }
+  // The from-clause continuations remain available (JOIN).
+  assert_true(labels_contain(result.items, "JOIN"))
+}
+
+/// The match-recognize context fires after the MATCH_RECOGNIZE clause words
+/// and is scoped to the reserved clause words already in the table
+/// (PATTERN/DEFINE/MEASURES/MATCH_NUMBER — RESEARCH OQ3 RESOLVED; sub-clause
+/// completion deferred to TOOL-FUTURE-01).
+test "flink_match_recognize_context" {
+  let result = match complete(b"SELECT * FROM t MATCH_RECOGNIZE ", "flink", "flink-2.3.0", 32) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  for word in [b"PATTERN", b"DEFINE", b"MEASURES", b"MATCH_NUMBER"] {
+    assert_true(labels_contain(result.items, @utf8.decode_lossy(word)))
+  }
+}
