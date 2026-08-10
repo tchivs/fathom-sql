@@ -1,7 +1,9 @@
 /// Analyzer-internal SELECT model (D-01). The analyzer re-parses the flat
 /// token-leaf CST into its own clause structure instead of depending on CST
 /// sub-nodes (syntax/SyntaxKind only has coarse statement families). This file
-/// fixes the model shape; plan 05-03 fills the unpopulated clauses. No
+/// fixes the full model shape: every SELECT clause, CTE definitions, set-op
+/// branches, select items (with AS aliases and star markers) and FROM items
+/// (tables, aliases, JOIN chains, subqueries, paren-depth markers). No
 /// SyntaxKind is added and syntax/syntax.mbt is untouched (D-01, Phase 12
 /// frozen parser hard gate).
 
@@ -26,40 +28,76 @@ struct TokenSlice {
   end_byte : Int
 }
 
-/// One SELECT-list item: the token slice(s) of the projection expression.
+/// One dotted name reference inside an expression (D-01): the maximal
+/// dot-separated identifier run, e.g. `a`, `t.a`, `db.t.col`, `t.*`, `*`.
+/// `parts` holds one slice per identifier segment in source order; `star` is
+/// set when the final segment is `*` (then `parts` excludes the star);
+/// `is_call` is set when the reference is immediately followed by `(` (a
+/// function call). Source spelling and byte spans are preserved (D-03).
+struct NameRef {
+  parts : Array[TokenSlice]
+  star : Bool
+  is_call : Bool
+  start_byte : Int
+  end_byte : Int
+}
+
+/// One SELECT-list item: the expression token slices, the optional AS/bare
+/// alias, and whether the item is a star projection (`*`, `t.*`, `db.t.*`).
+/// `star_qualifier` holds the dotted name before `.*` (None for a bare `*`).
 struct SelectItem {
   tokens : Array[TokenSlice]
+  alias : String?
+  alias_slice : TokenSlice?
+  star : Bool
+  star_qualifier : NameRef?
+  refs : Array[NameRef]
 }
 
-/// One FROM item: the table reference (name token slice; alias handling and
-/// JOIN structure land in 05-03).
+/// One FROM item: a table reference with its alias and optional subquery
+/// body. `name` is None for a bare subquery; `is_subquery` distinguishes it.
+/// `join` records how the item attaches to the previous one ("INNER"/"LEFT"/
+/// ... or None for a base/comma-separated ref). `depth` marks the paren depth
+/// at which the item was parsed (0 at the top level; subqueries recurse).
 struct FromItem {
-  name : TokenSlice
+  name : NameRef?
+  alias : String?
+  alias_slice : TokenSlice?
+  is_subquery : Bool
+  subquery : SelectModel?
+  join : String?
+  depth : Int
 }
 
-/// A CTE definition (shape only; body filled by 05-03).
+/// A CTE definition: name, optional column-name alias list text (`WITH c(x)
+/// AS ...`), and the parsed body core (D-02 scope, Pitfall 4).
 struct CteDef {
   name : String
   alias : String?
   body : SelectCore
 }
 
-/// One SELECT core: per-clause token slices produced by the re-parser. Only
-/// SelectList and From are populated by this plan's tracer; the remaining
-/// clauses stay empty until 05-03 expands the re-parser.
+/// One SELECT core: per-clause material produced by the re-parser. Expression
+/// clauses carry pre-extracted `NameRef`s; `limit`/`window` keep raw token
+/// slices (not name-resolved). `set_op` records the set operation that
+/// follows this core in a UNION chain (None for the final branch).
 struct SelectCore {
   select_list : Array[SelectItem]
   from : Array[FromItem]
-  where_tokens : Array[TokenSlice]
-  group_by : Array[TokenSlice]
-  having : Array[TokenSlice]
-  qualify : Array[TokenSlice]
-  order_by : Array[TokenSlice]
+  joins : Array[FromItem]
+  where_refs : Array[NameRef]
+  group_by : Array[NameRef]
+  having : Array[NameRef]
+  qualify : Array[NameRef]
+  order_by : Array[NameRef]
   limit : Array[TokenSlice]
   window : Array[TokenSlice]
+  set_op : String?
 }
 
-/// The model of a full SELECT statement: CTEs plus set-op branches.
+/// The model of a full SELECT statement: CTEs plus set-op branches. The first
+/// branch's output columns are the statement's output columns (UNION column
+/// names come from the first SELECT).
 struct SelectModel {
   ctes : Array[CteDef]
   branches : Array[SelectCore]
