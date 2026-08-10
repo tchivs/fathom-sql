@@ -1,0 +1,10 @@
+{
+  "bindings": [
+    {"kind":"table","name":"t","resolved_to":"t","data_type":"","start_byte":14,"end_byte":15},
+    {"kind":"column","name":"a","resolved_to":"a","data_type":"INT","start_byte":7,"end_byte":8},
+    {"kind":"table","name":"t2","resolved_to":"t2","data_type":"","start_byte":36,"end_byte":38},
+    {"kind":"column","name":"b","resolved_to":"b","data_type":"VARCHAR(5)","start_byte":29,"end_byte":30}
+  ],
+  "diagnostics": [
+  ]
+}
