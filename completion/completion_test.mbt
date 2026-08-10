@@ -155,3 +155,87 @@ test "flink_match_recognize_context" {
     assert_true(labels_contain(result.items, @utf8.decode_lossy(word)))
   }
 }
+
+/// True iff the Flink classification pool under `profile_id` contains `word`
+/// (D-28 single-table discipline: the completion candidate pool IS the
+/// classification table, profile-filtered by introduced_profile).
+fn flink_pool_contains(profile_id : String, word : Bytes) -> Bool {
+  let ctx : @dialect.DialectContext = {
+    dialect: @dialect.Dialect::Flink,
+    profile_id: profile_id,
+    exact_release: profile_id,
+    feature_introduction: "",
+  }
+  let entries = @dialect.classification_entries(ctx)
+  let needle = @utf8.decode_lossy(word)
+  let mut found = false
+  for entry in entries {
+    if @utf8.decode_lossy(entry.word) == needle { found = true }
+  }
+  found
+}
+
+/// MAX_CANDIDATES=32 is never exceeded, including the widest context
+/// (statement-start on the newest profile) (D-02, T-13-02-03).
+test "flink_boundedness_max_32" {
+  for profile in ["flink-1.20.5", "flink-2.1.3", "flink-2.3.0"] {
+    let result = match complete(b"", "flink", profile, 0) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(result.items.length() <= 32)
+  }
+}
+
+/// Per-profile gating by introduced_profile (flink-1.20.5 < flink-2.1.3 <
+/// flink-2.3.0): a 2.1.3-introduced word (QUALIFY) is ABSENT under 1.20.5 and
+/// PRESENT under 2.1.3/2.3.0; a 2.3.0-introduced word (SAFE_CAST) is ABSENT
+/// under 1.20.5/2.1.3 — asserted through both the classification pool and the
+/// completion output where the context admits the word (T-13-02-04, T-10-13).
+test "flink_profile_gating_per_introduced_profile" {
+  // Classification pool gate.
+  assert_true(!flink_pool_contains("flink-1.20.5", b"QUALIFY"))
+  assert_true(flink_pool_contains("flink-2.1.3", b"QUALIFY"))
+  assert_true(flink_pool_contains("flink-2.3.0", b"QUALIFY"))
+  assert_true(!flink_pool_contains("flink-1.20.5", b"SAFE_CAST"))
+  assert_true(!flink_pool_contains("flink-2.1.3", b"SAFE_CAST"))
+  assert_true(flink_pool_contains("flink-2.3.0", b"SAFE_CAST"))
+  // Completion output gate: QUALIFY is a clause keyword admitted at
+  // statement-start, so its absence under 1.20.5 is observable.
+  let old = match complete(b"", "flink", "flink-1.20.5", 0) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(!labels_contain(old.items, "QUALIFY"))
+  for profile in ["flink-2.1.3", "flink-2.3.0"] {
+    let result = match complete(b"", "flink", profile, 0) {
+      Ok(result) => result
+      Err(_) => panic()
+    }
+    assert_true(labels_contain(result.items, "QUALIFY"))
+  }
+}
+
+/// A multibyte identifier prefix is replaced by a source-range edit whose byte
+/// offsets are authoritative UTF-8 (start_byte <= cursor <= end_byte) and
+/// whose new_text equals the label (T-13-02-06).
+test "flink_multibyte_source_range_edit" {
+  let raw = @utf8.encode("SELECT 列 FRO")
+  let cursor = raw.length()
+  let result = match complete(raw, "flink", "flink-2.3.0", cursor) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_true(result.items.length() > 0)
+  let mut found_from = false
+  for item in result.items {
+    if item.label == "FROM" {
+      found_from = true
+      assert_true(item.start_byte <= cursor)
+      assert_true(cursor <= item.end_byte)
+      assert_eq(item.end_byte, cursor)
+      assert_eq(item.new_text, "FROM")
+    }
+  }
+  assert_true(found_from)
+}
