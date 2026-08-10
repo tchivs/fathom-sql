@@ -47,9 +47,13 @@ class FathomSettingsConfigurable : Configurable {
 
     override fun isModified(): Boolean {
         val current = FathomSettings.getInstance().snapshot()
+        // Normalize the unselected combo (null) and the persisted empty-string
+        // state to the same value so a fresh install (no selection yet) does
+        // not report "modified" and enable Apply on an invalid empty selection
+        // (IN-06). A real selection still differs from "" and enables Apply.
         return executableField.text != current.executablePath ||
-            dialectCombo.selectedItem != current.dialect ||
-            profileCombo.selectedItem != current.profile ||
+            (dialectCombo.selectedItem as? String).orEmpty() != current.dialect ||
+            (profileCombo.selectedItem as? String).orEmpty() != current.profile ||
             useGitHubReleases.isSelected != current.useGitHubReleases
     }
 

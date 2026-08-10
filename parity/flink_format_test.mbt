@@ -1,6 +1,6 @@
 /// D-01 flink-format snapshot group (Phase 13 wave 1, 13-01): an independent
 /// namespace under parity/__snapshot__/ that freezes the Flink canonical
-/// formatting contract (refusal-first, D-33) for the 20 covered statement
+/// formatting contract (refusal-first, D-33) for the 21 covered statement
 /// families under flink-2.3.0 strict. Filenames are
 /// `flink-format.{fixture}.flink-2.3.0.strict.json` and never overlap the
 /// Doris 213-snapshot baseline, the flink-grammar group, or the flink-lexical

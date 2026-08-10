@@ -23,6 +23,7 @@ pub struct DialectSelection {
 /// level, unknown dialect, unknown profile, or same-priority-source conflict.
 pub enum SelectionError {
   MissingSelection
+  MissingDocumentField(missing~ : String)
   UnknownDialect(dialect_id~ : String)
   UnknownProfile(profile_id~ : String)
   ConflictingSelection(source_a~ : String, source_b~ : String)
@@ -236,23 +237,33 @@ fn changed_document(params : Json) -> (String, Int, Bytes)? {
   Some((uri, version, @utf8.encode(text)))
 }
 
+/// Document-level selection resolution outcome (D-01/D-02 no-guess rule).
+/// DocAbsent = the client asserted NO document-level selection fields (fall
+/// through to workspace default); DocSelected = both dialect and profile
+/// present; DocPartial = exactly one present — a partial assertion MUST be
+/// surfaced as a structured config error, never silently resolved to the
+/// workspace default (WR-04).
+enum DocSelection {
+  DocAbsent
+  DocSelected(selection~ : DialectSelection)
+  DocPartial(missing~ : String)
+}
+
 /// Document-level explicit config from the didOpen/didChange textDocument
-/// extension fields (D-01 level 1, A2 transport). Absent fields mean the
-/// client did not assert a document-level selection.
-fn selection_from_params(params : Json) -> DialectSelection? {
+/// extension fields (D-01 level 1, A2 transport).
+fn selection_from_params(params : Json) -> DocSelection {
   let document = match  object_field(params, "textDocument") {
     Some(document) => document
-    None => return None
+    None => return DocAbsent
   }
-  let dialect = match  string_field(document, "dialect") {
-    Some(dialect) => dialect
-    None => return None
+  let dialect =  string_field(document, "dialect")
+  let profile =  string_field(document, "profile")
+  match (dialect, profile) {
+    (Some(dialect), Some(profile)) => DocSelected(selection={ dialect: dialect, profile: profile })
+    (Some(_), None) => DocPartial(missing="profile")
+    (None, Some(_)) => DocPartial(missing="dialect")
+    (None, None) => DocAbsent
   }
-  let profile = match  string_field(document, "profile") {
-    Some(profile) => profile
-    None => return None
-  }
-  Some({ dialect: dialect, profile: profile })
 }
 
 fn language_id_from_params(params : Json, key : String) -> String? {
@@ -283,6 +294,7 @@ fn validate_selection(selection : DialectSelection) -> Result[DialectSelection, 
 fn selection_error_message(error : SelectionError) -> String {
   match error {
     MissingSelection => "missing dialect selection: no document-level config, workspace default, or language mapping provides a dialect"
+    MissingDocumentField(missing~) => "partial document-level selection: textDocument provides one of dialect/profile but is missing \{missing} — supply both (D-02 no-guess)"
     UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id}"
     UnknownProfile(profile_id~) => "unsupported profile: \{profile_id}"
     ConflictingSelection(source_a~, source_b~) => "conflicting dialect/profile selections: \{source_a} vs \{source_b}"
@@ -297,14 +309,15 @@ fn selection_error_message(error : SelectionError) -> String {
 fn resolve_selection_with_source(state : ServerState, params : Json, language_id : String?) -> Result[(DialectSelection, String), SelectionError] {
   // (1) document-level explicit config (didOpen/didChange extension fields)
   match selection_from_params(params) {
-    Some(selection) => {
+    DocSelected(selection~) => {
       let validated = match validate_selection(selection) {
         Ok(selection) => selection
         Err(error) => return Err(error)
       }
       return Ok((validated, "document"))
     }
-    None => ()
+    DocPartial(missing~) => return Err(MissingDocumentField(missing~))
+    DocAbsent => ()
   }
   // (2) workspace/session explicit default
   match (state.default_dialect, state.default_profile) {
@@ -787,11 +800,12 @@ pub fn handle_message(state : ServerState, message :  RpcMessage) -> Array[Bytes
                     // Document-level extension fields win; otherwise the
                     // stored context persists across edits (D-03).
                     let resolved = match selection_from_params(params) {
-                      Some(selection) => match validate_selection(selection) {
+                      DocSelected(selection~) => match validate_selection(selection) {
                         Ok(selection) => Ok((selection, "document"))
                         Err(error) => Err(error)
                       }
-                      None => Ok(({ dialect: current.dialect, profile: current.profile }, current.selection_source))
+                      DocPartial(missing~) => Err(MissingDocumentField(missing~))
+                      DocAbsent => Ok(({ dialect: current.dialect, profile: current.profile }, current.selection_source))
                     }
                     match resolved {
                       Ok((selection, source)) => {

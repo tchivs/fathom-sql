@@ -248,7 +248,7 @@ pub(all) struct FormatResult {
 }
 ```
 
-`statement_offsets` records the byte start of each statement in the final formatted output, in statement order. When formatting is refused, both output and offsets are empty.
+`statement_offsets` records the output byte offset where each statement's layout begins, in statement order. The inter-statement separator newline is part of the following statement's layout, so for statement N (N≥1) the recorded offset points at the separator byte (the end of statement N−1); statement 0's offset is the document start. When formatting is refused, both output and offsets are empty.
 
 ### Lossless Printing
 
@@ -425,7 +425,7 @@ import {
 
 fn main {
   let raw = b"select id, name from users"
-  let options = match @api.ParseOptions::new("4.x", "strict") {
+  let options = match @api.ParseOptions::new("doris", "4.x", "strict") {
     Ok(value) => value
     Err(error) => panic()
   }

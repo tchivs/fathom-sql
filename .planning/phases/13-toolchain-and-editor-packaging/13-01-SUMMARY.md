@@ -66,7 +66,7 @@ coverage:
         status: pass
     human_judgment: false
   - id: D2
-    description: "Flink canonical formatting for the D-01 20 covered families — multi-line clause-break layout frozen in the independent flink-format snapshot namespace; idempotent and zero-diagnostic reparse per fixture"
+    description: "Flink canonical formatting for the D-01 21 covered families — multi-line clause-break layout frozen in the independent flink-format snapshot namespace; idempotent and zero-diagnostic reparse per fixture"
     requirement: TOOL-01
     verification:
       - kind: integration

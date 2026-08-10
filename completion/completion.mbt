@@ -319,5 +319,5 @@ pub fn complete(raw : Bytes, dialect_id : String, profile_id : String, cursor_by
     }
     priority = priority + 1
   }
-  Ok({ is_incomplete: false, items: items })
+  Ok({ is_incomplete: items.length() >= MAX_CANDIDATES, items: items })
 }

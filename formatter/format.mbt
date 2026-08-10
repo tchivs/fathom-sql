@@ -24,36 +24,52 @@ pub fn format(
   let newline = detect_newline(source, options.newline_style())
   let out = Layout::new(context, options, newline)
   let statement_offsets : Array[Int] = []
+  let mut refusal : (@syntax.SyntaxElement, UInt)? = None
+  let mut statement_id : UInt = 0U
   for child in root.children() {
     match child {
       @syntax.SyntaxElement::ChildNode(node) if node.kind() is @syntax.SyntaxKind::Statement => {
-        // Record the output byte offset where this statement's first emitted
-        // byte lands (research Open Question 5). Trailing-newline normalization
-        // only touches the tail, so offsets stay valid in the final output.
+        // Record the output byte offset where this statement's layout begins.
+        // Trailing-newline normalization only touches the tail, so offsets
+        // stay valid in the final output. NOTE: the inter-statement separator
+        // newline is part of the following statement's layout, so for
+        // statement N (N>=1) the recorded offset points at the separator byte
+        // (the end of statement N-1), not the statement's first emitted byte.
         statement_offsets.push(out.buf.length())
         match statement_family(node) {
           Some(family) => layout_statement(family, node, source, options, out)
+          None => ()
+        }
+        match out.failed {
+          Some(element) => refusal = Some((element, statement_id))
           None => ()
         }
         // Statements are separated by one newline (research Open Question 4);
         // the last statement's pending break never materializes and the
         // trailing-newline policy takes over.
         out.break_line()
+        statement_id = statement_id + 1U
       }
-      @syntax.SyntaxElement::Leaf(leaf) => layout_document_trivia(leaf, source, out)
+      @syntax.SyntaxElement::Leaf(leaf) => {
+        layout_document_trivia(leaf, source, out)
+        match out.failed {
+          Some(element) => refusal = Some((element, 0U))
+          None => ()
+        }
+      }
       @syntax.SyntaxElement::ChildNode(_) => () // skipped tails are refused above
     }
-    if out.failed is Some(_) {
+    if refusal is Some(_) {
       break
     }
   }
-  match out.failed {
-    Some(element) => {
+  match refusal {
+    Some((element, sid)) => {
       let span = element.span()
       return {
         accepted: false,
         output: b"",
-        diagnostics: [refusal_diagnostic(span, 0U)],
+        diagnostics: [refusal_diagnostic(span, sid)],
         statement_offsets: [],
       }
     }

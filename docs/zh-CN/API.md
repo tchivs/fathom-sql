@@ -23,7 +23,7 @@ import {
 | 入口 | 所属包 | 用途 | 认证 |
 |---|---|---|---|
 | `parse` | `fathom/sql/api` | 使用已构造的 `ParseOptions` 解析原始 SQL 字节 | 不需要 |
-| `parse_with_ids` | `fathom/sql/api` | 用 profile/mode 字符串快捷构造选项并解析 | 不需要 |
+| `parse_with_ids` | `fathom/sql/api` | 用 dialect/profile/mode 字符串快捷构造选项并解析 | 不需要 |
 | `parse_with_metadata` | `fathom/sql/api` | 校验 profile 的 release 与 feature metadata 后解析 | 不需要 |
 | `format_text` | `fathom/sql/api` | 解析并按 `FormatOptions` 格式化 SQL | 不需要 |
 | `format_with_ids` | `fathom/sql/api` | 用 profile/mode 字符串快捷格式化 | 不需要 |
@@ -36,7 +36,7 @@ import {
 
 - SQL 输入类型是 `Bytes`，不是 `String`。源字节只在结果根部保存一次，节点和诊断通过字节 offset 引用它。
 - `start_byte` 和 `end_byte` 是半开区间 `[start_byte, end_byte)` 的字节偏移，不是 Unicode 字符索引；所有 span 都应落在输入长度内。
-- `profile` 必须明确选择 `"2.1"`、`"3.x"` 或 `"4.x"`；不会静默回退到通用 MySQL 方言。
+- `dialect` 必须明确选择 `"doris"` 或 `"flink"`；`profile` 对 doris 必须是 `"2.1"`、`"3.x"` 或 `"4.x"`，对 flink 必须是 `"flink-2.3.0"`、`"flink-2.1.3"` 或 `"flink-1.20.5"`；不会静默回退到通用 MySQL 方言。
 - `mode` 必须是 `"strict"` 或 `"editor"`。两种模式共享 CST 与诊断形状；`editor` 可以生成 `missing`、`error`、`skipped` 节点来保留半成品输入。
 
 ### 解析选项
@@ -64,7 +64,7 @@ pub struct ParseOptions {
 
 | 构造器 | 说明 |
 |---|---|
-| `ParseOptions::new(profile_id, mode_id)` | 接收 `"2.1"`/`"3.x"`/`"4.x"` 和 `"strict"`/`"editor"`，使用默认限制。 |
+| `ParseOptions::new(dialect_id, profile_id, mode_id)` | 接收 `"doris"`/`"flink"`、`"2.1"`/`"3.x"`/`"4.x"`（或 flink 的 `"flink-2.3.0"`/`"flink-2.1.3"`/`"flink-1.20.5"`）和 `"strict"`/`"editor"`，使用默认限制。 |
 | `ParseOptions::for_profile(profile, mode)` | 使用 `@token.DorisProfile` 和 `ParseMode`，使用默认限制。 |
 | `ParseOptions::for_profile_with_limits(profile, mode, limits)` | 使用枚举 profile/mode 和调用方提供的 `ParseLimits`。 |
 | `ParseOptions::for_profile_with_metadata(profile, metadata, mode)` | 校验完整 `ProfileMetadata` 后创建选项。 |
@@ -104,7 +104,7 @@ pub fn parse_with_ids(
 ) -> Result[ParseResult, ParseError]
 ```
 
-适合 profile 和模式来自配置或 CLI 参数的场景。它等价于先调用 `ParseOptions::new(profile_id, mode_id_value)`，再调用 `parse`。
+适合 dialect、profile 和模式来自配置或 CLI 参数的场景。它等价于先调用 `ParseOptions::new(dialect_id, profile_id, mode_id_value)`，再调用 `parse`。
 
 #### `parse_with_metadata`
 
@@ -309,7 +309,7 @@ pub fn[T : Catalog] resolve_table_references(
 
 | 错误构造 | 触发条件 |
 |---|---|
-| `UnknownProfile(profile_id~)` | profile 不是 `2.1`、`3.x` 或 `4.x`。 |
+| `UnknownProfile(profile_id~)` | profile 不是 doris 的 `2.1`/`3.x`/`4.x` 或 flink 的 `flink-2.3.0`/`flink-2.1.3`/`flink-1.20.5`。 |
 | `UnknownMode(mode_id~)` | mode 不是 `strict` 或 `editor`。 |
 | `ProfileMetadataMismatch(...)` | manifest 或 metadata 的 release、profile identity 或 feature introduction 与内置 profile 不一致。 |
 | `UnsupportedFeatureIntroduction(feature_introduction~)` | feature introduction 字符串不在当前支持的 metadata 集合中。 |
@@ -424,7 +424,7 @@ import {
 
 fn main {
   let raw = b"select id, name from users"
-  let options = match @api.ParseOptions::new("4.x", "strict") {
+  let options = match @api.ParseOptions::new("doris", "4.x", "strict") {
     Ok(value) => value
     Err(error) => panic()
   }

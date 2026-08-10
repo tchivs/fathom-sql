@@ -23,7 +23,7 @@ runs `moon test --package parity` (no `--update`) and
 
 Wave 13-01 adds a NEW **`flink-format.{fixture}.flink-2.3.0.strict.json`**
 snapshot group under `parity/__snapshot__/` that freezes the Flink
-canonical-formatting contract for the 20 covered statement families
+canonical-formatting contract for the 21 covered statement families
 (refusal-first, D-33, idempotence D-34, zero-diagnostic reparse D-35). The
 namespace is INDEPENDENT (Pitfall 7): it never overlaps the Doris 213
 baseline, the `flink-grammar` group, or the `flink-lexical` group.

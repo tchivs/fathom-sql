@@ -101,6 +101,25 @@ test "did_open_without_any_selection_publishes_config_error" {
   assert_true(state.docs.get("file:///nonselect.sql").is_none())
 }
 
+test "did_open_with_partial_document_selection_publishes_config_error_not_workspace_fallback" {
+  // WR-04 (D-02 no-guess): a document that asserts only one of dialect/profile
+  // at document level MUST NOT silently fall through to the workspace default.
+  // With a doris-4.x workspace default and a document sending only
+  // dialect:"flink", didOpen publishes a config diagnostic naming the missing
+  // profile and does NOT parse/store the document under the doris default.
+  let state = ServerState::new()
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")))
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///partial.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\"}}}")
+  let responses = handle_message(state, open)
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(body.contains("publishDiagnostics"))
+  assert_true(body.contains("FATHOM-SCHEMA-007"))
+  assert_true(body.contains("missing profile"))
+  assert_true(!body.contains("FATHOM-PARSE-"))
+  assert_true(state.docs.get("file:///partial.sql").is_none())
+}
+
 test "did_open_resolves_through_configured_language_mapping" {
   // (f) D-02: languageId participates ONLY through a user-configured mapping
   // (workspace/didChangeConfiguration languageMapping). With no document-level
