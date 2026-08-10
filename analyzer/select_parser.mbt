@@ -112,6 +112,25 @@ fn is_from_suffix_word(bytes : Bytes) -> Bool {
   bytes_equal_ci(bytes, b"TABLESAMPLE") || bytes_equal_ci(bytes, b"TABLET")
 }
 
+/// True when `tokens[index]` starts a FROM-suffix boundary that must not be
+/// consumed as a bare table/subquery alias: a boundary/suffix word, or
+/// GROUP/ORDER when followed by BY (Pitfall 2). `SELECT a FROM t ORDER BY a`
+/// must not bind `ORDER` as an alias of `t`.
+fn is_from_clause_boundary(tokens : Array[(Bytes, Int, Int)], index : Int) -> Bool {
+  if index >= tokens.length() {
+    return true
+  }
+  let bytes = tokens[index].0
+  if is_from_suffix_word(bytes) {
+    return true
+  }
+  if (bytes_equal_ci(bytes, b"GROUP") || bytes_equal_ci(bytes, b"ORDER")) &&
+    index + 1 < tokens.length() && bytes_equal_ci(tokens[index + 1].0, b"BY") {
+    return true
+  }
+  false
+}
+
 /// Clause keyword at paren depth 0 with GROUP/ORDER two-word detection
 /// (Pitfall 2): GROUP/ORDER only break when the next significant token is BY.
 /// Strings and quoted identifiers can never match (whole-token byte compare).
@@ -792,7 +811,7 @@ fn parse_from_item(
             after = after + 1
           }
         } else if after < end && is_identifier_token(tokens[after].0) &&
-          !is_from_suffix_word(tokens[after].0) {
+          !is_from_clause_boundary(tokens, after) {
           alias = Some(identifier_text(tokens[after].0))
           alias_slice = Some({
             bytes: tokens[after].0,
@@ -859,7 +878,7 @@ fn parse_from_item(
       after = after + 1
     }
   } else if after < end && is_identifier_token(tokens[after].0) &&
-    !is_from_suffix_word(tokens[after].0) {
+    !is_from_clause_boundary(tokens, after) {
     alias = Some(identifier_text(tokens[after].0))
     alias_slice = Some({
       bytes: tokens[after].0,
