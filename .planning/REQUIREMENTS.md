@@ -27,11 +27,11 @@ Requirements for the v2.0 milestone. Each requirement maps to exactly one roadma
 ### Lossless CST and Toolchain
 
 - [x] **CST-01**: Consumer can parse Flink input in strict or editor mode into a recoverable lossless CST where comments, whitespace, newlines, unknown material, error nodes, missing nodes, skipped material, source bytes, and spans round-trip without loss.
-- [ ] **TOOL-01**: Consumer can format supported Flink CST using the existing refusal-first contract: canonical formatting is separate from lossless replay, and trees containing unsafe error/missing/skipped material produce an explicit refusal without partial output.
-- [ ] **TOOL-02**: Consumer can request bounded Flink syntax completion for keywords, DDL, WATERMARK, Window TVF, and MATCH_RECOGNIZE contexts and receive safe source-range edits based on the selected dialect/profile.
-- [ ] **TOOL-03**: Consumer can run the syntax-only analyzer for Flink with an optional catalog to resolve supported table, column, and identifier references; parser validity is independent of catalog, connector, planner, or execution semantics.
-- [ ] **TOOL-04**: Consumer can use the neutral CLI and Native LSP end to end for Flink, including `fathom-sql parse|format|lsp --dialect flink`, `fathom-lsp`, diagnostics, formatting, completion, UTF-16 positions, and document-level dialect selection.
-- [ ] **TOOL-05**: Consumer can use the same dialect-aware API/schema/LSP from JS and linear Wasm, Web/Monaco, VS Code, and IntelliJ; hosts select Doris or Flink per file/session without maintaining a second parser implementation.
+- [x] **TOOL-01**: Consumer can format supported Flink CST using the existing refusal-first contract: canonical formatting is separate from lossless replay, and trees containing unsafe error/missing/skipped material produce an explicit refusal without partial output.
+- [x] **TOOL-02**: Consumer can request bounded Flink syntax completion for keywords, DDL, WATERMARK, Window TVF, and MATCH_RECOGNIZE contexts and receive safe source-range edits based on the selected dialect/profile.
+- [x] **TOOL-03**: Consumer can run the syntax-only analyzer for Flink with an optional catalog to resolve supported table, column, and identifier references; parser validity is independent of catalog, connector, planner, or execution semantics.
+- [x] **TOOL-04**: Consumer can use the neutral CLI and Native LSP end to end for Flink, including `fathom-sql parse|format|lsp --dialect flink`, `fathom-lsp`, diagnostics, formatting, completion, UTF-16 positions, and document-level dialect selection.
+- [x] **TOOL-05**: Consumer can use the same dialect-aware API/schema/LSP from JS and linear Wasm, Web/Monaco, VS Code, and IntelliJ; hosts select Doris or Flink per file/session without maintaining a second parser implementation.
 
 ### Product Identity Neutralization
 
@@ -87,11 +87,11 @@ Populated during v2.0 roadmap creation. Every v2.0 requirement maps to exactly o
 | FLINK-05 | Phase 11 | Complete |
 | FLINK-06 | Phase 11 | Complete |
 | CST-01 | Phase 11 | Complete |
-| TOOL-01 | Phase 13 | Pending |
-| TOOL-02 | Phase 13 | Pending |
-| TOOL-03 | Phase 13 | Pending |
-| TOOL-04 | Phase 13 | Pending |
-| TOOL-05 | Phase 13 | Pending |
+| TOOL-01 | Phase 13 | Complete |
+| TOOL-02 | Phase 13 | Complete |
+| TOOL-03 | Phase 13 | Complete |
+| TOOL-04 | Phase 13 | Complete |
+| TOOL-05 | Phase 13 | Complete |
 | NAME-01 | Phase 9 | Complete |
 | NAME-02 | Phase 9 | Complete |
 | NAME-03 | Phase 9 | Complete |

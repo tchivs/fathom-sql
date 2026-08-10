@@ -63,7 +63,7 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 - [x] **Phase 10: Flink Release Profiles and Lexical Core** - Lock Flink release/Calcite contracts and deliver profile-specific Flink lexical behavior. (completed 2026-08-07)
 - [x] **Phase 11: Flink Grammar and Recoverable CST** - Deliver Flink statement/DDL/window/pattern grammar with strict/editor lossless recovery. (completed 2026-08-09)
 - [x] **Phase 12: Cross-Dialect Corpus and Parity Gates** - Turn pinned sources and the Doris baseline into reproducible cross-dialect and cross-backend release gates. (completed 2026-08-09)
-- [ ] **Phase 13: Toolchain and Editor Packaging** - Expose Flink through formatter, analyzer, completion, CLI/LSP, JS/Wasm, Web, VS Code, and IntelliJ.
+- [x] **Phase 13: Toolchain and Editor Packaging** - Expose Flink through formatter, analyzer, completion, CLI/LSP, JS/Wasm, Web, VS Code, and IntelliJ. (completed 2026-08-10)
 
 ## Phase Details
 
