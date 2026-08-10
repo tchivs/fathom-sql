@@ -1,6 +1,6 @@
 /// D-01 flink-format snapshot group (Phase 13 wave 1, 13-01): an independent
 /// namespace under parity/__snapshot__/ that freezes the Flink canonical
-/// formatting contract (refusal-first, D-33) for the covered statement
+/// formatting contract (refusal-first, D-33) for the 20 covered statement
 /// families under flink-2.3.0 strict. Filenames are
 /// `flink-format.{fixture}.flink-2.3.0.strict.json` and never overlap the
 /// Doris 213-snapshot baseline, the flink-grammar group, or the flink-lexical
@@ -17,7 +17,7 @@
 /// statement-offset bounds, and refusal assertions (accepted=false, empty
 /// output, exactly one FATHOM-FORMAT-001, parse diagnostics never masked —
 /// T-03-01). The covered-set completeness probe machine-checks
-/// formatter.flink_statement_covered against the parser's emit set.
+/// formatter.flink_statement_covered against the Flink parser's emit set.
 
 pub(all) struct FlinkFormatFixture {
   pub fixture_id : String
@@ -26,11 +26,10 @@ pub(all) struct FlinkFormatFixture {
   pub expected_refused : Bool
 }
 
-/// 13-01 fixtures. Task 1 (tracer) covers the shared families end to end:
-/// select-basic (covered) and show-tables (an uncovered Flink family that must
-/// refuse with exactly one FATHOM-FORMAT-001 and zero output). Task 2 expands
-/// the covered set to the full 20-family D-01 list and flips show-tables to a
-/// covered positive fixture.
+/// 13-01 fixtures: one representative per covered Flink statement family
+/// (D-01 20-family list) plus one unsafe-tree refusal row. Every positive
+/// fixture must format accepted=true, stay idempotent, and reparse clean; the
+/// refusal row must refuse with exactly one FATHOM-FORMAT-001 and zero output.
 let flink_format_fixtures : Array[FlinkFormatFixture] = [
   {
     fixture_id: "select-basic",
@@ -39,9 +38,135 @@ let flink_format_fixtures : Array[FlinkFormatFixture] = [
     expected_refused: false,
   },
   {
-    fixture_id: "show-tables-refused",
+    fixture_id: "select-from-where",
     profile: "flink-2.3.0",
-    raw: b"SHOW TABLES",
+    raw: b"SELECT a, b FROM t WHERE x = 1",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "insert-into-select",
+    profile: "flink-2.3.0",
+    raw: b"INSERT INTO t SELECT * FROM s",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "update-where",
+    profile: "flink-2.3.0",
+    raw: b"UPDATE t SET a = 1 WHERE id = 5",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "delete-where",
+    profile: "flink-2.3.0",
+    raw: b"DELETE FROM t WHERE id = 5",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "explain-plan-for",
+    profile: "flink-2.3.0",
+    raw: b"EXPLAIN PLAN FOR SELECT * FROM t",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "show-tables-from-like",
+    profile: "flink-2.3.0",
+    raw: b"SHOW TABLES FROM db1 LIKE '%'",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "describe-extended-database",
+    profile: "flink-2.3.0",
+    raw: b"DESCRIBE EXTENDED DATABASE db",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "analyze-table",
+    profile: "flink-2.3.0",
+    raw: b"ANALYZE TABLE t COMPUTE STATISTICS",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "create-table-basic",
+    profile: "flink-2.3.0",
+    raw: b"CREATE TABLE t (a INT, b STRING) WITH ('connector' = 'x')",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "create-view-as",
+    profile: "flink-2.3.0",
+    raw: b"CREATE VIEW v AS SELECT * FROM t",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "create-catalog",
+    profile: "flink-2.3.0",
+    raw: b"CREATE CATALOG c WITH ('type' = 'generic_in_memory')",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "create-database",
+    profile: "flink-2.3.0",
+    raw: b"CREATE DATABASE db COMMENT 'sales db' WITH ('k' = 'v')",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "create-function",
+    profile: "flink-2.3.0",
+    raw: b"CREATE TEMPORARY FUNCTION f AS 'com.example.UDF' LANGUAGE JAVA",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "drop-catalog",
+    profile: "flink-2.3.0",
+    raw: b"DROP CATALOG IF EXISTS c",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "drop-database",
+    profile: "flink-2.3.0",
+    raw: b"DROP DATABASE db CASCADE",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "drop-table",
+    profile: "flink-2.3.0",
+    raw: b"DROP TABLE IF EXISTS t",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "drop-view",
+    profile: "flink-2.3.0",
+    raw: b"DROP VIEW IF EXISTS v",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "drop-function",
+    profile: "flink-2.3.0",
+    raw: b"DROP FUNCTION IF EXISTS f",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "alter-table-rename",
+    profile: "flink-2.3.0",
+    raw: b"ALTER TABLE t RENAME TO t2",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "set-option",
+    profile: "flink-2.3.0",
+    raw: b"SET 'k' = 'v'",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "use-catalog",
+    profile: "flink-2.3.0",
+    raw: b"USE CATALOG c",
+    expected_refused: false,
+  },
+  {
+    fixture_id: "select-incomplete-refused",
+    profile: "flink-2.3.0",
+    raw: b"SELECT a, b FROM t WHERE",
     expected_refused: true,
   },
 ]
@@ -78,13 +203,11 @@ fn contains_newline(raw : Bytes) -> Bool {
   false
 }
 
-/// Oracle per row: positive fixtures hit the committed snapshot (via the
-/// per-fixture snapshot tests), stay idempotent format(format(x)) == format(x)
-/// (D-34), reparse with zero diagnostics (D-35), and keep every statement
-/// offset inside the output; refusal fixtures refuse with accepted=false,
-/// empty output, and exactly one FATHOM-FORMAT-001 (D-33, Pitfall 6 — never a
-/// skipped test). Parse diagnostics are preserved/prepended, never masked
-/// (T-03-01).
+/// Oracle per row: positive fixtures stay idempotent format(format(x)) ==
+/// format(x) (D-34), reparse with zero diagnostics (D-35), and keep every
+/// statement offset inside the output; refusal fixtures refuse with
+/// accepted=false, empty output, and exactly one FATHOM-FORMAT-001 (D-33,
+/// Pitfall 6 — never a skipped test).
 fn flink_format_oracle(fixture : FlinkFormatFixture) -> String {
   let options = @formatter.FormatOptions::default()
   let formatted = match @api.format_with_ids(fixture.raw, "flink", fixture.profile, "strict", options) {
@@ -136,7 +259,7 @@ fn flink_format_oracle(fixture : FlinkFormatFixture) -> String {
 }
 
 test "flink_format_oracle_all_fixtures" {
-  assert_eq(flink_format_fixtures.length(), 2)
+  assert_eq(flink_format_fixtures.length(), 23)
   let mut failures = ""
   for fixture in flink_format_fixtures {
     let message = flink_format_oracle(fixture)
@@ -148,40 +271,246 @@ test "flink_format_oracle_all_fixtures" {
 }
 
 // ---------------------------------------------------------------------------
-// select-basic: the tracer covered path — a covered family formats end to end
-// and its output is frozen byte-exact.
+// Per-fixture snapshots (positive fixtures only; refusal rows are oracle-only).
 // ---------------------------------------------------------------------------
 test "flink-format select-basic flink-2.3.0 strict" {
   let t = @test.Test("flink-format select-basic flink-2.3.0 strict")
   flink_format_snapshot_test(t, flink_format_json("select-basic"), "flink-format.select-basic.flink-2.3.0.strict.json")
 }
 
-/// Tracer covered-family probe: at this stage the shared families
-/// (Select/Insert/Update/Delete/CreateTable/CreateView) are covered; the
-/// Flink-only families (ShowStatement, UseStatement) are NOT yet in the
-/// covered table, so the gate must refuse them. Task 2 expands this to the
-/// full D-01 covered set.
-test "flink-format tracer covered-family probe" {
-  assert_true(@formatter.flink_statement_covered(@syntax.SyntaxKind::Select))
-  assert_true(@formatter.flink_statement_covered(@syntax.SyntaxKind::Insert))
-  assert_true(@formatter.flink_statement_covered(@syntax.SyntaxKind::Update))
-  assert_true(@formatter.flink_statement_covered(@syntax.SyntaxKind::Delete))
-  assert_true(@formatter.flink_statement_covered(@syntax.SyntaxKind::CreateTable))
-  assert_true(@formatter.flink_statement_covered(@syntax.SyntaxKind::CreateView))
-  assert_false(@formatter.flink_statement_covered(@syntax.SyntaxKind::ShowStatement))
-  assert_false(@formatter.flink_statement_covered(@syntax.SyntaxKind::UseStatement))
+test "flink-format select-from-where flink-2.3.0 strict" {
+  let t = @test.Test("flink-format select-from-where flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("select-from-where"), "flink-format.select-from-where.flink-2.3.0.strict.json")
 }
 
-/// The tracer refusal half: an uncovered Flink family refuses with
-/// accepted=false, empty output, and exactly one FATHOM-FORMAT-001 — no
-/// partial bytes, no silent single line (D-01, Pitfall 1).
-test "flink-format uncovered family refuses end-to-end" {
-  let result = match @api.format_with_ids(b"SHOW TABLES", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
+test "flink-format insert-into-select flink-2.3.0 strict" {
+  let t = @test.Test("flink-format insert-into-select flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("insert-into-select"), "flink-format.insert-into-select.flink-2.3.0.strict.json")
+}
+
+test "flink-format update-where flink-2.3.0 strict" {
+  let t = @test.Test("flink-format update-where flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("update-where"), "flink-format.update-where.flink-2.3.0.strict.json")
+}
+
+test "flink-format delete-where flink-2.3.0 strict" {
+  let t = @test.Test("flink-format delete-where flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("delete-where"), "flink-format.delete-where.flink-2.3.0.strict.json")
+}
+
+test "flink-format explain-plan-for flink-2.3.0 strict" {
+  let t = @test.Test("flink-format explain-plan-for flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("explain-plan-for"), "flink-format.explain-plan-for.flink-2.3.0.strict.json")
+}
+
+test "flink-format show-tables-from-like flink-2.3.0 strict" {
+  let t = @test.Test("flink-format show-tables-from-like flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("show-tables-from-like"), "flink-format.show-tables-from-like.flink-2.3.0.strict.json")
+}
+
+test "flink-format describe-extended-database flink-2.3.0 strict" {
+  let t = @test.Test("flink-format describe-extended-database flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("describe-extended-database"), "flink-format.describe-extended-database.flink-2.3.0.strict.json")
+}
+
+test "flink-format analyze-table flink-2.3.0 strict" {
+  let t = @test.Test("flink-format analyze-table flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("analyze-table"), "flink-format.analyze-table.flink-2.3.0.strict.json")
+}
+
+test "flink-format create-table-basic flink-2.3.0 strict" {
+  let t = @test.Test("flink-format create-table-basic flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("create-table-basic"), "flink-format.create-table-basic.flink-2.3.0.strict.json")
+}
+
+test "flink-format create-view-as flink-2.3.0 strict" {
+  let t = @test.Test("flink-format create-view-as flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("create-view-as"), "flink-format.create-view-as.flink-2.3.0.strict.json")
+}
+
+test "flink-format create-catalog flink-2.3.0 strict" {
+  let t = @test.Test("flink-format create-catalog flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("create-catalog"), "flink-format.create-catalog.flink-2.3.0.strict.json")
+}
+
+test "flink-format create-database flink-2.3.0 strict" {
+  let t = @test.Test("flink-format create-database flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("create-database"), "flink-format.create-database.flink-2.3.0.strict.json")
+}
+
+test "flink-format create-function flink-2.3.0 strict" {
+  let t = @test.Test("flink-format create-function flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("create-function"), "flink-format.create-function.flink-2.3.0.strict.json")
+}
+
+test "flink-format drop-catalog flink-2.3.0 strict" {
+  let t = @test.Test("flink-format drop-catalog flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("drop-catalog"), "flink-format.drop-catalog.flink-2.3.0.strict.json")
+}
+
+test "flink-format drop-database flink-2.3.0 strict" {
+  let t = @test.Test("flink-format drop-database flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("drop-database"), "flink-format.drop-database.flink-2.3.0.strict.json")
+}
+
+test "flink-format drop-table flink-2.3.0 strict" {
+  let t = @test.Test("flink-format drop-table flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("drop-table"), "flink-format.drop-table.flink-2.3.0.strict.json")
+}
+
+test "flink-format drop-view flink-2.3.0 strict" {
+  let t = @test.Test("flink-format drop-view flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("drop-view"), "flink-format.drop-view.flink-2.3.0.strict.json")
+}
+
+test "flink-format drop-function flink-2.3.0 strict" {
+  let t = @test.Test("flink-format drop-function flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("drop-function"), "flink-format.drop-function.flink-2.3.0.strict.json")
+}
+
+test "flink-format alter-table-rename flink-2.3.0 strict" {
+  let t = @test.Test("flink-format alter-table-rename flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("alter-table-rename"), "flink-format.alter-table-rename.flink-2.3.0.strict.json")
+}
+
+test "flink-format set-option flink-2.3.0 strict" {
+  let t = @test.Test("flink-format set-option flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("set-option"), "flink-format.set-option.flink-2.3.0.strict.json")
+}
+
+test "flink-format use-catalog flink-2.3.0 strict" {
+  let t = @test.Test("flink-format use-catalog flink-2.3.0 strict")
+  flink_format_snapshot_test(t, flink_format_json("use-catalog"), "flink-format.use-catalog.flink-2.3.0.strict.json")
+}
+
+// ---------------------------------------------------------------------------
+// Covered-set completeness probe (TOOL-01 coverage, flagged-unverified in the
+// plan): machine-checks that every statement-family kind the Flink parser can
+// emit (parse_flink_segment dispatch, parser.mbt:4140-4240) is covered by
+// formatter.flink_statement_covered, and that clause-level kinds that appear
+// INSIDE Select/CreateTable bodies are NOT statement families. The behavioral
+// half proves no covered family silently single-lines (Pitfall 1): each
+// representative formats accepted=true and — except the genuinely single-line
+// SET option — its output contains a newline, so no family fell to `_ => []`.
+// ---------------------------------------------------------------------------
+test "flink-format completeness probe: covered set never silently single-lines" {
+  let mut failures = ""
+  // The Flink parser emits exactly these statement-family kinds.
+  let emittable : Array[(String, @syntax.SyntaxKind)] = [
+    ("Select", @syntax.SyntaxKind::Select),
+    ("Insert", @syntax.SyntaxKind::Insert),
+    ("Update", @syntax.SyntaxKind::Update),
+    ("Delete", @syntax.SyntaxKind::Delete),
+    ("ExplainStatement", @syntax.SyntaxKind::ExplainStatement),
+    ("ShowStatement", @syntax.SyntaxKind::ShowStatement),
+    ("DescribeStatement", @syntax.SyntaxKind::DescribeStatement),
+    ("AnalyzeStatement", @syntax.SyntaxKind::AnalyzeStatement),
+    ("CreateTable", @syntax.SyntaxKind::CreateTable),
+    ("CreateView", @syntax.SyntaxKind::CreateView),
+    ("CreateCatalog", @syntax.SyntaxKind::CreateCatalog),
+    ("CreateDatabase", @syntax.SyntaxKind::CreateDatabase),
+    ("CreateFunction", @syntax.SyntaxKind::CreateFunction),
+    ("DropCatalog", @syntax.SyntaxKind::DropCatalog),
+    ("DropDatabase", @syntax.SyntaxKind::DropDatabase),
+    ("DropTable", @syntax.SyntaxKind::DropTable),
+    ("DropView", @syntax.SyntaxKind::DropView),
+    ("DropFunction", @syntax.SyntaxKind::DropFunction),
+    ("AlterTable", @syntax.SyntaxKind::AlterTable),
+    ("SetOption", @syntax.SyntaxKind::SetOption),
+    ("UseStatement", @syntax.SyntaxKind::UseStatement),
+  ]
+  for pair in emittable {
+    let (label, kind) = pair
+    if !@formatter.flink_statement_covered(kind) {
+      failures = failures + "uncovered emittable family: " + label + "\n"
+    }
+  }
+  // Clause-level kinds are NOT statement families — must not be in the set.
+  let clause_level : Array[(String, @syntax.SyntaxKind)] = [
+    ("WindowTvf", @syntax.SyntaxKind::WindowTvf),
+    ("MatchRecognize", @syntax.SyntaxKind::MatchRecognize),
+    ("WatermarkClause", @syntax.SyntaxKind::WatermarkClause),
+    ("ComputedColumn", @syntax.SyntaxKind::ComputedColumn),
+    ("MetadataColumn", @syntax.SyntaxKind::MetadataColumn),
+    ("PrimaryKeyClause", @syntax.SyntaxKind::PrimaryKeyClause),
+    ("TableLikeClause", @syntax.SyntaxKind::TableLikeClause),
+  ]
+  for pair in clause_level {
+    let (label, kind) = pair
+    if @formatter.flink_statement_covered(kind) {
+      failures = failures + "clause-level kind incorrectly covered: " + label + "\n"
+    }
+  }
+  // Behavioral no-silent-single-line proof: multi-clause representatives.
+  // SET is the one family with a legitimately single-line canonical form.
+  let reps : Array[(String, Bytes)] = [
+    ("Select", b"SELECT a, b FROM t WHERE x = 1"),
+    ("Insert", b"INSERT INTO t SELECT * FROM s"),
+    ("Update", b"UPDATE t SET a = 1 WHERE id = 5"),
+    ("Delete", b"DELETE FROM t WHERE id = 5"),
+    ("ExplainStatement", b"EXPLAIN PLAN FOR SELECT * FROM t"),
+    ("ShowStatement", b"SHOW TABLES FROM db1 LIKE '%'"),
+    ("DescribeStatement", b"DESCRIBE EXTENDED DATABASE db"),
+    ("AnalyzeStatement", b"ANALYZE TABLE t COMPUTE STATISTICS"),
+    ("CreateTable", b"CREATE TABLE t (a INT, b STRING) WITH ('connector' = 'x')"),
+    ("CreateView", b"CREATE VIEW v AS SELECT * FROM t"),
+    ("CreateCatalog", b"CREATE CATALOG c WITH ('type' = 'generic_in_memory')"),
+    ("CreateDatabase", b"CREATE DATABASE db COMMENT 'sales db' WITH ('k' = 'v')"),
+    ("CreateFunction", b"CREATE TEMPORARY FUNCTION f AS 'com.example.UDF' LANGUAGE JAVA"),
+    ("DropCatalog", b"DROP CATALOG IF EXISTS c"),
+    ("DropDatabase", b"DROP DATABASE db CASCADE"),
+    ("DropTable", b"DROP TABLE IF EXISTS t"),
+    ("DropView", b"DROP VIEW IF EXISTS v"),
+    ("DropFunction", b"DROP FUNCTION IF EXISTS f"),
+    ("AlterTable", b"ALTER TABLE t RENAME TO t2"),
+    ("SetOption", b"SET 'k' = 'v'"),
+    ("UseStatement", b"USE CATALOG c"),
+  ]
+  let options = @formatter.FormatOptions::default()
+  for pair in reps {
+    let (label, raw) = pair
+    let formatted = match @api.format_with_ids(raw, "flink", "flink-2.3.0", "strict", options) {
+      Ok(result) => result
+      Err(_) => {
+        failures = failures + label + ": api Err\n"
+        continue
+      }
+    }
+    if !formatted.accepted {
+      failures = failures + label + ": refused but expected covered\n"
+      continue
+    }
+    if label == "SetOption" {
+      continue
+    }
+    if !contains_newline(formatted.output) {
+      failures = failures + label + ": silent single-line output (no clause_breaks arm?)\n"
+    }
+  }
+  assert_eq(failures, "")
+}
+
+// ---------------------------------------------------------------------------
+// Refusal oracle: an unsafe Flink tree refuses with accepted=false, empty
+// output, and exactly one FATHOM-FORMAT-001, and the parse diagnostics are
+// preserved (never masked, T-03-01).
+// ---------------------------------------------------------------------------
+test "flink-format refusal oracle: unsafe tree refuses, parse diagnostics preserved" {
+  let formatted = match @api.format_with_ids(b"SELECT a, b FROM t WHERE", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => panic()
   }
-  assert_false(result.accepted)
-  assert_eq(result.output, b"")
-  assert_eq(result.diagnostics.length(), 1)
-  assert_eq(result.diagnostics[0].code, "FATHOM-FORMAT-001")
+  assert_false(formatted.accepted)
+  assert_eq(formatted.output, b"")
+  let mut refusal_count = 0
+  let mut parse_diagnostic_preserved = false
+  for diagnostic in formatted.diagnostics {
+    if diagnostic.code == "FATHOM-FORMAT-001" {
+      refusal_count = refusal_count + 1
+    } else {
+      parse_diagnostic_preserved = true
+    }
+  }
+  assert_eq(refusal_count, 1)
+  assert_true(parse_diagnostic_preserved)
 }

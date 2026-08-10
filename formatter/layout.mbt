@@ -213,6 +213,46 @@ fn clause_breaks(kind : @syntax.SyntaxKind) -> Array[Bytes] {
       b"DISTRIBUTED", b"ROLLUP", b"PROPERTIES", b"LIKE", b"AS", b"SELECT",
       b"ORDER",
     ]
+    // Flink auxiliary statements (13-01, parser/flink_grammar.mbt):
+    // EXPLAIN [PLAN FOR] query (parse_flink_explain :344-365) — PLAN/FOR;
+    // SHOW (parse_flink_show :410-489) — CREATE/FROM/IN/LIKE/ILIKE/NOT;
+    // DESCRIBE|DESC [EXTENDED] [TABLE|FUNCTION|DATABASE|CATALOG] name
+    // (parse_flink_describe :490-513); ANALYZE TABLE t [PARTITION(...)]
+    // [COMPUTE STATISTICS [NOSCAN]] (parse_flink_analyze :514-542).
+    @syntax.SyntaxKind::ExplainStatement => [b"PLAN", b"FOR"]
+    @syntax.SyntaxKind::ShowStatement => [b"CREATE", b"FROM", b"IN", b"LIKE", b"ILIKE", b"NOT"]
+    @syntax.SyntaxKind::DescribeStatement => [b"EXTENDED", b"TABLE", b"FUNCTION", b"DATABASE", b"CATALOG"]
+    @syntax.SyntaxKind::AnalyzeStatement => [b"TABLE", b"PARTITION", b"COMPUTE"]
+    // Flink DDL (13-01): CREATE CATALOG/DATABASE/FUNCTION
+    // (parse_flink_create_catalog :921-943 / create_database :987-1010 /
+    // create_function :1171-1195); the object keyword, COMMENT/WITH, and the
+    // FUNCTION AS/LANGUAGE tail mirror the parser's consume_word sequence.
+    @syntax.SyntaxKind::CreateCatalog => [b"CATALOG", b"COMMENT", b"WITH"]
+    @syntax.SyntaxKind::CreateDatabase => [b"DATABASE", b"COMMENT", b"WITH"]
+    @syntax.SyntaxKind::CreateFunction => [b"FUNCTION", b"AS", b"LANGUAGE"]
+    // Flink DROP families: DROP CATALOG/DATABASE/TABLE/VIEW/FUNCTION
+    // (parse_flink_drop_catalog :944-961 / drop_database :1011-1028 /
+    // drop_table :1049-1069 / drop_view :1196-1210 / drop_function :1211-1225).
+    // The object keyword is the only clause word worth breaking.
+    @syntax.SyntaxKind::DropCatalog => [b"CATALOG"]
+    @syntax.SyntaxKind::DropDatabase => [b"DATABASE"]
+    @syntax.SyntaxKind::DropTable => [b"TABLE"]
+    @syntax.SyntaxKind::DropView => [b"VIEW"]
+    @syntax.SyntaxKind::DropFunction => [b"FUNCTION"]
+    // Flink ALTER: every family (CATALOG/DATABASE/TABLE/VIEW/FUNCTION) resolves
+    // to the coarse AlterTable kind (parser.mbt flink_alter_form_kind :4106-4116);
+    // the per-form clause words (SET/RESET/COMMENT/RENAME/TO/AS/LANGUAGE) mirror
+    // parse_flink_alter_catalog/database/table/view/function.
+    @syntax.SyntaxKind::AlterTable => [
+      b"CATALOG", b"DATABASE", b"TABLE", b"VIEW", b"FUNCTION", b"SET",
+      b"RESET", b"COMMENT", b"RENAME", b"TO", b"AS", b"LANGUAGE",
+    ]
+    // Flink SET/RESET (parse_flink_set_reset :558-582): genuinely single-line
+    // canonical form, but it MUST still have an explicit arm so it never falls
+    // to the `_ => []` silent path (D-01).
+    @syntax.SyntaxKind::SetOption => [b"SET", b"RESET"]
+    // Flink USE [CATALOG] name (parse_flink_use :543-557).
+    @syntax.SyntaxKind::UseStatement => [b"USE", b"CATALOG"]
     _ => []
   }
 }
@@ -317,7 +357,15 @@ pub fn flink_statement_covered(family : @syntax.SyntaxKind) -> Bool {
   match family {
     @syntax.SyntaxKind::Select | @syntax.SyntaxKind::Insert |
     @syntax.SyntaxKind::Update | @syntax.SyntaxKind::Delete |
-    @syntax.SyntaxKind::CreateTable | @syntax.SyntaxKind::CreateView => true
+    @syntax.SyntaxKind::ExplainStatement | @syntax.SyntaxKind::ShowStatement |
+    @syntax.SyntaxKind::DescribeStatement | @syntax.SyntaxKind::AnalyzeStatement |
+    @syntax.SyntaxKind::CreateTable | @syntax.SyntaxKind::CreateView |
+    @syntax.SyntaxKind::CreateCatalog | @syntax.SyntaxKind::CreateDatabase |
+    @syntax.SyntaxKind::CreateFunction | @syntax.SyntaxKind::DropCatalog |
+    @syntax.SyntaxKind::DropDatabase | @syntax.SyntaxKind::DropTable |
+    @syntax.SyntaxKind::DropView | @syntax.SyntaxKind::DropFunction |
+    @syntax.SyntaxKind::AlterTable | @syntax.SyntaxKind::SetOption |
+    @syntax.SyntaxKind::UseStatement => true
     _ => false
   }
 }
