@@ -43,8 +43,10 @@ fn word_is(word : Bytes, expected : Bytes) -> Bool {
 }
 
 /// The dialect dimension of candidate gating (DIALECT-02): Doris rows are
-/// gated by the Doris profile (D-15), Flink has no rows and no profiles in
-/// Phase 9 — nothing is allowed.
+/// gated by the Doris profile (D-15); Flink rows are already filtered by
+/// `introduced_profile` <= the selected profile inside
+/// `classification_entries` (flink_row_visible, classification.mbt:78-89), so
+/// the Flink arm admits the classification-filtered row (D-02, T-13-02-04).
 fn profile_allows(context : @dialect.DialectContext, entry : @dialect.KeywordEntry) -> Bool {
   match context.dialect {
     @dialect.Dialect::Doris => {
@@ -60,7 +62,13 @@ fn profile_allows(context : @dialect.DialectContext, entry : @dialect.KeywordEnt
         None => false
       }
     }
-    @dialect.Dialect::Flink => false
+    @dialect.Dialect::Flink => {
+      // The candidate pool for Flink is `classification_entries(flink_context)`
+      // which already filtered every row by flink_row_visible (introduced_profile
+      // <= selected in release order flink-1.20.5 < flink-2.1.3 < flink-2.3.0) —
+      // no second gate, no second keyword list (D-28).
+      true
+    }
   }
 }
 
@@ -72,7 +80,7 @@ fn significant(token : @token.Token) -> Bool {
   !token.is_trivia() && token.kind is @token.TokenKind::Identifier
 }
 
-fn completion_context(source : @source.SourceText, stream : @token.TokenStream, anchor : Int) -> String {
+fn completion_context(source : @source.SourceText, stream : @token.TokenStream, anchor : Int, dialect : @dialect.Dialect) -> String {
   let mut last : Bytes = b""
   let mut previous : Bytes = b""
   for token in stream.tokens {
@@ -87,7 +95,13 @@ fn completion_context(source : @source.SourceText, stream : @token.TokenStream, 
     }
   }
   if last.length() == 0 { "statement-start" }
-  else if word_is(last, b"SELECT") { "select" }
+  else if dialect is @dialect.Dialect::Flink && (word_is(last, b"FROM") || word_is(last, b"JOIN")) {
+    // Flink window TVF names are non-reserved function-name identifiers, so
+    // the FROM/JOIN table position offers TUMBLE/HOP/CUMULATE/SESSION before
+    // the generic from-clause continuations (D-02). Doris keeps the existing
+    // "from" context string (Pitfall 4 / T-13-02-07).
+    "window-tvf"
+  } else if word_is(last, b"SELECT") { "select" }
   else if word_is(last, b"FROM") || word_is(last, b"JOIN") { "from" }
   else if word_is(last, b"WHERE") { "where" }
   else if word_is(last, b"BY") && word_is(previous, b"GROUP") { "group-by" }
@@ -95,11 +109,93 @@ fn completion_context(source : @source.SourceText, stream : @token.TokenStream, 
   else if word_is(last, b"ON") { "join-on" }
   else if word_is(last, b"GROUP") { "group-by" }
   else if word_is(last, b"ORDER") { "order-by" }
-  else { "general" }
+  else if dialect is @dialect.Dialect::Flink && (word_is(last, b"CREATE") || word_is(last, b"DROP") || word_is(last, b"ALTER")) {
+    // DDL header: the CREATE/DROP/ALTER statement verbs precede the DDL nouns
+    // (CATALOG/DATABASE/FUNCTION/TABLE/VIEW/...) (D-02).
+    "ddl-header"
+  } else if dialect is @dialect.Dialect::Flink && word_is(last, b"WATERMARK") {
+    // WATERMARK FOR ... AS ... — column-body clause words follow (D-02).
+    "watermark"
+  } else if dialect is @dialect.Dialect::Flink && (word_is(last, b"PARTITIONED") || (word_is(last, b"BY") && word_is(previous, b"PARTITIONED"))) {
+    // PARTITIONED BY — partition clause / column-body continuation words.
+    "partitioned-by"
+  } else if dialect is @dialect.Dialect::Flink && (word_is(last, b"MATCH_RECOGNIZE") ||
+    word_is(last, b"PATTERN") || word_is(last, b"DEFINE") || word_is(last, b"MEASURES") ||
+    word_is(last, b"MATCH_NUMBER")) {
+    // MATCH_RECOGNIZE sub-clause completion is scoped to the four reserved
+    // clause words already in the table (RESEARCH OQ3 RESOLVED); pattern
+    // variables/quantifiers are catalog/scope-bound and deferred
+    // (TOOL-FUTURE-01).
+    "match-recognize"
+  } else { "general" }
+}
+
+/// Flink statement verbs offered at statement start (D-02): the reserved
+/// clause verbs plus the D-02 statement verbs added as NonReserved rows
+/// (ALTER/DROP/SHOW/DESCRIBE/EXPLAIN/ANALYZE/USE/RESET). Every verb has a
+/// classification row, so the D-28 single-table discipline holds.
+fn flink_statement_verb(word : Bytes) -> Bool {
+  word_is(word, b"SELECT") || word_is(word, b"WITH") || word_is(word, b"INSERT") ||
+  word_is(word, b"UPDATE") || word_is(word, b"DELETE") || word_is(word, b"CREATE") ||
+  word_is(word, b"SET") || word_is(word, b"VALUES") || word_is(word, b"ALTER") ||
+  word_is(word, b"DROP") || word_is(word, b"SHOW") || word_is(word, b"DESCRIBE") ||
+  word_is(word, b"EXPLAIN") || word_is(word, b"ANALYZE") || word_is(word, b"USE") ||
+  word_is(word, b"RESET")
+}
+
+/// DDL header nouns following CREATE/DROP/ALTER (D-02): CATALOG/DATABASE/
+/// FUNCTION/TABLE/VIEW plus the shared DDL qualifiers already classified.
+fn flink_ddl_noun(word : Bytes) -> Bool {
+  word_is(word, b"CATALOG") || word_is(word, b"DATABASE") || word_is(word, b"FUNCTION") ||
+  word_is(word, b"TABLE") || word_is(word, b"VIEW") || word_is(word, b"SCHEMA") ||
+  word_is(word, b"MATERIALIZED") || word_is(word, b"TEMPORARY") || word_is(word, b"EXTERNAL") ||
+  word_is(word, b"IF") || word_is(word, b"OR")
+}
+
+/// CREATE TABLE column-body clause words (WATERMARK / PRIMARY / COMPUTED /
+/// METADATA / VIRTUAL / ENFORCED / KEY) — the WATERMARK-context continuation
+/// set (D-02, OQ1).
+fn flink_column_body_word(word : Bytes) -> Bool {
+  word_is(word, b"WATERMARK") || word_is(word, b"PRIMARY") || word_is(word, b"COMPUTED") ||
+  word_is(word, b"METADATA") || word_is(word, b"VIRTUAL") || word_is(word, b"ENFORCED") ||
+  word_is(word, b"KEY")
+}
+
+/// PARTITIONED BY continuation words: the column-body set plus the
+/// create-table clause words already classified (WITH/COMMENT/OPTIONS/
+/// PARTITION/PARTITIONS/DISTRIBUTED/BUCKETS).
+fn flink_partition_clause_word(word : Bytes) -> Bool {
+  flink_column_body_word(word) || word_is(word, b"WITH") || word_is(word, b"COMMENT") ||
+  word_is(word, b"OPTIONS") || word_is(word, b"PARTITION") || word_is(word, b"PARTITIONS") ||
+  word_is(word, b"DISTRIBUTED") || word_is(word, b"BUCKETS")
+}
+
+/// Window TVF function names (D-02): non-reserved function-name identifiers
+/// offered at the FROM/JOIN table position.
+fn flink_window_tvf_word(word : Bytes) -> Bool {
+  word_is(word, b"TUMBLE") || word_is(word, b"HOP") || word_is(word, b"CUMULATE") ||
+  word_is(word, b"SESSION")
+}
+
+/// MATCH_RECOGNIZE clause words scoped to the reserved rows already in the
+/// table (RESEARCH OQ3 RESOLVED; TOOL-FUTURE-01 defers sub-clauses).
+fn flink_match_recognize_word(word : Bytes) -> Bool {
+  word_is(word, b"PATTERN") || word_is(word, b"DEFINE") || word_is(word, b"MEASURES") ||
+  word_is(word, b"MATCH_NUMBER") || word_is(word, b"MATCH_RECOGNIZE")
 }
 
 fn context_accepts(context : String, dialect_context : @dialect.DialectContext, word : Bytes) -> Bool {
   match context {
+    "statement-start" => {
+      // Flink offers the statement verbs (plus the shared clause keywords);
+      // Doris keeps the pre-change clause-keyword-only behavior
+      // byte-identical (PARITY-01, T-13-02-07).
+      if dialect_context.dialect is @dialect.Dialect::Flink {
+        flink_statement_verb(word) || @dialect.is_clause_keyword(dialect_context, word)
+      } else {
+        @dialect.is_clause_keyword(dialect_context, word)
+      }
+    }
     "select" => (@dialect.is_clause_keyword(dialect_context, word) && !word_is(word, b"SELECT") && !word_is(word, b"WITH") && !word_is(word, b"JOIN")) || word_is(word, b"DISTINCT") || word_is(word, b"ALL")
     "from" => word_is(word, b"JOIN") || word_is(word, b"WHERE") || word_is(word, b"GROUP") ||
       word_is(word, b"ORDER") || word_is(word, b"LIMIT") || word_is(word, b"UNION") || word_is(word, b"ON")
@@ -109,6 +205,13 @@ fn context_accepts(context : String, dialect_context : @dialect.DialectContext, 
     "order-by" => word_is(word, b"ASC") || word_is(word, b"DESC") || word_is(word, b"LIMIT")
     "join-on" => word_is(word, b"ON") || word_is(word, b"USING") || word_is(word, b"JOIN") ||
       word_is(word, b"WHERE") || word_is(word, b"GROUP") || word_is(word, b"ORDER")
+    "ddl-header" => flink_ddl_noun(word)
+    "watermark" => flink_column_body_word(word)
+    "partitioned-by" => flink_partition_clause_word(word)
+    "window-tvf" => flink_window_tvf_word(word) || word_is(word, b"JOIN") || word_is(word, b"WHERE") ||
+      word_is(word, b"GROUP") || word_is(word, b"ORDER") || word_is(word, b"LIMIT") ||
+      word_is(word, b"UNION") || word_is(word, b"ON")
+    "match-recognize" => flink_match_recognize_word(word)
     _ => @dialect.is_clause_keyword(dialect_context, word)
   }
 }
@@ -144,7 +247,9 @@ fn cursor_replacement(source : @source.SourceText, stream : @token.TokenStream, 
 /// byte cursor. The LSP adapter converts the resulting byte range to UTF-16.
 pub fn complete(raw : Bytes, dialect_id : String, profile_id : String, cursor_byte : Int) -> Result[CompletionList, CompletionError] {
   // Explicit dialect selection first (DIALECT-01, Pitfall 6), then the
-  // profile for that dialect; flink profiles are all rejected in Phase 9.
+  // profile for that dialect; the Flink branch constructs a real Flink
+  // DialectContext from the pinned released-profile metadata (D-02), never a
+  // Doris fallback and never a Phase-9 all-reject UnknownProfile.
   let dialect = match dialect_id {
     "doris" => @dialect.Dialect::Doris
     "flink" => @dialect.Dialect::Flink
@@ -160,7 +265,19 @@ pub fn complete(raw : Bytes, dialect_id : String, profile_id : String, cursor_by
         None => return Err(UnknownProfile(profile_id~))
       }
     }
-    @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
+    @dialect.Dialect::Flink => {
+      // Mirror api.ParseOptions::new's Flink arm (api.mbt:92-103): exact-match
+      // from_id, then the pinned release metadata (T-10-01). An unknown or
+      // Doris-shaped profile id returns None -> structured UnknownProfile —
+      // no fallback, no empty-silent success (D-01/D-02, T-13-02-05).
+      match @dialect.FlinkProfile::from_id(profile_id) {
+        Some(profile) => {
+          let metadata = profile.metadata()
+          { dialect: dialect, profile_id: profile_id, exact_release: metadata.exact_release, feature_introduction: metadata.feature_introduction }
+        }
+        None => return Err(UnknownProfile(profile_id~))
+      }
+    }
   }
   if cursor_byte < 0 || cursor_byte > raw.length() {
     return Err(InvalidCursor(cursor=cursor_byte, source_length=raw.length()))
@@ -174,7 +291,7 @@ pub fn complete(raw : Bytes, dialect_id : String, profile_id : String, cursor_by
   ignore(@api.parse_with_ids(raw, dialect_id, profile_id, "editor"))
   let stream = @lexer.lex(source, dialect_context)
   let (replacement_start, prefix) = cursor_replacement(source, stream, cursor_byte)
-  let context = completion_context(source, stream, replacement_start)
+  let context = completion_context(source, stream, replacement_start, dialect)
   let items : Array[CompletionItem] = []
   let entries = @dialect.classification_entries(dialect_context)
   let mut priority = 0

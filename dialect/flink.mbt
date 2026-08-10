@@ -261,6 +261,42 @@ let flink_classification_rows : Array[KeywordEntry] = [
   { word: b"RESUME_OR_FROM_NOW", classification: NonReserved, introduced_profile: "flink-2.3.0", source: "flink-sql-parser Parser-release-2.3.0.tdd:255 (RESUME_OR_FROM_NOW)" },
   { word: b"RESUME_OR_FROM_TIMESTAMP", classification: NonReserved, introduced_profile: "flink-2.3.0", source: "flink-sql-parser Parser-release-2.3.0.tdd:256 (RESUME_OR_FROM_TIMESTAMP)" },
   { word: b"START_MODE", classification: NonReserved, introduced_profile: "flink-2.3.0", source: "flink-sql-parser Parser-release-2.3.0.tdd:258 (START_MODE)" },
+  // ---- D-02 completion candidate pool extension (13-02, TOOL-02) ----
+  // NonReserved rows for the D-02 completion contexts (statement-start /
+  // ddl-header / watermark / partitioned-by / window-tvf). They are
+  // classified NonReserved — NOT Reserved — so `is_unquoted_identifier`
+  // stays true exactly as before (the word previously had no row -> not
+  // reserved) and the frozen flink-grammar/flink-lexical snapshots stay
+  // byte-identical (A2, Pitfall 2). Every row carries release-grammar
+  // provenance (pinned path + line). COMPUTED/CUMULATE are documented
+  // function/column-modifier identifiers absent from the grammar; their
+  // source points at the sibling construct on the same pinned line.
+  // Statement verbs (statement-start context):
+  { word: b"ALTER", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7316 (ALTER)" },
+  { word: b"DROP", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7473 (DROP)" },
+  { word: b"SHOW", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7813 (SHOW)" },
+  { word: b"DESCRIBE", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7459 (DESCRIBE)" },
+  { word: b"EXPLAIN", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7499 (EXPLAIN)" },
+  { word: b"ANALYZE", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:578 (ANALYZE)" },
+  { word: b"USE", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:225 (USE)" },
+  { word: b"RESET", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7757 (RESET)" },
+  // DDL nouns (ddl-header context):
+  { word: b"CATALOG", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:255 (CATALOG)" },
+  { word: b"DATABASE", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:288 (DATABASE)" },
+  { word: b"FUNCTION", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7522 (FUNCTION)" },
+  { word: b"VIEW", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7971 (VIEW)" },
+  // WATERMARK / column-body clause words (watermark context):
+  { word: b"WATERMARK", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:228 (WATERMARK)" },
+  { word: b"PRIMARY", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-calcite-1.32.0.jj:7729 (PRIMARY)" },
+  { word: b"COMPUTED", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:571 (COMPUTED; sibling of METADATA — column-modifier identifier, absent from the grammar)" },
+  { word: b"METADATA", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:571 (METADATA)" },
+  { word: b"VIRTUAL", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:577 (VIRTUAL)" },
+  { word: b"ENFORCED", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:566 (ENFORCED)" },
+  // Window TVF names (window-tvf context; function-name identifiers):
+  { word: b"TUMBLE", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:532 (TUMBLE)" },
+  { word: b"HOP", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:333 (HOP)" },
+  { word: b"CUMULATE", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:532 (CUMULATE; sibling window TVF of TUMBLE — function-name identifier, absent from the grammar)" },
+  { word: b"SESSION", classification: NonReserved, introduced_profile: "flink-1.20.5", source: "flink-sql-parser Parser-release-1.20.5.tdd:455 (SESSION)" },
 ]
 
 /// Release-grammar provenance audit (10-03 Task 3, T-10-14): every inlined
