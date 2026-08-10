@@ -58,7 +58,6 @@ Multi-dialect SQL SDK：单方言 Doris 解析器升级为多方言 SQL SDK—�
 
 </details>
 
-
 ## v3.0: Analysis and Intelligence — PLANNING (deferred)
 
 > **DEFERRED 2026-08-06:** formerly v2.0; deferred when v2.0 was redefined as Multi-Dialect. Requirements archived at [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md).
@@ -74,7 +73,7 @@ Doris SQL Parser SDK 从语法层扩展到语义与分析层:catalog 名字解�
 **Mode:** standard
 **Depends on**: Phase 4 (v1.0)
 **Requirements**: CLOSE-01, CLOSE-02, ANAL-01
-**Status:** Not started
+**Status:** In progress — 1 of 4 plans complete (05-01 closeout evidence formalized)
 
 Success criteria:
 

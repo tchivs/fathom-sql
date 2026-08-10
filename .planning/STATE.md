@@ -5,16 +5,16 @@ milestone_name: Analysis and Intelligence — PLANNING
 current_phase: 5
 current_phase_name: closeout-and-analysis-foundation
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-08-10T09:00:48.831Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-08-10T09:15:15.555Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 25
 ---
 
 # Project State
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 5 (closeout-and-analysis-foundation) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 5
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-08-10 — Phase 5 execution started
 
 ## Performance Metrics
@@ -104,6 +104,7 @@ Last activity: 2026-08-10 — Phase 5 execution started
 | Phase 12-cross-dialect-corpus-and-parity-gates P01 | 22min | 3 tasks | 118 files |
 | Phase 12-cross-dialect-corpus-and-parity-gates P02 | 4min | 3 tasks | 3 files |
 | Phase 12-cross-dialect-corpus-and-parity-gates P03 | 7min | 3 tasks | 2 files |
+| Phase 05 P01 | 15min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -230,6 +231,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 12-03 failing-fixture naming via content hash: moon prints expected snapshot bytes (the '-' side), not filenames; compare_backends.py maps sha256(content) -> filename over the committed tree, with the failed-test label as fallback.
 - [Phase ?]: 12-03 compare_backends.py reads one shared committed tree: the deterministic sha256 tree digest is verified unchanged before/after the run (read-only violation = exit 1), closing the PARITY-03 concurrency backstop for the aggregate + CI jobs.
 - [Phase ?]: 12-03 CI wiring: js runtime step + compare_backends.py aggregate in linear-wasm-parity, diff_parity.py --frozen-only in parity-gate, verify_corpus.py --check in corpus (keep extended report --check); no --update in any run line; only network step is the MoonBit installer curl.
+- [Phase ?]: CLOSE-01/CLOSE-02 upgraded to Phase 5 formalized records (D-07): evidence cited from in-repo host-verify.mjs + ci.yml linear-wasm-parity job + compare_backends.py + 2026-08-06 STATE.md records; no re-run, no new code
 
 ### Pending Todos
 
@@ -261,9 +263,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-10T08:01:02.563Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-closeout-and-analysis-foundation/05-CONTEXT.md
+Last session: 2026-08-10T09:15:15.531Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
 
 ## Quick Tasks Completed
 
