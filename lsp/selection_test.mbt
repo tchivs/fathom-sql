@@ -284,3 +284,80 @@ test "flink_document_format_returns_real_edit_and_completion_returns_real_result
   assert_true(completion_body.contains("\"result\""))
   assert_true(completion_body.contains("\"isIncomplete\""))
 }
+
+test "flink_document_override_beats_workspace_default" {
+  // D-06 / D-07: a workspace default of doris-4.x with a flink-selected
+  // document (didOpen extension fields) — the document's diagnostics, format,
+  // and completion all use flink-2.3.0, never the doris default (D-01
+  // document-level precedence; per-file override for flink files).
+  let state = ServerState::new()
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"doris\",\"profile\":\"4.x\"}}}")))
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///override.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
+  let opened = handle_message(state, open)
+  assert_eq(opened.length(), 1)
+  let document = match state.docs.get("file:///override.sql") {
+    Some(document) => document
+    None => panic()
+  }
+  assert_eq(document.dialect, "flink")
+  assert_eq(document.profile, "flink-2.3.0")
+  assert_eq(document.selection_source, "document")
+  // Formatting uses the flink path (real edit), never a doris layout.
+  let format = message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///override.sql\"}}}")
+  let format_responses = handle_message(state, format)
+  assert_eq(format_responses.length(), 1)
+  let format_body = @utf8.decode_lossy(format_responses[0])
+  assert_true(format_body.contains("\"result\""))
+  assert_true(format_body.contains("\"newText\""))
+  // Completion uses the flink-2.3.0 candidate pool.
+  let completion = message("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///override.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":7}}}")
+  let completion_responses = handle_message(state, completion)
+  assert_eq(completion_responses.length(), 1)
+  let completion_body = @utf8.decode_lossy(completion_responses[0])
+  assert_true(completion_body.contains("\"items\""))
+}
+
+test "flink_profile_switch_reparses" {
+  // D-06 / D-03: a didChange profile switch (flink-2.3.0 -> flink-1.20.5) on a
+  // flink-selected document re-parses under the new profile; the stored
+  // selection advances and only the newest selection's diagnostics publish.
+  let state = ServerState::new()
+  state.initialized = true
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///switch-profile.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
+  assert_eq(handle_message(state, open).length(), 1)
+  let change = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{\"textDocument\":{\"uri\":\"file:///switch-profile.sql\",\"version\":2,\"dialect\":\"flink\",\"profile\":\"flink-1.20.5\"},\"contentChanges\":[{\"text\":\"SELECT 1\"}]}}")
+  let changed = handle_message(state, change)
+  assert_eq(changed.length(), 1)
+  let document = match state.docs.get("file:///switch-profile.sql") {
+    Some(document) => document
+    None => panic()
+  }
+  assert_eq(document.version, 2)
+  assert_eq(document.dialect, "flink")
+  assert_eq(document.profile, "flink-1.20.5")
+  assert_eq(document.selection_source, "document")
+  // The re-parse under flink-1.20.5 publishes clean diagnostics (SELECT 1 is
+  // valid in every flink release profile).
+  assert_true(@utf8.decode_lossy(changed[0]).contains("publishDiagnostics"))
+  assert_true(@utf8.decode_lossy(changed[0]).contains("\"diagnostics\":[]"))
+}
+
+test "flink_format_refusal_publishes_diagnostics_empty_array" {
+  // D-07 / D-33: an unsafe flink tree's formatting publishes diagnostics
+  // (FATHOM-FORMAT-001 refusal, parse diagnostics never masked) PLUS an empty
+  // edit array — never partial output and never the -32603 not-implemented
+  // sentinel (Pitfall 4: the three response shapes are distinguishable).
+  let state = ServerState::new()
+  state.initialized = true
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink-refuse.sql\",\"version\":1,\"text\":\"SELECT a, b FROM t WHERE\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
+  ignore(handle_message(state, open))
+  let format = message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink-refuse.sql\"}}}")
+  let responses = handle_message(state, format)
+  assert_eq(responses.length(), 2)
+  let diag_body = @utf8.decode_lossy(responses[0])
+  assert_true(diag_body.contains("publishDiagnostics"))
+  assert_true(diag_body.contains("FATHOM-FORMAT-001"))
+  let result_body = @utf8.decode_lossy(responses[1])
+  assert_true(result_body.contains("\"result\":[]"))
+  assert_true(!result_body.contains("-32603"))
+}

@@ -113,3 +113,40 @@ test "flink_completion_returns_real_textedit_no_32602" {
   assert_true(body.contains("\"textEdit\""))
   assert_true(body.contains("\"FROM\""))
 }
+
+test "flink_completion_multibyte_utf16_range" {
+  // D-07 (Don't Hand-Roll): a flink completion on a multibyte prefix returns
+  // a textEdit whose range is UTF-16 (line/character) via the shared
+  // @binding.span_to_range path — "名称" counts as 2 UTF-16 units, not 6
+  // bytes. The FROM item replaces the FR prefix at bytes 14..16, which map to
+  // UTF-16 characters 10..12 on line 0.
+  let raw = @utf8.encode("SELECT 名称 FR")
+  let core = match @completion.complete(raw, "flink", "flink-2.3.0", raw.length()) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  let mut from_item = None
+  for item in core.items {
+    if item.label == "FROM" { from_item = Some(item) }
+  }
+  let item = match from_item {
+    Some(item) => item
+    None => panic()
+  }
+  assert_eq(item.start_byte, 14)
+  assert_eq(item.end_byte, raw.length())
+  // LSP surface: open a flink document and request completion at the UTF-16
+  // position of the byte cursor (character 12 == raw.length() in UTF-16).
+  let state = ServerState::new()
+  ignore(handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")))
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink-mb.sql\",\"version\":1,\"text\":\"SELECT 名称 FR\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
+  ignore(handle_message(state, open))
+  let request = message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink-mb.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":12}}}")
+  let responses = handle_message(state, request)
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(!body.contains("-32602"))
+  assert_true(body.contains("\"start\":{\"line\":0,\"character\":10}"))
+  assert_true(body.contains("\"end\":{\"line\":0,\"character\":12}"))
+  assert_true(body.contains("\"newText\":\"FROM\""))
+}
