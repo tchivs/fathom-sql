@@ -192,7 +192,28 @@ v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SD
 
 **Validation**: Exercise refusal and idempotence fixtures, bounded completion contexts, analyzer catalog/no-catalog cases, Native CLI/LSP protocol flows, JS/linear-Wasm facade calls, and real Web/Monaco/VS Code/IntelliJ artifact smoke; verify document revision/stale-response and selection-conflict cases plus the neutral naming gate.
 **Research flags**: Verify MoonBit primitive JS/linear-Wasm ABI and JSON Unicode/size/malformed-input behavior; confirm LSP UTF-16 and selection precedence in real hosts and run final VS Code/IntelliJ/Web packaging smoke.
-**Plans**: TBD
+**Plans**: 7/7 plans planned
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — Flink formatter covered-family gate + full clause_breaks + flink-format snapshot namespace (TOOL-01, D-01; tracer)
+
+**Wave 1** *(parallel)*
+
+- [ ] 13-02-PLAN.md — Flink completion Flink branch + context arms + candidate-pool extension (TOOL-02, D-02; tracer)
+- [ ] 13-03-PLAN.md — Flink analyzer resolve_table_references extension (TOOL-03, D-03; checkpoint + tracer)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-04-PLAN.md — fathom_complete_v1 wire export + fathom.complete.v1 envelope (TOOL-05, D-04; checkpoint + tracer)
+- [ ] 13-05-PLAN.md — LSP flink format/completion real paths + CLI flink exit-code matrix (TOOL-04, D-07; tracer)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 13-06-PLAN.md — Web/VS Code/IntelliJ (dialect, profile) pair validation + fathom_complete_v1 in Web (TOOL-05, D-05/D-06; checkpoint + tracer)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 13-07-PLAN.md — Three-host packaging smoke + CI job + docs (TOOL-05, D-08; tracer)
 
 ## v3.0: Analysis and Intelligence — PLANNING (deferred)
 
