@@ -1,0 +1,9 @@
+{
+  "bindings": [
+    {"kind":"table","name":"t1","resolved_to":"t1","data_type":"","start_byte":14,"end_byte":16},
+    {"kind":"table","name":"t2","resolved_to":"t2","data_type":"","start_byte":22,"end_byte":24}
+  ],
+  "diagnostics": [
+    {"code":"ambiguous-reference","message":"ambiguous reference: a","start_byte":7,"end_byte":8}
+  ]
+}

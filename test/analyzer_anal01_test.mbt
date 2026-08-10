@@ -435,3 +435,213 @@ test "analyzer-anal01 star-expansion doris-4.x" {
   assert_eq(result.diagnostics.length(), 0)
   analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.star-expansion.doris-4.x.json")
 }
+
+// ---------------------------------------------------------------------------
+// Plan 05-04 (D-04): function-call resolution + arity checks, DML/CREATE VIEW
+// column-level references (D-02), and the complete analyzer diagnostic set.
+// ---------------------------------------------------------------------------
+
+test "analyzer-anal01 function basic doris-4.x" {
+  // SELECT abs(a) FROM t — abs resolves via Catalog::function to a Function
+  // binding whose data_type is the catalog return type (D-04/D-05).
+  // SELECT[0,6) abs[7,10) ([10] a[11,12) )[12] FROM[14,18) t[19,20)
+  let raw = b"SELECT abs(a) FROM t"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ]).with_function(
+    "abs",
+    { name: "abs", param_types: ["INT"], return_type: "INT", min_arity: 1 },
+  )
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 3)
+  let table = result.bindings[0]
+  assert_eq(table.kind, @analyzer.BindingKind::Table)
+  assert_eq(table.name, "t")
+  assert_eq(table.start_byte, 19)
+  assert_eq(table.end_byte, 20)
+  let func = result.bindings[1]
+  assert_eq(func.kind, @analyzer.BindingKind::Function)
+  assert_eq(func.name, "abs")
+  assert_eq(func.resolved_to, "abs")
+  assert_eq(func.data_type, "INT")
+  assert_eq(func.start_byte, 7)
+  assert_eq(func.end_byte, 10)
+  let col = result.bindings[2]
+  assert_eq(col.kind, @analyzer.BindingKind::Column)
+  assert_eq(col.name, "a")
+  assert_eq(col.resolved_to, "a")
+  assert_eq(col.data_type, "INT")
+  assert_eq(col.start_byte, 11)
+  assert_eq(col.end_byte, 12)
+  assert_eq(result.diagnostics.length(), 0)
+}
+
+test "analyzer-anal01 function unknown doris-4.x" {
+  // SELECT nope(a) FROM t — nope is absent from the function registry ->
+  // unknown-function on the analyzer channel; `a` still resolves as a column.
+  // SELECT[0,6) nope[7,11) ([11] a[12,13) )[13] FROM[15,19) t[20,21)
+  let raw = b"SELECT nope(a) FROM t"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 2)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t")
+  assert_eq(result.bindings[0].start_byte, 20)
+  assert_eq(result.bindings[0].end_byte, 21)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[1].name, "a")
+  assert_eq(result.bindings[1].data_type, "INT")
+  assert_eq(result.diagnostics.length(), 1)
+  assert_eq(result.diagnostics[0].code, "unknown-function")
+  assert_eq(result.diagnostics[0].message, "function not found in catalog: nope")
+  assert_eq(result.diagnostics[0].start_byte, 7)
+  assert_eq(result.diagnostics[0].end_byte, 11)
+}
+
+test "analyzer-anal01 function arity doris-4.x" {
+  // SELECT concat(a) FROM t — concat requires >= 2 args; 1 arg -> function-arity.
+  // The Function binding is still emitted (the name resolved); the arity
+  // diagnostic rides the analyzer channel (D-04).
+  // SELECT[0,6) concat[7,13) ([13] a[14,15) )[15] FROM[17,21) t[22,23)
+  let raw = b"SELECT concat(a) FROM t"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ]).with_function(
+    "concat",
+    { name: "concat", param_types: ["VARCHAR", "VARCHAR"], return_type: "VARCHAR", min_arity: 2 },
+  )
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 3)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t")
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Function)
+  assert_eq(result.bindings[1].name, "concat")
+  assert_eq(result.bindings[1].resolved_to, "concat")
+  assert_eq(result.bindings[1].data_type, "VARCHAR")
+  assert_eq(result.bindings[1].start_byte, 7)
+  assert_eq(result.bindings[1].end_byte, 13)
+  assert_eq(result.bindings[2].kind, @analyzer.BindingKind::Column)
+  assert_eq(result.bindings[2].name, "a")
+  assert_eq(result.bindings[2].data_type, "INT")
+  assert_eq(result.diagnostics.length(), 1)
+  assert_eq(result.diagnostics[0].code, "function-arity")
+  assert_eq(result.diagnostics[0].message, "function concat expects between 2 and 2 arguments, got 1")
+  assert_eq(result.diagnostics[0].start_byte, 7)
+  assert_eq(result.diagnostics[0].end_byte, 13)
+}
+
+test "analyzer-anal01 unknown-column doris-4.x" {
+  // D-04: SELECT nope FROM t — t has columns but not `nope` -> unknown-column
+  // on the analyzer channel (never the syntax valid channel, ANLY-01).
+  // SELECT[0,6) nope[7,11) FROM[12,16) t[17,18)
+  let raw = b"SELECT nope FROM t"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 1)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t")
+  assert_eq(result.bindings[0].start_byte, 17)
+  assert_eq(result.bindings[0].end_byte, 18)
+  assert_eq(result.diagnostics.length(), 1)
+  assert_eq(result.diagnostics[0].code, "unknown-column")
+  assert_eq(result.diagnostics[0].message, "column not found in any visible table: nope")
+  assert_eq(result.diagnostics[0].start_byte, 7)
+  assert_eq(result.diagnostics[0].end_byte, 11)
+}
+
+test "analyzer-anal01 dml update columns doris-4.x" {
+  // D-02: UPDATE t SET a = 1 WHERE b = 2 — SET and WHERE column refs resolve
+  // against the target table's columns (data_type from the catalog);
+  // resolve_table_references behavior is untouched (D-05).
+  // UPDATE[0,6) t[7,8) SET[9,12) a[13,14) =[15] 1[17] WHERE[19,24) b[25,26)
+  let t = @mtest.Test("analyzer-anal01 dml update columns doris-4.x")
+  let raw = b"UPDATE t SET a = 1 WHERE b = 2"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "VARCHAR(10)" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 3)
+  let table = result.bindings[0]
+  assert_eq(table.kind, @analyzer.BindingKind::Table)
+  assert_eq(table.name, "t")
+  assert_eq(table.start_byte, 7)
+  assert_eq(table.end_byte, 8)
+  let a = result.bindings[1]
+  assert_eq(a.kind, @analyzer.BindingKind::Column)
+  assert_eq(a.name, "a")
+  assert_eq(a.resolved_to, "a")
+  assert_eq(a.data_type, "INT")
+  assert_eq(a.start_byte, 13)
+  assert_eq(a.end_byte, 14)
+  let b = result.bindings[2]
+  assert_eq(b.kind, @analyzer.BindingKind::Column)
+  assert_eq(b.name, "b")
+  assert_eq(b.resolved_to, "b")
+  assert_eq(b.data_type, "VARCHAR(10)")
+  assert_eq(b.start_byte, 25)
+  assert_eq(b.end_byte, 26)
+  assert_eq(result.diagnostics.length(), 0)
+  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.dml-update-columns.doris-4.x.json")
+}
+
+test "analyzer-anal01 create-view body doris-4.x" {
+  // D-02: CREATE VIEW v AS SELECT a FROM t — the query body after AS is
+  // re-parsed through the existing SELECT analysis, binding the body's t
+  // (Table) and a (Column). The view name v is a target table, not a ref.
+  // CREATE[0,6) VIEW[7,11) v[12,13) AS[14,16) SELECT[17,23) a[24,25)
+  // FROM[26,30) t[31,32)
+  let t = @mtest.Test("analyzer-anal01 create-view body doris-4.x")
+  let raw = b"CREATE VIEW v AS SELECT a FROM t"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 2)
+  let table = result.bindings[0]
+  assert_eq(table.kind, @analyzer.BindingKind::Table)
+  assert_eq(table.name, "t")
+  assert_eq(table.start_byte, 31)
+  assert_eq(table.end_byte, 32)
+  let col = result.bindings[1]
+  assert_eq(col.kind, @analyzer.BindingKind::Column)
+  assert_eq(col.name, "a")
+  assert_eq(col.resolved_to, "a")
+  assert_eq(col.data_type, "INT")
+  assert_eq(col.start_byte, 24)
+  assert_eq(col.end_byte, 25)
+  assert_eq(result.diagnostics.length(), 0)
+  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.create-view-body.doris-4.x.json")
+}
+
+test "analyzer-anal01 ambiguous reference doris-4.x" {
+  // D-04: SELECT a FROM t1 JOIN t2 ON t1.id = t2.id — unqualified `a` exists in
+  // both visible tables -> ambiguous-reference on the analyzer channel.
+  // SELECT[0,6) a[7,8) FROM[9,13) t1[14,16) JOIN[17,21) t2[22,24)
+  // ON[25,27) t1[28,30) .[30] id[31,33) =[34] t2[36,38) .[38] id[39,41)
+  let t = @mtest.Test("analyzer-anal01 ambiguous reference doris-4.x")
+  let raw = b"SELECT a FROM t1 JOIN t2 ON t1.id = t2.id"
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t1", columns: [{ name: "a", data_type: "INT" }, { name: "id", data_type: "INT" }] },
+    { name: "t2", columns: [{ name: "a", data_type: "VARCHAR(5)" }, { name: "id", data_type: "INT" }] },
+  ])
+  let result = analyze_sql(raw, catalog)
+  assert_eq(result.bindings.length(), 2)
+  assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[0].name, "t1")
+  assert_eq(result.bindings[0].start_byte, 14)
+  assert_eq(result.bindings[0].end_byte, 16)
+  assert_eq(result.bindings[1].kind, @analyzer.BindingKind::Table)
+  assert_eq(result.bindings[1].name, "t2")
+  assert_eq(result.bindings[1].start_byte, 22)
+  assert_eq(result.bindings[1].end_byte, 24)
+  assert_eq(result.diagnostics.length(), 1)
+  assert_eq(result.diagnostics[0].code, "ambiguous-reference")
+  assert_eq(result.diagnostics[0].message, "ambiguous reference: a")
+  assert_eq(result.diagnostics[0].start_byte, 7)
+  assert_eq(result.diagnostics[0].end_byte, 8)
+  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.ambiguous-reference.doris-4.x.json")
+}

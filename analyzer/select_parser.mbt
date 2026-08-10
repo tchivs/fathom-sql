@@ -203,10 +203,33 @@ fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
         }
       }
       let is_call = !star && j < length && tokens[j].bytes == b"("
+      let call_args : Array[TokenSlice] = if is_call {
+        // Capture the tokens between the call's `(` and its matching `)` —
+        // parens excluded — for depth-0 argument counting (D-04).
+        let args : Array[TokenSlice] = []
+        let mut k = j + 1
+        let mut arg_depth = 1
+        while k < length && arg_depth > 0 {
+          if tokens[k].bytes == b"(" {
+            arg_depth = arg_depth + 1
+          } else if tokens[k].bytes == b")" {
+            arg_depth = arg_depth - 1
+            if arg_depth == 0 {
+              break
+            }
+          }
+          args.push(tokens[k])
+          k = k + 1
+        }
+        args
+      } else {
+        []
+      }
       refs.push({
         parts: parts,
         star: star,
         is_call: is_call,
+        call_args: call_args,
         start_byte: start_byte,
         end_byte: end_byte,
       })
@@ -743,6 +766,7 @@ fn parse_from_item(
     parts: parts,
     star: false,
     is_call: false,
+    call_args: [],
     start_byte: parts[0].start_byte,
     end_byte: parts[parts.length() - 1].end_byte,
   }

@@ -444,6 +444,44 @@ fn[T : Catalog] expand_star(
   out
 }
 
+/// Number of depth-0 comma-separated arguments in a call's argument token
+/// slice (D-04): `f(a)` -> 1, `f(a, b)` -> 2, `f()` -> 0, `f((a, b))` -> 1.
+/// Nested parens suppress inner commas; string/quoted tokens never unbalance
+/// the counter (whole-token bytes only, Pitfall 1).
+fn count_call_args(args : Array[TokenSlice]) -> Int {
+  if args.length() == 0 {
+    return 0
+  }
+  let mut count = 1
+  let mut depth = 0
+  for i in 0..<args.length() {
+    let bytes = args[i].bytes
+    if bytes == b"(" {
+      depth = depth + 1
+    } else if bytes == b")" {
+      if depth > 0 {
+        depth = depth - 1
+      }
+    } else if depth == 0 && bytes == b"," {
+      count = count + 1
+    }
+  }
+  count
+}
+
+/// True when the scope has at least one named entry exposing columns — the
+/// signal that an unresolvable unqualified name is a column reference (and so
+/// earns an unknown-column diagnostic), rather than a bare select against no
+/// column-bearing table (D-04).
+fn scope_has_visible_columns(scope : Array[ScopeEntry]) -> Bool {
+  for entry in scope {
+    if entry.key != "" && entry.columns.length() > 0 {
+      return true
+    }
+  }
+  false
+}
+
 /// Resolves one name reference against the scope and catalog (D-03/D-04):
 /// function calls, star expansion, unqualified columns, and qualified
 /// `alias.col`/`table.col` (2 parts) or `db.table.col` (3+ parts). Returns the
@@ -460,6 +498,19 @@ fn[T : Catalog] resolve_ref(
       let name_text = identifier_text(ref.parts[0].bytes)
       match Catalog::function(catalog, name_text) {
         Some(fn_info) => {
+          // D-04: arity check — an argument count below min_arity or above
+          // param_types.length() is a function-arity diagnostic. The Function
+          // binding is still emitted (the name resolved); no expression-level
+          // type unification or literal propagation (ANAL-02 out of scope).
+          let arg_count = count_call_args(ref.call_args)
+          if arg_count < fn_info.min_arity || arg_count > fn_info.param_types.length() {
+            diagnostics.push({
+              code: "function-arity",
+              message: "function \{name_text} expects between \{fn_info.min_arity} and \{fn_info.param_types.length()} arguments, got \{arg_count}",
+              start_byte: ref.start_byte,
+              end_byte: ref.end_byte,
+            })
+          }
           bindings.push({
             kind: BindingKind::Function,
             name: name_text,
@@ -470,7 +521,15 @@ fn[T : Catalog] resolve_ref(
           })
           return None
         }
-        None => return None
+        None => {
+          diagnostics.push({
+            code: "unknown-function",
+            message: "function not found in catalog: \{name_text}",
+            start_byte: ref.start_byte,
+            end_byte: ref.end_byte,
+          })
+          return None
+        }
       }
     }
     return None
@@ -515,6 +574,17 @@ fn[T : Catalog] resolve_ref(
       })
       return None
     }
+    // Not found: unknown-column only when visible tables actually expose
+    // columns (avoids flagging bare `SELECT x` with no column-bearing scope,
+    // and quoted-exact tests against an empty column list — D-03/D-04).
+    if scope_has_visible_columns(scope) {
+      diagnostics.push({
+        code: "unknown-column",
+        message: "column not found in any visible table: \{name_text}",
+        start_byte: ref.start_byte,
+        end_byte: ref.end_byte,
+      })
+    }
     return None
   } else if n == 2 {
     // alias.col or table.col: first segment resolves in scope, then column.
@@ -536,7 +606,15 @@ fn[T : Catalog] resolve_ref(
             })
             return Some(col)
           }
-          None => return None
+          None => {
+            diagnostics.push({
+              code: "unknown-column",
+              message: "column not found in \{first_text}.\{second_text}",
+              start_byte: ref.start_byte,
+              end_byte: ref.end_byte,
+            })
+            return None
+          }
         }
       }
       None => {
@@ -555,7 +633,15 @@ fn[T : Catalog] resolve_ref(
                 })
                 return Some(col)
               }
-              None => return None
+              None => {
+                diagnostics.push({
+                  code: "unknown-column",
+                  message: "column not found in \{first_text}.\{second_text}",
+                  start_byte: ref.start_byte,
+                  end_byte: ref.end_byte,
+                })
+                return None
+              }
             }
           }
           None => return None
@@ -586,7 +672,15 @@ fn[T : Catalog] resolve_ref(
             })
             return Some(col)
           }
-          None => return None
+          None => {
+            diagnostics.push({
+              code: "unknown-column",
+              message: "column not found in \{db_text}.\{table_text}.\{col_text}",
+              start_byte: ref.start_byte,
+              end_byte: ref.end_byte,
+            })
+            return None
+          }
         }
       }
       None => return None
@@ -766,6 +860,33 @@ fn[T : Catalog] resolve_model(
   output
 }
 
+/// Runs the existing SELECT re-parse + resolve pipeline over a token slice
+/// (D-01). Shared by SELECT bodies and CREATE VIEW query bodies (D-02).
+/// `fail_start`/`fail_end` carry the span for a paren-depth-limit diagnostic.
+fn[T : Catalog] analyze_select_tokens(
+  tokens : Array[(Bytes, Int, Int)],
+  fail_start : Int,
+  fail_end : Int,
+  catalog : T,
+  bindings : Array[Binding],
+  diagnostics : Array[AnalysisDiagnostic],
+) -> Unit {
+  let model = match split_select_model(tokens) {
+    Some(model) => model
+    None => {
+      diagnostics.push({
+        code: "requires-complete-parse",
+        message: "SELECT exceeds the analyzer's paren-depth limit",
+        start_byte: fail_start,
+        end_byte: fail_end,
+      })
+      return
+    }
+  }
+  let scope : Array[ScopeEntry] = []
+  ignore(resolve_model(model, catalog, scope, bindings, diagnostics))
+}
+
 /// Analyzes one SELECT body node, appending bindings and diagnostics.
 fn[T : Catalog] analyze_select_body(
   body : @syntax.SyntaxNode,
@@ -790,20 +911,335 @@ fn[T : Catalog] analyze_select_body(
     return
   }
   let tokens = source_tokens(body, source_bytes)
-  let model = match split_select_model(tokens) {
-    Some(model) => model
-    None => {
-      diagnostics.push({
-        code: "requires-complete-parse",
-        message: "SELECT exceeds the analyzer's paren-depth limit",
-        start_byte: body.span().start_byte,
-        end_byte: body.span().end_byte,
-      })
-      return
+  analyze_select_tokens(tokens, body.span().start_byte, body.span().end_byte, catalog, bindings, diagnostics)
+}
+
+/// Collects a dotted qualified name reference starting at `index`, returning
+/// the NameRef and the index just past it (D-02, DML target tables).
+fn qualified_ref_at(tokens : Array[(Bytes, Int, Int)], index : Int) -> (NameRef, Int)? {
+  if index >= tokens.length() || !is_identifier_token(tokens[index].0) {
+    return None
+  }
+  let parts : Array[TokenSlice] = []
+  let mut after = index
+  while after < tokens.length() && is_identifier_token(tokens[after].0) {
+    parts.push({ bytes: tokens[after].0, start_byte: tokens[after].1, end_byte: tokens[after].2 })
+    after = after + 1
+    if after < tokens.length() && tokens[after].0 == b"." {
+      after = after + 1
+      if after >= tokens.length() || !is_identifier_token(tokens[after].0) {
+        break
+      }
+    } else {
+      break
     }
   }
+  if parts.length() == 0 {
+    return None
+  }
+  Some((
+    {
+      parts: parts,
+      star: false,
+      is_call: false,
+      call_args: [],
+      start_byte: parts[0].start_byte,
+      end_byte: parts[parts.length() - 1].end_byte,
+    },
+    after,
+  ))
+}
+
+/// Index of the first `word` token at paren depth 0 in `[start, end)`, or -1
+/// when absent. Strings/quoted identifiers never match (whole-token bytes).
+fn find_word_at_depth0(
+  tokens : Array[(Bytes, Int, Int)],
+  start : Int,
+  end : Int,
+  word : Bytes,
+) -> Int {
+  let mut depth = 0
+  let mut i = start
+  while i < end {
+    let bytes = tokens[i].0
+    if bytes == b"(" {
+      depth = depth + 1
+    } else if bytes == b")" {
+      if depth > 0 {
+        depth = depth - 1
+      }
+    } else if depth == 0 && bytes_equal_ci(bytes, word) {
+      return i
+    }
+    i = i + 1
+  }
+  -1
+}
+
+/// Converts a token-index range into TokenSlice values (byte level, D-01).
+fn slice_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int) -> Array[TokenSlice] {
+  let out : Array[TokenSlice] = []
+  let mut i = start
+  while i < end && i < tokens.length() {
+    let (b, s, e) = tokens[i]
+    out.push({ bytes: b, start_byte: s, end_byte: e })
+    i = i + 1
+  }
+  out
+}
+
+/// Resolves every name reference in a token slice against `scope` (D-02),
+/// reusing resolve_ref for bindings and analyzer-channel diagnostics.
+fn[T : Catalog] resolve_token_refs(
+  slices : Array[TokenSlice],
+  scope : Array[ScopeEntry],
+  catalog : T,
+  bindings : Array[Binding],
+  diagnostics : Array[AnalysisDiagnostic],
+) -> Unit {
+  let refs = collect_refs(slices)
+  for ref in refs {
+    ignore(resolve_ref(ref, scope, catalog, bindings, diagnostics))
+  }
+}
+
+/// Resolves a DML target-table reference: emits a Table binding and pushes a
+/// scope entry carrying the table's columns so SET/WHERE/VALUES column refs
+/// resolve against it (D-02). Missing targets emit unknown-table.
+fn[T : Catalog] resolve_dml_target(
+  table_ref : NameRef,
+  catalog : T,
+  scope : Array[ScopeEntry],
+  bindings : Array[Binding],
+  diagnostics : Array[AnalysisDiagnostic],
+) -> Unit {
+  let parts = table_ref.parts
+  let texts : Array[String] = []
+  for p in parts {
+    texts.push(identifier_text(p.bytes))
+  }
+  let name_text = join_strings(texts, ".")
+  match resolve_table_name_ref(table_ref, catalog) {
+    Some((info, quoted)) => {
+      bindings.push({
+        kind: BindingKind::Table,
+        name: name_text,
+        resolved_to: info.name,
+        data_type: "",
+        start_byte: table_ref.start_byte,
+        end_byte: table_ref.end_byte,
+      })
+      let last_part = if parts.length() == 0 {
+        name_text
+      } else {
+        identifier_text(parts[parts.length() - 1].bytes)
+      }
+      scope.push({
+        key: last_part,
+        kind: ScopeKind::Table,
+        columns: info.columns,
+        display: info.name,
+        is_quoted: quoted,
+      })
+    }
+    None => {
+      diagnostics.push({
+        code: "unknown-table",
+        message: "table not found in catalog: \{name_text}",
+        start_byte: table_ref.start_byte,
+        end_byte: table_ref.end_byte,
+      })
+    }
+  }
+}
+
+/// Analyzes one DML body node (Insert/Update/Delete/Merge): resolves the
+/// target table and the column-level references in UPDATE SET/WHERE, DELETE
+/// WHERE, INSERT column lists, and MERGE SET (D-02). `resolve_table_references`
+/// behavior is untouched (D-05).
+fn[T : Catalog] analyze_dml_body(
+  body : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+  catalog : T,
+  bindings : Array[Binding],
+  diagnostics : Array[AnalysisDiagnostic],
+) -> Unit {
+  if body.is_error() || body.is_missing() || has_error_missing(body) {
+    diagnostics.push({
+      code: "requires-complete-parse",
+      message: "refusing to analyze a DML statement with error/missing material",
+      start_byte: body.span().start_byte,
+      end_byte: body.span().end_byte,
+    })
+    return
+  }
+  let tokens = source_tokens(body, source_bytes)
+  let words : Array[Bytes] = []
+  for t in tokens {
+    words.push(t.0)
+  }
+  let prefix = leading_prefix_end(body.kind(), words)
+  if prefix >= tokens.length() {
+    return
+  }
   let scope : Array[ScopeEntry] = []
-  ignore(resolve_model(model, catalog, scope, bindings, diagnostics))
+  match qualified_ref_at(tokens, prefix) {
+    Some((table_ref, next)) => {
+      resolve_dml_target(table_ref, catalog, scope, bindings, diagnostics)
+      match body.kind() {
+        @syntax.SyntaxKind::Update => {
+          let set_index = find_word_at_depth0(tokens, next, tokens.length(), b"SET")
+          if set_index >= 0 {
+            let where_index = find_word_at_depth0(tokens, set_index + 1, tokens.length(), b"WHERE")
+            let set_end = if where_index >= 0 { where_index } else { tokens.length() }
+            resolve_token_refs(
+              slice_tokens(tokens, set_index + 1, set_end),
+              scope,
+              catalog,
+              bindings,
+              diagnostics,
+            )
+            if where_index >= 0 {
+              resolve_token_refs(
+                slice_tokens(tokens, where_index + 1, tokens.length()),
+                scope,
+                catalog,
+                bindings,
+                diagnostics,
+              )
+            }
+          }
+        }
+        @syntax.SyntaxKind::Delete => {
+          let where_index = find_word_at_depth0(tokens, next, tokens.length(), b"WHERE")
+          if where_index >= 0 {
+            resolve_token_refs(
+              slice_tokens(tokens, where_index + 1, tokens.length()),
+              scope,
+              catalog,
+              bindings,
+              diagnostics,
+            )
+          }
+        }
+        @syntax.SyntaxKind::Insert => {
+          if next < tokens.length() && tokens[next].0 == b"(" {
+            let close = matching_paren(tokens, next)
+            if close < tokens.length() {
+              resolve_token_refs(
+                slice_tokens(tokens, next + 1, close),
+                scope,
+                catalog,
+                bindings,
+                diagnostics,
+              )
+            }
+          }
+        }
+        @syntax.SyntaxKind::Merge => {
+          let set_index = find_word_at_depth0(tokens, next, tokens.length(), b"SET")
+          if set_index >= 0 {
+            resolve_token_refs(
+              slice_tokens(tokens, set_index + 1, tokens.length()),
+              scope,
+              catalog,
+              bindings,
+              diagnostics,
+            )
+          }
+        }
+        _ => ()
+      }
+    }
+    None => ()
+  }
+}
+
+/// Analyzes one CREATE VIEW body node: the query body after the optional
+/// column list / AS is re-parsed through the existing SELECT analysis, so the
+/// body's table and column references bind (D-02). The view name itself is a
+/// target table, not a reference, and is not resolved here.
+fn[T : Catalog] analyze_create_view_body(
+  body : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+  catalog : T,
+  bindings : Array[Binding],
+  diagnostics : Array[AnalysisDiagnostic],
+) -> Unit {
+  if body.is_error() || body.is_missing() || has_error_missing(body) {
+    diagnostics.push({
+      code: "requires-complete-parse",
+      message: "refusing to analyze a CREATE VIEW with error/missing material",
+      start_byte: body.span().start_byte,
+      end_byte: body.span().end_byte,
+    })
+    return
+  }
+  let tokens = source_tokens(body, source_bytes)
+  let words : Array[Bytes] = []
+  for t in tokens {
+    words.push(t.0)
+  }
+  let prefix = leading_prefix_end(body.kind(), words)
+  if prefix >= tokens.length() {
+    return
+  }
+  match qualified_ref_at(tokens, prefix) {
+    Some((_, after_name)) => {
+      let mut query_start = after_name
+      // Optional view column list `(a, b)` between the name and AS.
+      if query_start < tokens.length() && tokens[query_start].0 == b"(" {
+        let close = matching_paren(tokens, query_start)
+        if close >= tokens.length() {
+          return
+        }
+        query_start = close + 1
+      }
+      // Optional AS.
+      if query_start < tokens.length() && bytes_equal_ci(tokens[query_start].0, b"AS") {
+        query_start = query_start + 1
+      }
+      if query_start < tokens.length() {
+        let body_tokens : Array[(Bytes, Int, Int)] = []
+        for i in query_start..<tokens.length() {
+          body_tokens.push(tokens[i])
+        }
+        analyze_select_tokens(
+          body_tokens,
+          tokens[query_start].1,
+          tokens[tokens.length() - 1].2,
+          catalog,
+          bindings,
+          diagnostics,
+        )
+      }
+    }
+    None => ()
+  }
+}
+
+/// Dispatches one statement body node to the SELECT / DML / CREATE VIEW
+/// analysis path (D-02). Other statement families are not analyzed.
+fn[T : Catalog] analyze_body(
+  body : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+  catalog : T,
+  bindings : Array[Binding],
+  diagnostics : Array[AnalysisDiagnostic],
+) -> Unit {
+  match body.kind() {
+    @syntax.SyntaxKind::Select => {
+      analyze_select_body(body, source_bytes, catalog, bindings, diagnostics)
+    }
+    @syntax.SyntaxKind::Insert | @syntax.SyntaxKind::Update |
+    @syntax.SyntaxKind::Delete | @syntax.SyntaxKind::Merge => {
+      analyze_dml_body(body, source_bytes, catalog, bindings, diagnostics)
+    }
+    @syntax.SyntaxKind::CreateView => {
+      analyze_create_view_body(body, source_bytes, catalog, bindings, diagnostics)
+    }
+    _ => ()
+  }
 }
 
 /// Analyzes a parsed document's statements against the injected catalog,
@@ -824,7 +1260,7 @@ pub fn[T : Catalog] analyze(
           for inner in statement_node.children() {
             match inner {
               @syntax.SyntaxElement::ChildNode(body) => {
-                analyze_select_body(body, source_bytes, catalog, bindings, diagnostics)
+                analyze_body(body, source_bytes, catalog, bindings, diagnostics)
               }
               @syntax.SyntaxElement::Leaf(_) => ()
             }

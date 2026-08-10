@@ -33,11 +33,14 @@ struct TokenSlice {
 /// `parts` holds one slice per identifier segment in source order; `star` is
 /// set when the final segment is `*` (then `parts` excludes the star);
 /// `is_call` is set when the reference is immediately followed by `(` (a
-/// function call). Source spelling and byte spans are preserved (D-03).
+/// function call), and `call_args` then holds the token slices between that
+/// `(` and its matching `)` (parens excluded) for arity counting (D-04).
+/// Source spelling and byte spans are preserved (D-03).
 struct NameRef {
   parts : Array[TokenSlice]
   star : Bool
   is_call : Bool
+  call_args : Array[TokenSlice]
   start_byte : Int
   end_byte : Int
 }
