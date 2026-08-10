@@ -299,7 +299,7 @@ pub fn[T : Catalog] resolve_table_references(
 ) -> Array[String]
 ```
 
-当前 `resolve_table_references` 只返回 catalog 中存在的、已支持 DML/DDL statement 的目标表名；缺少的表名被省略，不生成 parser 诊断，不做类型推断或 Doris FE 执行语义分析。`StaticCatalog` 的表名 key 当前区分大小写，重复表名采用最后一项覆盖前一项。
+当前 `resolve_table_references` 只返回 catalog 中存在的、已支持 DML/DDL statement 的目标表名；缺少的表名被省略，不生成 parser 诊断，不做类型推断或 Doris FE 执行语义分析。自 Phase 13（D-03）起，已支持的 statement 族覆盖相同表级 kind 的 Flink 形态：`INSERT`/`UPSERT INTO` 与 `INSERT OVERWRITE`（表名位于可选 `PARTITION` 之前）、`UPDATE`、`DELETE`、`CREATE TABLE`、`CREATE VIEW`，均通过同一就地走查解析，无独立 Flink 入口。范围为表级：column/identifier 级引用解析与类型诊断按 D-24 顺延 v2；`CREATE VIEW`/`INSERT ... SELECT` 查询体不会被走查；表缺失或无可注入 catalog 时结果缺省/为空，且不改变 parser validity（ANLY-01）。`StaticCatalog` 的表名 key 当前区分大小写，重复表名采用最后一项覆盖前一项。
 
 ## 错误码与错误响应
 

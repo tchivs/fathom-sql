@@ -300,7 +300,7 @@ pub fn[T : Catalog] resolve_table_references(
 ) -> Array[String]
 ```
 
-Currently, `resolve_table_references` returns only target table names that exist in the catalog and belong to supported DML/DDL statements; missing table names are omitted, no parser diagnostics are generated, and no type inference or Doris FE execution-semantics analysis is performed. `StaticCatalog` table-name keys are currently case-sensitive, and duplicate table names are overwritten by the last entry.
+Currently, `resolve_table_references` returns only target table names that exist in the catalog and belong to supported DML/DDL statements; missing table names are omitted, no parser diagnostics are generated, and no type inference or Doris FE execution-semantics analysis is performed. Since Phase 13 (D-03), the supported statement families include the Flink shapes for the same table-level kinds — `INSERT`/`UPSERT INTO` and `INSERT OVERWRITE` (the table name precedes the optional `PARTITION` spec), `UPDATE`, `DELETE`, `CREATE TABLE`, and `CREATE VIEW` — resolved through the same in-place walk with no separate Flink entry point. The scope is table-level only: column/identifier-level reference resolution and type diagnostics are deferred to v2 (D-24); a `CREATE VIEW` or `INSERT ... SELECT` query body is not walked, and a missing table or a no-catalog analysis simply yields an absent/empty result without changing parser validity (ANLY-01). `StaticCatalog` table-name keys are currently case-sensitive, and duplicate table names are overwritten by the last entry.
 
 ## Error Codes and Error Responses
 
