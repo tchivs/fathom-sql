@@ -16,204 +16,48 @@ Doris SQL Parser SDK 首个可发布里程碑。无损 CST 内核、SELECT/DML/D
 <details>
 <summary>v1.0 Phase Details (archived)</summary>
 
-### Phase 1: Core Kernel
+### ✅ v2.0: Multi-Dialect: Flink SQL & Neutral Naming — SHIPPED 2026-08-10
 
-**Goal**: Consumers can parse an explicitly selected Doris 2.1, 3.x, or 4.x profile into a lossless, recoverable CST with precise diagnostics and industrial SELECT/expression coverage, entirely offline.
-**Mode:** mvp
-**Depends on**: Nothing (first phase)
-**Requirements**: CORE-01..CORE-07
-**Status:** Complete 2026-08-03 (4/4 plans)
+Multi-dialect SQL SDK：单方言 Doris 解析器升级为多方言 SQL SDK——Flink SQL 全链（release-pinned profiles、词法核心、grammar + 可恢复无损 CST、formatter、completion、analyzer、LSP/CLI、JS/linear-Wasm wire、Web/VS Code/IntelliJ 三宿主）+ 产品命名中立化（fathom-sql/fathom-lsp/fathom.*.v1）+ 跨方言 release-pinned corpus 与 parity 门禁。24/24 v2 需求验证通过，全程离线，Doris 冻结 baseline 零漂移。
 
-### Phase 2: Doris Completeness and Corpus
+- **Archive:** [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) · [v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) · [v2.0-phases](milestones/v2.0-phases/)
+- **Status:** SHIPPED (verified_closeout — artifact audit clear, all 5 phases verified, 24/24 requirements complete, threats_open 0)
 
-**Goal**: Users can parse version-supported Doris scripts and warehouse-specific DML/DDL with localized errors, while maintainers and consumers can inspect reproducible coverage and the syntax-only/analyzer boundary.
-**Mode:** mvp
-**Depends on**: Phase 1
-**Requirements**: DORIS-01..04, CORP-01..04, ANLY-01
-**Status:** Complete 2026-08-04 (6/6 plans)
-
-### Phase 3: Formatting and Safe Edits
-
-**Goal**: Users can choose exact source replay or a deterministic, configurable, comment-preserving canonical rendering and invoke it safely from the `doris-sql format` command.
-**Mode:** mvp
-**Depends on**: Phase 3
-**Requirements**: FMT-01..04
-**Status:** Complete 2026-08-04 (4/4 plans)
-
-### Phase 4: Ecosystem and Multi-Target Delivery
-
-**Goal**: Editors, web applications, and automation can use one versioned Doris parser through Native LSP/CLI and stable Wasm/JavaScript facades with consistent results across targets.
-**Mode:** mvp
-**Depends on**: Phase 3
-**Requirements**: ECO-01..07
-**Status:** Complete 2026-08-05 (5/5 plans)
-
-</details>
-
-## v2.0: Multi-Dialect: Flink SQL & Neutral Naming — PLANNING
-
-v2.0 将已交付的单方言 Doris SDK 升级为显式选择的多方言 SQL SDK：共享无损 CST/source/token/recovery 机制，按方言隔离词法、关键字、文法、诊断、formatter 与 completion policy，并以同一套 Native/JavaScript/linear-Wasm API 服务 Doris 与 Flink。产品公共身份一次性中立化为 `fathom/sql`、`fathom-sql`、`fathom-lsp`、`fathom.*.v1` 与 `FATHOM-*`；Doris 仅作为显式 dialect/profile/corpus/provenance 保留，不提供旧别名、自动方言检测、generic fallback 或默认 transpilation。
-
-**Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md) — 24 v2.0 requirements, all mapped below
-**Research:** [research/SUMMARY.md](research/SUMMARY.md) — research-derived order and hard gates
-
-## Phases
-
-- [x] **Phase 9: Dialect Boundary and Neutral Naming** - Establish explicit dialect/profile context, isolate Doris policy, freeze the Doris baseline, and complete the clean product-identity cutover. (completed 2026-08-07)
-- [x] **Phase 10: Flink Release Profiles and Lexical Core** - Lock Flink release/Calcite contracts and deliver profile-specific Flink lexical behavior. (completed 2026-08-07)
-- [x] **Phase 11: Flink Grammar and Recoverable CST** - Deliver Flink statement/DDL/window/pattern grammar with strict/editor lossless recovery. (completed 2026-08-09)
-- [x] **Phase 12: Cross-Dialect Corpus and Parity Gates** - Turn pinned sources and the Doris baseline into reproducible cross-dialect and cross-backend release gates. (completed 2026-08-09)
-- [x] **Phase 13: Toolchain and Editor Packaging** - Expose Flink through formatter, analyzer, completion, CLI/LSP, JS/Wasm, Web, VS Code, and IntelliJ. (completed 2026-08-10)
-
-## Phase Details
+<details>
+<summary>v2.0 Phase Details (archived)</summary>
 
 ### Phase 9: Dialect Boundary and Neutral Naming
 
-**Goal**: Users can explicitly select Doris or Flink and its valid profile at every public boundary, while the SDK exposes one neutral product identity and preserves the shipped Doris behavior.
-**Mode**: mvp
-**Depends on**: Phase 4 (v1.0 shipped)
-**Requirements**: DIALECT-01, DIALECT-02, DIALECT-03, DIALECT-04, NAME-01, NAME-02, NAME-03, NAME-04
-**Success Criteria** (what must be TRUE):
-
-  1. User receives a structured configuration error for missing, unknown, or conflicting dialect/profile selection through API, CLI, LSP, JS/Wasm, Web, VS Code, and IntelliJ; no entry point silently detects or falls back to another dialect.
-  2. The selected dialect controls independent keyword classification and an explicit statement/clause route, so Doris and Flink policies cannot change one another's identifier acceptance or recovery behavior.
-  3. Parse, format, completion, LSP, and serialized results expose dialect, profile, exact-release metadata, strict/editor mode, byte spans, statement identity, and stable `FATHOM-*` diagnostics.
-  4. Public imports, binaries, exports, schemas, errors, LSP identity, editor settings, release assets, and documentation use neutral `fathom` naming with no old aliases; `Doris` remains only as a dialect/profile/corpus/provenance value.
-
-**Validation**: Freeze the v1 Doris 2.1/3.x/4.x valid, invalid, recovery, CST/span, diagnostic, formatter, completion, CLI, LSP, and schema outputs before migration; compare the post-migration outputs byte-for-byte/shape-for-shape, run the explicit-selection matrix, and enforce a repository naming forbidden/allowlist inventory.
-**Research flags**: No new external technology choice is required; planning must still inventory every public import/export/asset and distinguish product-name remnants from allowed Doris dialect/provenance references.
-**Plans**: 7/7 plans executed
-
-- [x] 09-01-PLAN.md
-- [x] 09-02-PLAN.md
-- [x] 09-03-PLAN.md
-- [x] 09-04-PLAN.md
-- [x] 09-05-PLAN.md
-- [x] 09-06-PLAN.md
-- [x] 09-07-PLAN.md
+**Goal**: 在 API/CLI/LSP/JS-Wasm/Web/VS Code/IntelliJ 全程显式选择 dialect/profile，完成产品命名中立化 cutover 与命名门禁，冻结 Doris baseline。
+**Requirements**: DIALECT-01..04, NAME-01..04
+**Status:** Complete 2026-08-10 (7 plans)
 
 ### Phase 10: Flink Release Profiles and Lexical Core
 
-**Goal**: Users can select an auditable Flink release profile whose lexical behavior is independent from Doris and grounded in the matching Flink/Calcite contract.
-**Mode**: mvp
-**Depends on**: Phase 9
+**Goal**: 可审计的 Flink release profile（flink-2.3.0 主 + 2.1.3/1.20.5 回归）与独立 Flink 词法/关键字核心。
 **Requirements**: FLINK-01
-**Success Criteria** (what must be TRUE):
-
-  1. User can select `flink-2.3.0` as the primary profile or `flink-2.1.3`/`flink-1.20.5` regression profiles, while an unsupported profile is rejected explicitly.
-  2. Each accepted profile reports its release source/tag/commit, Calcite version, parser configuration, and feature metadata; the exact Calcite pin for 2.1.3 is extracted from that release rather than inferred.
-  3. Flink input receives release-specific comment, quote, literal, operator, identifier, and reserved/non-reserved/contextual classification behavior with source trivia/spans preserved; conflict cases have explainable snapshots rather than Doris-policy leakage.
-
-**Validation**: Verify pinned Flink source archives and checksums, read each release parser configuration/POM, and exercise a lexical conflict matrix for comments, quoting, X/U& literals, identifiers, operators, and unknown profiles in both dialects. Do not use moving `dev`/`stable` docs or a Flink/Calcite runtime.
-**Research flags**: Confirm the exact `flink-2.1.3` Calcite version/config from its release POM/source; validate double-quote, `#`, `//`, X/U&/B literal behavior with executable release fixtures rather than Calcite folklore.
-**Plans**: 3/3 plans executed
-**Wave 1**
-
-- [x] 10-01-PLAN.md — Flink profile identity (flink-2.3.0/2.1.3/1.20.5 + Calcite pins) + end-to-end selection unlock + provenance/flink-lexical scaffold (tracer)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 10-02-PLAN.md — Flink lexical core: quoting, literals, operators, identifiers + conflict-matrix snapshots
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 10-03-PLAN.md — Flink keyword classification per release + provenance attachments
+**Status:** Complete 2026-08-10 (3 plans)
 
 ### Phase 11: Flink Grammar and Recoverable CST
 
-**UI hint**: no
-**Goal**: Users can parse everyday Flink SQL and its distinctive DDL/window/pattern constructs into a lossless, bounded, recoverable CST without changing Doris acceptance or diagnostics.
-**Mode**: mvp
-**Depends on**: Phase 10
-**Requirements**: FLINK-02, FLINK-03, FLINK-04, FLINK-05, FLINK-06, CST-01
-**Success Criteria** (what must be TRUE):
-
-  1. User can parse Flink SELECT/CTE/JOIN/aggregation/set operations/expressions/types, INSERT/UPDATE/DELETE, EXPLAIN/SHOW/DESCRIBE/ANALYZE with localized strict/editor diagnostics.
-  2. User can inspect structured CST for Flink Catalog/DATABASE/TABLE/VIEW/FUNCTION DDL and CREATE TABLE physical, metadata, computed, WATERMARK, primary-key, partition/distribution, connector-options, LIKE, and AS forms.
-  3. User can inspect source-backed Window TVF CST for TUMBLE/HOP/CUMULATE/SESSION and syntax-level MATCH_RECOGNIZE for PATTERN/DEFINE/MEASURES/skip policy/variables/quantifiers, without a planner or execution-equivalence claim.
-  4. Strict and editor mode preserve comments, whitespace, newlines, unknown/error/missing/skipped material, source bytes, and spans in a bounded recoverable CST; lossless replay is byte-identical and Flink-only syntax is rejected in Doris mode (and vice versa) with stable diagnostics.
-
-**Validation**: Use pinned release grammar positives, negatives, incomplete inputs, and recovery fixtures; assert bounded progress, source-backed nodes, strict/editor shape parity, lossless replay, and bidirectional dialect-negative gates. Re-run the frozen Doris baseline before accepting any shared parser/CST change.
-**Research flags**: Reconcile each release's `flink-sql-parser` productions with matching Calcite tests; define the supported/known-limitation subset for Window TVF and MATCH_RECOGNIZE, especially nested recovery and planner-prerequisite cases.
-**Plans**: 4/4 plans executed
-**Wave 1**
-
-- [x] 11-01-PLAN.md — Phase one-way gates (D-02 CST shape, D-04 FATHOM-PARSE-009) + FLINK-02 core-query tracer (real parse_flink_segment dispatch, precedence dialect arm, 008 retirement, flink-grammar snapshot namespace)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 11-02-PLAN.md — FLINK-02 DML + auxiliary statements (INSERT/UPSERT/UPDATE/DELETE, EXPLAIN/SHOW/DESCRIBE/ANALYZE, USE/SET/RESET) + Flink expression/type breadth
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 11-03-PLAN.md — FLINK-03/04 Catalog/DDL entry points + CREATE TABLE complex forms (four-column body, WATERMARK, constraints, table-level clauses, LIKE/AS, DDL negative-gate matrix)
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 11-04-PLAN.md — FLINK-05/06 Window TVF (TUMBLE/HOP/CUMULATE/SESSION) + syntax-level MATCH_RECOGNIZE + supported/known-limitation subset freeze
+**Goal**: 真实 Flink 语句级 grammar 与无损/有界/可恢复 CST（核心查询、DDL、CREATE TABLE 复杂形式、Window TVF、MATCH_RECOGNIZE、双向负门禁）。
+**Requirements**: FLINK-02..06, CST-01
+**Status:** Complete 2026-08-10 (4 plans)
 
 ### Phase 12: Cross-Dialect Corpus and Parity Gates
 
-**Goal**: Maintainers can audit reproducible Doris/Flink coverage and release only when dialect behavior and cross-backend serialized results remain within explicit parity contracts.
-**Mode**: standard
-**Depends on**: Phase 11
-**Requirements**: CORPUS-01, PARITY-01, PARITY-02, PARITY-03
-**Success Criteria** (what must be TRUE):
-
-  1. Maintainer can inspect a release-pinned Flink corpus manifest containing release/tag/commit, Calcite version/config, source URL/heading, retrieval date, hash, expected status, and positive/negative/recovery/known-limitation/catalog/planner categories.
-  2. Doris 2.1/3.x/4.x valid, invalid, recovery, CST/span, diagnostic, formatter, and completion behavior remains equal to the frozen baseline, or every intentional difference is explicitly recorded and approved.
-  3. The same fixture produces byte-identical serialized results, diagnostics, spans, and lossless replay across Native, JavaScript, and linear-Wasm targets.
-  4. Offline CI/release checks use only pinned artifacts and distinguish parser acceptance from catalog/planner/engine semantic prerequisites for both dialects, without Doris FE, Flink cluster, database, or network runtime access.
-
-**Validation**: Run an offline manifest/hash verifier, frozen Doris diff harness, cross-dialect positive/negative/recovery snapshots, and Native/JS/linear-Wasm serialized comparisons; keep source provenance and docs-vs-parser conflicts visible rather than bulk-updating snapshots.
-**Research flags**: Design the auditable extraction/diff workflow, resolve docs/source/Calcite conflicts, and define category semantics so generic SQL acceptance is never reported as Flink engine support.
-**Plans**: 3/3 plans executed
-**Wave 1**
-
-- [x] 12-01-PLAN.md — Unified Flink corpus manifest + offline verifier (CORPUS-01, PARITY-03; tracer: all-6-category seed end-to-end, then full 110-fixture migration + semantic-distinction coverage report)
-- [x] 12-02-PLAN.md — Doris frozen diff harness (PARITY-01; diff_parity.py --frozen-only regeneration harness + Phase 12 approved-changes register)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 12-03-PLAN.md — Cross-backend parity + offline CI gates (PARITY-02, PARITY-03; compare_backends.py three-target digest + js runtime CI job + wiring of verify_corpus/diff_parity/report into CI)
+**Goal**: release-pinned Flink corpus manifest、Doris 冻结 diff harness、Native/JS/linear-Wasm 字节级一致、离线 CI 门禁。
+**Requirements**: CORPUS-01, PARITY-01..03
+**Status:** Complete 2026-08-10 (3 plans)
 
 ### Phase 13: Toolchain and Editor Packaging
 
-**Goal**: Users can use the selected Flink or Doris dialect through the complete neutral formatter, analyzer, completion, CLI/LSP, Web, VS Code, and IntelliJ toolchain.
-**Mode**: standard
-**Depends on**: Phase 12
-**Requirements**: TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05
-**Success Criteria** (what must be TRUE):
+**Goal**: Flink 贯通全部中立工具链与宿主——formatter、completion、analyzer、CLI/LSP、JS/linear-Wasm wire（fathom_complete_v1）、Web/Monaco、VS Code、IntelliJ。
+**Requirements**: TOOL-01..05
+**Status:** Complete 2026-08-10 (7 plans; verified 28/28, threats_open 0)
 
-  1. User can canonical-format supported Flink CST separately from lossless replay, while unsafe error/missing/skipped material returns an explicit refusal and no partial output.
-  2. User receives bounded, dialect/profile-aware syntax completion for Flink keywords, DDL, WATERMARK, Window TVF, and MATCH_RECOGNIZE contexts, and can run syntax-only Flink analysis with optional catalog metadata without changing parser validity.
-  3. User can run `fathom-sql parse|format|lsp --dialect flink` and `fathom-lsp` end to end with diagnostics, formatting, completion, UTF-16 positions, and document-level dialect selection.
-  4. User can use the same dialect-aware API/schema through JS/linear-Wasm, Web/Monaco, VS Code, and IntelliJ; each host selects Doris or Flink per file/session and does not maintain a second parser implementation.
+</details>
 
-**Validation**: Exercise refusal and idempotence fixtures, bounded completion contexts, analyzer catalog/no-catalog cases, Native CLI/LSP protocol flows, JS/linear-Wasm facade calls, and real Web/Monaco/VS Code/IntelliJ artifact smoke; verify document revision/stale-response and selection-conflict cases plus the neutral naming gate.
-**Research flags**: Verify MoonBit primitive JS/linear-Wasm ABI and JSON Unicode/size/malformed-input behavior; confirm LSP UTF-16 and selection precedence in real hosts and run final VS Code/IntelliJ/Web packaging smoke.
-**Plans**: 7/7 plans executed
-**Wave 1**
-
-- [x] 13-01-PLAN.md — Flink formatter covered-family gate + full clause_breaks + flink-format snapshot namespace (TOOL-01, D-01; tracer)
-
-**Wave 1** *(parallel)*
-
-- [x] 13-02-PLAN.md — Flink completion Flink branch + context arms + candidate-pool extension (TOOL-02, D-02; tracer)
-- [x] 13-03-PLAN.md — Flink analyzer resolve_table_references extension (TOOL-03, D-03; checkpoint + tracer)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 13-04-PLAN.md — fathom_complete_v1 wire export + fathom.complete.v1 envelope (TOOL-05, D-04; checkpoint + tracer)
-- [x] 13-05-PLAN.md — LSP flink format/completion real paths + CLI flink exit-code matrix (TOOL-04, D-07; tracer)
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 13-06-PLAN.md — Web/VS Code/IntelliJ (dialect, profile) pair validation + fathom_complete_v1 in Web (TOOL-05, D-05/D-06; checkpoint + tracer)
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 13-07-PLAN.md — Three-host packaging smoke + CI job + docs (TOOL-05, D-08; tracer)
 
 ## v3.0: Analysis and Intelligence — PLANNING (deferred)
 

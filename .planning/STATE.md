@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Multi-Dialect: Flink SQL & Neutral Naming — PLANNING"
-current_phase: 13
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 13 context gathered
-last_updated: "2026-08-10T05:42:53.398Z"
+last_updated: "2026-08-10T07:16:56.169Z"
 last_activity: 2026-08-10
-last_activity_desc: Phase 13 complete
+last_activity_desc: Milestone v2.0 completed and archived
 progress:
   total_phases: 5
   completed_phases: 5
   total_plans: 24
   completed_plans: 24
   percent: 100
+current_phase: 13
 current_phase_name: Toolchain and Editor Packaging
 ---
 
@@ -28,11 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
-Status: All phases complete
-**Progress:** [██████████] 100%
-Last activity: 2026-08-10 — Phase 13 complete
+Phase: Milestone v2.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-10 — Milestone v2.0 completed and archived
 
 ## Performance Metrics
 
@@ -272,3 +271,7 @@ Resume file: .planning/phases/13-toolchain-and-editor-packaging/13-CONTEXT.md
 |------|------|--------|
 | 2026-08-06 | GitHub Releases Native `doris-lsp` delivery and JetBrains managed downloader | Complete |
 | 2026-08-07 | Rename GitHub repository to `tchivs/fathom-sql`; sync README, JetBrains release links, and naming gate | Complete |
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
