@@ -15,7 +15,7 @@ Requirements for the v3.0 milestone (Analysis and Intelligence). Each maps to ex
 
 ### Analysis and Resolution
 
-- [ ] **ANAL-01**: User receives catalog-backed name resolution and type diagnostics for Doris tables, columns, functions, and scopes (qualified/unqualified refs, aliases, CTEs, subqueries, star expansion with catalog), with case-insensitive identifier matching matching Doris semantics and source spans preserved on every binding.
+- [x] **ANAL-01**: User receives catalog-backed name resolution and type diagnostics for Doris tables, columns, functions, and scopes (qualified/unqualified refs, aliases, CTEs, subqueries, star expansion with catalog), with case-insensitive identifier matching matching Doris semantics and source spans preserved on every binding.
 
 ### Lint
 
@@ -66,7 +66,7 @@ Populated during v3.0 roadmap creation. Each requirement maps to exactly one pha
 |-------------|-------|--------|
 | CLOSE-01 | Phase 5 | Complete — Phase 5 formalized (host-verify.mjs, 4 modes, record in STATE.md Deferred Items) |
 | CLOSE-02 | Phase 5 | Complete — Phase 5 formalized (ci.yml linear-wasm-parity, record in STATE.md Deferred Items) |
-| ANAL-01 | Phase 5 | In Progress — 05-02 foundation delivered (Catalog contract + SELECT tracer); 05-03 delivered the full SELECT analysis model (clause split, CTE/subquery scope stack, UNION chains, AS aliases, qualified names, table.* star expansion, case-insensitive matching + source span preservation); functions/DML/type diagnostics remain in 05-04 |
+| ANAL-01 | Phase 5 | Complete — Phase 5 05-04 delivered function resolution + arity, DML/CREATE VIEW column-level refs, and the full diagnostic set (unknown-table/column/function, ambiguous-reference, function-arity) with docs/API.md updated |
 | LINT-01 | Phase 6 | Pending |
 | FING-01 | Phase 6 | Pending |
 | LINE-01 | Phase 7 | Pending |

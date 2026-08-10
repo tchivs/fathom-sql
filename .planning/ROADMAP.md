@@ -73,7 +73,7 @@ Doris SQL Parser SDK 从语法层扩展到语义与分析层:catalog 名字解�
 **Mode:** standard
 **Depends on**: Phase 4 (v1.0)
 **Requirements**: CLOSE-01, CLOSE-02, ANAL-01
-**Status:** In progress — 3 of 4 plans complete (05-01 closeout evidence formalized, 05-02 ANAL-01 foundation: D-05 Catalog contract + SELECT analyze tracer, 05-03 full SELECT analysis model: clause split + scope-stack resolution + integration/white-box tests)
+**Status:** Complete — 4 of 4 plans complete (05-01 closeout evidence formalized, 05-02 ANAL-01 foundation: D-05 Catalog contract + SELECT analyze tracer, 05-03 full SELECT analysis model: clause split + scope-stack resolution + integration/white-box tests, 05-04 function resolution + arity, DML/CREATE VIEW column refs, and the complete type-diagnostic set with docs/API.md updated)
 
 Success criteria:
 
