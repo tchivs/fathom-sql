@@ -185,3 +185,42 @@ test "completion_export_is_dialect_aware_with_neutral_wire_identity" {
   assert_true(dialect_error.contains("FATHOM-SCHEMA-007"))
   assert_true(dialect_error.contains("unknown dialect"))
 }
+
+test "completion_wire_error_matrix_and_source_range_edit" {
+  // (a) cursor out-of-range -> fathom.error.v1 (InvalidCursor,
+  // FATHOM-COMPLETE-001) — never a panic and never a malformed range
+  // (D-04, T-13-04-03). The bounds check is single-sourced in the core
+  // (@completion.complete); the export never duplicates it.
+  let bad_cursor = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"SELECT 1", "flink", "flink-2.3.0", 9999)[:],
+  )
+  assert_true(bad_cursor.contains("fathom.error.v1"))
+  assert_true(bad_cursor.contains("FATHOM-COMPLETE-001"))
+  assert_true(bad_cursor.contains("invalid cursor"))
+  // (b) over-limit input (8 MiB + 1) -> structured error envelope
+  // (FATHOM-COMPLETE-003, InputTooLarge) — never a crash (T-13-04-08).
+  let oversize = Bytes::make(8 * 1024 * 1024 + 1, 32)
+  let over = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(oversize, "flink", "flink-2.3.0", 0)[:],
+  )
+  assert_true(over.contains("fathom.error.v1"))
+  assert_true(over.contains("FATHOM-COMPLETE-003"))
+  // (c) malformed UTF-8 input (0xFF 0xFE is not a valid UTF-8 sequence)
+  // returns the structured fathom.complete.v1 or fathom.error.v1 envelope —
+  // never a panic and never an unreadable result (T-13-04-08).
+  let malformed = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"\xff\xfe\x00", "flink", "flink-2.3.0", 1)[:],
+  )
+  assert_true(malformed.contains("fathom.complete.v1") || malformed.contains("fathom.error.v1"))
+  // (d) a real cursor over a typed prefix returns a FROM item whose
+  // start_byte/end_byte cover the "FRO" prefix: [7,9) == "FR" and
+  // end_byte == cursor (source-range edit, T-13-02-06 / D-04).
+  let edit = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"SELECT FRO", "flink", "flink-2.3.0", 9)[:],
+  )
+  assert_true(edit.contains("fathom.complete.v1"))
+  assert_true(edit.contains("\"label\":\"FROM\""))
+  assert_true(edit.contains("\"start_byte\":7"))
+  assert_true(edit.contains("\"end_byte\":9"))
+  assert_true(edit.contains("\"new_text\":\"FROM\""))
+}
