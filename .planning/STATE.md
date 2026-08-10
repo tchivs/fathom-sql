@@ -2,12 +2,13 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Analysis and Intelligence — PLANNING
-current_phase_name: defining requirements
+current_phase: 5
+current_phase_name: closeout-and-analysis-foundation
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-08-10T08:59:28.330Z"
+last_updated: "2026-08-10T09:00:48.831Z"
 last_activity: 2026-08-10
-last_activity_desc: Milestone v3.0 started
+last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 4
   completed_phases: 0
@@ -23,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Phase 13 — Toolchain and Editor Packaging
+**Current focus:** Phase 5 — closeout-and-analysis-foundation
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-08-10 — Milestone v3.0 started
+Phase: 5 (closeout-and-analysis-foundation) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 5
+Last activity: 2026-08-10 — Phase 5 execution started
 
 ## Performance Metrics
 
@@ -251,7 +252,7 @@ Items acknowledged and deferred at milestone close on 2026-08-05:
 | Category | Item | Status |
 |----------|------|--------|
 | verification_override | Phase 01 VERIFICATION gaps_found (historical 9/11; disk-manifest gap closed by Phase 2 corpus_test.mbt embedded oracle; moon.mod label + unavailable-offline provenance remain documented boundaries) | override_closeout |
-| verification_override | Phase 04 ECO-07 human-hosted VS Code launch (04-04 Task 4, blocking-human; requires a machine with VS Code) | **verified 2026-08-06** — installed VS Code 1.132.0 + @vscode/test-electron host harness (vscode/scripts/host-verify.mjs); 3 real-extension-host modes passed (diagnostics/format/completion/4.x-merge; 2.1 MERGE DORIS-PARSE-006 profile propagation; unavailable-server fallback). Fixed real bug: client requires LogOutputChannel `{log:true}` (plain channel crashed startup). |
+| verification_override | Phase 04 ECO-07 human-hosted VS Code launch (04-04 Task 4, blocking-human; requires a machine with VS Code) | **closed — Phase 5 CLOSE-01 formally verified** — installed VS Code 1.132.0 + @vscode/test-electron host harness (vscode/scripts/host-verify.mjs); 3 real-extension-host modes passed (diagnostics/format/completion/4.x-merge; 2.1 MERGE DORIS-PARSE-006 profile propagation; unavailable-server fallback). Fixed real bug: client requires LogOutputChannel `{log:true}` (plain channel crashed startup). |
 | verification_override | Phase 04 ECO-06 rendered Monaco UI checkpoints (executor-documented 23/23 Chromium assertions; not independently reproducible in verifier env) | verified_by_executor |
 | differential | FE/Nereids differential script execution (D-20 manual; Java FE offline-unavailable) | deferred |
 | ci_recommendation | linear-Wasm runtime execution parity step before release | **addressed 2026-08-06** — CI workflow `.github/workflows/` added with `moon build --target wasm` + parity fixture execution step (CLOSE-02) |
