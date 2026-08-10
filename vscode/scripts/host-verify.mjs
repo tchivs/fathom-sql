@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // ECO-07 host checkpoint runner: launches real VS Code extension hosts via
 // @vscode/test-electron against the local fathom-lsp executable (Xvfb :99).
-// Runs three isolated modes: functional (doris 4.x), profile (doris 2.1 gate),
-// fallback (bad path).
+// Runs four isolated modes: functional (doris 4.x), profile (doris 2.1 gate),
+// flink (flink-2.3.0, D-08), fallback (bad path).
 import { runTests } from '@vscode/test-electron';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,10 @@ async function runMode(mode, env) {
 const modes = [
   { mode: 'functional', env: { VSCODE_HOST_MODE: 'functional', FATHOM_LSP_PATH: lspPath, FATHOM_DIALECT: 'doris', FATHOM_PROFILE: '4.x' } },
   { mode: 'profile', env: { VSCODE_HOST_MODE: 'profile', FATHOM_LSP_PATH: lspPath, FATHOM_DIALECT: 'doris', FATHOM_PROFILE: '2.1' } },
+  // D-08: the flink mode drives the real extension host through the flink LSP
+  // surface (dialect=flink, profile=flink-2.3.0) — diagnostics/format/completion
+  // are asserted in host-test.ts (never the -32603/-32602 sentinels).
+  { mode: 'flink', env: { VSCODE_HOST_MODE: 'flink', FATHOM_LSP_PATH: lspPath, FATHOM_DIALECT: 'flink', FATHOM_PROFILE: 'flink-2.3.0' } },
   { mode: 'fallback', env: { VSCODE_HOST_MODE: 'fallback', FATHOM_LSP_PATH: lspPath, FATHOM_DIALECT: 'doris', FATHOM_PROFILE: '4.x' } },
 ];
 
@@ -42,4 +46,4 @@ for (const { mode, env } of modes) {
   await runMode(mode, env);
 }
 
-console.log('ECO-07 host checkpoint: all three modes passed in real VS Code.');
+console.log('ECO-07 host checkpoint: all four modes passed in real VS Code.');

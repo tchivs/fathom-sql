@@ -2,10 +2,11 @@
 // Runs inside a real VS Code extension host via @vscode/test-electron.
 // Exports run() — the VS Code test-runner contract (no Mocha dependency).
 //
-// Three invocations, each a fresh extension host with isolated user data
+// Four invocations, each a fresh extension host with isolated user data
 // (routed by VSCODE_HOST_MODE via scripts/host-verify.mjs):
 //   functional dialect=doris profile=4.x  -> diagnostics / format / completion / MERGE ok
 //   profile    dialect=doris profile=2.1  -> MERGE rejected (FATHOM-PARSE-006) = profile propagation
+//   flink      dialect=flink profile=flink-2.3.0 -> flink diagnostics / format / completion (D-08)
 //   fallback   bad path                   -> unavailable-server message, document stays editable
 import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
@@ -119,6 +120,57 @@ async function runProfile() {
   console.log('HOST-PROFILE: 2.1 rejects MERGE via FATHOM-PARSE-006 (profile propagated)');
 }
 
+// D-08 flink mode: a flink-selected document receives REAL diagnostics,
+// formatting, and completion through the actual LSP — never a Doris-policy
+// result and never the -32603/-32602 rejection sentinels (13-05 removed them).
+async function runFlink() {
+  await setConfig(LSP_PATH, 'flink', 'flink-2.3.0');
+
+  // 1) invalid flink SQL -> structured FATHOM-PARSE-* diagnostic with a stable
+  //    code + UTF-16 range (the flink selection reached the server).
+  const { uri: badUri } = await openDoc('bad-flink.sql', 'SELEC 1 FROM t;\n');
+  const badDiags = await waitFor(async () => {
+    const d = await diagnosticsFor(badUri);
+    return d.length > 0 ? d : null;
+  });
+  const first = badDiags[0];
+  assert.ok(first.code, 'flink diagnostic carries a stable code');
+  assert.ok(String(first.code).startsWith('FATHOM-PARSE-'), 'invalid flink SQL reports a FATHOM-PARSE-* diagnostic');
+  assert.equal(first.severity, vscode.DiagnosticSeverity.Error, 'invalid flink SQL is an Error severity diagnostic');
+  assert.ok(first.range.start.line === 0 && first.range.start.character === 0, 'flink UTF-16 range start');
+  assert.equal(first.source, 'fathom', 'flink diagnostic source is the neutral fathom identity');
+
+  // 2) valid flink SQL -> zero diagnostics (real Flink grammar, not Doris).
+  const validUri = await writeSqlFile('valid-flink.sql', 'SELECT * FROM orders;\n');
+  const validDoc = await vscode.workspace.openTextDocument(validUri);
+  await vscode.window.showTextDocument(validDoc);
+  await sleep(500);
+  const validDiags = await diagnosticsFor(validUri);
+  assert.equal(validDiags.length, 0, 'valid flink SQL produces no diagnostics');
+
+  // 3) flink Format Document returns a real edit / empty array — never -32603.
+  const fmtUri = await writeSqlFile('fmt-flink.sql', 'select   a,  b  from  t;\n');
+  const fmtDoc = await vscode.workspace.openTextDocument(fmtUri);
+  await vscode.window.showTextDocument(fmtDoc);
+  await sleep(400);
+  const fmtEdits = await vscode.commands.executeCommand('vscode.executeFormatDocumentProvider', fmtDoc.uri, {
+    tabSize: 2,
+    insertSpaces: true,
+  });
+  assert.ok(Array.isArray(fmtEdits), 'flink Format Document returns an edit array (never -32603)');
+  if (fmtEdits.length > 0) {
+    assert.match(fmtEdits[0].newText, /SELECT/, 'flink formatted text preserves keywords');
+  }
+
+  // 4) flink completion -> real items (never -32602).
+  const completion = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', badUri, new vscode.Position(0, 0));
+  assert.ok(completion && Array.isArray(completion.items), 'flink completion provider returns items');
+  const labels = completion.items.map((item) => String(item.label).toUpperCase());
+  assert.ok(labels.includes('SELECT'), 'flink completion includes SELECT keyword');
+
+  console.log('HOST-FLINK: flink diagnostics/format/completion passed through the real extension host');
+}
+
 async function runFallback() {
   await setConfig(BAD_PATH, 'doris', '4.x');
 
@@ -137,6 +189,7 @@ export async function run() {
   assert.ok(LSP_PATH, 'FATHOM_LSP_PATH must be set');
   if (MODE === 'functional') await runFunctional();
   else if (MODE === 'profile') await runProfile();
+  else if (MODE === 'flink') await runFlink();
   else if (MODE === 'fallback') await runFallback();
   else throw new Error(`unknown VSCODE_HOST_MODE: ${MODE}`);
 }
