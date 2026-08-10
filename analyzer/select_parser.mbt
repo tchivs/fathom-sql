@@ -163,6 +163,25 @@ fn matching_paren(tokens : Array[(Bytes, Int, Int)], open : Int) -> Int {
   tokens.length()
 }
 
+/// Index of the `)` matching the `(` at `open` in a TokenSlice list, or
+/// `length` when unbalanced (WR-03, window-spec skipping).
+fn matching_paren_slices(tokens : Array[TokenSlice], open : Int) -> Int {
+  let mut depth = 0
+  let mut i = open
+  while i < tokens.length() {
+    if tokens[i].bytes == b"(" {
+      depth = depth + 1
+    } else if tokens[i].bytes == b")" {
+      depth = depth - 1
+      if depth == 0 {
+        return i
+      }
+    }
+    i = i + 1
+  }
+  tokens.length()
+}
+
 /// Extracts dotted name references from a token slice list. A reference is a
 /// maximal run of identifier segments separated by `.`, optionally ending in
 /// `*` (then `star` is set) or followed by `(` (then `is_call` is set).
@@ -175,6 +194,21 @@ fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
   let mut i = 0
   while i < length {
     let bytes = tokens[i].bytes
+    // WR-03: skip a window-function OVER specification whole so its
+    // PARTITION BY / ORDER BY / ROWS-RANGE keywords and window columns never
+    // resolve as column references (`SUM(x) OVER (PARTITION BY y ...)` must
+    // not report y / PARTITION / ORDER as unknown-column). Covers both the
+    // inline spec `OVER (...)` and the named-window reference `OVER w`.
+    if bytes_equal_ci(bytes, b"OVER") {
+      if i + 1 < length && tokens[i + 1].bytes == b"(" {
+        let close = matching_paren_slices(tokens, i + 1)
+        i = (if close < length { close + 1 } else { length })
+        continue
+      } else if i + 1 < length && is_identifier_token(tokens[i + 1].bytes) {
+        i = i + 2
+        continue
+      }
+    }
     if is_identifier_token(bytes) {
       let parts : Array[TokenSlice] = []
       let start_byte = tokens[i].start_byte
@@ -259,6 +293,39 @@ fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
   refs
 }
 
+/// True when `bytes` is an infix operator token (arithmetic, comparison, or
+/// logical). Used to reject trailing bare aliases for binary expressions
+/// (CR-01): `SELECT price * qty` must not bind `qty` as an alias.
+fn is_infix_operator(bytes : Bytes) -> Bool {
+  bytes == b"+" || bytes == b"-" || bytes == b"*" || bytes == b"/" ||
+  bytes == b"%" || bytes == b"||" || bytes == b"=" || bytes == b"<" ||
+  bytes == b">" || bytes == b"<=" || bytes == b">=" || bytes == b"!=" ||
+  bytes == b"<>" || bytes == b"&" || bytes == b"|" || bytes == b"^" ||
+  bytes == b"AND" || bytes == b"OR" || bytes == b"LIKE" ||
+  bytes == b"IN" || bytes == b"IS" || bytes == b"BETWEEN"
+}
+
+/// True when a paren-depth-0 infix operator appears in `tokens`. Operators
+/// inside parenthesized subexpressions (e.g. the `*` in `count(*)` or `+` in
+/// `(a + b)`) are not at the top level and do not disqualify a trailing bare
+/// alias (CR-01).
+fn has_top_level_operator(tokens : Array[TokenSlice]) -> Bool {
+  let mut depth = 0
+  for t in tokens {
+    let bytes = t.bytes
+    if bytes == b"(" {
+      depth = depth + 1
+    } else if bytes == b")" {
+      if depth > 0 {
+        depth = depth - 1
+      }
+    } else if depth == 0 && is_infix_operator(bytes) {
+      return true
+    }
+  }
+  false
+}
+
 /// Builds a SelectItem from one comma-delimited projection slice: splits the
 /// AS alias at the first top-level AS, detects a trailing bare alias, marks
 /// star projections (`*`, `t.*`, `db.t.*`, `* EXCEPT (cols)`), and extracts
@@ -298,18 +365,25 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
     body_tokens = tokens
   }
   // Trailing bare alias (only when the expression has at least one token
-  // before it and the last token is not preceded by `.`).
+  // before it, the last token is identifier-like and not preceded by `.`,
+  // and no paren-depth-0 infix operator precedes it). CR-01: `SELECT price *
+  // qty` / `a + b` / `a >= b` must NOT bind the right operand as an alias —
+  // a top-level infix operator means the trailing identifier is the right
+  // operand of a binary expression, not an implicit alias. `count(*) x` and
+  // `(a + b) c` still alias (their operators sit inside parens).
   if as_index < 0 && body_tokens.length() >= 2 {
     let last = body_tokens[body_tokens.length() - 1]
     let prev = body_tokens[body_tokens.length() - 2]
     if is_identifier_token(last.bytes) && prev.bytes != b"." && last.bytes != b"*" {
-      alias = Some(identifier_text(last.bytes))
-      alias_slice = Some(last)
-      let arr : Array[TokenSlice] = []
+      let prefix : Array[TokenSlice] = []
       for j in 0..<(body_tokens.length() - 1) {
-        arr.push(body_tokens[j])
+        prefix.push(body_tokens[j])
       }
-      body_tokens = arr
+      if !has_top_level_operator(prefix) {
+        alias = Some(identifier_text(last.bytes))
+        alias_slice = Some(last)
+        body_tokens = prefix
+      }
     }
   }
   // Star projection: `*` or `t.*` / `db.t.*` (last token `*` preceded by `.`),
