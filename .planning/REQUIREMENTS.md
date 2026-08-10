@@ -66,7 +66,7 @@ Populated during v3.0 roadmap creation. Each requirement maps to exactly one pha
 |-------------|-------|--------|
 | CLOSE-01 | Phase 5 | Complete — Phase 5 formalized (host-verify.mjs, 4 modes, record in STATE.md Deferred Items) |
 | CLOSE-02 | Phase 5 | Complete — Phase 5 formalized (ci.yml linear-wasm-parity, record in STATE.md Deferred Items) |
-| ANAL-01 | Phase 5 | In Progress — 05-02 foundation delivered (Catalog contract + SELECT tracer); full resolution in 05-03/05-04 |
+| ANAL-01 | Phase 5 | In Progress — 05-02 foundation delivered (Catalog contract + SELECT tracer); 05-03 delivered the full SELECT analysis model (clause split, CTE/subquery scope stack, UNION chains, AS aliases, qualified names, table.* star expansion, case-insensitive matching + source span preservation); functions/DML/type diagnostics remain in 05-04 |
 | LINT-01 | Phase 6 | Pending |
 | FING-01 | Phase 6 | Pending |
 | LINE-01 | Phase 7 | Pending |

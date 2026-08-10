@@ -5,16 +5,16 @@ milestone_name: Analysis and Intelligence — PLANNING
 current_phase: 5
 current_phase_name: closeout-and-analysis-foundation
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-08-10T10:00:38.028Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-08-10T12:30:00.000Z"
 last_activity: 2026-08-10
-last_activity_desc: Phase 5 execution started
+last_activity_desc: Phase 5 05-03 full SELECT analysis model complete
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 5 (closeout-and-analysis-foundation) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
-Last activity: 2026-08-10 — Phase 5 execution started
+Last activity: 2026-08-10 — Phase 5 05-03 complete
 
 ## Performance Metrics
 
@@ -106,6 +106,7 @@ Last activity: 2026-08-10 — Phase 5 execution started
 | Phase 12-cross-dialect-corpus-and-parity-gates P03 | 7min | 3 tasks | 2 files |
 | Phase 05 P01 | 15min | 2 tasks | 2 files |
 | Phase 05-02 P02 | 40min | 3 tasks | 9 files |
+| Phase 05-03 P03 | 45min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -235,6 +236,7 @@ Recent decisions affecting current work:
 - [Phase ?]: CLOSE-01/CLOSE-02 upgraded to Phase 5 formalized records (D-07): evidence cited from in-repo host-verify.mjs + ci.yml linear-wasm-parity job + compare_backends.py + 2026-08-06 STATE.md records; no re-run, no new code
 - [Phase ?]: D-05 one-way Catalog contract frozen (option-a): table + table_in_db(db,name) + function(name); StaticCatalog gains db_tables/functions registries with parsing-time ASCII case-fold lookup (D-03) and StaticCatalog-only lookup_exact exact-match primitive (never on the generic resolve path)
 - [Phase ?]: analyze() end-to-end tracer (D-01/D-04/D-06): SELECT bodies re-parsed from the flat token-leaf CST via source_tokens + paren-depth clause split; bindings carry flattened start_byte/end_byte spans; analyzer diagnostics live on an independent channel (ANLY-01); quoted identifiers resolve via Catalog::table case-fold + byte-exact TableInfo.name re-check
+- [Phase ?]: 05-03 full SELECT analysis model (D-01/D-02/D-03/D-05): analyzer re-parser splits every clause (SELECT list/FROM+JOIN/WHERE/GROUP BY/HAVING/QUALIFY/WINDOW/ORDER BY/LIMIT/UNION) with paren-depth awareness (GROUP/ORDER only break on a following BY); scope stack resolves CTE/subquery frames (inner-first shadowing, CTE beats catalog tables), aliases, qualified names (1=col/table, 2=alias.col|db.table, 3=db.table.col via table_in_db), and star expansion over resolved tables; UNION chains split only (EXCEPT is a projection modifier, INTERSECT not accepted — Pitfall 2); quoted identifiers stay case-exact via Catalog::table case-fold + TableInfo.name byte re-check (never StaticCatalog::lookup_exact on the generic path)
 
 ### Pending Todos
 
