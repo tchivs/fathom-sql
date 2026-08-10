@@ -361,3 +361,22 @@ test "flink_format_refusal_publishes_diagnostics_empty_array" {
   assert_true(result_body.contains("\"result\":[]"))
   assert_true(!result_body.contains("-32603"))
 }
+
+test "initialize_flink_serve_stdio_defaults_handshake" {
+  // D-07 / D-39 (13-05): `fathom-sql lsp --dialect flink --profile
+  // flink-2.3.0` seeds the workspace defaults via serve_stdio; a bare
+  // initialize handshake responds with capabilities and serverInfo
+  // fathom-lsp — the flink server starts over stdio and the workspace
+  // selection is the pinned flink profile.
+  let state = ServerState::new()
+  state.default_dialect = Some("flink")
+  state.default_profile = Some("flink-2.3.0")
+  let responses = handle_message(state, message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(body.contains("\"capabilities\""))
+  assert_true(body.contains("fathom-lsp"))
+  assert_true(state.initialized)
+  assert_eq(state.default_dialect, Some("flink"))
+  assert_eq(state.default_profile, Some("flink-2.3.0"))
+}

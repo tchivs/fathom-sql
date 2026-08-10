@@ -31,6 +31,24 @@ fn command_stdin(profile : String) -> Command {
   }
 }
 
+/// flink-parameterized Command (D-07, 13-05): mirrors command_stdin but with
+/// dialect "flink" and the caller-chosen profile/subcommand for the D-39
+/// exit-code matrix (0 accepted / 1 refusal / 2 usage).
+fn command_flink(profile : String, subcommand : String) -> Command {
+  {
+    subcommand: subcommand,
+    dialect: "flink",
+    profile: profile,
+    keyword_case: None,
+    indent: None,
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+  }
+}
+
 test "cli_stdin_happy_path_exit_0" {
   let outcome = run_format(command_stdin("4.x"), b"select 1")
   assert_eq(outcome.exit_code, 0)
@@ -339,4 +357,52 @@ test "cli_usage_error_message_renders_exit_2_text" {
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris", "--profile", "4.x", "--comma-style", "sideways"])).contains("sideways"))
   assert_true(usage_error_message(error_of([])).contains("parse, format, or lsp"))
   assert_true(usage_text().contains("--dialect"))
+}
+
+// D-07 / D-39 flink format exit-code matrix (13-05): `fathom-sql format
+// --dialect flink --profile flink-2.3.0` routes through @api.format_with_ids
+// with exit 0 (accepted), 1 (refusal — FATHOM-FORMAT-001 on stderr, parse
+// diagnostics never masked), 2 (usage/unknown profile). run.mbt needs no flink
+// guard — the format path is dialect-agnostic.
+
+test "cli_flink_format_accepted_exit_0" {
+  let outcome = run_format(command_flink("flink-2.3.0", "format"), b"select 1")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stdout, b"SELECT 1\n")
+  assert_eq(outcome.stderr.length(), 0)
+}
+
+test "cli_flink_format_refusal_exit_1" {
+  // The unsafe Flink tree (incomplete WHERE) refuses via the covered-family
+  // refusal channel: exit 1, empty stdout, FATHOM-FORMAT-001 on stderr with
+  // the parse diagnostics prepended (T-03-20 — never masked).
+  let outcome = run_format(command_flink("flink-2.3.0", "format"), b"SELECT a, b FROM t WHERE")
+  assert_eq(outcome.exit_code, 1)
+  assert_eq(outcome.stdout.length(), 0)
+  let stderr = outcome.stderr.to_string()
+  assert_true(stderr.contains("FATHOM-FORMAT-001"))
+}
+
+test "cli_flink_doris_shaped_profile_exit_2" {
+  // A Doris-shaped profile under flink is a usage error (D-01, Phase 10): exit
+  // 2, empty stdout, and the message lists the released flink values (MI-02 —
+  // never advertises doris values).
+  let outcome = run_format(command_flink("4.x", "format"), b"select 1")
+  assert_eq(outcome.exit_code, 2)
+  assert_eq(outcome.stdout.length(), 0)
+  let stderr = outcome.stderr.to_string()
+  assert_true(stderr.contains("unknown --profile value: 4.x"))
+  assert_true(stderr.contains("flink-2.3.0"))
+  assert_true(!stderr.contains("2.1, 3.x, or 4.x"))
+}
+
+test "cli_flink_parse_exit_0_fathom_parse_v1" {
+  // `fathom-sql parse --dialect flink` returns the fathom.parse.v1 envelope
+  // with the flink selection on stdout, exit 0, empty stderr.
+  let outcome = run_parse(command_flink("flink-2.3.0", "parse"), b"SELECT 1")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stderr.length(), 0)
+  let stdout = outcome.stdout.to_string()
+  assert_true(stdout.contains("fathom.parse.v1"))
+  assert_true(stdout.contains("flink"))
 }
