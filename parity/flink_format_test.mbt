@@ -169,6 +169,12 @@ let flink_format_fixtures : Array[FlinkFormatFixture] = [
     raw: b"SELECT a, b FROM t WHERE",
     expected_refused: true,
   },
+  {
+    fixture_id: "select-unclosed-paren-refused",
+    profile: "flink-2.3.0",
+    raw: b"SELECT (",
+    expected_refused: true,
+  },
 ]
 
 fn flink_format_fixture(id : String) -> FlinkFormatFixture {
@@ -259,7 +265,7 @@ fn flink_format_oracle(fixture : FlinkFormatFixture) -> String {
 }
 
 test "flink_format_oracle_all_fixtures" {
-  assert_eq(flink_format_fixtures.length(), 23)
+  assert_eq(flink_format_fixtures.length(), 24)
   let mut failures = ""
   for fixture in flink_format_fixtures {
     let message = flink_format_oracle(fixture)
@@ -496,21 +502,29 @@ test "flink-format completeness probe: covered set never silently single-lines" 
 // preserved (never masked, T-03-01).
 // ---------------------------------------------------------------------------
 test "flink-format refusal oracle: unsafe tree refuses, parse diagnostics preserved" {
-  let formatted = match @api.format_with_ids(b"SELECT a, b FROM t WHERE", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
-    Ok(result) => result
-    Err(_) => panic()
-  }
-  assert_false(formatted.accepted)
-  assert_eq(formatted.output, b"")
-  let mut refusal_count = 0
-  let mut parse_diagnostic_preserved = false
-  for diagnostic in formatted.diagnostics {
-    if diagnostic.code == "FATHOM-FORMAT-001" {
-      refusal_count = refusal_count + 1
-    } else {
-      parse_diagnostic_preserved = true
+  // Two distinct unsafe shapes: a missing expression tail (single localized
+  // parse error) and an unclosed paren (multiple bounded parse errors). Both
+  // must refuse with accepted=false, empty output, and exactly one
+  // FATHOM-FORMAT-001, with every parse diagnostic preserved/prepended (never
+  // masked, T-03-01).
+  let unsafe_inputs : Array[Bytes] = [b"SELECT a, b FROM t WHERE", b"SELECT ("]
+  for raw in unsafe_inputs {
+    let formatted = match @api.format_with_ids(raw, "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
+      Ok(result) => result
+      Err(_) => panic()
     }
+    assert_false(formatted.accepted)
+    assert_eq(formatted.output, b"")
+    let mut refusal_count = 0
+    let mut parse_diagnostic_preserved = false
+    for diagnostic in formatted.diagnostics {
+      if diagnostic.code == "FATHOM-FORMAT-001" {
+        refusal_count = refusal_count + 1
+      } else {
+        parse_diagnostic_preserved = true
+      }
+    }
+    assert_eq(refusal_count, 1)
+    assert_true(parse_diagnostic_preserved)
   }
-  assert_eq(refusal_count, 1)
-  assert_true(parse_diagnostic_preserved)
 }
