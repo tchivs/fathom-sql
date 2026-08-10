@@ -11,7 +11,7 @@ Requirements for the v3.0 milestone (Analysis and Intelligence). Each maps to ex
 ### Closeout (v1.0 收尾 — 已完成)
 
 - [x] **CLOSE-01**: User can verify the shipped VS Code extension (ECO-07, 04-04 Task 4) on a machine with VS Code — the compiled extension connects to the Native LSP over the standard client protocol and exposes Doris diagnostics, comment-preserving formatting, and completion, with the documented position-encoding (single-string) behavior. — **VERIFIED 2026-08-06**: `vscode/scripts/host-verify.mjs` launched real VS Code 1.132.0 extension hosts; 3 modes passed (diagnostics/format/completion/4.x-merge, 2.1 MERGE profile propagation, unavailable-server fallback). Fixed the client's `LogOutputChannel` requirement bug. **[Phase 5 formalized]**: `vscode/scripts/host-verify.mjs` real extension-host, 4 isolated modes (functional doris-4.x / profile doris-2.1 / flink flink-2.3.0 / fallback); record in STATE.md Deferred Items.
-- [x] **CLOSE-02**: Release gate includes a linear-Wasm runtime execution step in CI — the `--target wasm` build runs the parity fixture suite and produces byte-identical serialized output to the Native and JS targets (ECO-05 runtime parity, currently recommended-not-run). — **VERIFIED 2026-08-06**: `.github/workflows/ci.yml` + release gate run `moon test --target wasm --package parity` (12/12, linear-Wasm runtime execution) + native cross-check.
+- [x] **CLOSE-02**: Release gate includes a linear-Wasm runtime execution step in CI — the `--target wasm` build runs the parity fixture suite and produces byte-identical serialized output to the Native and JS targets (ECO-05 runtime parity, currently recommended-not-run). — **VERIFIED 2026-08-06**: `.github/workflows/ci.yml` + release gate run `moon test --target wasm --package parity` (12/12, linear-Wasm runtime execution) + native cross-check. **[Phase 5 formalized]**: ci.yml `linear-wasm-parity` job (`moon test --target wasm --package parity` + native/js cross-check + `scripts/compare_backends.py`); record in STATE.md Deferred Items.
 
 ### Analysis and Resolution
 
@@ -65,7 +65,7 @@ Populated during v3.0 roadmap creation. Each requirement maps to exactly one pha
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CLOSE-01 | Phase 5 | Complete — Phase 5 formalized (host-verify.mjs, 4 modes, record in STATE.md Deferred Items) |
-| CLOSE-02 | Phase 5 | Complete (verified 2026-08-06) |
+| CLOSE-02 | Phase 5 | Complete — Phase 5 formalized (ci.yml linear-wasm-parity, record in STATE.md Deferred Items) |
 | ANAL-01 | Phase 5 | Pending |
 | LINT-01 | Phase 6 | Pending |
 | FING-01 | Phase 6 | Pending |
