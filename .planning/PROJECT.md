@@ -91,6 +91,13 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - **打包 smoke（TOOL-05/D-08）:** VS Code 真 extension-host flink 模式 4 模式、IntelliJ Gradle build+launch、Web Chromium offline-smoke；CI `host-packaging-smoke` job；全程离线。
 - **门禁:** native 876/js 597/wasm 597 测试全绿；diff_parity --frozen-only 455 快照 0 差异；check_naming 602 文件零残留；三目标 digest 一致；verifier 28/28 must-haves 通过。
 
+**v3.0 Phase 5 COMPLETE — 2026-08-10** (Closeout and Analysis Foundation) — CLOSE-01/02 已核实（D-07 正式记录），ANAL-01 catalog 名字解析与类型诊断交付（verifier 13/13 must-haves）
+
+- **Analyzer 契约（D-05 one-way）:** `Catalog` trait 定形为 `table`/`table_in_db`/`function` 三方法 + `FunctionInfo`（name/param_types/return_type/min_arity）；StaticCatalog 增 db 作用域表与函数注册表；唯一实现者与测试 helper 同 commit 迁移；resolve_table_references 行为不变。
+- **SELECT 分析模型（D-01）:** analyzer 侧对平铺 token-leaf CST 二次解析（顶层子句切分 + 括号深度感知 + 作用域栈），CTE/子查询/UNION 链/AS 别名/限定名 `db.table.col`/带 catalog 星号展开；带引号标识符经 case-fold `Catalog::table` + `TableInfo.name` 字节复核精确匹配（D-03）；binding 保留源码拼写 + 平铺 Int span（D-06）。
+- **类型诊断（D-04）:** 函数调用解析与元数检查；unknown-table/column/function、ambiguous-reference、function-arity 诊断集；独立诊断通道（ANLY-01 语法 valid 不变）。
+- **门禁:** native 886 测试全绿（analyzer+test 191）；frozen Doris parity 597 + diff_parity --frozen-only 455 快照 0 差异；D-21 负门禁（analyzer/moon.pkg + parser/moon.pkg 零 diff）干净；code review 1 BLOCKER + 6 WARNING 全修复。
+
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming — SHIPPED 2026-08-10
 
 **Goal:** 将单方言 Doris 解析器升级为多方言 SQL SDK——引入方言抽象层，新增 Flink SQL 方言全链（解析/CST/诊断/格式化/补全/LSP/CLI），并完成产品命名中立化（二进制/schema/错误码/扩展/文档），使同一无损 CST 内核服务 Doris 与 Flink 两个方言。原 v2.0 分析层（Analysis and Intelligence）顺延为 v3.0。
@@ -106,10 +113,10 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Next Milestone Goals: v3.0 Analysis and Intelligence
 
-从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01）。要求已归档于 [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md)。
+从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01 ✅ Phase 5 完成）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01）。要求已归档于 [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md)。
 
-**Requirements:** CLOSE-01/02（v1.0 遗留验证收尾）、ANAL-01、LINT-01、LINE-01、FING-01、EDIT-01
-**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图
+**Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01、LINE-01、FING-01、EDIT-01
+**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已启动，Phase 5 完成，下一 Phase 6 Lint）
 
 ## Evolution
 
@@ -129,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-10 after v2.0 milestone — Multi-Dialect: Flink SQL & Neutral Naming SHIPPED*
+*Last updated: 2026-08-10 after v2.0 milestone — Multi-Dialect: Flink SQL & Neutral Naming SHIPPED · v3.0 Phase 5 Closeout and Analysis Foundation COMPLETE*
