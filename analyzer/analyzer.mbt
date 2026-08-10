@@ -33,18 +33,27 @@ pub(all) struct TableInfo {
   columns : Array[ColumnInfo]
 }
 
-/// Minimal table -> columns lookup contract (D-22). Implementors answer
-/// whether a table exists and what its columns are; they never influence
-/// syntax parsing or the syntax-only valid channel. `open` so consumers can
-/// implement it for their own metadata sources.
+/// Name-resolution contract (D-22 extended by D-05). Implementors answer
+/// whether a table/function exists and what its columns/signature are; they
+/// never influence syntax parsing or the syntax-only valid channel. `open` so
+/// consumers can implement it for their own metadata sources.
+///
+/// The method set is a one-way public contract (D-05): adding a method breaks
+/// external implementors, so the full set is frozen at once — the plain table
+/// lookup, the db-qualified path, and the function registry.
 pub(open) trait Catalog {
   table(Self, String) -> TableInfo?
+  table_in_db(Self, db : String, name : String) -> TableInfo?
+  function(Self, String) -> FunctionInfo?
 }
 
-/// Concrete in-memory catalog backed by a name-keyed map. Keys are
-/// case-sensitive for now (documented): "t" and "T" are distinct tables.
+/// Concrete in-memory catalog backed by name-keyed maps. Lookup matches with
+/// parsing-time ASCII case-fold (D-03): `lookup("T")` hits a key "t"; quoted
+/// identifiers match exactly (byte-for-byte) instead.
 pub struct StaticCatalog {
   tables : Map[String, TableInfo]
+  db_tables : Map[String, Map[String, TableInfo]]
+  functions : Map[String, FunctionInfo]
 }
 
 /// Builds a catalog from the given entries; later entries with the same name
@@ -54,16 +63,93 @@ pub fn StaticCatalog::new(entries : Array[TableInfo]) -> StaticCatalog {
   for entry in entries {
     tables.set(entry.name, entry)
   }
-  { tables: tables }
+  { tables: tables, db_tables: Map([]), functions: Map([]) }
 }
 
-/// Direct map lookup: returns the entry for `name` or None when absent.
+/// Returns a copy of this catalog with `table` additionally registered under
+/// the named database scope (D-05). Keys keep author casing; resolution folds
+/// ASCII case at lookup time (D-03).
+pub fn StaticCatalog::with_db(
+  self : StaticCatalog,
+  db : String,
+  name : String,
+  table : TableInfo,
+) -> StaticCatalog {
+  let db_tables = self.db_tables.copy()
+  let scope = match db_tables.get(db) {
+    Some(scope) => scope.copy()
+    None => Map([])
+  }
+  scope.set(name, table)
+  db_tables.set(db, scope)
+  { tables: self.tables, db_tables: db_tables, functions: self.functions }
+}
+
+/// Returns a copy of this catalog with `info` registered in the function
+/// registry (D-05).
+pub fn StaticCatalog::with_function(
+  self : StaticCatalog,
+  name : String,
+  info : FunctionInfo,
+) -> StaticCatalog {
+  let functions = self.functions.copy()
+  functions.set(name, info)
+  { tables: self.tables, db_tables: self.db_tables, functions: functions }
+}
+
+/// Case-insensitive scan of a String-keyed map (parsing-time ASCII case-fold,
+/// D-03): the first key that folds equal to `name` wins.
+fn case_insensitive_get[V](m : Map[String, V], name : String) -> V? {
+  let mut result : V? = None
+  for kv in m.to_array() {
+    if kv.0.equal_ignore_ascii_case(name) {
+      result = Some(kv.1)
+      break
+    }
+  }
+  result
+}
+
+/// Direct map lookup with parsing-time ASCII case-fold (D-03): `lookup("T")`
+/// hits a catalog entry keyed "t". Quoted identifiers never use this path —
+/// they resolve via the case-fold hit plus a byte-exact re-check on
+/// `TableInfo.name` at the resolve layer.
 pub fn StaticCatalog::lookup(self : StaticCatalog, name : String) -> TableInfo? {
+  case_insensitive_get(self.tables, name)
+}
+
+/// Byte-exact (case-sensitive) lookup: the only path that does not fold ASCII
+/// case. Exists for direct unit-testing of quoted-identifier semantics (D-03)
+/// and is NOT a Catalog trait method, so the generic resolve path can never
+/// call it.
+pub fn StaticCatalog::lookup_exact(self : StaticCatalog, name : String) -> TableInfo? {
   self.tables.get(name)
+}
+
+/// Case-insensitive lookup within a named database scope (D-05). Returns None
+/// when the database or table is absent.
+pub fn StaticCatalog::lookup_in_db(self : StaticCatalog, db : String, name : String) -> TableInfo? {
+  match self.db_tables.get(db) {
+    Some(scope) => case_insensitive_get(scope, name)
+    None => None
+  }
+}
+
+/// Case-insensitive function-registry lookup (D-05).
+pub fn StaticCatalog::lookup_function(self : StaticCatalog, name : String) -> FunctionInfo? {
+  case_insensitive_get(self.functions, name)
 }
 
 pub impl Catalog for StaticCatalog with table(self, name) {
   self.lookup(name)
+}
+
+pub impl Catalog for StaticCatalog with table_in_db(self, db, name) {
+  self.lookup_in_db(db, name)
+}
+
+pub impl Catalog for StaticCatalog with function(self, name) {
+  self.lookup_function(name)
 }
 
 // ---------------------------------------------------------------------------

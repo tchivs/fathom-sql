@@ -5,10 +5,26 @@
 // syntax-only valid/diagnostic channel must be byte-identical with and without
 // a catalog (ANLY-01).
 
-/// Trait-dispatch helper: resolves `table` through the Catalog trait itself so
-/// the trait object path (used by resolve_table_references) is exercised.
+/// Trait-dispatch helpers: resolve through the Catalog trait itself so the
+/// trait object path (used by resolve_table_references / analyze) is exercised
+/// for every method (D-05).
 fn catalog_lookup[T : @analyzer.Catalog](catalog : T, name : String) -> @analyzer.TableInfo? {
   @analyzer.Catalog::table(catalog, name)
+}
+
+fn catalog_lookup_in_db[T : @analyzer.Catalog](
+  catalog : T,
+  db : String,
+  name : String,
+) -> @analyzer.TableInfo? {
+  @analyzer.Catalog::table_in_db(catalog, db, name)
+}
+
+fn catalog_lookup_function[T : @analyzer.Catalog](
+  catalog : T,
+  name : String,
+) -> @analyzer.FunctionInfo? {
+  @analyzer.Catalog::function(catalog, name)
 }
 
 test "analyzer_catalog_lookup_hits_and_misses" {
@@ -30,8 +46,18 @@ test "analyzer_catalog_lookup_hits_and_misses" {
     None => panic()
   }
   assert_true(@analyzer.StaticCatalog::lookup(catalog, "missing") is None)
-  // Keys are case-sensitive for now (documented): "T" is not "t".
-  assert_true(@analyzer.StaticCatalog::lookup(catalog, "T") is None)
+  // D-03: parsing-time ASCII case-fold — "T" folds to "t" and hits.
+  assert_true(@analyzer.StaticCatalog::lookup(catalog, "T") is Some(_))
+}
+
+test "analyzer_catalog_lookup_exact_is_byte_exact_for_quoted" {
+  // D-03: quoted identifiers match exactly — a catalog keyed "T" is hit by
+  // `lookup_exact("T")` but NOT by `lookup_exact("t")`. lookup_exact is the
+  // StaticCatalog-only exact-match primitive (never a Catalog trait method,
+  // so the generic resolve path can never call it).
+  let catalog = @analyzer.StaticCatalog::new([{ name: "T", columns: [{ name: "id", data_type: "INT" }] }])
+  assert_true(@analyzer.StaticCatalog::lookup_exact(catalog, "T") is Some(_))
+  assert_true(@analyzer.StaticCatalog::lookup_exact(catalog, "t") is None)
 }
 
 test "analyzer_empty_catalog_lookup_returns_none" {
@@ -46,6 +72,19 @@ test "analyzer_catalog_trait_dispatches_to_static_catalog" {
   let catalog = @analyzer.StaticCatalog::new([{ name: "t", columns: [] }])
   assert_true(catalog_lookup(catalog, "t") is Some(_))
   assert_true(catalog_lookup(catalog, "nope") is None)
+  // D-05: the db-scope and function-registry paths dispatch through the same
+  // trait object.
+  let catalog_db = @analyzer.StaticCatalog::with_db(catalog, "db1", "t2", { name: "t2", columns: [] })
+  let catalog_fn = @analyzer.StaticCatalog::with_function(
+    catalog,
+    "f",
+    { name: "f", param_types: [], return_type: "INT", min_arity: 0 },
+  )
+  assert_true(catalog_lookup_in_db(catalog_db, "db1", "T2") is Some(_))
+  assert_true(catalog_lookup_in_db(catalog_db, "db1", "missing") is None)
+  assert_true(catalog_lookup_in_db(catalog_db, "nodb", "t2") is None)
+  assert_true(catalog_lookup_function(catalog_fn, "F") is Some(_))
+  assert_true(catalog_lookup_function(catalog_fn, "nope") is None)
 }
 
 test "analyzer_syntax_only_path_is_unchanged_by_catalog" {
