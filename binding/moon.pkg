@@ -2,6 +2,7 @@ pkgtype(kind: "foreign_library")
 import {
   "fathom/sql/api" @api,
   "fathom/sql/source" @source,
+  "fathom/sql/completion" @completion,
   "moonbitlang/core/debug" @debug,
   "moonbitlang/core/json" @json,
   "moonbitlang/core/encoding/utf8" @utf8,
@@ -14,6 +15,7 @@ options(
       "exports": [
         "fathom_parse_v1",
         "fathom_format_v1",
+        "fathom_complete_v1",
         "fathom_dialect_v1",
         "fathom_capabilities_v1",
       ],
@@ -22,6 +24,7 @@ options(
       "exports": [
         "fathom_parse_v1",
         "fathom_format_v1",
+        "fathom_complete_v1",
         "fathom_dialect_v1",
         "fathom_capabilities_v1",
       ],

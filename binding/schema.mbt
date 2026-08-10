@@ -2,6 +2,7 @@
 
 pub const PARSE_SCHEMA_VERSION : String = "fathom.parse.v1"
 pub const FORMAT_SCHEMA_VERSION : String = "fathom.format.v1"
+pub const COMPLETE_SCHEMA_VERSION : String = "fathom.complete.v1"
 pub const SOURCE_TRANSPORT : String = "inline-root-v1"
 
 pub enum SchemaError {
@@ -12,13 +13,15 @@ pub enum SchemaError {
   UnsupportedMode(mode~ : String)
 } derive(Eq, @debug.Debug)
 
-/// Accepts exactly the four fathom.*.v1 result/error envelope namespaces
-/// (D-09): parse, format, error, capabilities. fathom.dialect.v1 is a
-/// metadata-query schema served by fathom_dialect_v1, not a result envelope.
+/// Accepts exactly the five fathom.*.v1 result/error envelope namespaces
+/// (D-09, D-04): parse, format, complete, error, capabilities.
+/// fathom.dialect.v1 is a metadata-query schema served by fathom_dialect_v1,
+/// not a result envelope. fathom.complete.v1 is the D-04 completion envelope.
 pub fn validate_schema_version(version : String) -> Result[Unit, SchemaError] {
   match version {
     PARSE_SCHEMA_VERSION |
     FORMAT_SCHEMA_VERSION |
+    COMPLETE_SCHEMA_VERSION |
     "fathom.error.v1" |
     "fathom.capabilities.v1" => Ok(())
     _ => Err(UnsupportedSchemaVersion(version~))
@@ -183,6 +186,61 @@ pub fn format_error_json(error : @api.FormatError) -> String {
     @api.FormatError::InvalidIndent(_) => "FATHOM-FORMAT-005"
     @api.FormatError::InvalidLineWidth(_) => "FATHOM-FORMAT-006"
     @api.FormatError::InvalidSyntaxTree => "FATHOM-FORMAT-007"
+  }
+  error_json(code, message)
+}
+
+/// Serialized completion result envelope (TOOL-05 D-04): the
+/// fathom.complete.v1 envelope carries the same dialect/profile selection
+/// metadata as the parse/format envelopes (D-09) plus the bounded completion
+/// items. Item text is dialect-neutral (D-10/D-28): the detail is always
+/// "SQL syntax keyword" and no dialect name appears in item content — the
+/// dialect rides in the envelope metadata, never in items.
+pub fn completion_result_json(
+  result : @completion.CompletionList,
+  dialect : String,
+  profile : String,
+) -> String {
+  let items : Array[Json] = []
+  for item in result.items {
+    items.push(Json::object({
+      "label": Json::string(item.label),
+      "detail": Json::string(item.detail),
+      "start_byte": Json::number(item.start_byte.to_double()),
+      "end_byte": Json::number(item.end_byte.to_double()),
+      "new_text": Json::string(item.new_text),
+    }))
+  }
+  stringify({
+    "schema_version": Json::string(COMPLETE_SCHEMA_VERSION),
+    "source_transport": Json::string(SOURCE_TRANSPORT),
+    "dialect": Json::string(dialect),
+    "profile": Json::string(profile),
+    "is_incomplete": Json::boolean(result.is_incomplete),
+    "items": Json::array(items),
+  })
+}
+
+/// Serialized completion error envelope (TOOL-05 D-04): dialect/profile
+/// errors reuse the parse/format FATHOM-SCHEMA codes (UnknownDialect ->
+/// FATHOM-SCHEMA-007, UnknownProfile -> FATHOM-SCHEMA-003); completion-local
+/// errors (invalid cursor / invalid source / over-limit input) use the
+/// FATHOM-COMPLETE code family. Always the fathom.error.v1 envelope — never a
+/// panic and never an unreadable result (T-13-04-08).
+pub fn completion_error_json(error : @completion.CompletionError) -> String {
+  let code = match error {
+    @completion.CompletionError::UnknownDialect(_) => "FATHOM-SCHEMA-007"
+    @completion.CompletionError::UnknownProfile(_) => "FATHOM-SCHEMA-003"
+    @completion.CompletionError::InvalidCursor(..) => "FATHOM-COMPLETE-001"
+    @completion.CompletionError::InvalidSource => "FATHOM-COMPLETE-002"
+    @completion.CompletionError::InputTooLarge => "FATHOM-COMPLETE-003"
+  }
+  let message = match error {
+    @completion.CompletionError::UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id}"
+    @completion.CompletionError::UnknownProfile(profile_id~) => "unsupported profile: \{profile_id}"
+    @completion.CompletionError::InvalidCursor(cursor~, source_length~) => "invalid cursor \{cursor}: source length is \{source_length}"
+    @completion.CompletionError::InvalidSource => "invalid source: input could not be parsed as SQL"
+    @completion.CompletionError::InputTooLarge => "input too large: exceeds the 8 MiB source limit"
   }
   error_json(code, message)
 }

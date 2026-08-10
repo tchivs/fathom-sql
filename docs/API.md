@@ -357,6 +357,57 @@ The current formatter refusal code is:
 
 Direct use of the formatter package’s `FormatError` may also return: `InvalidIndent`, `InvalidLineWidth`, `UnknownKeywordCase`, `UnknownCommaStyle`, `UnknownNewlineStyle`, and `InvalidSyntaxTree`. When using `api.format_text`, construct format options first with valid enums and `FormatOptions::new`; parse-related errors are returned as the `ParseError` described above.
 
+## Wire Exports (JS ESM / linear-Wasm)
+
+The `binding` package (`fathom/sql/binding`) is a `foreign_library` facade exposing the stable primitive wire contract to JavaScript ESM and linear-Wasm hosts. Every export returns UTF-8 JSON `Bytes`; no MoonBit ADT, object handle, or host memory address crosses the boundary. All five exports are registered in `binding/moon.pkg` `js`/`wasm` `exports` lists AND carry `#export_name` in `binding/exports.mbt` — a missing registration compiles but the built artifact silently lacks the symbol (Pitfall 3/8).
+
+| Export | Signature | Result envelope |
+|---|---|---|
+| `fathom_parse_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.parse.v1` |
+| `fathom_format_v1` | `(raw, dialect, profile, mode, keyword_case, indent, line_width, comma_style, newline_style, trailing_newline) -> Bytes` | `fathom.format.v1` |
+| `fathom_complete_v1` | `(raw: Bytes, dialect: String, profile: String, cursor_byte: Int) -> Bytes` | `fathom.complete.v1` |
+| `fathom_dialect_v1` | `(dialect: String) -> Bytes` | `fathom.dialect.v1` (metadata query) |
+| `fathom_capabilities_v1` | `() -> Bytes` | `fathom.capabilities.v1` (metadata query) |
+
+The A4 export order places `dialect` immediately after `raw` for the parse/format/complete primitives, consistent with `ParseOptions::new` and the CLI.
+
+### Completion envelope (`fathom.complete.v1`)
+
+`fathom_complete_v1` returns bounded syntax completion candidates for an editor snapshot at a UTF-8 byte `cursor_byte`. The result envelope carries the same `dialect`/`profile` selection metadata as the parse/format envelopes plus the completion items:
+
+```json
+{
+  "schema_version": "fathom.complete.v1",
+  "source_transport": "inline-root-v1",
+  "dialect": "flink",
+  "profile": "flink-2.3.0",
+  "is_incomplete": false,
+  "items": [
+    {
+      "label": "FROM",
+      "detail": "SQL syntax keyword",
+      "start_byte": 7,
+      "end_byte": 9,
+      "new_text": "FROM"
+    }
+  ]
+}
+```
+
+- `start_byte`/`end_byte` are half-open UTF-8 byte offsets; the replacement range `[start_byte, end_byte)` covers the typed prefix and `end_byte` equals the cursor byte.
+- Item text is dialect-neutral (D-10/D-28): the `detail` is always `"SQL syntax keyword"` and no dialect name appears in item content — the dialect rides in the envelope metadata.
+- Completion is bounded to `MAX_CANDIDATES = 32` items.
+
+Completion error responses use the `fathom.error.v1` envelope:
+
+| Code | Condition |
+|---|---|
+| `FATHOM-SCHEMA-003` | Unknown/unsupported `profile` (e.g. a Doris profile under `flink`). |
+| `FATHOM-SCHEMA-007` | Unknown `dialect`. |
+| `FATHOM-COMPLETE-001` | `cursor_byte` is outside `[0, raw.length()]` (`InvalidCursor`). |
+| `FATHOM-COMPLETE-002` | Invalid source input. |
+| `FATHOM-COMPLETE-003` | Input exceeds the 8 MiB source limit. |
+
 ## Rate Limits
 
 There are no HTTP rate limits, connection quotas, or server-side windows. Fathom is a pure library, so callers decide concurrency and lifecycle.

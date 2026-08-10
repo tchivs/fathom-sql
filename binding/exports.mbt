@@ -2,13 +2,14 @@
 ///
 /// Every result is UTF-8 encoded JSON bytes. The only input bytes are the raw
 /// SQL source; no MoonBit ADT, object handle, or host memory address crosses
-/// this boundary. `fathom_parse_v1` and `fathom_format_v1` are the ABI surface
-/// (dialect right after raw, consistent with ParseOptions::new and the CLI,
-/// A4); the metadata exports let hosts negotiate dialects, profiles, and
-/// capabilities without parsing an SQL document first. `fathom_dialect_v1`
-/// reports a dialect's available profiles with release metadata under
-/// fathom.dialect.v1; `fathom_capabilities_v1` reports the global dialect
-/// list with per-dialect profile availability under fathom.capabilities.v1.
+/// this boundary. `fathom_parse_v1`, `fathom_format_v1`, and
+/// `fathom_complete_v1` are the ABI surface (dialect right after raw,
+/// consistent with ParseOptions::new and the CLI, A4); the metadata exports
+/// let hosts negotiate dialects, profiles, and capabilities without parsing
+/// an SQL document first. `fathom_dialect_v1` reports a dialect's available
+/// profiles with release metadata under fathom.dialect.v1;
+/// `fathom_capabilities_v1` reports the global dialect list with per-dialect
+/// profile availability under fathom.capabilities.v1.
 
 fn json_bytes(value : String) -> Bytes {
   @utf8.encode(value)
@@ -93,6 +94,27 @@ pub fn fathom_format_v1(
       )
     }
     Err(error) => parse_error_bytes(error)
+  }
+}
+
+#export_name("fathom_complete_v1")
+pub fn fathom_complete_v1(
+  raw : Bytes,
+  dialect : String,
+  profile : String,
+  cursor_byte : Int,
+) -> Bytes {
+  // A4 export order: raw first, dialect second, profile third, cursor fourth
+  // (mirror fathom_parse_v1/fathom_format_v1, TOOL-05 D-04). Dialect/profile
+  // errors map to the fathom.error.v1 envelope (UnknownDialect ->
+  // FATHOM-SCHEMA-007, UnknownProfile -> FATHOM-SCHEMA-003) before any
+  // completion work — never a Doris fallback and never an empty-silent
+  // success (Pitfall 6). The cursor is bounds-checked ONCE in the core
+  // (@completion.complete InvalidCursor) — the export never duplicates the
+  // check (single-source, T-13-04-03).
+  match @completion.complete(raw, dialect, profile, cursor_byte) {
+    Ok(result) => json_bytes(completion_result_json(result, dialect, profile))
+    Err(error) => json_bytes(completion_error_json(error))
   }
 }
 

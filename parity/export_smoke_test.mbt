@@ -149,3 +149,39 @@ test "flink_internal_route_parses_select" {
   assert_true(statements.length() >= 1)
   assert_true(statements[0].span().end_byte == source.byte_length())
 }
+
+test "completion_export_is_dialect_aware_with_neutral_wire_identity" {
+  // (a) The happy path carries fathom.complete.v1 with dialect/profile
+  // metadata and bounded completion items — never a Doris fallback and never
+  // an empty-silent success (D-04, D-01/D-02, T-13-04-02). The empty-input
+  // statement-start context returns the Flink statement-verb candidates.
+  let ok = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"", "flink", "flink-2.3.0", 0)[:],
+  )
+  assert_true(ok.contains("fathom.complete.v1"))
+  assert_true(ok.contains("\"dialect\":\"flink\""))
+  assert_true(ok.contains("\"profile\":\"flink-2.3.0\""))
+  assert_true(ok.contains("\"items\":"))
+  // Neutral item text (D-10/D-28, T-13-04-05): the detail is the neutral
+  // constant and no item label leaks a dialect name — the dialect rides in
+  // the envelope metadata only.
+  assert_true(ok.contains("\"detail\":\"SQL syntax keyword\""))
+  assert_true(!ok.contains("\"label\":\"doris"))
+  assert_true(!ok.contains("\"label\":\"flink"))
+  // (b) An unknown/unsupported flink profile returns the structured
+  // fathom.error.v1 envelope with FATHOM-SCHEMA-003 — never a Doris-shaped
+  // or empty completion (Pitfall 6).
+  let profile_error = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"", "flink", "flink-9.9.9", 0)[:],
+  )
+  assert_true(profile_error.contains("fathom.error.v1"))
+  assert_true(profile_error.contains("FATHOM-SCHEMA-003"))
+  // (c) An unknown dialect returns fathom.error.v1 with FATHOM-SCHEMA-007
+  // (dialect-first routing).
+  let dialect_error = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"", "mysql", "4.x", 0)[:],
+  )
+  assert_true(dialect_error.contains("fathom.error.v1"))
+  assert_true(dialect_error.contains("FATHOM-SCHEMA-007"))
+  assert_true(dialect_error.contains("unknown dialect"))
+}

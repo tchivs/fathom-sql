@@ -356,6 +356,57 @@ pub(all) struct FormatDiagnostic {
 
 直接使用 formatter package 的 `FormatError` 还可能返回：`InvalidIndent`、`InvalidLineWidth`、`UnknownKeywordCase`、`UnknownCommaStyle`、`UnknownNewlineStyle` 和 `InvalidSyntaxTree`。通过 `api.format_text` 时，格式选项应先使用有效枚举和 `FormatOptions::new` 构造；parse 相关错误则按上面的 `ParseError` 返回。
 
+## Wire 导出（JS ESM / linear-Wasm）
+
+`binding` 包（`fathom/sql/binding`）是一个 `foreign_library` facade，把稳定的原始类型 wire 契约暴露给 JavaScript ESM 与 linear-Wasm 宿主。每个导出都返回 UTF-8 编码的 JSON `Bytes`；MoonBit ADT、对象句柄或宿主内存地址都不会跨过这个边界。全部五个导出同时登记在 `binding/moon.pkg` 的 `js`/`wasm` `exports` 列表与 `binding/exports.mbt` 的 `#export_name` 中——缺少任一登记都会编译成功但构建产物静默缺少该符号（Pitfall 3/8）。
+
+| 导出 | 签名 | 结果信封 |
+|---|---|---|
+| `fathom_parse_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.parse.v1` |
+| `fathom_format_v1` | `(raw, dialect, profile, mode, keyword_case, indent, line_width, comma_style, newline_style, trailing_newline) -> Bytes` | `fathom.format.v1` |
+| `fathom_complete_v1` | `(raw: Bytes, dialect: String, profile: String, cursor_byte: Int) -> Bytes` | `fathom.complete.v1` |
+| `fathom_dialect_v1` | `(dialect: String) -> Bytes` | `fathom.dialect.v1`（元数据查询） |
+| `fathom_capabilities_v1` | `() -> Bytes` | `fathom.capabilities.v1`（元数据查询） |
+
+A4 导出顺序让 parse/format/complete 原始类型的 `dialect` 紧跟 `raw`，与 `ParseOptions::new` 和 CLI 保持一致。
+
+### 补全信封（`fathom.complete.v1`）
+
+`fathom_complete_v1` 返回编辑器快照在 UTF-8 字节 `cursor_byte` 处的有界语法补全候选。结果信封携带与 parse/format 信封相同的 `dialect`/`profile` 选择元数据，外加补全项：
+
+```json
+{
+  "schema_version": "fathom.complete.v1",
+  "source_transport": "inline-root-v1",
+  "dialect": "flink",
+  "profile": "flink-2.3.0",
+  "is_incomplete": false,
+  "items": [
+    {
+      "label": "FROM",
+      "detail": "SQL syntax keyword",
+      "start_byte": 7,
+      "end_byte": 9,
+      "new_text": "FROM"
+    }
+  ]
+}
+```
+
+- `start_byte`/`end_byte` 是半开区间 `[start_byte, end_byte)` 的 UTF-8 字节偏移；替换区间覆盖已输入的词缀，`end_byte` 等于光标字节。
+- 补全项文本是方言中立的（D-10/D-28）：`detail` 恒为 `"SQL syntax keyword"`，补全项内容不出现方言名——方言只存在于信封元数据中。
+- 补全有界为 `MAX_CANDIDATES = 32` 项。
+
+补全错误响应使用 `fathom.error.v1` 信封：
+
+| code | 触发条件 |
+|---|---|
+| `FATHOM-SCHEMA-003` | `profile` 未知/不支持（例如在 `flink` 下使用 Doris profile）。 |
+| `FATHOM-SCHEMA-007` | `dialect` 未知。 |
+| `FATHOM-COMPLETE-001` | `cursor_byte` 超出 `[0, raw.length()]`（`InvalidCursor`）。 |
+| `FATHOM-COMPLETE-002` | 无效的源输入。 |
+| `FATHOM-COMPLETE-003` | 输入超过 8 MiB 源大小限制。 |
+
 ## 速率限制
 
 没有 HTTP 速率限制、连接配额或服务端窗口。Fathom 是纯库，调用方自行决定并发和生命周期。
