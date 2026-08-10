@@ -91,3 +91,25 @@ test "completion_filters_profile_and_replaces_multibyte_prefix" {
   assert_eq(result.items[0].start_byte, 11)
   assert_eq(result.items[0].end_byte, raw.length())
 }
+
+test "flink_completion_returns_real_textedit_no_32602" {
+  // D-07 (13-05): a flink-selected document's textDocument/completion returns
+  // real items with a UTF-16 textEdit through the shared completion_item_json
+  // path — the -32602 flink policy rejection is gone (13-02 made complete()
+  // return Ok for flink). The response is a standard LSP completion list
+  // (echoed id + result + items), never an error and never a Doris fallback.
+  let state = ServerState::new()
+  let initialize = message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"initializationOptions\":{\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
+  assert_eq(handle_message(state, initialize).length(), 1)
+  let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink-complete.sql\",\"version\":1,\"text\":\"SELECT \"}}}")
+  assert_eq(handle_message(state, open).length(), 1)
+  let request = message("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink-complete.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":7}}}")
+  let responses = handle_message(state, request)
+  assert_eq(responses.length(), 1)
+  let body = @utf8.decode_lossy(responses[0])
+  assert_true(!body.contains("-32602"))
+  assert_true(body.contains("\"result\""))
+  assert_true(body.contains("\"items\""))
+  assert_true(body.contains("\"textEdit\""))
+  assert_true(body.contains("\"FROM\""))
+}

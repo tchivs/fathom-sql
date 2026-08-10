@@ -247,13 +247,14 @@ test "did_change_configuration_dialect_switch_reparses_flink" {
   assert_eq(document.selection_source, "workspace")
 }
 
-test "flink_document_format_rejects_and_completion_returns_real_results" {
-  // (j) T-09-23 / 13-02: a flink-selected document's valid SELECT parses
-  // through the real Flink grammar (empty diagnostics — FATHOM-PARSE-008
-  // retired, D-06); formatting stays the LSP not-implemented refusal
-  // (D-07 formatter swap is 13-04), while completion now returns real results
-  // through the shared completion core (D-02, 13-02) — no Doris policy leak
-  // on any surface.
+test "flink_document_format_returns_real_edit_and_completion_returns_real_results" {
+  // (j) T-09-23 / 13-02 / D-07: a flink-selected document's valid SELECT
+  // parses through the real Flink grammar (empty diagnostics — FATHOM-PARSE-008
+  // retired, D-06). Formatting is REAL (13-05, D-07): `SELECT 1` formats to
+  // "SELECT 1\n" and returns a textEdit with newText — never the -32603
+  // not-implemented sentinel. Completion returns real results through the
+  // shared completion core (D-02, 13-02) — no Doris policy leak on any
+  // surface.
   let state = ServerState::new()
   state.initialized = true
   let open = message("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1,\"text\":\"SELECT 1\",\"dialect\":\"flink\",\"profile\":\"flink-2.3.0\"}}}")
@@ -266,11 +267,11 @@ test "flink_document_format_rejects_and_completion_returns_real_results" {
   let edits = handle_message(state, format)
   assert_eq(edits.length(), 1)
   let format_body = @utf8.decode_lossy(edits[0])
-  // MI-06: flink formatting is a structured -32603 not-implemented error,
-  // never a silent empty edit array.
-  assert_true(format_body.contains("-32603"))
-  assert_true(format_body.contains("flink grammar is not yet implemented"))
-  assert_true(!format_body.contains("\"result\""))
+  // D-07: flink formatting is a real edit array (newText), never -32603.
+  assert_true(!format_body.contains("-32603"))
+  assert_true(!format_body.contains("not yet implemented"))
+  assert_true(format_body.contains("\"result\""))
+  assert_true(format_body.contains("\"newText\""))
   let completion = message("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":{\"textDocument\":{\"uri\":\"file:///flink.sql\",\"version\":1},\"position\":{\"line\":0,\"character\":7}}}")
   let completion_responses = handle_message(state, completion)
   assert_eq(completion_responses.length(), 1)

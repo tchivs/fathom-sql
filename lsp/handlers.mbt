@@ -419,16 +419,12 @@ fn formatting_result(state : ServerState, uri : String, id :  RpcId) -> Array[By
     Some(document) => document
     None => return [ response(id, Json::array([]))]
   }
-  // T-09-23 flink surface (MI-06): formatting a flink-selected document is a
-  // structured not-implemented error, never a silent empty edit array — a
-  // host must be able to distinguish "nothing to format" from "formatting is
-  // not supported for this dialect". The message mirrors the pre-Phase-11
-  // parse-path FATHOM-PARSE-008 diagnostic text; the LSP formatting surface
-  // change for real Flink trees is scheduled with the toolchain wave (Phase
-  // 13, TOOL-01..03), outside this wave's scope.
-  if document.dialect == "flink" {
-    return [ error_response(id, -32603, "flink grammar is not yet implemented")]
-  }
+  // D-07 (13-05): flink formatting is REAL — the -32603 not-implemented
+  // sentinel is removed. The shared body below calls @api.format_with_ids with
+  // the document's own dialect/profile for every dialect: a covered tree
+  // returns a real edit array (or empty when output == text), an unsafe tree
+  // publishes diagnostics + an empty edit array (refusal-first, D-33) — never
+  // a not-implemented rejection and never a Doris-layout single line.
   let result = match @api.format_with_ids(document.text, document.dialect, document.profile, "strict", @api.FormatOptions::default()) {
     Ok(result) => result
     Err(_) => return [ response(id, Json::array([]))]
