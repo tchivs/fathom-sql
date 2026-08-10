@@ -80,7 +80,7 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ## Current State
 
-**v2.0 Phase 13 COMPLETE — 2026-08-10** (Toolchain and Editor Packaging) — **v2.0 全量交付**
+**v2.0 SHIPPED — 2026-08-10** (Multi-Dialect: Flink SQL & Neutral Naming) — 24/24 requirements validated, verified_closeout
 
 - **Flink formatter（TOOL-01/D-01）:** `formatter/layout.mbt` 20 族 Flink covered-family gate + 全套 Flink 语句族布局；未覆盖族 → `FATHOM-FORMAT-001` 拒绝（accepted=false、空输出）；`flink-format.*` 快照 22 个 + idempotence/零诊断 reparse/refusal oracle + 覆盖完备性探针。
 - **Flink completion（TOOL-02/D-02）:** `complete()` 真实 Flink DialectContext；`profile_allows` Flink 臂；6 个 Flink `completion_context` 臂（statement-start/ddl-header/watermark/partitioned-by/window-tvf/match-recognize）；`flink_classification_rows` 扩至 169 行（NonReserved，parse-neutral）；MAX_CANDIDATES=32；无第二关键字表（D-28）。
@@ -91,7 +91,7 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - **打包 smoke（TOOL-05/D-08）:** VS Code 真 extension-host flink 模式 4 模式、IntelliJ Gradle build+launch、Web Chromium offline-smoke；CI `host-packaging-smoke` job；全程离线。
 - **门禁:** native 876/js 597/wasm 597 测试全绿；diff_parity --frozen-only 455 快照 0 差异；check_naming 602 文件零残留；三目标 digest 一致；verifier 28/28 must-haves 通过。
 
-## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming
+## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming — SHIPPED 2026-08-10
 
 **Goal:** 将单方言 Doris 解析器升级为多方言 SQL SDK——引入方言抽象层，新增 Flink SQL 方言全链（解析/CST/诊断/格式化/补全/LSP/CLI），并完成产品命名中立化（二进制/schema/错误码/扩展/文档），使同一无损 CST 内核服务 Doris 与 Flink 两个方言。原 v2.0 分析层（Analysis and Intelligence）顺延为 v3.0。
 
@@ -101,6 +101,15 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - Flink 工具链：formatter/analyzer/completion/LSP/CLI 方言分发
 - 命名中立化：`fathom-sql`/`fathom-lsp`、`fathom/sql` 模块、`FATHOM-*` 错误码、`fathom.*.v1` schema、扩展/文档改名（不考虑向后兼容）
 - Flink 官方语料 + CI：来源锁定、快照、跨后端 parity
+
+**Status:** SHIPPED 2026-08-10 — archived at [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) · [milestones/v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) · [milestones/v2.0-phases](milestones/v2.0-phases/)
+
+## Next Milestone Goals: v3.0 Analysis and Intelligence
+
+从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01）。要求已归档于 [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md)。
+
+**Requirements:** CLOSE-01/02（v1.0 遗留验证收尾）、ANAL-01、LINT-01、LINE-01、FING-01、EDIT-01
+**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图
 
 ## Evolution
 
@@ -120,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-10 after Phase 13 (Toolchain and Editor Packaging) completion — v2.0 全量交付*
+*Last updated: 2026-08-10 after v2.0 milestone — Multi-Dialect: Flink SQL & Neutral Naming SHIPPED*
