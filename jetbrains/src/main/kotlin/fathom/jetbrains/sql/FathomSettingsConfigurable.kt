@@ -13,7 +13,7 @@ import javax.swing.JPanel
 class FathomSettingsConfigurable : Configurable {
     private val executableField = JBTextField()
     private val dialectCombo = ComboBox(FathomSettings.ALLOWED_DIALECTS.toTypedArray())
-    private val profileCombo = ComboBox(FathomSettings.ALLOWED_PROFILES.toTypedArray())
+    private val profileCombo = ComboBox<String>()
     private val useGitHubReleases = JBCheckBox("Download managed fathom-lsp binaries from GitHub Releases")
     private val panel: JPanel = FormBuilder.createFormBuilder()
         .addLabeledComponent(JBLabel("fathom-lsp executable:"), executableField, 1, false)
@@ -22,6 +22,24 @@ class FathomSettingsConfigurable : Configurable {
         .addComponent(useGitHubReleases)
         .addComponentFillVertically(JPanel(), 0)
         .panel
+
+    init {
+        // D-05: the profile ComboBox always shows ONLY the selected dialect's
+        // profiles — flink values appear only when flink is selected. Repopulate
+        // on every dialect change so a stale cross-dialect profile never lingers.
+        dialectCombo.addActionListener {
+            repopulateProfileCombo(dialectCombo.selectedItem as? String)
+        }
+        repopulateProfileCombo(dialectCombo.selectedItem as? String)
+    }
+
+    private fun repopulateProfileCombo(dialect: String?) {
+        val profiles = FathomSettings.PROFILES_BY_DIALECT[dialect].orEmpty()
+        profileCombo.removeAllItems()
+        for (profile in profiles) {
+            profileCombo.addItem(profile)
+        }
+    }
 
     override fun getDisplayName(): String = "Fathom SQL"
 
@@ -41,8 +59,8 @@ class FathomSettingsConfigurable : Configurable {
             ?: throw ConfigurationException("Executable path must not be empty")
         val dialect = FathomSettings.normalizeDialect(dialectCombo.selectedItem as? String)
             ?: throw ConfigurationException("Dialect must be one of: ${FathomSettings.ALLOWED_DIALECTS.joinToString()}")
-        val profile = FathomSettings.normalizeProfile(profileCombo.selectedItem as? String)
-            ?: throw ConfigurationException("Profile must be one of: ${FathomSettings.ALLOWED_PROFILES.joinToString()}")
+        val profile = FathomSettings.normalizeProfile(dialect, profileCombo.selectedItem as? String)
+            ?: throw ConfigurationException("Profile must be one of: ${FathomSettings.PROFILES_BY_DIALECT[dialect].orEmpty().joinToString()}")
         FathomSettings.getInstance().update(executable, dialect, profile, useGitHubReleases.isSelected)
     }
 
@@ -50,6 +68,7 @@ class FathomSettingsConfigurable : Configurable {
         val current = FathomSettings.getInstance().snapshot()
         executableField.text = current.executablePath
         dialectCombo.selectedItem = current.dialect
+        repopulateProfileCombo(current.dialect)
         profileCombo.selectedItem = current.profile
         useGitHubReleases.isSelected = current.useGitHubReleases
     }

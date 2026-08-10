@@ -73,8 +73,18 @@ require(settings_path, r'DEFAULT_EXECUTABLE\s*=\s*"fathom-lsp"', "default execut
 require(settings_path, r'@State\(name\s*=\s*"FathomSettings",\s*storages\s*=\s*\[Storage\("fathom\.xml"\)\]\)', "FathomSettings state + fathom.xml storage")
 require(settings_path, r"ALLOWED_DIALECTS: List<String> = listOf\(\"doris\", \"flink\"\)", "dialect set")
 require(settings_path, r"DEFAULT_USE_GITHUB_RELEASES\s*=\s*true", "managed Native default")
-require(settings_path, r'listOf\("2\.1",\s*"3\.x",\s*"4\.x"\)', "released profile set")
-if re.search(r"DEFAULT_PROFILE\s*=", settings_path.read_text(encoding="utf-8")):
+# D-05: per-dialect (dialect, profile) pairs replace the flat profile list —
+# flink values appear only under flink (same-commit rule, Pitfall 5).
+require(
+    settings_path,
+    r'PROFILES_BY_DIALECT: Map<String, List<String>> = mapOf\(\s*"doris" to listOf\("2\.1",\s*"3\.x",\s*"4\.x"\),\s*"flink" to listOf\("flink-2\.3\.0",\s*"flink-2\.1\.3",\s*"flink-1\.20\.5"\),?\s*\)',
+    "per-dialect profile map",
+)
+require(settings_path, r"fun normalizeProfile\(dialect: String, value: String\?\): String\?", "per-dialect normalizeProfile signature")
+settings_text = settings_path.read_text(encoding="utf-8")
+if re.search(r"ALLOWED_PROFILES\s*[:=]", settings_text):
+    errors.append("FathomSettings.kt: ALLOWED_PROFILES flat profile list must not exist (D-05, per-dialect PROFILES_BY_DIALECT)")
+if re.search(r"DEFAULT_PROFILE\s*=", settings_text):
     errors.append("FathomSettings.kt: DEFAULT_PROFILE must not exist (D-02, no default profile)")
 license_path = PROJECT_ROOT / "LICENSE"
 if not license_path.exists():

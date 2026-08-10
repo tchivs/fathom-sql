@@ -7,3 +7,6 @@ web/node_modules/
 vscode/node_modules/
 vscode/dist/
 vscode/.vscode-test/
+jetbrains/.gradle/
+jetbrains/.intellijPlatform/
+jetbrains/build/

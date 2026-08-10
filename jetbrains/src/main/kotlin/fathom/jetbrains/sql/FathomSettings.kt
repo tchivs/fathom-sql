@@ -24,10 +24,11 @@ class FathomSettings : PersistentStateComponent<FathomSettings.State> {
     override fun getState(): State = state.copy()
 
     override fun loadState(loadedState: State) {
+        val dialect = normalizeDialect(loadedState.dialect) ?: ""
         state = State(
             executablePath = normalizeExecutablePath(loadedState.executablePath) ?: DEFAULT_EXECUTABLE,
-            dialect = normalizeDialect(loadedState.dialect) ?: "",
-            profile = normalizeProfile(loadedState.profile) ?: "",
+            dialect = dialect,
+            profile = normalizeProfile(dialect, loadedState.profile) ?: "",
             useGitHubReleases = loadedState.useGitHubReleases,
         )
     }
@@ -40,8 +41,8 @@ class FathomSettings : PersistentStateComponent<FathomSettings.State> {
             ?: throw IllegalArgumentException("fathom-lsp executable path must not be empty")
         val normalizedDialect = normalizeDialect(dialect)
             ?: throw IllegalArgumentException("Dialect must be one of: ${ALLOWED_DIALECTS.joinToString()}")
-        val normalizedProfile = normalizeProfile(profile)
-            ?: throw IllegalArgumentException("Profile must be one of: ${ALLOWED_PROFILES.joinToString()}")
+        val normalizedProfile = normalizeProfile(normalizedDialect, profile)
+            ?: throw IllegalArgumentException("Profile must be one of: ${PROFILES_BY_DIALECT[normalizedDialect].orEmpty().joinToString()}")
         state = State(normalizedPath, normalizedDialect, normalizedProfile, useGitHubReleases)
     }
 
@@ -56,7 +57,14 @@ class FathomSettings : PersistentStateComponent<FathomSettings.State> {
         const val DEFAULT_EXECUTABLE = "fathom-lsp"
         const val DEFAULT_USE_GITHUB_RELEASES = true
         val ALLOWED_DIALECTS: List<String> = listOf("doris", "flink")
-        val ALLOWED_PROFILES: List<String> = listOf("2.1", "3.x", "4.x")
+        // D-05: per-dialect (dialect, profile) pairs — the flat ALLOWED_PROFILES
+        // list is replaced by a per-dialect map (doris -> 2.1/3.x/4.x; flink ->
+        // flink-2.3.0/2.1.3/1.20.5). Static constants only: no dynamic pull, no
+        // shared cross-host JSON (offline-first, PARITY-03).
+        val PROFILES_BY_DIALECT: Map<String, List<String>> = mapOf(
+            "doris" to listOf("2.1", "3.x", "4.x"),
+            "flink" to listOf("flink-2.3.0", "flink-2.1.3", "flink-1.20.5"),
+        )
 
         fun getInstance(): FathomSettings =
             ApplicationManager.getApplication().getService(FathomSettings::class.java)
@@ -65,6 +73,10 @@ class FathomSettings : PersistentStateComponent<FathomSettings.State> {
 
         fun normalizeDialect(value: String?): String? = value?.trim()?.takeIf { it in ALLOWED_DIALECTS }
 
-        fun normalizeProfile(value: String?): String? = value?.trim()?.takeIf { it in ALLOWED_PROFILES }
+        // D-05: a profile is valid only when it belongs to the selected
+        // dialect's list — flink + '2.1' -> null, flink + 'flink-2.3.0' ->
+        // 'flink-2.3.0'. No cross-dialect value and no coerced default (D-02).
+        fun normalizeProfile(dialect: String, value: String?): String? =
+            value?.trim()?.takeIf { PROFILES_BY_DIALECT[dialect]?.contains(it) == true }
     }
 }
