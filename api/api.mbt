@@ -544,6 +544,18 @@ pub type KeywordCase = @formatter.KeywordCase
 pub type CommaStyle = @formatter.CommaStyle
 pub type NewlineStyle = @formatter.NewlineStyle
 
+// Lint type re-exports (D-38, LINT-01): the api package is the shared core
+// entry for the lint surface too, so @api.LintOptions / @api.LintResult etc.
+// resolve through the facade (mirrors the formatter aliases above).
+pub type LintOptions = @lint.LintOptions
+pub type LintResult = @lint.LintResult
+pub type LintFinding = @lint.LintFinding
+pub type LintEdit = @lint.LintEdit
+pub type LintDiagnostic = @lint.LintDiagnostic
+pub type RuleOverride = @lint.RuleOverride
+pub type LintSeverity = @lint.LintSeverity
+pub type RuleSetting = @lint.RuleSetting
+
 /// Primitive-shaped formatting diagnostic converted from a parser diagnostic
 /// (mirror of primitive_diagnostic above, same six fields).
 fn format_diagnostic(diagnostic : @parser.ParserDiagnostic) -> FormatDiagnostic {
@@ -696,6 +708,128 @@ pub fn fingerprint_text(
   }
   let canonical = @fingerprint.normalize(parsed.root, source, parse_options.dialect_context)
   Ok({ fingerprint: @fingerprint.fnv1a64(canonical), normalized: canonical })
+}
+
+/// Shared internal parse for the analysis entry points (lint/fix). Mirrors the
+/// parse half of `format_text`/`fingerprint_text`: validate_limits ->
+/// SourceText::new_with_limit -> parse_with_limits_context -> is_valid gate.
+/// UnknownProfile / InputTooLarge / InvalidSyntaxTree propagate as ParseError.
+fn parse_document(
+  raw : Bytes,
+  parse_options : ParseOptions,
+) -> Result[(@parser.ParsedDocument, @source.SourceText), ParseError] {
+  let limits = parse_options.limits
+  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
+    Ok(source) => source
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+      return Err(InputTooLarge(requested_bytes~, max_bytes~))
+    }
+  }
+  let parser_mode = match parse_options.mode {
+    ParseMode::Strict => @parser.ParseMode::Strict
+    ParseMode::Editor => @parser.ParseMode::Editor
+  }
+  let parser_limits = @parser.ParserLimits::new(
+    limits.max_bytes,
+    limits.max_tokens,
+    limits.max_recursion_depth,
+    limits.max_recovery_steps,
+    limits.max_diagnostics,
+  )
+  let parsed = @parser.parse_with_limits_context(
+    source,
+    parse_options.dialect_context,
+    parser_mode,
+    parser_limits,
+  )
+  if !parsed.root.is_valid(source.byte_length()) {
+    return Err(InvalidSyntaxTree)
+  }
+  Ok((parsed, source))
+}
+
+/// Shared core lint entry (LINT-01, D-04/D-06): one internal parse, then
+/// `@lint.run_rules` over the in-memory SyntaxNode. Report mode: findings list
+/// (sorted, stable). No catalog is injected here, so analyzer-backed rules
+/// (004-007) are silently skipped (ANLY-01, Pitfall 6) — the wire/CLI surface
+/// never fabricates semantic findings.
+pub fn lint_text(
+  raw : Bytes,
+  parse_options : ParseOptions,
+  lint_options : LintOptions,
+) -> Result[LintResult, ParseError] {
+  let (parsed, source) = match parse_document(raw, parse_options) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let findings = @lint.run_rules(
+    parsed.root,
+    source,
+    parse_options.dialect_context,
+    None,
+    lint_options,
+  )
+  Ok({ accepted: true, findings: findings, output: b"", diagnostics: [] })
+}
+
+/// Shared core autofix entry (LINT-01, D-03): one internal parse, then
+/// `@lint.apply_fixes` (minimal span edits + D-33 refusal gate). On success the
+/// fixed output is REPARSED as a round-trip defense (D-03); if the fixed output
+/// does not reparse clean (structurally invalid or still containing
+/// error/missing/skipped material), the fix is refused with a FATHOM-LINT-000
+/// diagnostic — never partial or unsafe output.
+pub fn fix_text(
+  raw : Bytes,
+  parse_options : ParseOptions,
+  lint_options : LintOptions,
+) -> Result[LintResult, ParseError] {
+  let (parsed, source) = match parse_document(raw, parse_options) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let findings = @lint.run_rules(
+    parsed.root,
+    source,
+    parse_options.dialect_context,
+    None,
+    lint_options,
+  )
+  let result = @lint.apply_fixes(
+    parsed.root,
+    source,
+    parse_options.dialect_context,
+    findings,
+    lint_options,
+  )
+  if !result.accepted {
+    return Ok(result) // D-33 refusal already emitted by apply_fixes
+  }
+  let fixed = match parse_document(result.output, parse_options) {
+    Ok((fixed_parsed, _)) => fixed_parsed
+    Err(_) => return Ok(refusal_result("autofix output did not reparse cleanly"))
+  }
+  if @formatter.first_unsafe_element(fixed.root) is Some(_) {
+    return Ok(refusal_result("autofix output still contains error/missing/skipped material"))
+  }
+  Ok(result)
+}
+
+/// Engine-level refusal LintResult (D-33): accepted=false, empty output,
+/// exactly one FATHOM-LINT-000 diagnostic.
+fn refusal_result(message : String) -> LintResult {
+  {
+    accepted: false,
+    findings: [],
+    output: b"",
+    diagnostics: [{
+      code: "FATHOM-LINT-000",
+      message: message,
+      start_byte: 0,
+      end_byte: 0,
+      statement_id: 0U,
+    }],
+  }
 }
 
 pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
