@@ -556,6 +556,16 @@ pub type RuleOverride = @lint.RuleOverride
 pub type LintSeverity = @lint.LintSeverity
 pub type RuleSetting = @lint.RuleSetting
 
+// Lineage type re-exports (D-38, LINE-01): the api package is the shared core
+// entry for the lineage surface too, so @api.LineageResult / @api.LineageEdge
+// etc. resolve through the facade (mirrors the formatter/lint aliases above)
+// and binding (07-04) can construct its envelope from @api types without
+// importing lineage/ directly (D-38 discipline).
+pub type LineageResult = @lineage.LineageResult
+pub type LineageEdge = @lineage.LineageEdge
+pub type LineageGap = @lineage.LineageGap
+pub type StaticCatalog = @analyzer.StaticCatalog
+
 /// Primitive-shaped formatting diagnostic converted from a parser diagnostic
 /// (mirror of primitive_diagnostic above, same six fields).
 fn format_diagnostic(diagnostic : @parser.ParserDiagnostic) -> FormatDiagnostic {
@@ -811,6 +821,44 @@ pub fn fix_text(
   }
   if @formatter.first_unsafe_element(fixed.root) is Some(_) {
     return Ok(refusal_result("autofix output still contains error/missing/skipped material"))
+  }
+  Ok(result)
+}
+
+/// Shared core lineage entry (LINE-01, D-07): one internal parse mirroring
+/// `lint_text` via `parse_document`, then `@lineage.derive_lineage` over the
+/// in-memory SyntaxNode. UnknownProfile / InputTooLarge / InvalidSyntaxTree
+/// propagate as ParseError exactly like `lint_text`/`format_text`.
+///
+/// Flink gate (D-08): lineage is Doris-only this phase. A flink selection is
+/// rejected AFTER a successful parse with a structured UnknownProfile
+/// ParseError (FATHOM-SCHEMA family) — never a silent empty result. The
+/// explicit "lineage is Doris-only" message is the wire/CLI boundary's job
+/// (07-04).
+///
+/// Optional catalog (D-05 / T-02-42): `Some(catalog)` injects caller-owned
+/// metadata so `*`/`table.*` expand to real edges and external views resolve;
+/// `None` derives with zero metadata so every unexpanded star/external view
+/// reports a requires-catalog gap (SC2) — never a fabricated edge. The
+/// catalog never touches the syntax valid/diagnostic channel (ANLY-01).
+///
+/// Pure function: the same (raw, parse_options, catalog) re-run yields
+/// byte-identical edges/gaps (LINE-01 idempotency); no shared state.
+pub fn lineage_text(
+  raw : Bytes,
+  parse_options : ParseOptions,
+  catalog : @analyzer.StaticCatalog?,
+) -> Result[LineageResult, ParseError] {
+  let (parsed, source) = match parse_document(raw, parse_options) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  if parse_options.dialect_id() == "flink" {
+    return Err(UnknownProfile(profile_id = parse_options.dialect_context.profile_id))
+  }
+  let result = match catalog {
+    Some(catalog) => @lineage.derive_lineage(parsed.root, source.bytes(), catalog)
+    None => @lineage.derive_lineage_without_catalog(parsed.root, source.bytes())
   }
   Ok(result)
 }
