@@ -122,6 +122,114 @@ pub fn run_lsp(command : Command) -> CliOutcome {
   { exit_code: 0, stdout: b"", stderr: b"" }
 }
 
+/// Shared ParseOptions construction for the analysis subcommands
+/// (lint/fingerprint): dialect-first validation (Pitfall 6, T-09-10). A
+/// selection error maps to the D-39 parse_error_outcome (exit 2 for unknown
+/// dialect/profile — defense-in-depth, parse_args already validated).
+fn parse_options(command : Command) -> Result[@api.ParseOptions, CliOutcome] {
+  match @api.ParseOptions::new(command.dialect, command.profile, "strict") {
+    Ok(options) => Ok(options)
+    Err(error) => Err(parse_error_outcome(command.dialect, error))
+  }
+}
+
+/// D-39 lint exit mapping:
+///   0 = no findings (report mode) OR all fixes applied + reparse clean
+///       (--fix mode, accepted=true);
+///   1 = findings rendered on stderr (report mode) OR D-33 refusal /
+///       FATHOM-LINT-000 (--fix mode, accepted=false);
+///   2 = usage/config error (invalid --rule value, unknown rule code).
+pub fn run_lint(command : Command, stdin_bytes : Bytes) -> CliOutcome {
+  let selection = match parse_options(command) {
+    Ok(options) => options
+    Err(outcome) => return outcome
+  }
+  let lint_options = match @api.LintOptions::new(command.overrides) {
+    Ok(options) => options
+    Err(_) => return usage_error("unknown rule code in --rule")
+  }
+  let input = match command.file {
+    Some(path) if path != "-" => match read_file(path) {
+      Some(bytes) => bytes
+      None => return usage_error("cannot read file: \{path}")
+    }
+    _ => stdin_bytes
+  }
+  if command.fix {
+    match @api.fix_text(input, selection, lint_options) {
+      Ok(result) => {
+        if result.accepted {
+          { exit_code: 0, stdout: result.output, stderr: b"" }
+        } else {
+          { exit_code: 1, stdout: b"", stderr: render_lint_diagnostics(result.diagnostics) }
+        }
+      }
+      Err(error) => parse_error_outcome(command.dialect, error)
+    }
+  } else {
+    match @api.lint_text(input, selection, lint_options) {
+      Ok(result) => {
+        if result.findings.length() == 0 {
+          { exit_code: 0, stdout: b"", stderr: b"" }
+        } else {
+          { exit_code: 1, stdout: b"", stderr: render_lint_findings(result.findings) }
+        }
+      }
+      Err(error) => parse_error_outcome(command.dialect, error)
+    }
+  }
+}
+
+/// D-39 fingerprint exit mapping:
+///   0 = success — stdout carries the UInt64 fingerprint as a DECIMAL STRING
+///       (never a number form; 2^53 precision, Pitfall 3) plus, with
+///       --normalized, the canonical text;
+///   1 = parse failure — diagnostics on stderr;
+///   2 = usage error.
+pub fn run_fingerprint(command : Command, stdin_bytes : Bytes) -> CliOutcome {
+  let selection = match parse_options(command) {
+    Ok(options) => options
+    Err(outcome) => return outcome
+  }
+  let input = match command.file {
+    Some(path) if path != "-" => match read_file(path) {
+      Some(bytes) => bytes
+      None => return usage_error("cannot read file: \{path}")
+    }
+    _ => stdin_bytes
+  }
+  match @api.fingerprint_text(input, selection) {
+    Ok(result) => {
+      let out = @buffer.Buffer::Buffer(size_hint=64)
+      out.write_bytes(@utf8.encode(result.fingerprint.to_string() + "\n"))
+      if command.normalized {
+        out.write_bytes(result.normalized)
+        out.write_bytes(b"\n")
+      }
+      { exit_code: 0, stdout: out.to_bytes(), stderr: b"" }
+    }
+    Err(error) => parse_error_outcome(command.dialect, error)
+  }
+}
+
+/// Render lint findings to stderr, one per line (report mode exit 1).
+fn render_lint_findings(findings : Array[@api.LintFinding]) -> Bytes {
+  let out = @buffer.Buffer::Buffer(size_hint=256)
+  for finding in findings {
+    out.write_bytes(@utf8.encode("\{finding.code}: \{finding.message}\n"))
+  }
+  out.to_bytes()
+}
+
+/// Render lint diagnostics to stderr, one per line (--fix refusal exit 1).
+fn render_lint_diagnostics(diagnostics : Array[@api.LintDiagnostic]) -> Bytes {
+  let out = @buffer.Buffer::Buffer(size_hint=256)
+  for diagnostic in diagnostics {
+    out.write_bytes(@utf8.encode("\{diagnostic.code}: \{diagnostic.message}\n"))
+  }
+  out.to_bytes()
+}
+
 fn bad_value(flag : String, value : String) -> CliOutcome {
   usage_error("invalid value for \{flag}: \{value}")
 }
@@ -186,14 +294,14 @@ pub fn render_diagnostics(diagnostics : Array[@api.FormatDiagnostic]) -> Bytes {
 
 /// --help text (printed to stdout, exit 0).
 pub fn usage_text() -> String {
-  "usage: fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline] [--help] [file|-]\n"
+  "usage: fathom-sql parse|format|lsp|lint|fingerprint --dialect <doris|flink> --profile <id> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--rule <CODE>=<error|warning|info|off>] [--fix] [--normalized] [--no-trailing-newline] [--help] [file|-]\n"
 }
 
 /// Usage-error message for exit 2 (stderr only, no SQL output).
 pub fn usage_error_message(error : UsageError) -> String {
   match error {
-    MissingSubcommand => "missing subcommand (expected: parse, format, or lsp)\n"
-    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, or lsp)\n"
+    MissingSubcommand => "missing subcommand (expected: parse, format, lsp, lint, or fingerprint)\n"
+    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, lsp, lint, or fingerprint)\n"
     MissingDialect => "missing required flag: --dialect <doris|flink>\n"
     UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id} (expected doris or flink)\n"
     MissingProfile => "missing required flag: --profile <doris 2.1|3.x|4.x | flink flink-2.3.0|flink-2.1.3|flink-1.20.5>\n"
@@ -225,6 +333,9 @@ test "run_format_stdin_happy_path" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let outcome = run_format(command, b"select 1")
   assert_eq(outcome.exit_code, 0)
@@ -244,6 +355,9 @@ test "run_parse_stdin_happy_path" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let outcome = run_parse(command, b"SELECT 1")
   assert_eq(outcome.exit_code, 0)

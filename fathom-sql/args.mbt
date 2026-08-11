@@ -38,6 +38,9 @@ pub(all) struct Command {
   newline_style : String?
   trailing_newline : Bool
   file : String?
+  overrides : Array[@api.RuleOverride]
+  fix : Bool
+  normalized : Bool
 }
 
 /// Flag surface (D-11, research Open Q2 RESOLVED):
@@ -51,7 +54,8 @@ pub(all) struct Command {
 pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   if args.length() == 0 { return Err(MissingSubcommand) }
   let subcommand = args[0]
-  if subcommand != "parse" && subcommand != "format" && subcommand != "lsp" {
+  if subcommand != "parse" && subcommand != "format" && subcommand != "lsp" &&
+    subcommand != "lint" && subcommand != "fingerprint" {
     return Err(UnknownSubcommand(sub=subcommand))
   }
   let mut dialect : String? = None
@@ -63,6 +67,9 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   let mut newline_style : String? = None
   let mut trailing_newline = true
   let mut file : String? = None
+  let overrides : Array[@api.RuleOverride] = []
+  let mut fix = false
+  let mut normalized = false
   let mut index = 1
   while index < args.length() {
     let arg = args[index]
@@ -76,6 +83,17 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
       index = index + 1
       if index >= args.length() { return Err(MissingValue(flag="--profile")) }
       profile = Some(args[index])
+    } else if arg == "--rule" {
+      index = index + 1
+      if index >= args.length() { return Err(MissingValue(flag="--rule")) }
+      match parse_rule_flag(args[index]) {
+        Ok(rule_override) => overrides.push(rule_override)
+        Err(error) => return Err(error)
+      }
+    } else if arg == "--fix" {
+      fix = true
+    } else if arg == "--normalized" {
+      normalized = true
     } else if arg == "--keyword-case" || arg == "--comma-style" || arg == "--newline-style" ||
       arg == "--indent" || arg == "--line-width" {
       index = index + 1
@@ -152,7 +170,38 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
     newline_style: newline_style,
     trailing_newline: trailing_newline,
     file: file,
+    overrides: overrides,
+    fix: fix,
+    normalized: normalized,
   })
+}
+
+/// Parse one `--rule <code>=<severity|off>` flag into a RuleOverride (D-04).
+/// The value must contain exactly one `=`, a non-empty code, and a severity of
+/// error/warning/info/off; anything else is an UnknownValue usage error that
+/// main maps to exit 2. Code existence in the registry is validated later by
+/// `@api.LintOptions::new` in run_lint (also exit 2 on unknown code).
+fn parse_rule_flag(value : String) -> Result[@api.RuleOverride, UsageError] {
+  let split = value.split_once("=")
+  match split {
+    Some((code_view, setting_view)) => {
+      let code = code_view.to_string()
+      let setting = setting_view.to_string()
+      if code.length() == 0 {
+        return Err(UnknownValue(flag="--rule", value=value))
+      }
+      let parsed = if setting == "off" {
+        @api.RuleSetting::Disabled
+      } else {
+        match @api.LintSeverity::from_id(setting) {
+          Some(severity) => @api.RuleSetting::Severity(severity)
+          None => return Err(UnknownValue(flag="--rule", value=value))
+        }
+      }
+      Ok({ code: code, setting: parsed })
+    }
+    None => Err(UnknownValue(flag="--rule", value=value))
+  }
 }
 
 /// Explicit dialect+profile validation (D-11, mirrors binding's

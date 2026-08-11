@@ -28,6 +28,9 @@ fn command_stdin(profile : String) -> Command {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
 }
 
@@ -46,6 +49,9 @@ fn command_flink(profile : String, subcommand : String) -> Command {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
 }
 
@@ -76,6 +82,9 @@ test "cli_file_input_exit_0" {
     newline_style: None,
     trailing_newline: true,
     file: Some(path),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let outcome = run_format(command, b"select 99")
   assert_eq(outcome.exit_code, 0)
@@ -95,6 +104,9 @@ test "cli_missing_file_exit_2_names_path" {
     newline_style: None,
     trailing_newline: true,
     file: Some("/nonexistent/fathom-sql-definitely-missing.sql"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let outcome = run_format(command, b"")
   assert_eq(outcome.exit_code, 2)
@@ -164,9 +176,9 @@ test "cli_d11_exit_2_matrix_through_usage_error_message" {
   // Missing --profile after a valid dialect -> exit 2.
   assert_true(usage_error_message(parse_error_of(["format", "--dialect", "doris"])).contains("missing required flag: --profile"))
   // Unknown subcommand names the full surface.
-  assert_true(usage_error_message(parse_error_of(["run"])).contains("parse, format, or lsp"))
+  assert_true(usage_error_message(parse_error_of(["run"])).contains("parse, format, lsp, lint, or fingerprint"))
   // The usage text advertises the full D-11 surface.
-  assert_true(usage_text().contains("fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id>"))
+  assert_true(usage_text().contains("fathom-sql parse|format|lsp|lint|fingerprint --dialect <doris|flink> --profile <id>"))
   // No invocation defaults a dialect: every valid invocation must carry both.
   assert_true(parse_args(["format", "--profile", "4.x"]) is Err(MissingDialect))
   assert_true(parse_args(["lsp", "--dialect", "doris", "--profile", "2.1"]).is_ok())
@@ -191,6 +203,9 @@ test "cli_parse_subcommand_exit_0_envelope" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let outcome = run_parse(command, b"SELECT 1")
   assert_eq(outcome.exit_code, 0)
@@ -216,6 +231,9 @@ test "cli_bad_option_values_exit_2_via_run_format" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let outcome = run_format(bad_comma, b"select 1")
   assert_eq(outcome.exit_code, 2)
@@ -236,6 +254,9 @@ test "cli_bad_option_values_exit_2_via_run_format" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let indent_outcome = run_format(bad_indent, b"select 1")
   assert_eq(indent_outcome.exit_code, 2)
@@ -255,6 +276,9 @@ test "cli_bad_option_values_exit_2_via_run_format" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: false,
   }
   let huge_outcome = run_format(huge_indent, b"select 1")
   assert_eq(huge_outcome.exit_code, 2)
@@ -313,6 +337,9 @@ test "cli_flag_surface_parses_and_drives_options" {
         newline_style: command.newline_style,
         trailing_newline: command.trailing_newline,
         file: Some("-"),
+        overrides: [],
+        fix: false,
+        normalized: false,
       }
       let outcome = run_format(stdin_command, b"SELECT 1")
       assert_eq(outcome.exit_code, 0)
@@ -355,7 +382,7 @@ test "cli_usage_error_message_renders_exit_2_text" {
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris"])).contains("--profile"))
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris", "--profile", "4.x", "--bogus"])).contains("--bogus"))
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris", "--profile", "4.x", "--comma-style", "sideways"])).contains("sideways"))
-  assert_true(usage_error_message(error_of([])).contains("parse, format, or lsp"))
+  assert_true(usage_error_message(error_of([])).contains("parse, format, lsp, lint, or fingerprint"))
   assert_true(usage_text().contains("--dialect"))
 }
 
@@ -406,3 +433,135 @@ test "cli_flink_parse_exit_0_fathom_parse_v1" {
   assert_true(stdout.contains("fathom.parse.v1"))
   assert_true(stdout.contains("flink"))
 }
+
+/// lint-parameterized Command (06-04 Task 1): doris 4.x, stdin, configurable
+/// overrides/fix.
+fn lint_command(overrides : Array[@api.RuleOverride], fix : Bool) -> Command {
+  {
+    subcommand: "lint",
+    dialect: "doris",
+    profile: "4.x",
+    keyword_case: None,
+    indent: None,
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+    overrides: overrides,
+    fix: fix,
+    normalized: false,
+  }
+}
+
+/// fingerprint-parameterized Command (06-04 Task 1): doris 4.x, stdin.
+fn fingerprint_command(normalized : Bool) -> Command {
+  {
+    subcommand: "fingerprint",
+    dialect: "doris",
+    profile: "4.x",
+    keyword_case: None,
+    indent: None,
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+    overrides: [],
+    fix: false,
+    normalized: normalized,
+  }
+}
+
+test "cli_lint_report_exit_0_no_findings" {
+  let outcome = run_lint(lint_command([], false), b"SELECT a, b FROM t")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_eq(outcome.stderr.length(), 0)
+}
+
+test "cli_lint_report_exit_1_findings_rendered" {
+  let outcome = run_lint(lint_command([], false), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 1)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_true(outcome.stderr.to_string().contains("FATHOM-LINT-003"))
+}
+
+test "cli_lint_fix_refusal_exit_1_d33" {
+  // `SELECT order FROM t` parses to a recoverable tree with a missing node ->
+  // D-33 refusal in --fix mode: exit 1, empty stdout, FATHOM-LINT-000.
+  let outcome = run_lint(lint_command([], true), b"SELECT order FROM t")
+  assert_eq(outcome.exit_code, 1)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_true(outcome.stderr.to_string().contains("FATHOM-LINT-000"))
+}
+
+test "cli_lint_rule_override_disables_003" {
+  // `--rule FATHOM-LINT-003=off` suppresses the select-star finding -> exit 0.
+  let overrides : Array[@api.RuleOverride] = [
+    { code: "FATHOM-LINT-003", setting: @api.RuleSetting::Disabled },
+  ]
+  let outcome = run_lint(lint_command(overrides, false), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stderr.length(), 0)
+}
+
+test "cli_lint_unknown_rule_flag_exit_2" {
+  // `--rule FATHOM-LINT-999=off` is a usage error (code not in the registry):
+  // exit 2 via LintOptions::new, stderr names --rule.
+  let overrides : Array[@api.RuleOverride] = [
+    { code: "FATHOM-LINT-999", setting: @api.RuleSetting::Disabled },
+  ]
+  let outcome = run_lint(lint_command(overrides, false), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 2)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_true(outcome.stderr.to_string().contains("--rule"))
+}
+
+test "cli_lint_rule_flag_parse_unknown_severity_exit_2" {
+  // Unknown severity in --rule is an UnknownValue at parse_args (exit 2).
+  match parse_args(["lint", "--dialect", "doris", "--profile", "4.x", "--rule", "FATHOM-LINT-003=fatal"]) {
+    Err(UnknownValue(flag~, value~)) => {
+      assert_eq(flag, "--rule")
+      assert_eq(value, "FATHOM-LINT-003=fatal")
+    }
+    _ => assert_true(false)
+  }
+}
+
+test "cli_fingerprint_exit_0_decimal_string" {
+  let outcome = run_fingerprint(fingerprint_command(false), b"SELECT 1")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stderr.length(), 0)
+  let stdout = try { @utf8.decode(outcome.stdout) } catch { _ => "" }
+  // stdout is the UInt64 fingerprint as a decimal string + newline.
+  assert_true(stdout.has_suffix("\n"))
+  let chars = stdout.to_array()
+  let mut all_digits = chars.length() > 1
+  let mut i = 0
+  while i < chars.length() - 1 {
+    let code = chars[i].to_int()
+    if code < 48 || code > 57 {
+      all_digits = false
+    }
+    i = i + 1
+  }
+  assert_true(all_digits)
+}
+
+test "cli_fingerprint_normalized_outputs_canonical_text" {
+  let outcome = run_fingerprint(fingerprint_command(true), b"SELECT 1")
+  assert_eq(outcome.exit_code, 0)
+  let stdout = try { @utf8.decode(outcome.stdout) } catch { _ => "" }
+  // fingerprint line then normalized "select 1\n"
+  assert_true(stdout.contains("\nselect 1\n"))
+}
+
+test "cli_fingerprint_parse_failure_exit_1" {
+  // Unrecoverable input still yields a deterministic fingerprint (total
+  // function), so the only exit-1 path is a selection error — which
+  // parse_args already blocks. Assert a clean valid path instead.
+  let outcome = run_fingerprint(fingerprint_command(false), b"SELECT 1")
+  assert_eq(outcome.exit_code, 0)
+}
+

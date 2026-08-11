@@ -41,6 +41,20 @@ fn main {
       }
       run_parse(command, stdin_bytes)
     }
+    "lint" => {
+      let stdin_bytes = match command.file {
+        Some(path) if path != "-" => b""
+        _ => read_stdin()
+      }
+      run_lint(command, stdin_bytes)
+    }
+    "fingerprint" => {
+      let stdin_bytes = match command.file {
+        Some(path) if path != "-" => b""
+        _ => read_stdin()
+      }
+      run_fingerprint(command, stdin_bytes)
+    }
     _ => {
       let stdin_bytes = match command.file {
         Some(path) if path != "-" => b""
