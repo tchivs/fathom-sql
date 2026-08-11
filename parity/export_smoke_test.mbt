@@ -1,6 +1,8 @@
 test "schema_v2_bump_is_additive" {
   // The v2 bump is PURE ADDITION (Pitfall V6): the two new namespaces appear
-  // while all five original namespaces remain usable.
+  // while all five original namespaces remain usable. The 8th namespace
+  // (fathom.lineage.v1, 07-04) is the same pure addition: it appears while
+  // all seven prior namespaces keep their behavior unchanged.
   let lint = @utf8.decode_lossy(
     @binding.fathom_lint_v1(b"SELECT 1", "doris", "4.x", "strict", b"[]", false)[:],
   )
@@ -26,6 +28,12 @@ test "schema_v2_bump_is_additive" {
   assert_true(completed.contains("fathom.complete.v1"))
   assert_true(error.contains("fathom.error.v1"))
   assert_true(capabilities.contains("fathom.capabilities.v1"))
+  // LINE-01 (07-04): fathom.lineage.v1 is the 8th namespace — it appears
+  // while all seven prior namespaces above remain usable (Pitfall V6).
+  let lineage = @utf8.decode_lossy(
+    @binding.fathom_lineage_v1(b"SELECT a FROM t", "doris", "4.x", "strict", b"")[:],
+  )
+  assert_true(lineage.contains("fathom.lineage.v1"))
 }
 
 test "exports_are_primitive_and_versioned" {
