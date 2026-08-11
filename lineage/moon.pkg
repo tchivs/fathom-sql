@@ -1,0 +1,6 @@
+pkgtype(kind: "library")
+import {
+  "fathom/sql/analyzer" @analyzer,
+  "fathom/sql/syntax" @syntax,
+  "moonbitlang/core/debug" @debug,
+}
