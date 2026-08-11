@@ -22,7 +22,7 @@ const MAX_PAREN_DEPTH : Int = 128
 /// carry grammar tokens). Twin of `source_token_texts` that carries spans
 /// (D-01); returns (token_bytes, start_byte, end_byte) triples to avoid naming
 /// @source.Span and importing source.
-fn source_tokens(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(Bytes, Int, Int)] {
+pub fn source_tokens(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(Bytes, Int, Int)] {
   let tokens : Array[(Bytes, Int, Int)] = []
   for element in node.children() {
     match element {
@@ -165,7 +165,7 @@ fn clause_kind_at(tokens : Array[(Bytes, Int, Int)], index : Int, depth : Int) -
 }
 
 /// Index of the `)` matching the `(` at `open`, or `length` when unbalanced.
-fn matching_paren(tokens : Array[(Bytes, Int, Int)], open : Int) -> Int {
+pub fn matching_paren(tokens : Array[(Bytes, Int, Int)], open : Int) -> Int {
   let mut depth = 0
   let mut i = open
   while i < tokens.length() {
@@ -207,7 +207,7 @@ fn matching_paren_slices(tokens : Array[TokenSlice], open : Int) -> Int {
 /// Subquery groups `(SELECT ...)` / `(WITH ...)` are skipped whole so their
 /// columns never resolve against the enclosing scope; function-call parens
 /// (`count(a)`) keep collecting the argument refs.
-fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
+pub fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
   let refs : Array[NameRef] = []
   let length = tokens.length()
   let mut i = 0
@@ -1146,7 +1146,13 @@ fn parse_model(
 }
 
 /// Splits a SELECT statement's token stream into a SelectModel. Returns None
-/// on paren-depth overflow (T-05-03-01).
-fn split_select_model(tokens : Array[(Bytes, Int, Int)]) -> SelectModel? {
+/// on paren-depth overflow (T-05-03-01). An empty token stream yields an
+/// empty model (`branches = []`) — no panic, no fabricated content (LINE-01
+/// empty-document contract: lineage/ re-parses a statement-free document to
+/// an empty model).
+pub fn split_select_model(tokens : Array[(Bytes, Int, Int)]) -> SelectModel? {
+  if tokens.length() == 0 {
+    return Some({ ctes: [], branches: [] })
+  }
   parse_model(tokens, 0, tokens.length(), 0)
 }

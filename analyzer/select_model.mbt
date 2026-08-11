@@ -8,7 +8,7 @@
 /// frozen parser hard gate).
 
 /// Top-level SELECT clause kinds recognized by the re-parser (D-01).
-enum ClauseKind {
+pub(all) enum ClauseKind {
   SelectList
   From
   Where
@@ -22,7 +22,7 @@ enum ClauseKind {
 } derive(Eq, @debug.Debug)
 
 /// A token slice: token bytes plus a flattened byte span (D-01/D-06).
-struct TokenSlice {
+pub(all) struct TokenSlice {
   bytes : Bytes
   start_byte : Int
   end_byte : Int
@@ -36,7 +36,7 @@ struct TokenSlice {
 /// function call), and `call_args` then holds the token slices between that
 /// `(` and its matching `)` (parens excluded) for arity counting (D-04).
 /// Source spelling and byte spans are preserved (D-03).
-struct NameRef {
+pub(all) struct NameRef {
   parts : Array[TokenSlice]
   star : Bool
   is_call : Bool
@@ -48,7 +48,7 @@ struct NameRef {
 /// One SELECT-list item: the expression token slices, the optional AS/bare
 /// alias, and whether the item is a star projection (`*`, `t.*`, `db.t.*`).
 /// `star_qualifier` holds the dotted name before `.*` (None for a bare `*`).
-struct SelectItem {
+pub(all) struct SelectItem {
   tokens : Array[TokenSlice]
   alias : String?
   alias_slice : TokenSlice?
@@ -62,7 +62,7 @@ struct SelectItem {
 /// `join` records how the item attaches to the previous one ("INNER"/"LEFT"/
 /// ... or None for a base/comma-separated ref). `depth` marks the paren depth
 /// at which the item was parsed (0 at the top level; subqueries recurse).
-struct FromItem {
+pub(all) struct FromItem {
   name : NameRef?
   alias : String?
   alias_slice : TokenSlice?
@@ -74,7 +74,7 @@ struct FromItem {
 
 /// A CTE definition: name, optional column-name alias list text (`WITH c(x)
 /// AS ...`), and the parsed body core (D-02 scope, Pitfall 4).
-struct CteDef {
+pub(all) struct CteDef {
   name : String
   alias : String?
   body : SelectCore
@@ -84,7 +84,7 @@ struct CteDef {
 /// clauses carry pre-extracted `NameRef`s; `limit`/`window` keep raw token
 /// slices (not name-resolved). `set_op` records the set operation that
 /// follows this core in a UNION chain (None for the final branch).
-struct SelectCore {
+pub(all) struct SelectCore {
   select_list : Array[SelectItem]
   from : Array[FromItem]
   joins : Array[FromItem]
@@ -101,7 +101,7 @@ struct SelectCore {
 /// The model of a full SELECT statement: CTEs plus set-op branches. The first
 /// branch's output columns are the statement's output columns (UNION column
 /// names come from the first SELECT).
-struct SelectModel {
+pub(all) struct SelectModel {
   ctes : Array[CteDef]
   branches : Array[SelectCore]
 }

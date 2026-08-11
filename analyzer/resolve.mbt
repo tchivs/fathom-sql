@@ -66,7 +66,7 @@ fn is_quoted(bytes : Bytes) -> Bool {
 
 /// True when the subtree contains Error/Missing material (Pitfall 7): mirrors
 /// the formatter's first_unsafe_element scan (D-33 refusal philosophy).
-fn has_error_missing(node : @syntax.SyntaxNode) -> Bool {
+pub fn has_error_missing(node : @syntax.SyntaxNode) -> Bool {
   if node.kind() is @syntax.SyntaxKind::Error || node.kind() is @syntax.SyntaxKind::Missing {
     return true
   }
@@ -1042,7 +1042,7 @@ fn[T : Catalog] analyze_select_body(
 
 /// Collects a dotted qualified name reference starting at `index`, returning
 /// the NameRef and the index just past it (D-02, DML target tables).
-fn qualified_ref_at(tokens : Array[(Bytes, Int, Int)], index : Int) -> (NameRef, Int)? {
+pub fn qualified_ref_at(tokens : Array[(Bytes, Int, Int)], index : Int) -> (NameRef, Int)? {
   if index >= tokens.length() || !is_identifier_token(tokens[index].0) {
     return None
   }
@@ -1078,7 +1078,7 @@ fn qualified_ref_at(tokens : Array[(Bytes, Int, Int)], index : Int) -> (NameRef,
 
 /// Index of the first `word` token at paren depth 0 in `[start, end)`, or -1
 /// when absent. Strings/quoted identifiers never match (whole-token bytes).
-fn find_word_at_depth0(
+pub fn find_word_at_depth0(
   tokens : Array[(Bytes, Int, Int)],
   start : Int,
   end : Int,
@@ -1103,7 +1103,7 @@ fn find_word_at_depth0(
 }
 
 /// Converts a token-index range into TokenSlice values (byte level, D-01).
-fn slice_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int) -> Array[TokenSlice] {
+pub fn slice_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int) -> Array[TokenSlice] {
   let out : Array[TokenSlice] = []
   let mut i = start
   while i < end && i < tokens.length() {
@@ -1112,6 +1112,116 @@ fn slice_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int) -> Ar
     i = i + 1
   }
   out
+}
+
+/// Thin public wrapper (D-01, Wave 0): token index where a CREATE VIEW body's
+/// query starts — just past the view name, optional column-name list, and
+/// optional AS. Behavior mirrors `analyze_create_view_body`'s location logic
+/// (zero semantic change); returns `tokens.length()` when the query start
+/// cannot be recovered. lineage/ (07-02) re-parses the body slice from here.
+pub fn view_body_location(tokens : Array[(Bytes, Int, Int)]) -> Int {
+  // CREATE [TEMPORARY] VIEW [IF NOT EXISTS] name — leading-keyword prefix
+  // (mirrors `leading_prefix_end` for SyntaxKind::CreateView).
+  let mut prefix = 0
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"CREATE") {
+    prefix = prefix + 1
+  }
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"TEMPORARY") {
+    prefix = prefix + 1
+  }
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"VIEW") {
+    prefix = prefix + 1
+  }
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"IF") {
+    prefix = prefix + 1
+  }
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"NOT") {
+    prefix = prefix + 1
+  }
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"EXISTS") {
+    prefix = prefix + 1
+  }
+  match qualified_ref_at(tokens, prefix) {
+    Some((_, after_name)) => {
+      let mut query_start = after_name
+      // Optional view column list `(a, b)` between the name and AS.
+      if query_start < tokens.length() && tokens[query_start].0 == b"(" {
+        let close = matching_paren(tokens, query_start)
+        if close >= tokens.length() {
+          return tokens.length()
+        }
+        query_start = close + 1
+      }
+      // Optional AS.
+      if query_start < tokens.length() && bytes_equal_ci(tokens[query_start].0, b"AS") {
+        query_start = query_start + 1
+      }
+      query_start
+    }
+    None => tokens.length()
+  }
+}
+
+/// Thin public wrapper (D-01, Wave 0): locates the target column-name list and
+/// query body of an INSERT statement token stream. Returns the token range
+/// (inclusive-exclusive) of the parenthesized target column list — or None —
+/// plus the token index where the VALUES/SELECT/WITH body begins
+/// (`tokens.length()` when no body keyword is found). Mirrors
+/// `analyze_dml_body`'s Insert-arm location logic plus the Research Pattern 3
+/// body-location helper (zero semantic change to analyze_dml_body); returns
+/// None when the target table name cannot be recovered. lineage/ (07-02)
+/// re-parses the body slice from `body_start` and position-maps columns.
+pub fn insert_body_location(
+  tokens : Array[(Bytes, Int, Int)],
+) -> ((Int, Int)?, Int)? {
+  // (INSERT | UPSERT) ( OVERWRITE [TABLE] | INTO ) name — leading-keyword
+  // prefix (mirrors `leading_prefix_end` for SyntaxKind::Insert).
+  let mut prefix = 0
+  if prefix < tokens.length() && (bytes_equal_ci(tokens[prefix].0, b"INSERT") ||
+    bytes_equal_ci(tokens[prefix].0, b"UPSERT")) {
+    prefix = prefix + 1
+  }
+  if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"OVERWRITE") {
+    prefix = prefix + 1
+    if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"TABLE") {
+      prefix = prefix + 1
+    }
+  } else if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"INTO") {
+    prefix = prefix + 1
+  }
+  match qualified_ref_at(tokens, prefix) {
+    Some((_, after_table)) => {
+      let mut after_col = after_table
+      let col_list : (Int, Int)? = if after_table < tokens.length() &&
+        tokens[after_table].0 == b"(" {
+        let close = matching_paren(tokens, after_table)
+        if close >= tokens.length() {
+          None
+        } else {
+          after_col = close + 1
+          Some((after_table + 1, close))
+        }
+      } else {
+        None
+      }
+      // Query body: VALUES | SELECT | WITH — whichever appears first at depth 0.
+      let values = find_word_at_depth0(tokens, after_col, tokens.length(), b"VALUES")
+      let select = find_word_at_depth0(tokens, after_col, tokens.length(), b"SELECT")
+      let with_word = find_word_at_depth0(tokens, after_col, tokens.length(), b"WITH")
+      let mut body_start = tokens.length()
+      if values >= 0 && values < body_start {
+        body_start = values
+      }
+      if select >= 0 && select < body_start {
+        body_start = select
+      }
+      if with_word >= 0 && with_word < body_start {
+        body_start = with_word
+      }
+      Some((col_list, body_start))
+    }
+    None => None
+  }
 }
 
 /// Resolves every name reference in a token slice against `scope` (D-02),
