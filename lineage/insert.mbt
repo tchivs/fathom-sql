@@ -73,8 +73,17 @@ fn col_list_targets(
   out
 }
 
+/// True when a whole token is a quoted identifier (backtick or double quote),
+/// mirroring the analyzer's D-03 quoted byte-exact rule.
+fn is_quoted(bytes : Bytes) -> Bool {
+  bytes.length() > 0 && (bytes[0].to_int() == 96 || bytes[0].to_int() == 34)
+}
+
 /// Resolves the target table's column list via the catalog (default-db or
 /// db-qualified), or None when the table is absent (D-04 column-order path).
+/// Quoted target tables apply the D-03 byte-exact re-check against the
+/// returned `TableInfo.name` (WR-02 / Pitfall V1): `INSERT INTO \`T\`` never
+/// resolves case-insensitively to a catalog table named `t`.
 fn[T : @analyzer.Catalog] resolve_insert_target_columns(
   catalog : T,
   ref : @analyzer.NameRef,
@@ -85,38 +94,192 @@ fn[T : @analyzer.Catalog] resolve_insert_target_columns(
   }
   if n == 1 {
     let name = identifier_text(ref.parts[0].bytes)
+    let quoted = is_quoted(ref.parts[0].bytes)
     match @analyzer.Catalog::table(catalog, name) {
-      Some(info) => Some(info.columns)
+      Some(info) =>
+        if quoted && info.name != name {
+          None
+        } else {
+          Some(info.columns)
+        }
       None => None
     }
   } else {
     let db = identifier_text(ref.parts[n - 2].bytes)
     let t = identifier_text(ref.parts[n - 1].bytes)
+    let table_quoted = is_quoted(ref.parts[n - 1].bytes)
     match @analyzer.Catalog::table_in_db(catalog, db, t) {
-      Some(info) => Some(info.columns)
+      Some(info) =>
+        if table_quoted && info.name != t {
+          None
+        } else {
+          Some(info.columns)
+        }
       None => None
     }
   }
 }
 
+/// True when `name` is in the resolved-source set (ASCII case-insensitive).
+fn source_resolved(resolved : Array[String], name : String) -> Bool {
+  for r in resolved {
+    if r.equal_ignore_ascii_case(name) {
+      return true
+    }
+  }
+  false
+}
+
+/// Resolves one FROM/JOIN table reference of the trailing INSERT source
+/// against the catalog. A resolved table is recorded by its last identifier
+/// segment; an unresolved table emits exactly one honest gap at the table-ref
+/// span (requires-catalog when no catalog was injected, unresolved-reference
+/// otherwise) so lineage never fabricates a source edge for it (CR-01 / SC2).
+fn[T : @analyzer.Catalog] resolve_from_source(
+  item : @analyzer.FromItem,
+  catalog_none : Bool,
+  catalog : T,
+  resolved : Array[String],
+  gaps : Array[LineageGap],
+) -> Unit {
+  if item.is_subquery {
+    return
+  }
+  let name_ref = match item.name {
+    Some(ref) => ref
+    None => return
+  }
+  let n = name_ref.parts.length()
+  if n == 0 {
+    return
+  }
+  let texts : Array[String] = []
+  for p in name_ref.parts {
+    texts.push(identifier_text(p.bytes))
+  }
+  let hit = if n == 1 {
+    match @analyzer.Catalog::table(catalog, texts[0]) {
+      Some(_) => true
+      None => false
+    }
+  } else {
+    match @analyzer.Catalog::table_in_db(catalog, texts[n - 2], texts[n - 1]) {
+      Some(_) => true
+      None => false
+    }
+  }
+  if hit {
+    resolved.push(texts[n - 1])
+  } else {
+    gaps.push({
+      code: if catalog_none { GAP_REQUIRES_CATALOG } else { GAP_UNRESOLVED_REFERENCE },
+      message: "source table not found in catalog: " + join_strings(texts, "."),
+      start_byte: name_ref.start_byte,
+      end_byte: name_ref.end_byte,
+    })
+  }
+}
+
+/// Resolves every non-subquery FROM/JOIN table of the trailing SELECT model
+/// against the catalog, recording resolved tables and emitting one honest gap
+/// per unresolved table (CR-01 / SC2).
+fn[T : @analyzer.Catalog] resolve_insert_source_tables(
+  model : @analyzer.SelectModel,
+  catalog_none : Bool,
+  catalog : T,
+  gaps : Array[LineageGap],
+) -> Array[String] {
+  let resolved : Array[String] = []
+  for branch in model.branches {
+    for item in branch.from {
+      resolve_from_source(item, catalog_none, catalog, resolved, gaps)
+    }
+    for item in branch.joins {
+      resolve_from_source(item, catalog_none, catalog, resolved, gaps)
+    }
+  }
+  resolved
+}
+
+/// True when at least one non-subquery FROM/JOIN table of the branch resolved
+/// (an unqualified source column reference may come from any of them).
+fn branch_has_resolved_from(
+  branch : @analyzer.SelectCore,
+  resolved : Array[String],
+) -> Bool {
+  for item in branch.from {
+    if !item.is_subquery {
+      let name_ref = match item.name {
+        Some(r) => r
+        None => continue
+      }
+      let n = name_ref.parts.length()
+      if n > 0 && source_resolved(resolved, identifier_text(name_ref.parts[n - 1].bytes)) {
+        return true
+      }
+    }
+  }
+  for item in branch.joins {
+    if !item.is_subquery {
+      let name_ref = match item.name {
+        Some(r) => r
+        None => continue
+      }
+      let n = name_ref.parts.length()
+      if n > 0 && source_resolved(resolved, identifier_text(name_ref.parts[n - 1].bytes)) {
+        return true
+      }
+    }
+  }
+  false
+}
+
+/// True when a source reference's table resolved against the catalog.
+/// Qualified refs use the table segment (last two parts as db.table, matching
+/// the analyzer's two-level model); unqualified refs require at least one
+/// resolved FROM/JOIN table in the branch.
+fn source_ref_resolved(
+  branch : @analyzer.SelectCore,
+  ref : @analyzer.NameRef,
+  resolved : Array[String],
+) -> Bool {
+  let n = ref.parts.length()
+  if n >= 2 {
+    source_resolved(resolved, identifier_text(ref.parts[n - 2].bytes))
+  } else {
+    branch_has_resolved_from(branch, resolved)
+  }
+}
+
 /// Positionally maps a trailing INSERT SELECT model's output columns to the
-/// INSERT target columns (D-04). Source column names come from the model refs
-/// (source spelling) when the analyzer binding channel has no binding at the
-/// ref span. A trailing star cannot be expanded (the analyzer does not bind
-/// the trailing body) and reports an honest requires-catalog gap.
-fn derive_insert_source_edges(
+/// INSERT target columns (D-04). Source edges are emitted ONLY for references
+/// whose source table resolved against the catalog; references from an
+/// unresolved table are suppressed (the table-level gap was already reported
+/// by `resolve_insert_source_tables`) so lineage never fabricates an edge for
+/// an unresolved provenance (CR-01 / SC2). A trailing star cannot be expanded
+/// (the analyzer does not bind the trailing body) and reports an honest
+/// requires-catalog gap; after an unexpanded star, positional alignment is
+/// unknowable, so no further source edges are mapped in that branch (WR-01).
+fn[T : @analyzer.Catalog] derive_insert_source_edges(
   model : @analyzer.SelectModel,
   target_table : String,
   target_table_start : Int,
   target_table_end : Int,
   target_cols : Array[(String, Int, Int)],
   bindings : Array[@analyzer.Binding],
+  catalog_none : Bool,
+  catalog : T,
   edges : Array[LineageEdge],
   gaps : Array[LineageGap],
 ) -> Unit {
+  let resolved = resolve_insert_source_tables(model, catalog_none, catalog, gaps)
   for branch in model.branches {
     let mut pos = 0
+    let mut star_seen = false
     for item in branch.select_list {
+      if star_seen {
+        continue
+      }
       if item.star {
         let (ss, se) = star_span(item)
         if column_bindings_at(bindings, ss, se).length() == 0 {
@@ -126,9 +289,13 @@ fn derive_insert_source_edges(
             start_byte: ss,
             end_byte: se,
           })
+          star_seen = true
         }
       } else {
         for ref in item.refs {
+          if !source_ref_resolved(branch, ref, resolved) {
+            continue
+          }
           let binding = column_binding_at(bindings, ref.start_byte, ref.end_byte)
           let source_name = match binding {
             Some(b) => b.name
@@ -234,6 +401,8 @@ fn[T : @analyzer.Catalog] derive_insert_body(
                 target_end,
                 target_cols,
                 bindings,
+                catalog_none,
+                catalog,
                 edges,
                 gaps,
               )

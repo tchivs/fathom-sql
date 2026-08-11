@@ -334,7 +334,12 @@ fn derive_item(
       // Star self-check (SC2 / D-06): expand_star silently yields zero
       // columns without catalog column metadata (resolve.mbt expand_star) —
       // lineage must detect it and report an honest requires-catalog gap.
-      if !body_has_table_binding {
+      // The only legitimate zero-column expansion is a `* EXCEPT (...)`
+      // projection that deliberately excluded every column of a resolved
+      // table (WR-04); a table resolved with an empty column array, or a
+      // star over an unresolvable table inside a body where another table
+      // resolved, is still a catalog-metadata gap.
+      if !(item.except_cols.length() > 0 && body_has_table_binding) {
         out_gaps.push({
           code: GAP_REQUIRES_CATALOG,
           message: "star projection cannot be expanded without catalog column metadata",

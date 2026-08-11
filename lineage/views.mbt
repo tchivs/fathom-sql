@@ -50,28 +50,72 @@ fn view_name(tokens : Array[(Bytes, Int, Int)]) -> String? {
   }
 }
 
-/// Output columns of a view body's first branch (D-03): alias first, else the
-/// single-ref column name, else star-expanded Column bindings (from the
-/// pass-1 analysis). `data_type` is "" where unknown.
+/// The explicit CREATE VIEW column-name list `(x, y)` between the view name
+/// and AS (D-03 / WR-03), or None when the view declares no such list. When
+/// present, these names (in order) are the view's output columns regardless
+/// of the SELECT body's own output naming — `CREATE VIEW v (x, y) AS
+/// SELECT a, b FROM t` exposes columns x, y.
+fn view_column_list(tokens : Array[(Bytes, Int, Int)]) -> Array[String]? {
+  let prefix = view_prefix_end(tokens)
+  match @analyzer.qualified_ref_at(tokens, prefix) {
+    Some((_, after_name)) => {
+      if after_name < tokens.length() && tokens[after_name].0 == b"(" {
+        let close = @analyzer.matching_paren(tokens, after_name)
+        if close >= tokens.length() {
+          return None
+        }
+        let slices = @analyzer.slice_tokens(tokens, after_name + 1, close)
+        let refs = @analyzer.collect_refs(slices)
+        let out : Array[String] = []
+        for ref in refs {
+          if ref.parts.length() > 0 {
+            out.push(identifier_text(ref.parts[0].bytes))
+          }
+        }
+        Some(out)
+      } else {
+        None
+      }
+    }
+    None => None
+  }
+}
+
+/// Output columns of a view body's first branch (D-03): explicit column-name
+/// list first (WR-03), else alias, else the single-ref column name, else
+/// star-expanded Column bindings (from the pass-1 analysis). `data_type` is
+/// "" where unknown.
 fn view_output_columns(
   model : @analyzer.SelectModel,
   bindings : Array[@analyzer.Binding],
+  explicit_names : Array[String]?,
 ) -> Array[@analyzer.ColumnInfo] {
   let out : Array[@analyzer.ColumnInfo] = []
   if model.branches.length() == 0 {
     return out
   }
   let core = model.branches[0]
+  let mut idx = 0
   for item in core.select_list {
     if item.star {
       let (ss, se) = star_span(item)
       for col in column_bindings_at(bindings, ss, se) {
-        out.push({ name: col.resolved_to, data_type: col.data_type })
+        let name = match explicit_names {
+          Some(names) if idx < names.length() => names[idx]
+          _ => col.resolved_to
+        }
+        out.push({ name: name, data_type: col.data_type })
+        idx = idx + 1
       }
     } else {
       let (name, _, _) = item_target(item, bindings)
       if name != "" {
-        out.push({ name: name, data_type: "" })
+        let out_name = match explicit_names {
+          Some(names) if idx < names.length() => names[idx]
+          _ => name
+        }
+        out.push({ name: out_name, data_type: "" })
+        idx = idx + 1
       }
     }
   }
@@ -99,9 +143,10 @@ fn build_view_registry(
                     Some(name) => {
                       let query_start = @analyzer.view_body_location(tokens)
                       let body_tokens = sub_tokens(tokens, query_start, tokens.length())
+                      let explicit_names = view_column_list(tokens)
                       match @analyzer.split_select_model(body_tokens) {
                         Some(model) => {
-                          registry.set(name, view_output_columns(model, bindings))
+                          registry.set(name, view_output_columns(model, bindings, explicit_names))
                         }
                         None => ()
                       }

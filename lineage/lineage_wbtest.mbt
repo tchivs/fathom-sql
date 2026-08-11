@@ -417,7 +417,7 @@ test "lineage view registry and ViewCatalog shadow" {
   // (Pitfall 4); names outside the registry delegate to the inner catalog.
   let model = t_model([t_item([t_ref(7, 8)], None, 0, 0)])
   let bindings : Array[ABinding] = [t_col_binding("a", "a", 7, 8)]
-  let cols = view_output_columns(model, bindings)
+  let cols = view_output_columns(model, bindings, None)
   assert_eq(cols.length(), 1)
   assert_eq(cols[0].name, "a")
   let catalog = @analyzer.StaticCatalog::new([
@@ -490,16 +490,83 @@ test "lineage external view star without metadata is requires-catalog" {
   assert_eq(gaps[0].end_byte, 8)
 }
 
-test "lineage INSERT positional mapping" {
-  // Task 3 Test 3: `INSERT INTO t(c1,c2) SELECT a,b FROM u` -> the trailing
-  // SELECT output columns map positionally to the column list: u.a->t.c1 and
-  // u.b->t.c2 (independent empty-scope re-parse, Open Question 4).
+test "lineage star over resolved empty-columns table is requires-catalog" {
+  // WR-04: `SELECT * FROM t` where catalog t resolves but carries NO column
+  // metadata (empty columns array) -> the star expands to zero bindings; even
+  // with a body-wide Table binding, the star is a catalog-metadata gap
+  // (no except list explains an all-excluded expansion).
+  let model = t_model([t_star_item(7, 8)])
+  let bindings : Array[ABinding] = [
+    { kind: @analyzer.BindingKind::Table, name: "t", resolved_to: "t", data_type: "", start_byte: 14, end_byte: 15 },
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, [], true, true, None, edges, gaps)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
+  assert_eq(gaps[0].start_byte, 7)
+  assert_eq(gaps[0].end_byte, 8)
+}
+
+test "lineage star all-excluded except list is not a catalog gap" {
+  // WR-04: `SELECT * EXCEPT (a,b) FROM t` where every column was excluded ->
+  // zero Column bindings at the star span, but the except list explains the
+  // all-excluded expansion -> NO requires-catalog gap.
+  let item : ASelectItem = {
+    tokens: [{ bytes: b"*", start_byte: 7, end_byte: 8 }],
+    alias: None,
+    alias_slice: None,
+    star: true,
+    star_qualifier: None,
+    refs: [],
+    except_cols: [
+      { bytes: b"a", start_byte: 16, end_byte: 17 },
+      { bytes: b"b", start_byte: 19, end_byte: 20 },
+    ],
+  }
+  let model = t_model([item])
+  let bindings : Array[ABinding] = [
+    { kind: @analyzer.BindingKind::Table, name: "t", resolved_to: "t", data_type: "", start_byte: 14, end_byte: 15 },
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, [], true, true, None, edges, gaps)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 0)
+}
+
+test "lineage view column list extraction" {
+  // WR-03: `CREATE VIEW v (x, y) AS SELECT a, b FROM t` -> view_column_list
+  // returns the explicit output column names [x, y].
+  let tokens = t_tokens([
+    b"CREATE", b"VIEW", b"v", b"(", b"x", b",", b"y", b")", b"AS", b"SELECT", b"a", b",", b"b", b"FROM", b"t",
+  ])
+  let names = view_column_list(tokens)
+  match names {
+    Some(list) => {
+      assert_eq(list.length(), 2)
+      assert_eq(list[0], "x")
+      assert_eq(list[1], "y")
+    }
+    None => assert_true(false)
+  }
+}
+
+test "lineage INSERT positional mapping with catalog" {
+  // Task 3 Test 3: `INSERT INTO t(c1,c2) SELECT a,b FROM u` with a catalog
+  // that resolves the source table `u` -> the trailing SELECT output columns
+  // map positionally to the column list: u.a->t.c1 and u.b->t.c2
+  // (independent empty-scope re-parse, Open Question 4). Edges are only
+  // emitted when the source table resolves (CR-01 / SC2).
   let tokens = t_tokens([
     b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")",
     b"SELECT", b"a", b",", b"b", b"FROM", b"u",
   ])
-  let catalog = @analyzer.StaticCatalog::new([])
-  let (edges, gaps) = derive_insert_body(tokens, [], [], true, catalog, 0, 100, false)
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "u", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "INT" }] },
+  ])
+  let (edges, gaps) = derive_insert_body(tokens, [], [], false, catalog, 0, 100, false)
   assert_eq(edges.length(), 2)
   assert_eq(gaps.length(), 0)
   assert_eq(edges[0].source_name, "a")
@@ -509,29 +576,54 @@ test "lineage INSERT positional mapping" {
   assert_eq(edges[1].target_name, "t.c2")
 }
 
-test "lineage INSERT without column list no catalog gap" {
-  // Task 3 Test 4: `INSERT INTO t SELECT a FROM u` (no column list, no
-  // catalog) -> one requires-catalog gap at the target-table span; the source
-  // edge is still produced with the target table as the fallback target
-  // (Open Question 3).
+test "lineage INSERT source unresolved no fabricated edges" {
+  // CR-01 / SC2: `INSERT INTO t(c1,c2) SELECT a,b FROM u` with no catalog ->
+  // the source table `u` is unresolved, so NO source edges are fabricated; one
+  // honest requires-catalog gap is emitted at the source table-ref span.
+  let tokens = t_tokens([
+    b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")",
+    b"SELECT", b"a", b",", b"b", b"FROM", b"u",
+  ])
+  let catalog = @analyzer.StaticCatalog::new([])
+  let (edges, gaps) = derive_insert_body(tokens, [], [], true, catalog, 0, 100, false)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
+  assert_eq(gaps[0].message, "source table not found in catalog: u")
+}
+
+test "lineage INSERT without column list no catalog honest gaps" {
+  // Task 3 Test 4 + CR-01: `INSERT INTO t SELECT a FROM u` (no column list,
+  // no catalog) -> requires-catalog gaps for BOTH the unresolved target table
+  // `t` (no column order) and the unresolved source table `u`; the source
+  // edge for `a` is suppressed (SC2: never fabricate an edge for unresolved
+  // provenance).
   let tokens = t_tokens([b"INSERT", b"INTO", b"t", b"SELECT", b"a", b"FROM", b"u"])
   let catalog = @analyzer.StaticCatalog::new([])
   let diagnostics : Array[ADiagnostic] = [
     {
       code: "unknown-table",
       message: "table not found in catalog: t",
-      start_byte: 12,
-      end_byte: 13,
+      start_byte: 2,
+      end_byte: 3,
     },
   ]
   let (edges, gaps) = derive_insert_body(tokens, [], diagnostics, true, catalog, 0, 100, false)
-  assert_eq(edges.length(), 1)
-  assert_eq(gaps.length(), 1)
-  assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
-  assert_eq(gaps[0].start_byte, 12)
-  assert_eq(gaps[0].end_byte, 13)
-  assert_eq(edges[0].source_name, "a")
-  assert_eq(edges[0].target_name, "t")
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 2)
+  let mut found_target = false
+  let mut found_source = false
+  for gap in gaps {
+    assert_eq(gap.code, GAP_REQUIRES_CATALOG)
+    if gap.message == "table not found in catalog: t" {
+      found_target = true
+    }
+    if gap.message == "source table not found in catalog: u" {
+      found_source = true
+    }
+  }
+  assert_true(found_target)
+  assert_true(found_source)
 }
 
 test "lineage INSERT VALUES produces no edges" {
