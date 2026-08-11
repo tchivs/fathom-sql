@@ -103,7 +103,7 @@ Success criteria:
 **Mode:** standard
 **Depends on**: Phase 5 (ANAL-01 resolution)
 **Requirements**: LINE-01
-**Status:** Not started
+**Status:** Planned — 5 plans ready to execute (07-01 analyzer public surface Wave 0 tracer → 07-02 lineage core → 07-03 api.lineage_text → 07-04 wire/CLI → 07-05 parity/docs)
 
 Success criteria:
 
