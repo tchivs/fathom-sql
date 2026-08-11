@@ -5,15 +5,15 @@ milestone_name: Analysis and Intelligence — PLANNING
 current_phase: 07
 current_phase_name: Column Lineage
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-08-11T07:00:04.407Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-08-11T08:02:21.802Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 07 execution started
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 11
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 07 (Column Lineage) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-08-11 — Phase 07 execution started
 
@@ -110,6 +110,7 @@ Last activity: 2026-08-11 — Phase 07 execution started
 | Phase 05-03 P03 | 45min | 3 tasks | 11 files |
 | Phase 05 P04 | 50min | 3 tasks | 8 files |
 | Phase 07-column-lineage P01 | 42 | 2 tasks | 5 files |
+| Phase 07 P03 | 39 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -245,6 +246,10 @@ Recent decisions affecting current work:
 - [Phase ?]: split_select_model returns Some empty model (branches=[]) for an empty token stream — total function, no panic, no fabricated content
 - [Phase ?]: Pitfall 3 option (a): SelectItem.except_cols captures * EXCEPT (...) slices; expand_star skips excluded columns (D-03 matching) so excluded columns never fabricate an edge (SC2)
 - [Phase ?]: insert_body_location returns a plain tuple ((Int, Int)?, Int)? because named-tuple type syntax is not accepted by moon 0.1.20260724 (parse error); field semantics documented
+- [Phase ?]: Flink gate (D-08): api.lineage_text rejects a flink selection AFTER a successful parse with Err(UnknownProfile(profile_id)) — structured FATHOM-SCHEMA-family ParseError, never a silent Ok(empty); the explicit 'lineage is Doris-only' message is deferred to the wire/CLI boundary (07-04)
+- [Phase ?]: api.lineage_text optional catalog: @analyzer.StaticCatalog? maps Some(c) → derive_lineage(..., c) and None → derive_lineage_without_catalog(...) — the toolchain cannot spell trait objects, so the concrete optional StaticCatalog is the api surface (07-02 generic design respected)
+- [Phase ?]: D-38 re-exports make api the shared core entry: @api.LineageResult / LineageEdge / LineageGap / StaticCatalog so binding (07-04) builds its envelope without importing lineage/ directly
+- [Phase ?]: Task 1 executed as TDD (plan tdd=true): RED commit added 5 failing inline api tests (unbound lineage_text), GREEN commit implemented lineage_text + type re-exports — the api package's test convention is inline test blocks in api/api.mbt
 
 ### Pending Todos
 
@@ -276,8 +281,8 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-11T06:59:32.478Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-08-11T08:01:42.751Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
