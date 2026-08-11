@@ -1000,3 +1000,90 @@ test "api_diagnostic_statement_ids_are_monotonic_per_snapshot" {
   assert_true(result.diagnostics[0].code.has_prefix("FATHOM-PARSE-"))
   assert_true(result.diagnostics[1].code.has_prefix("FATHOM-PARSE-"))
 }
+
+test "api_lineage_text_doris_select_basic_ok" {
+  // LINE-01 / D-07: a valid Doris 4.x SELECT with a catalog yields an Ok
+  // LineageResult carrying the t.a -> a passthrough edge, no gaps.
+  let options = match ParseOptions::new("doris", "4.x", "strict") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let result = match lineage_text(b"SELECT a FROM t", options, Some(catalog)) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(result.edges.length(), 1)
+  assert_eq(result.gaps.length(), 0)
+  let edge = result.edges[0]
+  assert_eq(edge.source_name, "a")
+  assert_eq(edge.source_resolved_to, "a")
+  assert_eq(edge.source_start_byte, 7)
+  assert_eq(edge.source_end_byte, 8)
+  assert_eq(edge.target_name, "a")
+  assert_eq(edge.target_start_byte, 7)
+  assert_eq(edge.target_end_byte, 8)
+}
+
+test "api_lineage_text_flink_gate_structured_error" {
+  // D-08: a flink selection is rejected with a structured UnknownProfile
+  // ParseError (FATHOM-SCHEMA family) — NEVER a silent Ok(empty result).
+  let options = match ParseOptions::new("flink", "flink-2.3.0", "strict") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  let result = lineage_text(b"SELECT a FROM t", options, None)
+  assert_true(result is Err(UnknownProfile(profile_id="flink-2.3.0")))
+  match result {
+    Ok(_) => assert_true(false)
+    Err(_) => ()
+  }
+}
+
+test "api_lineage_text_star_no_catalog_requires_catalog_gap" {
+  // SC2 / D-05: `SELECT * FROM t` with no catalog -> zero edges and one
+  // requires-catalog gap at the star span; never a fabricated edge.
+  let options = match ParseOptions::new("doris", "4.x", "strict") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  let result = match lineage_text(b"SELECT * FROM t", options, None) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(result.edges.length(), 0)
+  assert_eq(result.gaps.length(), 1)
+  assert_eq(result.gaps[0].code, "requires-catalog")
+  assert_eq(result.gaps[0].start_byte, 7)
+  assert_eq(result.gaps[0].end_byte, 8)
+}
+
+test "api_lineage_text_input_too_large_parse_error" {
+  // T-07-03-03 / parse_document precedent: oversized input is rejected with a
+  // structured InputTooLarge ParseError before any derivation runs (mirrors
+  // format_text / formatter_test boundary).
+  let options = ParseOptions::for_profile_with_limits(
+    @dialect.DorisProfile::V4_X,
+    ParseMode::Strict,
+    ParseLimits::new(8, 1000, 100, 100, 100),
+  )
+  let result = lineage_text(b"SELECT abcdefghijklmnopqrstuvwxyz", options, None)
+  assert_true(result is Err(InputTooLarge(requested_bytes=_, max_bytes=8)))
+}
+
+test "api_lineage_text_empty_document_ok_empty" {
+  // FLAGGED ASSUMPTION (LINE-01 empty, RESOLVED): an empty document returns
+  // Ok(LineageResult{edges:[], gaps:[]}) — accepted semantics, no synthetic gap.
+  let options = match ParseOptions::new("doris", "4.x", "strict") {
+    Ok(options) => options
+    Err(_) => panic()
+  }
+  let result = match lineage_text(b"", options, None) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+  assert_eq(result.edges.length(), 0)
+  assert_eq(result.gaps.length(), 0)
+}

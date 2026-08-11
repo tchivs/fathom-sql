@@ -7,4 +7,6 @@ import {
   "fathom/sql/dialect" @dialect,
   "fathom/sql/fingerprint" @fingerprint,
   "fathom/sql/lint" @lint,
+  "fathom/sql/analyzer" @analyzer,
+  "fathom/sql/lineage" @lineage,
 }
