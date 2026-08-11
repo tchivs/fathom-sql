@@ -284,3 +284,116 @@ test "lineage star no catalog zero edges with requires-catalog gap" {
   assert_eq(gaps[0].start_byte, 7)
   assert_eq(gaps[0].end_byte, 8)
 }
+
+test "lineage star with catalog expands to real edges" {
+  // Task 2 Test 2: `SELECT * FROM t` with catalog {t:[a,b]} -> the star span
+  // carries two Column bindings -> 2 passthrough edges t.a->a, t.b->b, no gaps.
+  let model = t_model([t_star_item(7, 8)])
+  let bindings : Array[ABinding] = [
+    t_col_binding("a", "a", 7, 8),
+    t_col_binding("b", "b", 7, 8),
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, [], false, true, None, edges, gaps)
+  assert_eq(edges.length(), 2)
+  assert_eq(gaps.length(), 0)
+  assert_eq(edges[0].source_name, "a")
+  assert_eq(edges[0].source_resolved_to, "a")
+  assert_eq(edges[0].target_name, "a")
+  assert_eq(edges[0].target_start_byte, 7)
+  assert_eq(edges[1].source_name, "b")
+  assert_eq(edges[1].target_name, "b")
+}
+
+test "lineage unresolved reference maps to gap" {
+  // Task 2 Test 3: `SELECT nope FROM t` -> unknown-column diagnostic at the
+  // ref span -> unresolved-reference gap, message preserved, no edge.
+  let item = t_item([t_ref(7, 11)], Some("x"), 15, 16)
+  let model = t_model([item])
+  let bindings : Array[ABinding] = []
+  let diagnostics : Array[ADiagnostic] = [
+    {
+      code: "unknown-column",
+      message: "column not found in any visible table: nope",
+      start_byte: 7,
+      end_byte: 11,
+    },
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, diagnostics, false, true, None, edges, gaps)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_UNRESOLVED_REFERENCE)
+  assert_eq(gaps[0].message, "column not found in any visible table: nope")
+  assert_eq(gaps[0].start_byte, 7)
+  assert_eq(gaps[0].end_byte, 11)
+}
+
+test "lineage unknown-table no catalog is requires-catalog" {
+  // Task 2 Test 3: `SELECT a FROM missing_t` without a catalog -> the
+  // unknown-table diagnostic maps to requires-catalog (can't distinguish a
+  // missing table from an external view, A1).
+  let item = t_item([t_ref(7, 8)], None, 0, 0)
+  let model = t_model([item])
+  let bindings : Array[ABinding] = []
+  let diagnostics : Array[ADiagnostic] = [
+    {
+      code: "unknown-table",
+      message: "table not found in catalog: missing_t",
+      start_byte: 15,
+      end_byte: 24,
+    },
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, diagnostics, true, false, None, edges, gaps)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
+  assert_eq(gaps[0].message, "table not found in catalog: missing_t")
+}
+
+test "lineage ambiguous reference merges to unresolved-reference" {
+  // Task 2 Test 5: ambiguous-reference diagnostic -> unresolved-reference gap
+  // (Open Question 2 merge), message preserved.
+  let item = t_item([t_ref(7, 8)], Some("x"), 15, 16)
+  let model = t_model([item])
+  let bindings : Array[ABinding] = []
+  let diagnostics : Array[ADiagnostic] = [
+    {
+      code: "ambiguous-reference",
+      message: "ambiguous reference: a",
+      start_byte: 7,
+      end_byte: 8,
+    },
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, diagnostics, false, true, None, edges, gaps)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_UNRESOLVED_REFERENCE)
+  assert_eq(gaps[0].message, "ambiguous reference: a")
+}
+
+test "lineage error body reports requires-complete-parse" {
+  // Task 2 Test 4: a body carrying error/missing material -> a single
+  // requires-complete-parse gap at the body span (D-33 refusal), no edges.
+  let diagnostics : Array[ADiagnostic] = [
+    {
+      code: "requires-complete-parse",
+      message: "refusing to analyze a SELECT with error/missing material",
+      start_byte: 0,
+      end_byte: 100,
+    },
+  ]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(None, true, [], diagnostics, false, false, None, edges, gaps)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_REQUIRES_COMPLETE_PARSE)
+  assert_eq(gaps[0].start_byte, 0)
+  assert_eq(gaps[0].end_byte, 100)
+}

@@ -551,14 +551,21 @@ fn derive_select_body(
     })
     return (edges, gaps)
   }
-  // Star self-check gaps are emitted inside derive_model; analyzer-diagnostic
-  // mapping (unknown-table/column/function, requires-complete-parse) is added
-  // by gaps.mbt in Task 2.
+  // Star self-check gaps are emitted inside derive_model (returns whether an
+  // unexpanded-star requires-catalog gap fired, used to suppress redundant
+  // unknown-table -> requires-catalog gaps in the same body — gaps.mbt).
+  let mut star_fired = false
   match model {
     Some(m) => {
-      ignore(derive_model(m, bindings, catalog_none, qualifier, body_has_table_binding, edges, gaps))
+      if derive_model(m, bindings, catalog_none, qualifier, body_has_table_binding, edges, gaps) {
+        star_fired = true
+      }
     }
     None => ()
+  }
+  let mapped = map_diagnostic_gaps(diagnostics, catalog_none, star_fired)
+  for gap in mapped {
+    gaps.push(gap)
   }
   (edges, gaps)
 }
