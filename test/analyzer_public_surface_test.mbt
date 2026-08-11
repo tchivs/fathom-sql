@@ -121,3 +121,58 @@ test "public-surface has_error_missing positive negative" {
   }
   assert_true(@analyzer.has_error_missing(broken_body))
 }
+
+test "public-surface except cols end-to-end" {
+  // Task 2 integration: `SELECT * EXCEPT (b) FROM t` over a catalog whose
+  // table t exposes a/b/c yields Column bindings for a and c only — the
+  // excluded column b produces no fabricated binding/edge (SC2). The frozen
+  // Doris parser must accept the projection modifier for this path to fire.
+  let raw = b"SELECT * EXCEPT (b) FROM t"
+  let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
+    Ok(source) => source
+    Err(_) => panic()
+  }
+  let parsed = @parser.parse_with_limits(
+    source,
+    doris_context("4.x"),
+    @parser.ParseMode::Strict,
+    @parser.ParserLimits::default(),
+  )
+  assert_true(parsed.valid)
+  let body = match first_select_body(parsed.root) {
+    Some(body) => body
+    None => panic()
+  }
+  let tokens = @analyzer.source_tokens(body, source.bytes())
+  let model = match @analyzer.split_select_model(tokens) {
+    Some(model) => model
+    None => panic()
+  }
+  assert_eq(model.branches.length(), 1)
+  let item = model.branches[0].select_list[0]
+  assert_true(item.star)
+  assert_eq(item.except_cols.length(), 1)
+  assert_eq(item.except_cols[0].bytes, b"b")
+  // Full analysis: bindings hold the table plus columns a and c (no b).
+  let catalog = @analyzer.StaticCatalog::new([
+    {
+      name: "t",
+      columns: [
+        { name: "a", data_type: "INT" },
+        { name: "b", data_type: "INT" },
+        { name: "c", data_type: "INT" },
+      ],
+    },
+  ])
+  let result = @analyzer.analyze(parsed.root, source.bytes(), catalog)
+  let column_names : Array[String] = []
+  for binding in result.bindings {
+    if binding.kind is @analyzer.BindingKind::Column {
+      column_names.push(binding.name)
+    }
+  }
+  assert_eq(column_names.length(), 2)
+  assert_eq(column_names[0], "a")
+  assert_eq(column_names[1], "c")
+  assert_eq(result.diagnostics.length(), 0)
+}

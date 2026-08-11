@@ -47,7 +47,10 @@ pub(all) struct NameRef {
 
 /// One SELECT-list item: the expression token slices, the optional AS/bare
 /// alias, and whether the item is a star projection (`*`, `t.*`, `db.t.*`).
-/// `star_qualifier` holds the dotted name before `.*` (None for a bare `*`).
+/// `star_qualifier` holds the dotted name before `.*` (None for a bare `*`);
+/// `except_cols` holds the `EXCEPT (cols)` exclusion list token slices (empty
+/// when the item has no EXCEPT modifier — D-03: unquoted ASCII case-fold,
+/// quoted byte-exact, matching find_column_in).
 pub(all) struct SelectItem {
   tokens : Array[TokenSlice]
   alias : String?
@@ -55,6 +58,7 @@ pub(all) struct SelectItem {
   star : Bool
   star_qualifier : NameRef?
   refs : Array[NameRef]
+  except_cols : Array[TokenSlice]
 }
 
 /// One FROM item: a table reference with its alias and optional subquery

@@ -339,3 +339,130 @@ test "wb collect_refs over window skip" {
   assert_eq(refs2.length(), 2)
   assert_eq(refs2[1].parts[0].bytes, b"x")
 }
+
+test "wb build_select_item except cols captured" {
+  // Task 2 (Pitfall 3 option a): `* EXCEPT (b)` captures the excluded column
+  // token slices instead of discarding them (D-03), while the star projection
+  // marker and empty refs remain.
+  let item = build_select_item([
+    { bytes: b"*", start_byte: 0, end_byte: 1 },
+    { bytes: b"EXCEPT", start_byte: 2, end_byte: 8 },
+    { bytes: b"(", start_byte: 9, end_byte: 10 },
+    { bytes: b"b", start_byte: 10, end_byte: 11 },
+    { bytes: b")", start_byte: 11, end_byte: 12 },
+  ])
+  assert_true(item.star)
+  assert_eq(item.except_cols.length(), 1)
+  assert_eq(item.except_cols[0].bytes, b"b")
+  assert_eq(item.except_cols[0].start_byte, 10)
+  assert_eq(item.except_cols[0].end_byte, 11)
+  assert_eq(item.refs.length(), 0)
+  // Multi-column EXCEPT: each top-level identifier is one exclusion slice.
+  let item2 = build_select_item([
+    { bytes: b"*", start_byte: 0, end_byte: 1 },
+    { bytes: b"EXCEPT", start_byte: 2, end_byte: 8 },
+    { bytes: b"(", start_byte: 9, end_byte: 10 },
+    { bytes: b"b", start_byte: 10, end_byte: 11 },
+    { bytes: b",", start_byte: 11, end_byte: 12 },
+    { bytes: b"c", start_byte: 13, end_byte: 14 },
+    { bytes: b")", start_byte: 14, end_byte: 15 },
+  ])
+  assert_true(item2.star)
+  assert_eq(item2.except_cols.length(), 2)
+  assert_eq(item2.except_cols[0].bytes, b"b")
+  assert_eq(item2.except_cols[1].bytes, b"c")
+  // Quoted exclusion keeps its quotes for byte-exact matching at expand_star.
+  let item3 = build_select_item([
+    { bytes: b"*", start_byte: 0, end_byte: 1 },
+    { bytes: b"EXCEPT", start_byte: 2, end_byte: 8 },
+    { bytes: b"(", start_byte: 9, end_byte: 10 },
+    { bytes: b"\"B\"", start_byte: 10, end_byte: 13 },
+    { bytes: b")", start_byte: 13, end_byte: 14 },
+  ])
+  assert_eq(item3.except_cols.length(), 1)
+  assert_eq(item3.except_cols[0].bytes, b"\"B\"")
+  // A non-star item is unaffected.
+  let item4 = build_select_item([
+    { bytes: b"a", start_byte: 0, end_byte: 1 },
+    { bytes: b"+", start_byte: 2, end_byte: 3 },
+    { bytes: b"b", start_byte: 4, end_byte: 5 },
+  ])
+  assert_true(!item4.star)
+  assert_eq(item4.except_cols.length(), 0)
+}
+
+test "wb expand_star except exclusion" {
+  // Task 2 Behavior Test 2: `* EXCEPT (b)` over a scope exposing a/b/c yields
+  // Column bindings for a and c only (no b); a plain `*` still yields a/b/c.
+  let scope : Array[ScopeEntry] = [
+    {
+      key: "t",
+      kind: ScopeKind::Table,
+      columns: [
+        { name: "a", data_type: "INT" },
+        { name: "b", data_type: "INT" },
+        { name: "c", data_type: "INT" },
+      ],
+      display: "t",
+      is_quoted: false,
+      block: 0,
+    },
+  ]
+  let catalog = StaticCatalog::new([])
+  let b1 : Array[Binding] = []
+  let d1 : Array[AnalysisDiagnostic] = []
+  let cols1 = expand_star(None, 7, 8, scope, catalog, b1, d1, [
+    { bytes: b"b", start_byte: 0, end_byte: 1 },
+  ])
+  assert_eq(cols1.length(), 2)
+  assert_eq(cols1[0].name, "a")
+  assert_eq(cols1[1].name, "c")
+  assert_eq(b1.length(), 2)
+  assert_eq(b1[0].kind, BindingKind::Column)
+  assert_eq(b1[0].name, "a")
+  assert_eq(b1[0].start_byte, 7) // star span shared (D-03)
+  assert_eq(b1[0].end_byte, 8)
+  assert_eq(b1[1].name, "c")
+  assert_eq(d1.length(), 0)
+  // No EXCEPT -> all three columns expand.
+  let b2 : Array[Binding] = []
+  let d2 : Array[AnalysisDiagnostic] = []
+  let cols2 = expand_star(None, 7, 8, scope, catalog, b2, d2, [])
+  assert_eq(cols2.length(), 3)
+  assert_eq(b2.length(), 3)
+}
+
+test "wb expand_star except quote byte recheck" {
+  // Task 2 Behavior Test 3 (D-03): quoted EXCEPT slices match byte-exact;
+  // unquoted slices fold ASCII case — mirroring find_column_in so exclusion
+  // and resolution share one matching rule.
+  let scope : Array[ScopeEntry] = [
+    {
+      key: "t",
+      kind: ScopeKind::Table,
+      columns: [
+        { name: "B", data_type: "INT" },
+        { name: "b", data_type: "INT" },
+      ],
+      display: "t",
+      is_quoted: false,
+      block: 0,
+    },
+  ]
+  let catalog = StaticCatalog::new([])
+  // Quoted "B": byte-exact — removes only the "B" column, leaves "b".
+  let b1 : Array[Binding] = []
+  let d1 : Array[AnalysisDiagnostic] = []
+  let cols1 = expand_star(None, 0, 1, scope, catalog, b1, d1, [
+    { bytes: b"\"B\"", start_byte: 0, end_byte: 3 },
+  ])
+  assert_eq(cols1.length(), 1)
+  assert_eq(cols1[0].name, "b")
+  // Unquoted b: ASCII case-fold — removes both "B" and "b".
+  let b2 : Array[Binding] = []
+  let d2 : Array[AnalysisDiagnostic] = []
+  let cols2 = expand_star(None, 0, 1, scope, catalog, b2, d2, [
+    { bytes: b"b", start_byte: 0, end_byte: 1 },
+  ])
+  assert_eq(cols2.length(), 0)
+}

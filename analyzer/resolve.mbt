@@ -361,15 +361,40 @@ fn[T : Catalog] resolve_from_item(
   }
 }
 
-/// Emits Column bindings for every column of `entry` within `[start, end)`.
+/// True when `col_name` is excluded by an `EXCEPT (cols)` slice list (D-03):
+/// unquoted slices fold ASCII case; quoted slices match byte-exact. Mirrors
+/// `find_column_in` semantics so the exclusion is a single source of truth.
+fn is_excepted(except_cols : Array[TokenSlice], col_name : String) -> Bool {
+  for slice in except_cols {
+    let quoted = is_quoted(slice.bytes)
+    let name = identifier_text(slice.bytes)
+    if quoted {
+      if col_name == name {
+        return true
+      }
+    } else {
+      if col_name.equal_ignore_ascii_case(name) {
+        return true
+      }
+    }
+  }
+  false
+}
+
+/// Emits Column bindings for every column of `entry` within `[start, end)`,
+/// skipping columns named in `except_cols` (`* EXCEPT (cols)`, D-03).
 fn emit_star_columns(
   entry : ScopeEntry,
   start : Int,
   end : Int,
   bindings : Array[Binding],
   out : Array[ColumnInfo],
+  except_cols : Array[TokenSlice],
 ) -> Unit {
   for col in entry.columns {
+    if is_excepted(except_cols, col.name) {
+      continue
+    }
     bindings.push({
       kind: BindingKind::Column,
       name: col.name,
@@ -385,6 +410,9 @@ fn emit_star_columns(
 /// Expands a star projection (D-05): bare `*` expands every scope entry's
 /// columns; `t.*`/`db.t.*` expand the named table's columns. `star_start`/
 /// `star_end` carry the span of the `*` (or its qualified ref) for bindings.
+/// `except_cols` carries the `* EXCEPT (cols)` exclusion list (D-03): excluded
+/// columns produce no binding — the analyzer never fabricates an edge for a
+/// column the projection explicitly removes.
 fn[T : Catalog] expand_star(
   qualifier : NameRef?,
   star_start : Int,
@@ -393,6 +421,7 @@ fn[T : Catalog] expand_star(
   catalog : T,
   bindings : Array[Binding],
   diagnostics : Array[AnalysisDiagnostic],
+  except_cols : Array[TokenSlice],
 ) -> Array[ColumnInfo] {
   let out : Array[ColumnInfo] = []
   match qualifier {
@@ -401,7 +430,7 @@ fn[T : Catalog] expand_star(
         // WR-05: anonymous subqueries (key == "") participate in bare `*`
         // expansion — `SELECT * FROM (SELECT a FROM t)` must emit the
         // subquery's columns. Only qualified/alias lookups skip empty keys.
-        emit_star_columns(entry, star_start, star_end, bindings, out)
+        emit_star_columns(entry, star_start, star_end, bindings, out, except_cols)
       }
     }
     Some(ref) => {
@@ -410,7 +439,7 @@ fn[T : Catalog] expand_star(
         let name_text = identifier_text(ref.parts[0].bytes)
         let quoted = is_quoted(ref.parts[0].bytes)
         match find_scope_entry(scope, name_text, quoted) {
-          Some(entry) => emit_star_columns(entry, star_start, star_end, bindings, out)
+          Some(entry) => emit_star_columns(entry, star_start, star_end, bindings, out, except_cols)
           None => {
             match resolve_table_with_quoted(catalog, name_text, quoted) {
               Some(info) => {
@@ -421,7 +450,7 @@ fn[T : Catalog] expand_star(
                   display: info.name,
                   is_quoted: quoted,
                   block: 0,
-                }, star_start, star_end, bindings, out)
+                }, star_start, star_end, bindings, out, except_cols)
               }
               None => diagnostics.push({
                 code: "unknown-table",
@@ -456,7 +485,7 @@ fn[T : Catalog] expand_star(
                 display: info.name,
                 is_quoted: table_quoted,
                 block: 0,
-              }, star_start, star_end, bindings, out)
+              }, star_start, star_end, bindings, out, except_cols)
             }
           }
           None => diagnostics.push({
@@ -566,7 +595,7 @@ fn[T : Catalog] resolve_ref(
     return None
   }
   if ref.star {
-    ignore(expand_star(Some(ref), ref.start_byte, ref.end_byte, scope, catalog, bindings, diagnostics))
+    ignore(expand_star(Some(ref), ref.start_byte, ref.end_byte, scope, catalog, bindings, diagnostics, []))
     return None
   }
   let parts = ref.parts
@@ -814,7 +843,7 @@ fn[T : Catalog] resolve_select_item(
     } else {
       0
     }
-    let columns = expand_star(item.star_qualifier, start, end, scope, catalog, bindings, diagnostics)
+    let columns = expand_star(item.star_qualifier, start, end, scope, catalog, bindings, diagnostics, item.except_cols)
     for col in columns {
       output.push(col)
     }

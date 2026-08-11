@@ -407,8 +407,13 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
   }
   // Star projection: `*` or `t.*` / `db.t.*` (last token `*` preceded by `.`),
   // or `* EXCEPT (cols)` (first token `*` with a top-level EXCEPT suffix).
+  let except_cols : Array[TokenSlice] = []
   if body_tokens.length() > 0 && body_tokens[0].bytes == b"*" {
-    // Strip `EXCEPT ( ... )` after a leading `*`.
+    // Capture `EXCEPT ( ... )` after a leading `*`: the parenthesized
+    // column-name token slices are collected into except_cols (D-03) and the
+    // EXCEPT clause is stripped from the body. Each top-level identifier
+    // between the parens is one exclusion column; quoted slices keep their
+    // quotes for byte-exact matching at expand_star.
     let mut except_index = -1
     let mut d = 0
     let mut j = 0
@@ -427,6 +432,17 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
       j = j + 1
     }
     if except_index >= 0 {
+      let open = except_index + 1
+      let close = matching_paren_slices(body_tokens, open)
+      if close < body_tokens.length() {
+        let mut k = open + 1
+        while k < close {
+          if is_identifier_token(body_tokens[k].bytes) {
+            except_cols.push(body_tokens[k])
+          }
+          k = k + 1
+        }
+      }
       let arr : Array[TokenSlice] = []
       for k in 0..<except_index {
         arr.push(body_tokens[k])
@@ -461,6 +477,7 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
     star: star,
     star_qualifier: star_qualifier,
     refs: refs,
+    except_cols: except_cols,
   }
 }
 
