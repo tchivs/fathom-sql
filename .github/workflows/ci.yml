@@ -64,7 +64,8 @@ jobs:
           moon test --target native \
             --package test --package parity --package lsp --package api \
             --package source --package token --package lexer --package parser \
-            --package printer --package syntax --package completion --package analyzer
+            --package printer --package syntax --package completion --package analyzer \
+            --package fingerprint --package lint --package fathom-sql
 
   linear-wasm-parity:
     name: linear-Wasm runtime execution parity

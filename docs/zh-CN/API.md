@@ -29,6 +29,9 @@ import {
 | `format_with_ids` | `fathom/sql/api` | 用 profile/mode 字符串快捷格式化 | 不需要 |
 | `format_with_metadata` | `fathom/sql/api` | 校验 profile metadata 后格式化 | 不需要 |
 | `resolve_table_references` | `fathom/sql/analyzer` | 使用调用方 catalog 解析已支持 DML/DDL 的目标表名 | 不需要 |
+| `lint_text` | `fathom/sql/api` | 对解析后的文档运行 Doris Lint 规则集；返回带候选修复的 findings | 不需要 |
+| `fix_text` | `fathom/sql/api` | 应用安全无损 autofix（最小 span edits）；对 error 树以 `FATHOM-LINT-000` 拒绝 | 不需要 |
+| `fingerprint_text` | `fathom/sql/api` | 生成稳定 UInt64 SQL 指纹与归一化形式 | 不需要 |
 
 ## 请求与响应格式
 
@@ -249,6 +252,61 @@ pub(all) struct FormatResult {
 
 `statement_offsets` 记录每个 statement 在最终格式化输出中的字节起点，顺序与 statement 顺序一致。拒绝格式化时输出为空且 offsets 为空。
 
+### Lint 入口
+
+`fathom/sql/lint` 是独立库（D-01），只消费 syntax 只读视图、dialect 关键字分类，以及可选的 analyzer `AnalysisResult`；它不属于语法有效性通道。`api` facade 重新导出 lint 类型（`LintOptions`、`LintResult`、`LintFinding`、`LintEdit`、`LintDiagnostic`、`RuleOverride`、`LintSeverity`、`RuleSetting`）。
+
+```moonbit
+pub fn lint_text(raw : Bytes, parse_options : ParseOptions, lint_options : LintOptions) -> Result[LintResult, ParseError]
+
+pub fn fix_text(raw : Bytes, parse_options : ParseOptions, lint_options : LintOptions) -> Result[LintResult, ParseError]
+```
+
+`lint_text` 对解析后的文档运行已配置规则集，返回按源码顺序排序的 findings。`fix_text` 以最小 span edits 应用安全无损 autofix；树含 error/missing/skipped 材料时按 D-33 拒绝，返回 `accepted=false`、空输出、恰好一条 `FATHOM-LINT-000` 诊断——绝不部分编辑。
+
+```moonbit
+pub(all) struct LintOptions { overrides : Array[RuleOverride] }
+pub(all) enum LintSeverity { Error, Warning, Info }
+pub(all) enum RuleSetting { Disabled, Severity(LintSeverity) }
+pub(all) struct RuleOverride { code : String, setting : RuleSetting }
+```
+
+`LintOptions::new` 会对照注册表校验每个 override；未知规则码返回结构化错误（CLI 映射为 exit 2）。`LintSeverity::from_id` 接受 `"error"`/`"warning"`/`"info"`，未知返回 `None`。
+
+| Code | 名称 | 类别 | 默认 severity | 可修复 |
+|---|---|---|---|---|
+| `FATHOM-LINT-001` | `unquoted-reserved-word` | style | warning | 是（反引号包裹） |
+| `FATHOM-LINT-002` | `version-gated-syntax` | advisory | info | 否 |
+| `FATHOM-LINT-003` | `select-star-without-limit` | safety | warning | 否 |
+| `FATHOM-LINT-004` | `unknown-table` | correctness | error | 否 |
+| `FATHOM-LINT-005` | `unknown-column` | correctness | error | 否 |
+| `FATHOM-LINT-006` | `ambiguous-reference` | correctness | warning | 否 |
+| `FATHOM-LINT-007` | `function-arity` | correctness | error | 否 |
+| `FATHOM-LINT-008` | `deprecated-syntax` | deprecation | info | 否 |
+
+规则 004–007 是 analyzer 增强规则：只有调用方注入 `AnalysisResult`（即提供 catalog）时才触发。无 catalog 时静默跳过（ANLY-01）——因此 wire/CLI 面（无 catalog）只运行规则 001/002/003/008，绝不虚构语义 findings（Pitfall 6）。
+
+**拒绝码：** `FATHOM-LINT-000` 保留为 autofix 引擎级拒绝（D-33）：树含 error/missing/skipped 材料时 `accepted=false`、空输出、恰好一条 `FATHOM-LINT-000` 诊断——镜像 formatter 的 `FATHOM-FORMAT-001`。
+
+### 指纹入口
+
+`fathom/sql/fingerprint` 是独立库（D-01）：把解析后的 CST 归一化为 canonical 字节，再用本地 FNV-1a 64-bit 实现哈希。`api` facade 暴露：
+
+```moonbit
+pub(all) struct FingerprintResult {
+  pub fingerprint : UInt64
+  pub normalized : Bytes
+}
+
+pub fn fingerprint_text(raw : Bytes, parse_options : ParseOptions) -> Result[FingerprintResult, ParseError]
+```
+
+归一化只折叠 syntactic trivia（D-06）：空白折叠为单空格、关键字大小写经方言分类表转 ASCII 小写、注释剔除；**保留**标识符拼写与大小写、字面量内容、引号风格——仅在这些方面不同的两个查询保证产生不同指纹。
+
+指纹跨空白/关键字大小写/注释稳定，且是 **UInt64**（在 Native、JS、linear-Wasm 上固定 64-bit），因此三目标值一致（FING-01 SC4）。wire 信封把指纹序列化为**十进制 JSON string**（绝不用 number）以避免 JS 宿主 2^53 精度丢失。
+
+> **非加密边界：** FNV-1a 是公开非加密哈希。指纹只用于缓存/差异/CI 标识——**不是** MAC，绝不可用于防篡改、认证或抗碰撞。
+
 ### 无损打印
 
 需要精确重放输入时，使用 `fathom/sql/printer`：
@@ -358,17 +416,21 @@ pub(all) struct FormatDiagnostic {
 
 ## Wire 导出（JS ESM / linear-Wasm）
 
-`binding` 包（`fathom/sql/binding`）是一个 `foreign_library` facade，把稳定的原始类型 wire 契约暴露给 JavaScript ESM 与 linear-Wasm 宿主。每个导出都返回 UTF-8 编码的 JSON `Bytes`；MoonBit ADT、对象句柄或宿主内存地址都不会跨过这个边界。全部五个导出同时登记在 `binding/moon.pkg` 的 `js`/`wasm` `exports` 列表与 `binding/exports.mbt` 的 `#export_name` 中——缺少任一登记都会编译成功但构建产物静默缺少该符号（Pitfall 3/8）。
+`binding` 包（`fathom/sql/binding`）是一个 `foreign_library` facade，把稳定的原始类型 wire 契约暴露给 JavaScript ESM 与 linear-Wasm 宿主。每个导出都返回 UTF-8 编码的 JSON `Bytes`；MoonBit ADT、对象句柄或宿主内存地址都不会跨过这个边界。全部七个导出同时登记在 `binding/moon.pkg` 的 `js`/`wasm` `exports` 列表与 `binding/exports.mbt` 的 `#export_name` 中——缺少任一登记都会编译成功但构建产物静默缺少该符号（Pitfall 3/8）。
 
 | 导出 | 签名 | 结果信封 |
 |---|---|---|
 | `fathom_parse_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.parse.v1` |
 | `fathom_format_v1` | `(raw, dialect, profile, mode, keyword_case, indent, line_width, comma_style, newline_style, trailing_newline) -> Bytes` | `fathom.format.v1` |
 | `fathom_complete_v1` | `(raw: Bytes, dialect: String, profile: String, cursor_byte: Int) -> Bytes` | `fathom.complete.v1` |
+| `fathom_lint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String, overrides: Bytes, fix: Bool) -> Bytes` | `fathom.lint.v1` |
+| `fathom_fingerprint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.fingerprint.v1` |
 | `fathom_dialect_v1` | `(dialect: String) -> Bytes` | `fathom.dialect.v1`（元数据查询） |
 | `fathom_capabilities_v1` | `() -> Bytes` | `fathom.capabilities.v1`（元数据查询） |
 
-A4 导出顺序让 parse/format/complete 原始类型的 `dialect` 紧跟 `raw`，与 `ParseOptions::new` 和 CLI 保持一致。
+A4 导出顺序让 parse/format/complete/lint/fingerprint 原始类型的 `dialect` 紧跟 `raw`，与 `ParseOptions::new` 和 CLI 保持一致。schema v2 bump 是**纯加法**（Pitfall V6）：新增 `fathom.lint.v1` 与 `fathom.fingerprint.v1`，原有五个命名空间（parse/format/complete/error/capabilities）保持不变，既有消费者不受影响。
+
+`fathom_lint_v1` 接收 UTF-8 JSON `overrides` 数组（`{"code": "<FATHOM-LINT-0xx>", "setting": "off|error|warning|info"}`）；`[]` 或空字节即默认注册表。畸形 JSON 或未知 code/severity 返回结构化 `fathom.error.v1` 错误（绝不静默回退）。`fix=false` 报告 findings，`fix=true` 应用安全 autofix（D-33 拒绝时 `accepted=false` 且恰好一条 `FATHOM-LINT-000`）。`fathom_fingerprint_v1` 返回 `fathom.fingerprint.v1` 信封，其 `fingerprint` 字段是**十进制 JSON string**（绝不用 number，2^53 精度），`normalized` 字段携带 canonical 字节。
 
 ### 补全信封（`fathom.complete.v1`）
 

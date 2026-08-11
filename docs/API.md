@@ -30,6 +30,9 @@ This project has no HTTP endpoints, HTTP base URL, request routes, or deployment
 | `format_with_metadata` | `fathom/sql/api` | Validate profile metadata, then format | Not required |
 | `resolve_table_references` | `fathom/sql/analyzer` | Resolve target table names for supported DML/DDL using the caller’s catalog | Not required |
 | `analyze` | `fathom/sql/analyzer` | Catalog name resolution and type diagnostics: resolved bindings plus analyzer-channel diagnostics | Not required |
+| `lint_text` | `fathom/sql/api` | Run the Doris lint rule set over a parsed document; returns findings with candidate fixes | Not required |
+| `fix_text` | `fathom/sql/api` | Apply safe lossless autofixes (minimal span edits); refuses error trees with `FATHOM-LINT-000` | Not required |
+| `fingerprint_text` | `fathom/sql/api` | Produce a stable UInt64 SQL fingerprint plus the normalized canonical form | Not required |
 
 ## Request and Response Formats
 
@@ -251,6 +254,80 @@ pub(all) struct FormatResult {
 
 `statement_offsets` records the output byte offset where each statement's layout begins, in statement order. The inter-statement separator newline is part of the following statement's layout, so for statement N (N≥1) the recorded offset points at the separator byte (the end of statement N−1); statement 0's offset is the document start. When formatting is refused, both output and offsets are empty.
 
+### Lint Entry Points
+
+`fathom/sql/lint` is an independent library (D-01) that consumes only the syntax read views, the dialect keyword classification, and optionally an analyzer `AnalysisResult`. It is NOT part of the syntax-validity path. The `api` facade re-exports the lint types (`LintOptions`, `LintResult`, `LintFinding`, `LintEdit`, `LintDiagnostic`, `RuleOverride`, `LintSeverity`, `RuleSetting`) so they can be used from `@api`.
+
+```moonbit
+pub fn lint_text(raw : Bytes, parse_options : ParseOptions, lint_options : LintOptions) -> Result[LintResult, ParseError]
+
+pub fn fix_text(raw : Bytes, parse_options : ParseOptions, lint_options : LintOptions) -> Result[LintResult, ParseError]
+```
+
+`lint_text` runs the configured rule set over a parsed document and returns the findings sorted by source order. `fix_text` applies safe lossless autofixes as minimal span edits; on a tree containing error/missing/skipped material it refuses (D-33) with `accepted=false`, empty output, and exactly one `FATHOM-LINT-000` diagnostic — never partial edits.
+
+```moonbit
+pub(all) struct LintOptions { overrides : Array[RuleOverride] }
+pub(all) enum LintSeverity { Error, Warning, Info }
+pub(all) enum RuleSetting { Disabled, Severity(LintSeverity) }
+pub(all) struct RuleOverride { code : String, setting : RuleSetting }
+
+pub(all) struct LintFinding {
+  pub code : String
+  pub severity : String        // "error" | "warning" | "info"
+  pub message : String
+  pub start_byte : Int
+  pub end_byte : Int
+  pub statement_id : UInt
+  pub fix : LintEdit?          // candidate edit for fixable rules
+}
+
+pub(all) struct LintResult {
+  pub accepted : Bool
+  pub findings : Array[LintFinding]
+  pub output : Bytes           // fixed source in fix mode, empty on refusal
+  pub diagnostics : Array[LintDiagnostic]  // FATHOM-LINT-000 refusal, otherwise empty
+}
+```
+
+`LintOptions::new` validates every override against the registry; an unknown rule code is a structured error (the CLI maps it to exit 2). `LintSeverity::from_id` accepts `"error"`/`"warning"`/`"info"` and returns `None` otherwise.
+
+#### Rule registry (stable codes)
+
+| Code | Name | Category | Default severity | Fixable |
+|---|---|---|---|---|
+| `FATHOM-LINT-001` | `unquoted-reserved-word` | style | warning | yes (backtick-quote) |
+| `FATHOM-LINT-002` | `version-gated-syntax` | advisory | info | no |
+| `FATHOM-LINT-003` | `select-star-without-limit` | safety | warning | no |
+| `FATHOM-LINT-004` | `unknown-table` | correctness | error | no |
+| `FATHOM-LINT-005` | `unknown-column` | correctness | error | no |
+| `FATHOM-LINT-006` | `ambiguous-reference` | correctness | warning | no |
+| `FATHOM-LINT-007` | `function-arity` | correctness | error | no |
+| `FATHOM-LINT-008` | `deprecated-syntax` | deprecation | info | no |
+
+Rules 004–007 are analyzer-enhanced: they only fire when a caller injects an `AnalysisResult` (i.e. provides a catalog). Without a catalog they are silently skipped (ANLY-01) — the wire and CLI surfaces (which have no catalog) therefore run only rules 001/002/003/008 and never fabricate semantic findings (Pitfall 6).
+
+**Refusal code:** `FATHOM-LINT-000` is reserved for the engine-level autofix refusal (D-33): a tree containing error/missing/skipped material yields `accepted=false`, empty output, and exactly one `FATHOM-LINT-000` diagnostic — mirroring `FATHOM-FORMAT-001` for the formatter.
+
+### Fingerprint Entry Points
+
+`fathom/sql/fingerprint` is an independent library (D-01) that normalizes a parsed CST to a canonical byte form and hashes it with a local FNV-1a 64-bit implementation. The `api` facade exposes:
+
+```moonbit
+pub(all) struct FingerprintResult {
+  pub fingerprint : UInt64
+  pub normalized : Bytes
+}
+
+pub fn fingerprint_text(raw : Bytes, parse_options : ParseOptions) -> Result[FingerprintResult, ParseError]
+```
+
+Normalization folds only syntactic trivia (D-06): whitespace collapses to a single space, keyword case is ASCII-lowered via the dialect classification table, and comments are dropped. Identifier spelling and case, literal content, and quote style are **preserved** — two queries that differ only in those are guaranteed different fingerprints.
+
+The fingerprint is stable across whitespace, keyword case, and comment changes, and is a **UInt64** (fixed 64-bit on Native, JS, and linear-Wasm) so the value is identical across all three targets (FING-01 SC4). The wire envelope serializes the fingerprint as a **decimal JSON string** — never a JSON number — to avoid 2^53 precision loss on JS hosts.
+
+> **Non-cryptographic boundary:** FNV-1a is a public non-cryptographic hash. Fingerprints are identifiers for caching / diffing / CI — they are **not** MACs and must never be used for tamper-proofing, authentication, or collision resistance.
+
 ### Lossless Printing
 
 For exact input replay, use `fathom/sql/printer`:
@@ -424,17 +501,21 @@ Direct use of the formatter package’s `FormatError` may also return: `InvalidI
 
 ## Wire Exports (JS ESM / linear-Wasm)
 
-The `binding` package (`fathom/sql/binding`) is a `foreign_library` facade exposing the stable primitive wire contract to JavaScript ESM and linear-Wasm hosts. Every export returns UTF-8 JSON `Bytes`; no MoonBit ADT, object handle, or host memory address crosses the boundary. All five exports are registered in `binding/moon.pkg` `js`/`wasm` `exports` lists AND carry `#export_name` in `binding/exports.mbt` — a missing registration compiles but the built artifact silently lacks the symbol (Pitfall 3/8).
+The `binding` package (`fathom/sql/binding`) is a `foreign_library` facade exposing the stable primitive wire contract to JavaScript ESM and linear-Wasm hosts. Every export returns UTF-8 JSON `Bytes`; no MoonBit ADT, object handle, or host memory address crosses the boundary. All seven exports are registered in `binding/moon.pkg` `js`/`wasm` `exports` lists AND carry `#export_name` in `binding/exports.mbt` — a missing registration compiles but the built artifact silently lacks the symbol (Pitfall 3/8).
 
 | Export | Signature | Result envelope |
 |---|---|---|
 | `fathom_parse_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.parse.v1` |
 | `fathom_format_v1` | `(raw, dialect, profile, mode, keyword_case, indent, line_width, comma_style, newline_style, trailing_newline) -> Bytes` | `fathom.format.v1` |
 | `fathom_complete_v1` | `(raw: Bytes, dialect: String, profile: String, cursor_byte: Int) -> Bytes` | `fathom.complete.v1` |
+| `fathom_lint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String, overrides: Bytes, fix: Bool) -> Bytes` | `fathom.lint.v1` |
+| `fathom_fingerprint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.fingerprint.v1` |
 | `fathom_dialect_v1` | `(dialect: String) -> Bytes` | `fathom.dialect.v1` (metadata query) |
 | `fathom_capabilities_v1` | `() -> Bytes` | `fathom.capabilities.v1` (metadata query) |
 
-The A4 export order places `dialect` immediately after `raw` for the parse/format/complete primitives, consistent with `ParseOptions::new` and the CLI.
+The A4 export order places `dialect` immediately after `raw` for the parse/format/complete/lint/fingerprint primitives, consistent with `ParseOptions::new` and the CLI. The schema v2 bump is **pure addition** (Pitfall V6): `fathom.lint.v1` and `fathom.fingerprint.v1` were added while the original five namespaces (`parse`/`format`/`complete`/`error`/`capabilities`) remain unchanged, so existing consumers are unaffected.
+
+`fathom_lint_v1` takes a UTF-8 JSON `overrides` array of `{"code": "<FATHOM-LINT-0xx>", "setting": "off|error|warning|info"}` objects; `[]` or empty bytes is the default registry. Malformed JSON or an unknown code/severity is a structured `fathom.error.v1` error (never a silent fallback). With `fix=false` it reports findings; with `fix=true` it applies safe autofixes (a D-33 refusal yields `accepted=false` with exactly one `FATHOM-LINT-000`). `fathom_fingerprint_v1` returns the `fathom.fingerprint.v1` envelope whose `fingerprint` field is a **decimal JSON string** (never a number — 2^53 precision) and whose `normalized` field carries the canonical bytes.
 
 ### Completion envelope (`fathom.complete.v1`)
 
