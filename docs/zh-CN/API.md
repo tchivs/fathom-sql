@@ -32,6 +32,7 @@ import {
 | `lint_text` | `fathom/sql/api` | 对解析后的文档运行 Doris Lint 规则集；返回带候选修复的 findings | 不需要 |
 | `fix_text` | `fathom/sql/api` | 应用安全无损 autofix（最小 span edits）；对 error 树以 `FATHOM-LINT-000` 拒绝 | 不需要 |
 | `fingerprint_text` | `fathom/sql/api` | 生成稳定 UInt64 SQL 指纹与归一化形式 | 不需要 |
+| `lineage_text` | `fathom/sql/api` | 使用调用方可选 catalog，从解析后的文档推导列级血缘边与诚实 gap | 不需要 |
 
 ## 请求与响应格式
 
@@ -307,6 +308,52 @@ pub fn fingerprint_text(raw : Bytes, parse_options : ParseOptions) -> Result[Fin
 
 > **非加密边界：** FNV-1a 是公开非加密哈希。指纹只用于缓存/差异/CI 标识——**不是** MAC，绝不可用于防篡改、认证或抗碰撞。
 
+### 血缘入口
+
+`fathom/sql/lineage` 是独立库（D-21），消费 analyzer 已解析的 bindings 与 select-model 结构，构建列级 source→target 血缘边（LINE-01）。它不属于语法有效性通道。`api` facade 重新导出血缘类型（`LineageResult`、`LineageEdge`、`LineageGap`、`StaticCatalog`），因此可以从 `@api` 使用。
+
+```moonbit
+pub fn lineage_text(raw : Bytes, parse_options : ParseOptions, catalog : StaticCatalog?) -> Result[LineageResult, ParseError]
+```
+
+`lineage_text` 在 `parse_options` 下解析 `raw`，通过可选 `catalog` 做名字解析，返回血缘 `edges` 与诚实 `gaps`。可选 catalog 语义遵循 SC2（D-05）：`Some(catalog)` 注入调用方拥有的元数据，使 `*`/`table.*` 展开为真实边、外部视图可解析；`None` 以零元数据推导，所有未展开的星号/外部视图都报告 `requires-catalog` gap——gap 绝不是伪造的边。
+
+```moonbit
+pub(all) struct LineageEdge {
+  pub source_name : String
+  pub source_resolved_to : String
+  pub source_start_byte : Int
+  pub source_end_byte : Int
+  pub target_name : String
+  pub target_start_byte : Int
+  pub target_end_byte : Int
+}
+
+pub(all) struct LineageGap {
+  pub code : String          // "requires-catalog" | "unresolved-reference" | "requires-complete-parse"
+  pub message : String
+  pub start_byte : Int
+  pub end_byte : Int
+}
+
+pub(all) struct LineageResult {
+  pub edges : Array[LineageEdge]
+  pub gaps : Array[LineageGap]
+}
+```
+
+血缘边遵循表达式直通模型（D-01）：投影表达式中的每个已解析列引用各贡献一条边到该输出列——`SELECT a + b AS x FROM t` 产生 `t.a→x` 与 `t.b→x`。每条边携带源引用与目标输出列的平铺字节 span（D-01/D-06）。边/gap 顺序确定（文档语句序 → 模型分支/CTE 序 → 项序 → refs 序；星号展开按 catalog 列序）。
+
+`gaps` 列表与 `edges` 严格分离（D-06）——gap 绝不是带标记的边：
+
+| Gap code | 含义 |
+|---|---|
+| `requires-catalog` | `*`/`table.*` 投影或外部视图缺少 catalog 列元数据而无法展开（SC2）。 |
+| `unresolved-reference` | 表/列/函数引用无法解析。 |
+| `requires-complete-parse` | 语句含 error/missing 材料（D-33 拒绝哲学）。 |
+
+**方言门禁（D-08）：** 本阶段血缘**仅支持 Doris**。选择 `flink` 返回结构化 `FATHOM-SCHEMA-003` 错误（"lineage is Doris-only"）——绝不静默空结果，绝不以 Doris 策略对 flink 请求做血缘。
+
 ### 无损打印
 
 需要精确重放输入时，使用 `fathom/sql/printer`：
@@ -416,7 +463,7 @@ pub(all) struct FormatDiagnostic {
 
 ## Wire 导出（JS ESM / linear-Wasm）
 
-`binding` 包（`fathom/sql/binding`）是一个 `foreign_library` facade，把稳定的原始类型 wire 契约暴露给 JavaScript ESM 与 linear-Wasm 宿主。每个导出都返回 UTF-8 编码的 JSON `Bytes`；MoonBit ADT、对象句柄或宿主内存地址都不会跨过这个边界。全部七个导出同时登记在 `binding/moon.pkg` 的 `js`/`wasm` `exports` 列表与 `binding/exports.mbt` 的 `#export_name` 中——缺少任一登记都会编译成功但构建产物静默缺少该符号（Pitfall 3/8）。
+`binding` 包（`fathom/sql/binding`）是一个 `foreign_library` facade，把稳定的原始类型 wire 契约暴露给 JavaScript ESM 与 linear-Wasm 宿主。每个导出都返回 UTF-8 编码的 JSON `Bytes`；MoonBit ADT、对象句柄或宿主内存地址都不会跨过这个边界。全部八个导出同时登记在 `binding/moon.pkg` 的 `js`/`wasm` `exports` 列表与 `binding/exports.mbt` 的 `#export_name` 中——缺少任一登记都会编译成功但构建产物静默缺少该符号（Pitfall 3/8）。
 
 | 导出 | 签名 | 结果信封 |
 |---|---|---|
@@ -425,10 +472,13 @@ pub(all) struct FormatDiagnostic {
 | `fathom_complete_v1` | `(raw: Bytes, dialect: String, profile: String, cursor_byte: Int) -> Bytes` | `fathom.complete.v1` |
 | `fathom_lint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String, overrides: Bytes, fix: Bool) -> Bytes` | `fathom.lint.v1` |
 | `fathom_fingerprint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.fingerprint.v1` |
+| `fathom_lineage_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String, catalog_json: Bytes) -> Bytes` | `fathom.lineage.v1` |
 | `fathom_dialect_v1` | `(dialect: String) -> Bytes` | `fathom.dialect.v1`（元数据查询） |
 | `fathom_capabilities_v1` | `() -> Bytes` | `fathom.capabilities.v1`（元数据查询） |
 
-A4 导出顺序让 parse/format/complete/lint/fingerprint 原始类型的 `dialect` 紧跟 `raw`，与 `ParseOptions::new` 和 CLI 保持一致。schema v2 bump 是**纯加法**（Pitfall V6）：新增 `fathom.lint.v1` 与 `fathom.fingerprint.v1`，原有五个命名空间（parse/format/complete/error/capabilities）保持不变，既有消费者不受影响。
+A4 导出顺序让 parse/format/complete/lint/fingerprint/lineage 原始类型的 `dialect` 紧跟 `raw`，与 `ParseOptions::new` 和 CLI 保持一致。schema v2 bump 是**纯加法**（Pitfall V6）：新增 `fathom.lint.v1` 与 `fathom.fingerprint.v1`，原有五个命名空间（parse/format/complete/error/capabilities）保持不变，既有消费者不受影响。`fathom.lineage.v1` 是第 8 个命名空间（07-04）——同样纯增：追加的同时既有七个命名空间的分支保持不变。
+
+`fathom_lineage_v1` 接收 UTF-8 JSON `catalog_json` 参数（D-05）：空字节或 `{}` 表示无 catalog——所有 `*`/外部视图报告 `requires-catalog` gap（SC2）；畸形或形状非法的 catalog 返回结构化 `fathom.error.v1` 错误（`FATHOM-SCHEMA-004`，绝不静默回退到无 catalog 行为）。本阶段血缘仅支持 Doris（D-08）：选择 `flink` 返回结构化 `FATHOM-SCHEMA-003` 错误信封，带明确 "lineage is Doris-only" 消息——绝不静默空结果。
 
 `fathom_lint_v1` 接收 UTF-8 JSON `overrides` 数组（`{"code": "<FATHOM-LINT-0xx>", "setting": "off|error|warning|info"}`）；`[]` 或空字节即默认注册表。畸形 JSON 或未知 code/severity 返回结构化 `fathom.error.v1` 错误（绝不静默回退）。`fix=false` 报告 findings，`fix=true` 应用安全 autofix（D-33 拒绝时 `accepted=false` 且恰好一条 `FATHOM-LINT-000`）。`fathom_fingerprint_v1` 返回 `fathom.fingerprint.v1` 信封，其 `fingerprint` 字段是**十进制 JSON string**（绝不用 number，2^53 精度），`normalized` 字段携带 canonical 字节。
 

@@ -33,6 +33,7 @@ This project has no HTTP endpoints, HTTP base URL, request routes, or deployment
 | `lint_text` | `fathom/sql/api` | Run the Doris lint rule set over a parsed document; returns findings with candidate fixes | Not required |
 | `fix_text` | `fathom/sql/api` | Apply safe lossless autofixes (minimal span edits); refuses error trees with `FATHOM-LINT-000` | Not required |
 | `fingerprint_text` | `fathom/sql/api` | Produce a stable UInt64 SQL fingerprint plus the normalized canonical form | Not required |
+| `lineage_text` | `fathom/sql/api` | Derive column-level lineage edges and honest gaps from a parsed document using the caller’s optional catalog | Not required |
 
 ## Request and Response Formats
 
@@ -328,6 +329,52 @@ The fingerprint is stable across whitespace, keyword case, and comment changes, 
 
 > **Non-cryptographic boundary:** FNV-1a is a public non-cryptographic hash. Fingerprints are identifiers for caching / diffing / CI — they are **not** MACs and must never be used for tamper-proofing, authentication, or collision resistance.
 
+### Lineage Entry Points
+
+`fathom/sql/lineage` is an independent library (D-21) that consumes the analyzer’s resolved bindings and the select-model structure to build column-level source→target lineage edges (LINE-01). It is NOT part of the syntax-validity path. The `api` facade re-exports the lineage types (`LineageResult`, `LineageEdge`, `LineageGap`, `StaticCatalog`) so they can be used from `@api`.
+
+```moonbit
+pub fn lineage_text(raw : Bytes, parse_options : ParseOptions, catalog : StaticCatalog?) -> Result[LineageResult, ParseError]
+```
+
+`lineage_text` parses `raw` under `parse_options`, resolves names through the optional `catalog`, and returns the lineage `edges` plus the honest `gaps`. The optional-catalog semantics follow SC2 (D-05): `Some(catalog)` injects caller-owned metadata so `*`/`table.*` expand to real edges and external views resolve; `None` derives with zero metadata so every unexpanded star/external view reports a `requires-catalog` gap — a gap is never a fabricated edge.
+
+```moonbit
+pub(all) struct LineageEdge {
+  pub source_name : String
+  pub source_resolved_to : String
+  pub source_start_byte : Int
+  pub source_end_byte : Int
+  pub target_name : String
+  pub target_start_byte : Int
+  pub target_end_byte : Int
+}
+
+pub(all) struct LineageGap {
+  pub code : String          // "requires-catalog" | "unresolved-reference" | "requires-complete-parse"
+  pub message : String
+  pub start_byte : Int
+  pub end_byte : Int
+}
+
+pub(all) struct LineageResult {
+  pub edges : Array[LineageEdge]
+  pub gaps : Array[LineageGap]
+}
+```
+
+Lineage edges follow the expression-passthrough model (D-01): every resolved column reference in a projection expression contributes one edge to that output column — `SELECT a + b AS x FROM t` yields `t.a→x` and `t.b→x`. Each edge carries flattened byte spans for its source reference and its target output column (D-01/D-06). Edge/gap ordering is deterministic (document statement order → model branch/CTE order → item order → refs order; star expansion follows catalog column order).
+
+The `gaps` list is strictly separate from `edges` (D-06) — a gap is never a tagged edge:
+
+| Gap code | Meaning |
+|---|---|
+| `requires-catalog` | A `*`/`table.*` projection or an external view cannot be expanded without catalog column metadata (SC2). |
+| `unresolved-reference` | A table/column/function reference could not be resolved. |
+| `requires-complete-parse` | The statement contains error/missing material (D-33 refusal philosophy). |
+
+**Dialect gate (D-08):** lineage is **Doris-only** in this phase. A `flink` selection returns the structured `FATHOM-SCHEMA-003` error ("lineage is Doris-only") — never a silent empty result and never a Doris-policy lineage of a flink request.
+
 ### Lossless Printing
 
 For exact input replay, use `fathom/sql/printer`:
@@ -501,7 +548,7 @@ Direct use of the formatter package’s `FormatError` may also return: `InvalidI
 
 ## Wire Exports (JS ESM / linear-Wasm)
 
-The `binding` package (`fathom/sql/binding`) is a `foreign_library` facade exposing the stable primitive wire contract to JavaScript ESM and linear-Wasm hosts. Every export returns UTF-8 JSON `Bytes`; no MoonBit ADT, object handle, or host memory address crosses the boundary. All seven exports are registered in `binding/moon.pkg` `js`/`wasm` `exports` lists AND carry `#export_name` in `binding/exports.mbt` — a missing registration compiles but the built artifact silently lacks the symbol (Pitfall 3/8).
+The `binding` package (`fathom/sql/binding`) is a `foreign_library` facade exposing the stable primitive wire contract to JavaScript ESM and linear-Wasm hosts. Every export returns UTF-8 JSON `Bytes`; no MoonBit ADT, object handle, or host memory address crosses the boundary. All eight exports are registered in `binding/moon.pkg` `js`/`wasm` `exports` lists AND carry `#export_name` in `binding/exports.mbt` — a missing registration compiles but the built artifact silently lacks the symbol (Pitfall 3/8).
 
 | Export | Signature | Result envelope |
 |---|---|---|
@@ -510,10 +557,13 @@ The `binding` package (`fathom/sql/binding`) is a `foreign_library` facade expos
 | `fathom_complete_v1` | `(raw: Bytes, dialect: String, profile: String, cursor_byte: Int) -> Bytes` | `fathom.complete.v1` |
 | `fathom_lint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String, overrides: Bytes, fix: Bool) -> Bytes` | `fathom.lint.v1` |
 | `fathom_fingerprint_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String) -> Bytes` | `fathom.fingerprint.v1` |
+| `fathom_lineage_v1` | `(raw: Bytes, dialect: String, profile: String, mode: String, catalog_json: Bytes) -> Bytes` | `fathom.lineage.v1` |
 | `fathom_dialect_v1` | `(dialect: String) -> Bytes` | `fathom.dialect.v1` (metadata query) |
 | `fathom_capabilities_v1` | `() -> Bytes` | `fathom.capabilities.v1` (metadata query) |
 
-The A4 export order places `dialect` immediately after `raw` for the parse/format/complete/lint/fingerprint primitives, consistent with `ParseOptions::new` and the CLI. The schema v2 bump is **pure addition** (Pitfall V6): `fathom.lint.v1` and `fathom.fingerprint.v1` were added while the original five namespaces (`parse`/`format`/`complete`/`error`/`capabilities`) remain unchanged, so existing consumers are unaffected.
+The A4 export order places `dialect` immediately after `raw` for the parse/format/complete/lint/fingerprint/lineage primitives, consistent with `ParseOptions::new` and the CLI. The schema v2 bump is **pure addition** (Pitfall V6): `fathom.lint.v1` and `fathom.fingerprint.v1` were added while the original five namespaces (`parse`/`format`/`complete`/`error`/`capabilities`) remain unchanged, so existing consumers are unaffected. `fathom.lineage.v1` is the 8th namespace (07-04) — the same pure addition: it appends while all seven prior namespaces keep their branches untouched.
+
+`fathom_lineage_v1` takes a UTF-8 JSON `catalog_json` argument (D-05): empty bytes or `{}` means no catalog — every `*`/external view reports a `requires-catalog` gap (SC2); a malformed or shape-invalid catalog is a structured `fathom.error.v1` error with `FATHOM-SCHEMA-004` (never a silent fallback to the no-catalog behavior). Lineage is Doris-only this phase (D-08): a `flink` selection returns the structured `FATHOM-SCHEMA-003` error envelope with the explicit "lineage is Doris-only" message — never a silent empty result.
 
 `fathom_lint_v1` takes a UTF-8 JSON `overrides` array of `{"code": "<FATHOM-LINT-0xx>", "setting": "off|error|warning|info"}` objects; `[]` or empty bytes is the default registry. Malformed JSON or an unknown code/severity is a structured `fathom.error.v1` error (never a silent fallback). With `fix=false` it reports findings; with `fix=true` it applies safe autofixes (a D-33 refusal yields `accepted=false` with exactly one `FATHOM-LINT-000`). `fathom_fingerprint_v1` returns the `fathom.fingerprint.v1` envelope whose `fingerprint` field is a **decimal JSON string** (never a number — 2^53 precision) and whose `normalized` field carries the canonical bytes.
 
