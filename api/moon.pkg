@@ -5,4 +5,5 @@ import {
   "fathom/sql/syntax" @syntax,
   "fathom/sql/formatter" @formatter,
   "fathom/sql/dialect" @dialect,
+  "fathom/sql/fingerprint" @fingerprint,
 }

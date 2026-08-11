@@ -648,6 +648,56 @@ pub fn format_with_metadata(
   format_text(raw, options, format_options)
 }
 
+/// Result of fingerprinting one document (D-08): the UInt64 fingerprint plus
+/// the normalized canonical bytes it was computed from.
+pub(all) struct FingerprintResult {
+  pub fingerprint : UInt64
+  pub normalized : Bytes
+}
+
+/// Shared core fingerprint entry (FING-01, D-08): one internal parse mirroring
+/// `format_text`, then `@fingerprint.normalize` over the in-memory SyntaxNode
+/// and `@fingerprint.fnv1a64` over the canonical bytes. The fingerprint is a
+/// total function over any parsed tree (empty/error material normalize to a
+/// deterministic value) — semantically meaningful only on valid statements.
+/// UnknownProfile / InputTooLarge / InvalidSyntaxTree propagate as ParseError
+/// exactly like `parse`.
+pub fn fingerprint_text(
+  raw : Bytes,
+  parse_options : ParseOptions,
+) -> Result[FingerprintResult, ParseError] {
+  let limits = parse_options.limits
+  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
+    Ok(source) => source
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+      return Err(InputTooLarge(requested_bytes~, max_bytes~))
+    }
+  }
+  let parser_mode = match parse_options.mode {
+    ParseMode::Strict => @parser.ParseMode::Strict
+    ParseMode::Editor => @parser.ParseMode::Editor
+  }
+  let parser_limits = @parser.ParserLimits::new(
+    limits.max_bytes,
+    limits.max_tokens,
+    limits.max_recursion_depth,
+    limits.max_recovery_steps,
+    limits.max_diagnostics,
+  )
+  let parsed = @parser.parse_with_limits_context(
+    source,
+    parse_options.dialect_context,
+    parser_mode,
+    parser_limits,
+  )
+  if !parsed.root.is_valid(source.byte_length()) {
+    return Err(InvalidSyntaxTree)
+  }
+  let canonical = @fingerprint.normalize(parsed.root, source, parse_options.dialect_context)
+  Ok({ fingerprint: @fingerprint.fnv1a64(canonical), normalized: canonical })
+}
+
 pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
   self.source_byte_length == self.source_bytes.length()
 }
