@@ -88,7 +88,7 @@ Success criteria:
 **Mode:** standard
 **Depends on**: Phase 5 (serialized schema v2 bump; lint/autofix reuses formatter-safe edit path)
 **Requirements**: LINT-01, FING-01
-**Status:** Not started
+**Status:** Complete — 2026-08-10 (4 plans: 06-01 fingerprint library+api+wiring, 06-02 lint library+autofix, 06-03 lint api+wire, 06-04 CLI+parity+docs; verifier 4/4 SC passed)
 
 Success criteria:
 

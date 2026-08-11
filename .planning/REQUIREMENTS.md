@@ -19,7 +19,7 @@ Requirements for the v3.0 milestone (Analysis and Intelligence). Each maps to ex
 
 ### Lint
 
-- [ ] **LINT-01**: User can run a Doris-specific lint rule set with configurable severity and safe autofixes (stable rule codes, per-rule enable/disable + severity; autofix preserves comments/trivia/formatting and refuses unsafe edits on error trees, per formatter D-33 refusal principle).
+- [x] **LINT-01**: User can run a Doris-specific lint rule set with configurable severity and safe autofixes (stable rule codes, per-rule enable/disable + severity; autofix preserves comments/trivia/formatting and refuses unsafe edits on error trees, per formatter D-33 refusal principle).
 
 ### Lineage
 
@@ -27,7 +27,7 @@ Requirements for the v3.0 milestone (Analysis and Intelligence). Each maps to ex
 
 ### Fingerprint
 
-- [ ] **FING-01**: User can generate stable SQL fingerprints and normalized forms for supported Doris statements (stable across whitespace, keyword case, and comment changes; preserves identifier spelling, literal content, and quote style; hash is `UInt64`-based so fingerprints are identical across Native, JS, and linear-Wasm targets).
+- [x] **FING-01**: User can generate stable SQL fingerprints and normalized forms for supported Doris statements (stable across whitespace, keyword case, and comment changes; preserves identifier spelling, literal content, and quote style; hash is `UInt64`-based so fingerprints are identical across Native, JS, and linear-Wasm targets).
 
 ### Incremental Editing
 
@@ -67,8 +67,8 @@ Populated during v3.0 roadmap creation. Each requirement maps to exactly one pha
 | CLOSE-01 | Phase 5 | Complete — Phase 5 formalized (host-verify.mjs, 4 modes, record in STATE.md Deferred Items) |
 | CLOSE-02 | Phase 5 | Complete — Phase 5 formalized (ci.yml linear-wasm-parity, record in STATE.md Deferred Items) |
 | ANAL-01 | Phase 5 | Complete — Phase 5 05-04 delivered function resolution + arity, DML/CREATE VIEW column-level refs, and the full diagnostic set (unknown-table/column/function, ambiguous-reference, function-arity) with docs/API.md updated |
-| LINT-01 | Phase 6 | Pending |
-| FING-01 | Phase 6 | Pending |
+| LINT-01 | Phase 6 | Complete |
+| FING-01 | Phase 6 | Complete |
 | LINE-01 | Phase 7 | Pending |
 | EDIT-01 | Phase 8 | Pending |
 
