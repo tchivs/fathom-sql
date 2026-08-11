@@ -1,3 +1,33 @@
+test "schema_v2_bump_is_additive" {
+  // The v2 bump is PURE ADDITION (Pitfall V6): the two new namespaces appear
+  // while all five original namespaces remain usable.
+  let lint = @utf8.decode_lossy(
+    @binding.fathom_lint_v1(b"SELECT 1", "doris", "4.x", "strict", b"[]", false)[:],
+  )
+  let fingerprint = @utf8.decode_lossy(
+    @binding.fathom_fingerprint_v1(b"SELECT 1", "doris", "4.x", "strict")[:],
+  )
+  assert_true(lint.contains("fathom.lint.v1"))
+  assert_true(fingerprint.contains("fathom.fingerprint.v1"))
+  // Original five namespaces still usable (no removal).
+  let parsed = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "doris", "4.x", "strict")[:])
+  let formatted = @utf8.decode_lossy(
+    @binding.fathom_format_v1(
+      b"select 1", "doris", "4.x", "strict", "upper", 2, 100, "trailing", "follow", true,
+    )[:],
+  )
+  let completed = @utf8.decode_lossy(
+    @binding.fathom_complete_v1(b"SELECT FRO", "flink", "flink-2.3.0", 9)[:],
+  )
+  let error = @utf8.decode_lossy(@binding.fathom_parse_v1(b"SELECT 1", "doris", "9.x", "strict")[:])
+  let capabilities = @utf8.decode_lossy(@binding.fathom_capabilities_v1()[:])
+  assert_true(parsed.contains("fathom.parse.v1"))
+  assert_true(formatted.contains("fathom.format.v1"))
+  assert_true(completed.contains("fathom.complete.v1"))
+  assert_true(error.contains("fathom.error.v1"))
+  assert_true(capabilities.contains("fathom.capabilities.v1"))
+}
+
 test "exports_are_primitive_and_versioned" {
   let parsed = @binding.fathom_parse_v1(b"select 1", "doris", "4.x", "strict")
   let formatted = @binding.fathom_format_v1(
