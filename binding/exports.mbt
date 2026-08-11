@@ -150,6 +150,47 @@ pub fn fathom_fingerprint_v1(
   }
 }
 
+#export_name("fathom_lineage_v1")
+pub fn fathom_lineage_v1(
+  raw : Bytes,
+  dialect : String,
+  profile : String,
+  mode : String,
+  catalog_json : Bytes,
+) -> Bytes {
+  // Dialect/profile validated FIRST (Pitfall 6, T-09-10): unknown dialect /
+  // unsupported profile map to the fathom.error.v1 envelope (UnknownDialect ->
+  // FATHOM-SCHEMA-007, UnknownProfile -> FATHOM-SCHEMA-003) before any lineage
+  // work. ParseOptions also supplies exact_release for the envelope (D-09).
+  let selection = match @api.ParseOptions::new(dialect, profile, mode) {
+    Ok(options) => options
+    Err(error) => return parse_error_bytes(error)
+  }
+  // Flink gate (D-08, T-07-04-01): lineage is Doris-only this phase. A valid
+  // flink selection returns a structured FATHOM-SCHEMA-003 error envelope with
+  // the explicit "lineage is Doris-only" message — NEVER a silent empty result
+  // and never a Doris-policy lineage of a flink request.
+  if selection.dialect_id() == "flink" {
+    return error_bytes("FATHOM-SCHEMA-003", "lineage is Doris-only")
+  }
+  // Catalog JSON (D-05, T-07-04-02): empty bytes / "{}" -> no catalog (every
+  // star/external view reports an honest gap, SC2); any malformed or
+  // shape-invalid catalog is a structured FATHOM-SCHEMA-004 error — never a
+  // silent fallback to the no-catalog behavior (T-06-03-01, ASVS V5).
+  let catalog = match parse_catalog_json(catalog_json) {
+    Ok(catalog) => catalog
+    Err(message) => return error_bytes("FATHOM-SCHEMA-004", message)
+  }
+  match @api.lineage_text(raw, selection, catalog) {
+    Ok(result) => {
+      json_bytes(
+        lineage_result_json(raw, result, dialect, profile, selection.exact_release()),
+      )
+    }
+    Err(error) => parse_error_bytes(error)
+  }
+}
+
 /// Parse the wire `overrides` argument: a UTF-8 JSON array of
 /// `{"code": "...", "setting": "off|error|warning|info"}` objects. An empty
 /// array / empty bytes is the default registry. Malformed JSON, non-array

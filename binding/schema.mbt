@@ -5,6 +5,7 @@ pub const FORMAT_SCHEMA_VERSION : String = "fathom.format.v1"
 pub const COMPLETE_SCHEMA_VERSION : String = "fathom.complete.v1"
 pub const LINT_SCHEMA_VERSION : String = "fathom.lint.v1"
 pub const FINGERPRINT_SCHEMA_VERSION : String = "fathom.fingerprint.v1"
+pub const LINEAGE_SCHEMA_VERSION : String = "fathom.lineage.v1"
 pub const SOURCE_TRANSPORT : String = "inline-root-v1"
 
 pub enum SchemaError {
@@ -15,12 +16,13 @@ pub enum SchemaError {
   UnsupportedMode(mode~ : String)
 } derive(Eq, @debug.Debug)
 
-/// Accepts the seven fathom.*.v1 result/error envelope namespaces
+/// Accepts the eight fathom.*.v1 result/error envelope namespaces
 /// (D-09, D-04, schema v2 bump 06-01): parse, format, complete, lint,
-/// fingerprint, error, capabilities. fathom.dialect.v1 is a metadata-query
-/// schema served by fathom_dialect_v1, not a result envelope.
+/// fingerprint, error, capabilities, lineage. fathom.dialect.v1 is a
+/// metadata-query schema served by fathom_dialect_v1, not a result envelope.
 /// fathom.complete.v1 is the D-04 completion envelope. The v2 bump is PURE
-/// ADDITION (Pitfall V6): the original five namespaces keep their branches.
+/// ADDITION (Pitfall V6): the original five namespaces keep their branches;
+/// the 8th namespace (fathom.lineage.v1, 07-04) appends without touching them.
 pub fn validate_schema_version(version : String) -> Result[Unit, SchemaError] {
   match version {
     PARSE_SCHEMA_VERSION |
@@ -28,6 +30,7 @@ pub fn validate_schema_version(version : String) -> Result[Unit, SchemaError] {
     COMPLETE_SCHEMA_VERSION |
     LINT_SCHEMA_VERSION |
     FINGERPRINT_SCHEMA_VERSION |
+    LINEAGE_SCHEMA_VERSION |
     "fathom.error.v1" |
     "fathom.capabilities.v1" => Ok(())
     _ => Err(UnsupportedSchemaVersion(version~))
