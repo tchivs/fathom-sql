@@ -1,6 +1,7 @@
 import {
   "fathom/sql/analyzer" @analyzer,
   "fathom/sql/api" @api,
+  "fathom/sql/binding" @binding,
   "fathom/sql/parser" @parser,
   "fathom/sql/printer" @printer,
   "fathom/sql/source" @source,
@@ -9,6 +10,7 @@ import {
   "fathom/sql/formatter" @formatter,
   "fathom/sql/dialect" @dialect,
   "fathom/sql/lineage" @lineage,
+  "moonbitlang/core/encoding/utf8" @utf8,
 }
 
 import {
