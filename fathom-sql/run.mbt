@@ -212,6 +212,66 @@ pub fn run_fingerprint(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   }
 }
 
+/// D-39 lineage exit mapping (LINE-01, D-07/D-08):
+///   0 = success — stdout carries the fathom.lineage.v1 envelope
+///       (dialect/profile/exact_release metadata + edges + gaps);
+///   1 = parse failure — diagnostics on stderr;
+///   2 = usage/config error — bad --catalog path, invalid catalog JSON
+///       (FATHOM-SCHEMA-004), or a flink selection (lineage is Doris-only,
+///       D-08) — stderr message only, no SQL output.
+/// The CLI is a thin adapter (D-37/D-38): it calls @api.lineage_text and
+/// serializes via @binding.lineage_result_json — no lineage logic lives here.
+pub fn run_lineage(command : Command, stdin_bytes : Bytes) -> CliOutcome {
+  let selection = match parse_options(command) {
+    Ok(options) => options
+    Err(outcome) => return outcome
+  }
+  // Flink gate (D-08, T-07-04-01): lineage is Doris-only this phase. A flink
+  // selection exits 2 with the explicit message — never a silent empty result
+  // (double-insurance with the fathom_lineage_v1 wire gate).
+  if selection.dialect_id() == "flink" {
+    return usage_error("lineage is Doris-only")
+  }
+  let catalog : @api.StaticCatalog? = match command.catalog {
+    Some(path) => {
+      let bytes = match read_file(path) {
+        Some(bytes) => bytes
+        None => return usage_error("cannot read file: \{path}")
+      }
+      match @binding.parse_catalog_json(bytes) {
+        Ok(catalog) => catalog
+        Err(message) => return usage_error("invalid catalog JSON (FATHOM-SCHEMA-004): \{message}")
+      }
+    }
+    None => None
+  }
+  let input = match command.file {
+    Some(path) if path != "-" => match read_file(path) {
+      Some(bytes) => bytes
+      None => return usage_error("cannot read file: \{path}")
+    }
+    _ => stdin_bytes
+  }
+  match @api.lineage_text(input, selection, catalog) {
+    Ok(result) => {
+      {
+        exit_code: 0,
+        stdout: @utf8.encode(
+          @binding.lineage_result_json(
+            input,
+            result,
+            command.dialect,
+            command.profile,
+            selection.exact_release(),
+          ) + "\n",
+        ),
+        stderr: b"",
+      }
+    }
+    Err(error) => parse_error_outcome(command.dialect, error)
+  }
+}
+
 /// Render lint findings to stderr, one per line (report mode exit 1).
 fn render_lint_findings(findings : Array[@api.LintFinding]) -> Bytes {
   let out = @buffer.Buffer::Buffer(size_hint=256)
@@ -294,14 +354,14 @@ pub fn render_diagnostics(diagnostics : Array[@api.FormatDiagnostic]) -> Bytes {
 
 /// --help text (printed to stdout, exit 0).
 pub fn usage_text() -> String {
-  "usage: fathom-sql parse|format|lsp|lint|fingerprint --dialect <doris|flink> --profile <id> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--rule <CODE>=<error|warning|info|off>] [--fix] [--normalized] [--no-trailing-newline] [--help] [file|-]\n"
+  "usage: fathom-sql parse|format|lsp|lint|fingerprint|lineage --dialect <doris|flink> --profile <id> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--rule <CODE>=<error|warning|info|off>] [--fix] [--normalized] [--catalog <file>] [--no-trailing-newline] [--help] [file|-]\n"
 }
 
 /// Usage-error message for exit 2 (stderr only, no SQL output).
 pub fn usage_error_message(error : UsageError) -> String {
   match error {
-    MissingSubcommand => "missing subcommand (expected: parse, format, lsp, lint, or fingerprint)\n"
-    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, lsp, lint, or fingerprint)\n"
+    MissingSubcommand => "missing subcommand (expected: parse, format, lsp, lint, fingerprint, or lineage)\n"
+    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, lsp, lint, fingerprint, or lineage)\n"
     MissingDialect => "missing required flag: --dialect <doris|flink>\n"
     UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id} (expected doris or flink)\n"
     MissingProfile => "missing required flag: --profile <doris 2.1|3.x|4.x | flink flink-2.3.0|flink-2.1.3|flink-1.20.5>\n"
@@ -333,6 +393,7 @@ test "run_format_stdin_happy_path" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -355,6 +416,7 @@ test "run_parse_stdin_happy_path" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,

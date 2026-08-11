@@ -28,6 +28,7 @@ fn command_stdin(profile : String) -> Command {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -49,6 +50,7 @@ fn command_flink(profile : String, subcommand : String) -> Command {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -82,6 +84,7 @@ test "cli_file_input_exit_0" {
     newline_style: None,
     trailing_newline: true,
     file: Some(path),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -104,6 +107,7 @@ test "cli_missing_file_exit_2_names_path" {
     newline_style: None,
     trailing_newline: true,
     file: Some("/nonexistent/fathom-sql-definitely-missing.sql"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -176,9 +180,9 @@ test "cli_d11_exit_2_matrix_through_usage_error_message" {
   // Missing --profile after a valid dialect -> exit 2.
   assert_true(usage_error_message(parse_error_of(["format", "--dialect", "doris"])).contains("missing required flag: --profile"))
   // Unknown subcommand names the full surface.
-  assert_true(usage_error_message(parse_error_of(["run"])).contains("parse, format, lsp, lint, or fingerprint"))
+  assert_true(usage_error_message(parse_error_of(["run"])).contains("parse, format, lsp, lint, fingerprint, or lineage"))
   // The usage text advertises the full D-11 surface.
-  assert_true(usage_text().contains("fathom-sql parse|format|lsp|lint|fingerprint --dialect <doris|flink> --profile <id>"))
+  assert_true(usage_text().contains("fathom-sql parse|format|lsp|lint|fingerprint|lineage --dialect <doris|flink> --profile <id>"))
   // No invocation defaults a dialect: every valid invocation must carry both.
   assert_true(parse_args(["format", "--profile", "4.x"]) is Err(MissingDialect))
   assert_true(parse_args(["lsp", "--dialect", "doris", "--profile", "2.1"]).is_ok())
@@ -203,6 +207,7 @@ test "cli_parse_subcommand_exit_0_envelope" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -231,6 +236,7 @@ test "cli_bad_option_values_exit_2_via_run_format" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -254,6 +260,7 @@ test "cli_bad_option_values_exit_2_via_run_format" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -276,6 +283,7 @@ test "cli_bad_option_values_exit_2_via_run_format" {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: false,
@@ -337,6 +345,7 @@ test "cli_flag_surface_parses_and_drives_options" {
         newline_style: command.newline_style,
         trailing_newline: command.trailing_newline,
         file: Some("-"),
+        catalog: None,
         overrides: [],
         fix: false,
         normalized: false,
@@ -382,7 +391,7 @@ test "cli_usage_error_message_renders_exit_2_text" {
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris"])).contains("--profile"))
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris", "--profile", "4.x", "--bogus"])).contains("--bogus"))
   assert_true(usage_error_message(error_of(["format", "--dialect", "doris", "--profile", "4.x", "--comma-style", "sideways"])).contains("sideways"))
-  assert_true(usage_error_message(error_of([])).contains("parse, format, lsp, lint, or fingerprint"))
+  assert_true(usage_error_message(error_of([])).contains("parse, format, lsp, lint, fingerprint, or lineage"))
   assert_true(usage_text().contains("--dialect"))
 }
 
@@ -448,6 +457,7 @@ fn lint_command(overrides : Array[@api.RuleOverride], fix : Bool) -> Command {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: overrides,
     fix: fix,
     normalized: false,
@@ -467,6 +477,7 @@ fn fingerprint_command(normalized : Bool) -> Command {
     newline_style: None,
     trailing_newline: true,
     file: Some("-"),
+    catalog: None,
     overrides: [],
     fix: false,
     normalized: normalized,
@@ -563,5 +574,151 @@ test "cli_fingerprint_parse_failure_exit_1" {
   // parse_args already blocks. Assert a clean valid path instead.
   let outcome = run_fingerprint(fingerprint_command(false), b"SELECT 1")
   assert_eq(outcome.exit_code, 0)
+}
+
+/// lineage-parameterized Command (07-04 Task 3): doris 4.x, stdin, optional
+/// --catalog path.
+fn lineage_command(catalog_path : String?) -> Command {
+  {
+    subcommand: "lineage",
+    dialect: "doris",
+    profile: "4.x",
+    keyword_case: None,
+    indent: None,
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+    catalog: catalog_path,
+    overrides: [],
+    fix: false,
+    normalized: false,
+  }
+}
+
+test "cli_lineage_exit_0_envelope" {
+  // D-39: a valid doris selection serializes the fathom.lineage.v1 envelope
+  // to stdout, exit 0, empty stderr.
+  let outcome = run_lineage(lineage_command(None), b"SELECT a FROM t")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stderr.length(), 0)
+  let stdout = try { @utf8.decode(outcome.stdout) } catch { _ => "" }
+  assert_true(stdout.contains("fathom.lineage.v1"))
+  assert_true(stdout.contains("\"dialect\":\"doris\""))
+  assert_true(stdout.contains("\"profile\":\"4.x\""))
+  assert_true(stdout.contains("\"edges\":"))
+  assert_true(stdout.contains("\"gaps\":"))
+}
+
+test "cli_lineage_flink_gate_exit_2" {
+  // D-08: a valid flink selection exits 2 with "lineage is Doris-only" on
+  // stderr — never a silent empty envelope.
+  let command : Command = {
+    subcommand: "lineage",
+    dialect: "flink",
+    profile: "flink-2.3.0",
+    keyword_case: None,
+    indent: None,
+    line_width: None,
+    comma_style: None,
+    newline_style: None,
+    trailing_newline: true,
+    file: Some("-"),
+    catalog: None,
+    overrides: [],
+    fix: false,
+    normalized: false,
+  }
+  let outcome = run_lineage(command, b"SELECT 1")
+  assert_eq(outcome.exit_code, 2)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_true(outcome.stderr.to_string().contains("lineage is Doris-only"))
+}
+
+test "cli_lineage_bad_catalog_path_exit_2" {
+  // D-39: a nonexistent --catalog path is a usage error -> exit 2 naming the
+  // path.
+  let outcome = run_lineage(lineage_command(Some("/nonexistent/fathom-sql-catalog.json")), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 2)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_true(outcome.stderr.to_string().contains("/nonexistent/fathom-sql-catalog.json"))
+}
+
+test "cli_lineage_bad_catalog_json_exit_2" {
+  // T-07-04-02 / ASVS V5: an invalid catalog JSON file exits 2 with the
+  // FATHOM-SCHEMA-004 structured error — never a silent fallback.
+  let path = "/tmp/fathom-sql-cli-fixture-bad-catalog.json"
+  let handle = open_file(@utf8.encode(path) + b"\x00", b"wb")
+  assert_true(handle != 0L)
+  let content = b"{\"tables\":42}"
+  ignore(write_file_chunk(content, 1, content.length(), handle))
+  ignore(close_file(handle))
+  let outcome = run_lineage(lineage_command(Some(path)), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 2)
+  assert_eq(outcome.stdout.length(), 0)
+  assert_true(outcome.stderr.to_string().contains("FATHOM-SCHEMA-004"))
+}
+
+test "cli_lineage_parse_failure_exit_1" {
+  // D-39 / T-07-04-05: oversized input (over the 8 MiB default limit) exits 1
+  // with empty stdout — a parse/processing failure, never a crash.
+  let oversized = Bytes::make(8 * 1024 * 1024 + 1, 32)
+  let outcome = run_lineage(lineage_command(None), oversized)
+  assert_eq(outcome.exit_code, 1)
+  assert_eq(outcome.stdout.length(), 0)
+}
+
+test "cli_lineage_star_with_catalog_exit_0_two_edges" {
+  // D-05 / SC2: with --catalog providing t={a,b}, `SELECT * FROM t` expands
+  // to two real edges (no requires-catalog gap).
+  let path = "/tmp/fathom-sql-cli-fixture-catalog.json"
+  let handle = open_file(@utf8.encode(path) + b"\x00", b"wb")
+  assert_true(handle != 0L)
+  let content = b"{\"tables\":[{\"name\":\"t\",\"columns\":[{\"name\":\"a\",\"data_type\":\"INT\"},{\"name\":\"b\",\"data_type\":\"INT\"}]}]}"
+  ignore(write_file_chunk(content, 1, content.length(), handle))
+  ignore(close_file(handle))
+  let outcome = run_lineage(lineage_command(Some(path)), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stderr.length(), 0)
+  let stdout = try { @utf8.decode(outcome.stdout) } catch { _ => "" }
+  assert_true(stdout.contains("fathom.lineage.v1"))
+  assert_true(stdout.contains("\"source_name\":\"a\""))
+  assert_true(stdout.contains("\"source_name\":\"b\""))
+  assert_true(!stdout.contains("requires-catalog"))
+}
+
+test "cli_lineage_star_no_catalog_requires_catalog_gap" {
+  // SC2: without a catalog, `SELECT * FROM t` reports an honest
+  // requires-catalog gap — never a fabricated edge.
+  let outcome = run_lineage(lineage_command(None), b"SELECT * FROM t")
+  assert_eq(outcome.exit_code, 0)
+  let stdout = try { @utf8.decode(outcome.stdout) } catch { _ => "" }
+  assert_true(stdout.contains("requires-catalog"))
+}
+
+test "cli_lineage_flag_surface_and_usage" {
+  // parse_args accepts the lineage subcommand with an optional --catalog.
+  match parse_args(["lineage", "--dialect", "doris", "--profile", "4.x"]) {
+    Ok(command) => {
+      assert_eq(command.subcommand, "lineage")
+      assert_eq(command.catalog, None)
+    }
+    Err(_) => assert_true(false)
+  }
+  match parse_args(["lineage", "--dialect", "doris", "--profile", "4.x", "--catalog", "cat.json"]) {
+    Ok(command) => assert_eq(command.catalog, Some("cat.json"))
+    Err(_) => assert_true(false)
+  }
+  // Missing --catalog value -> MissingValue exit 2.
+  assert_true(parse_args(["lineage", "--dialect", "doris", "--profile", "4.x", "--catalog"]) is Err(MissingValue(flag="--catalog")))
+  // Missing --dialect/--profile -> exit 2 (D-11).
+  assert_true(parse_args(["lineage"]) is Err(MissingDialect))
+  assert_true(parse_args(["lineage", "--dialect", "doris"]) is Err(MissingProfile))
+  // Unknown subcommand names the full surface including lineage.
+  assert_true(usage_error_message(parse_error_of(["run"])).contains("parse, format, lsp, lint, fingerprint, or lineage"))
+  // usage_text advertises lineage and --catalog.
+  assert_true(usage_text().contains("lineage"))
+  assert_true(usage_text().contains("--catalog"))
 }
 

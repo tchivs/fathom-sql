@@ -55,6 +55,13 @@ fn main {
       }
       run_fingerprint(command, stdin_bytes)
     }
+    "lineage" => {
+      let stdin_bytes = match command.file {
+        Some(path) if path != "-" => b""
+        _ => read_stdin()
+      }
+      run_lineage(command, stdin_bytes)
+    }
     _ => {
       let stdin_bytes = match command.file {
         Some(path) if path != "-" => b""

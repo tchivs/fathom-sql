@@ -21,12 +21,14 @@ pub enum UsageError {
   UnknownValue(flag~ : String, value~ : String)
 } derive(Eq, @debug.Debug)
 
-/// Parsed invocation. `subcommand` is one of "parse"|"format"|"lsp" (D-11);
-/// `dialect` and `profile` are always set by parse_args. `file` None or "-"
-/// means stdin; trailing_newline defaults true and --no-trailing-newline
-/// clears it. `pub(all)` so the black-box cli_test.mbt module can construct
-/// test Commands (moon 0.1.20260724 rejects pub-struct literals
-/// cross-package without it — 03-01 lesson).
+/// Parsed invocation. `subcommand` is one of "parse"|"format"|"lsp"|"lint"|
+/// "fingerprint"|"lineage" (D-11); `dialect` and `profile` are always set by
+/// parse_args. `file` None or "-" means stdin; trailing_newline defaults true
+/// and --no-trailing-newline clears it. `catalog` carries the optional
+/// `--catalog <file>` path for the lineage subcommand (D-05). `pub(all)` so
+/// the black-box cli_test.mbt module can construct test Commands (moon
+/// 0.1.20260724 rejects pub-struct literals cross-package without it — 03-01
+/// lesson).
 pub(all) struct Command {
   pub subcommand : String
   pub dialect : String
@@ -38,16 +40,18 @@ pub(all) struct Command {
   newline_style : String?
   trailing_newline : Bool
   file : String?
+  catalog : String?
   overrides : Array[@api.RuleOverride]
   fix : Bool
   normalized : Bool
 }
 
 /// Flag surface (D-11, research Open Q2 RESOLVED):
-/// `fathom-sql parse|format|lsp --dialect <doris|flink> --profile <id>
-/// [--keyword-case upper|lower] [--indent N] [--line-width N] [--comma-style
-/// trailing|leading] [--newline-style follow|lf|crlf] [--no-trailing-newline]
-/// [--help] [file|-]`.
+/// `fathom-sql parse|format|lsp|lint|fingerprint|lineage --dialect <doris|flink>
+/// --profile <id> [--keyword-case upper|lower] [--indent N] [--line-width N]
+/// [--comma-style trailing|leading] [--newline-style follow|lf|crlf]
+/// [--no-trailing-newline] [--rule <CODE>=<severity|off>] [--fix] [--normalized]
+/// [--catalog <file>] [--help] [file|-]`.
 /// --dialect and --profile are REQUIRED: missing -> MissingDialect /
 /// MissingProfile -> exit 2 (D-11 — no silent default dialect). --help is
 /// handled in main before parse_args.
@@ -55,7 +59,7 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   if args.length() == 0 { return Err(MissingSubcommand) }
   let subcommand = args[0]
   if subcommand != "parse" && subcommand != "format" && subcommand != "lsp" &&
-    subcommand != "lint" && subcommand != "fingerprint" {
+    subcommand != "lint" && subcommand != "fingerprint" && subcommand != "lineage" {
     return Err(UnknownSubcommand(sub=subcommand))
   }
   let mut dialect : String? = None
@@ -67,6 +71,7 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   let mut newline_style : String? = None
   let mut trailing_newline = true
   let mut file : String? = None
+  let mut catalog : String? = None
   let overrides : Array[@api.RuleOverride] = []
   let mut fix = false
   let mut normalized = false
@@ -90,6 +95,10 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
         Ok(rule_override) => overrides.push(rule_override)
         Err(error) => return Err(error)
       }
+    } else if arg == "--catalog" {
+      index = index + 1
+      if index >= args.length() { return Err(MissingValue(flag="--catalog")) }
+      catalog = Some(args[index])
     } else if arg == "--fix" {
       fix = true
     } else if arg == "--normalized" {
@@ -170,6 +179,7 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
     newline_style: newline_style,
     trailing_newline: trailing_newline,
     file: file,
+    catalog: catalog,
     overrides: overrides,
     fix: fix,
     normalized: normalized,
