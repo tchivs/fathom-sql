@@ -38,6 +38,7 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] 消费者可获取有界、dialect/profile 感知的 Flink 语法补全（关键字、DDL、WATERMARK、Window TVF、MATCH_RECOGNIZE 上下文），并运行带可选 catalog 的语法级 Flink analyzer，parser validity 与 catalog 无关 — Validated in Phase 13: Toolchain and Editor Packaging
 - [x] 消费者可端到端使用 `fathom-sql parse|format|lsp --dialect flink` 与 `fathom-lsp`（诊断/格式化/补全/UTF-16/文档级方言选择） — Validated in Phase 13: Toolchain and Editor Packaging
 - [x] 消费者可在 JS/linear-Wasm、Web/Monaco、VS Code、IntelliJ 使用同一 dialect-aware API/schema（含新增 `fathom_complete_v1`/`fathom.complete.v1`），每文件/会话显式选择 Doris 或 Flink，无第二套 parser — Validated in Phase 13: Toolchain and Editor Packaging
+- [x] 用户可检查跨查询/视图的列级数据血缘（SELECT/INSERT/CTE/集合运算与视图展开，边带源码位置）；未解析引用与无 catalog 的 `*` 展开产生显式 "requires catalog" gap 而非伪造边 — Validated in Phase 7: Column Lineage
 
 ### Active
 
@@ -98,6 +99,14 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - **类型诊断（D-04）:** 函数调用解析与元数检查；unknown-table/column/function、ambiguous-reference、function-arity 诊断集；独立诊断通道（ANLY-01 语法 valid 不变）。
 - **门禁:** native 886 测试全绿（analyzer+test 191）；frozen Doris parity 597 + diff_parity --frozen-only 455 快照 0 差异；D-21 负门禁（analyzer/moon.pkg + parser/moon.pkg 零 diff）干净；code review 1 BLOCKER + 6 WARNING 全修复。
 
+**v3.0 Phase 7 COMPLETE — 2026-08-11** (Column Lineage) — LINE-01 列级血缘交付（verifier 15/15 must-haves；code review CR-01 + WR-01..04 全修复）
+
+- **lineage/ 独立库（D-21）:** `derive_lineage`/`derive_lineage_without_catalog` 只 import analyzer+syntax（永不 parser）；D-01 表达式直通边（投影表达式内每个已解析列引用各一条 source→target 边）；D-06 独立 gap 列表（requires-catalog / unresolved-reference / requires-complete-parse）；视图注册表 + `ViewCatalog[T]`（D-03，视图 shadow catalog 表）；INSERT/CTE/UNION 位置映射（D-04，与 analyzer 现实调和：EXCEPT 投影修饰符、INTERSECT 不接受集）；SC2 诚实 gap——无 catalog 星号/外部视图/未解析引用绝不伪造边。
+- **analyzer 公开面（Wave 0）:** 8 个 select-model 类型 pub(all) + re-parser/体定位入口公开；`* EXCEPT (cols)` 诚实展开（SelectItem.except_cols）；has_error_missing 公开；零 parser/冻结 baseline 改动。
+- **api/wire/CLI:** `api.lineage_text(raw, parse_options, catalog?)` + flink 门禁（FATHOM-SCHEMA-003 "lineage is Doris-only"，D-08）；`fathom.lineage.v1` 第 8 命名空间（schema 纯增，Pitfall V6）+ `fathom_lineage_v1`（catalog_json 解析，非法输入 FATHOM-SCHEMA-004）；`fathom-sql lineage --catalog <file>` 子命令（D-39 0/1/2）。
+- **parity/docs:** lineage_parity_test 三目标字节一致（605/605 ×3，digest `2eda3582…`）；双语 API 文档 Lineage 章节 + COVERAGE.md api-coverage 声明。
+- **门禁:** lineage 19/19、test 209/209、api 636/636、fathom-sql 37/37、parity 605/605 ×3；frozen Doris parity 455 快照 0 差异；D-21 负门禁干净。
+
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming — SHIPPED 2026-08-10
 
 **Goal:** 将单方言 Doris 解析器升级为多方言 SQL SDK——引入方言抽象层，新增 Flink SQL 方言全链（解析/CST/诊断/格式化/补全/LSP/CLI），并完成产品命名中立化（二进制/schema/错误码/扩展/文档），使同一无损 CST 内核服务 Doris 与 Flink 两个方言。原 v2.0 分析层（Analysis and Intelligence）顺延为 v3.0。
@@ -115,8 +124,8 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01 ✅ Phase 5 完成）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01）。要求已归档于 [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md)。
 
-**Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01、LINE-01、FING-01、EDIT-01
-**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已启动，Phase 5 完成，下一 Phase 6 Lint）
+**Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01 ✅（Phase 6）、FING-01 ✅（Phase 6）、LINE-01 ✅（Phase 7）、EDIT-01（Phase 8，benchmark-gated）
+**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已启动，Phase 5-7 完成，下一 Phase 8 Incremental Parsing）
 
 ## Evolution
 
@@ -136,4 +145,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-10 after v2.0 milestone — Multi-Dialect: Flink SQL & Neutral Naming SHIPPED · v3.0 Phase 5 Closeout and Analysis Foundation COMPLETE*
+*Last updated: 2026-08-11 after v3.0 Phase 7 Column Lineage COMPLETE*
