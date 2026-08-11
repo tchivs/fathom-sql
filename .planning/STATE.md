@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Analysis and Intelligence — PLANNING
-current_phase: 6
-current_phase_name: Lint and Fingerprint
+current_phase: 07
+current_phase_name: Column Lineage
 status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-08-11T06:35:53.290Z"
-last_activity: 2026-08-10
-last_activity_desc: Phase 5 complete, transitioned to Phase 6
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-08-11T07:00:04.407Z"
+last_activity: 2026-08-11
+last_activity_desc: Phase 07 execution started
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 13
-  completed_plans: 8
+  completed_plans: 9
   percent: 50
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Phase 5 — closeout-and-analysis-foundation
+**Current focus:** Phase 07 — Column Lineage
 
 ## Current Position
 
-Phase: 6 — Lint and Fingerprint
-Plan: Not started
+Phase: 07 (Column Lineage) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-08-10 — Phase 5 complete, transitioned to Phase 6
+Last activity: 2026-08-11 — Phase 07 execution started
 
 ## Performance Metrics
 
@@ -109,6 +109,7 @@ Last activity: 2026-08-10 — Phase 5 complete, transitioned to Phase 6
 | Phase 05-02 P02 | 40min | 3 tasks | 9 files |
 | Phase 05-03 P03 | 45min | 3 tasks | 11 files |
 | Phase 05 P04 | 50min | 3 tasks | 8 files |
+| Phase 07-column-lineage P01 | 42 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -240,6 +241,10 @@ Recent decisions affecting current work:
 - [Phase ?]: analyze() end-to-end tracer (D-01/D-04/D-06): SELECT bodies re-parsed from the flat token-leaf CST via source_tokens + paren-depth clause split; bindings carry flattened start_byte/end_byte spans; analyzer diagnostics live on an independent channel (ANLY-01); quoted identifiers resolve via Catalog::table case-fold + byte-exact TableInfo.name re-check
 - [Phase ?]: 05-03 full SELECT analysis model (D-01/D-02/D-03/D-05): analyzer re-parser splits every clause (SELECT list/FROM+JOIN/WHERE/GROUP BY/HAVING/QUALIFY/WINDOW/ORDER BY/LIMIT/UNION) with paren-depth awareness (GROUP/ORDER only break on a following BY); scope stack resolves CTE/subquery frames (inner-first shadowing, CTE beats catalog tables), aliases, qualified names (1=col/table, 2=alias.col|db.table, 3=db.table.col via table_in_db), and star expansion over resolved tables; UNION chains split only (EXCEPT is a projection modifier, INTERSECT not accepted — Pitfall 2); quoted identifiers stay case-exact via Catalog::table case-fold + TableInfo.name byte re-check (never StaticCatalog::lookup_exact on the generic path)
 - [Phase ?]: 05-04 final ANAL-01 slice (D-02/D-04/D-06): function-call resolution + arity via Catalog::function (Function binding + unknown-function/function-arity), DML/CREATE VIEW column-level refs (UPDATE SET/WHERE, DELETE WHERE, INSERT column lists, MERGE SET; resolve_table_references untouched), complete analyzer diagnostic set (unknown-table/column/function, ambiguous-reference, function-arity) on the independent channel (ANLY-01), and docs/API.md public-surface update; NameRef gained call_args for depth-0 arg counting; CREATE VIEW body re-parsed from the AS-tail token slice (flat CST, no nested Select node); unknown-column gated on scope exposing columns
+- [Phase ?]: pub(all) on the 8 select-model types suffices for cross-package read access (probe-verified on moon 0.1.20260724); no field-level pub needed
+- [Phase ?]: split_select_model returns Some empty model (branches=[]) for an empty token stream — total function, no panic, no fabricated content
+- [Phase ?]: Pitfall 3 option (a): SelectItem.except_cols captures * EXCEPT (...) slices; expand_star skips excluded columns (D-03 matching) so excluded columns never fabricate an edge (SC2)
+- [Phase ?]: insert_body_location returns a plain tuple ((Int, Int)?, Int)? because named-tuple type syntax is not accepted by moon 0.1.20260724 (parse error); field semantics documented
 
 ### Pending Todos
 
@@ -271,9 +276,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-11T05:43:19.997Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-column-lineage/07-CONTEXT.md
+Last session: 2026-08-11T06:59:32.478Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None
 
 ## Quick Tasks Completed
 

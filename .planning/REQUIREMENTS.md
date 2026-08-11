@@ -23,7 +23,7 @@ Requirements for the v3.0 milestone (Analysis and Intelligence). Each maps to ex
 
 ### Lineage
 
-- [ ] **LINE-01**: User can inspect column-level data lineage across supported queries and views (SELECT/INSERT/CTE/set operations and view expansion), where unresolved refs and `*` expansion without catalog metadata produce explicit "requires catalog" gaps rather than fabricated edges.
+- [x] **LINE-01**: User can inspect column-level data lineage across supported queries and views (SELECT/INSERT/CTE/set operations and view expansion), where unresolved refs and `*` expansion without catalog metadata produce explicit "requires catalog" gaps rather than fabricated edges.
 
 ### Fingerprint
 
@@ -69,7 +69,7 @@ Populated during v3.0 roadmap creation. Each requirement maps to exactly one pha
 | ANAL-01 | Phase 5 | Complete — Phase 5 05-04 delivered function resolution + arity, DML/CREATE VIEW column-level refs, and the full diagnostic set (unknown-table/column/function, ambiguous-reference, function-arity) with docs/API.md updated |
 | LINT-01 | Phase 6 | Complete |
 | FING-01 | Phase 6 | Complete |
-| LINE-01 | Phase 7 | Pending |
+| LINE-01 | Phase 7 | Complete |
 | EDIT-01 | Phase 8 | Pending |
 
 **Coverage:**
