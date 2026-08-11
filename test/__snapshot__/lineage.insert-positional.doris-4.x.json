@@ -1,0 +1,9 @@
+{
+  "edges": [
+    {"source_name":"a","source_resolved_to":"a","source_start_byte":28,"source_end_byte":29,"target_name":"t.c1","target_start_byte":14,"target_end_byte":16},
+    {"source_name":"b","source_resolved_to":"b","source_start_byte":30,"source_end_byte":31,"target_name":"t.c2","target_start_byte":17,"target_end_byte":19}
+  ],
+  "gaps": [
+    {"code":"unresolved-reference","message":"table not found in catalog: t","start_byte":12,"end_byte":13}
+  ]
+}

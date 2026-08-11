@@ -1,0 +1,9 @@
+{
+  "edges": [
+    {"source_name":"a","source_resolved_to":"a","source_start_byte":18,"source_end_byte":19,"target_name":"c.a","target_start_byte":18,"target_end_byte":19},
+    {"source_name":"a","source_resolved_to":"a","source_start_byte":35,"source_end_byte":36,"target_name":"a","target_start_byte":35,"target_end_byte":36},
+    {"source_name":"b","source_resolved_to":"b","source_start_byte":57,"source_end_byte":58,"target_name":"a","target_start_byte":57,"target_end_byte":58}
+  ],
+  "gaps": [
+  ]
+}

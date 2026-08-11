@@ -1,0 +1,7 @@
+{
+  "edges": [
+  ],
+  "gaps": [
+    {"code":"requires-catalog","message":"star projection cannot be expanded without catalog column metadata","start_byte":7,"end_byte":8}
+  ]
+}

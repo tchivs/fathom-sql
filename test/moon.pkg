@@ -8,6 +8,7 @@ import {
   "fathom/sql/token" @token,
   "fathom/sql/formatter" @formatter,
   "fathom/sql/dialect" @dialect,
+  "fathom/sql/lineage" @lineage,
 }
 
 import {
