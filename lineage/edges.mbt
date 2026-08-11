@@ -570,16 +570,37 @@ fn derive_select_body(
   (edges, gaps)
 }
 
+/// Appends edge/gap batches to the accumulators.
+fn append_edges_gaps(
+  edges : Array[LineageEdge],
+  gaps : Array[LineageGap],
+  e : Array[LineageEdge],
+  g : Array[LineageGap],
+) -> Unit {
+  for edge in e {
+    edges.push(edge)
+  }
+  for gap in g {
+    gaps.push(gap)
+  }
+}
+
 /// Walks one parsed document's statement bodies and derives lineage edges +
-/// gaps for the SELECT-family bodies this plan ships (Task 1: SELECT; Task 3
-/// adds CREATE VIEW and INSERT).
+/// gaps: SELECT bodies, CREATE VIEW bodies (edges into the view's output
+/// columns), and INSERT bodies (D-04 positional mapping).
 fn[T : @analyzer.Catalog] derive_lineage_inner(
   root : @syntax.SyntaxNode,
   source_bytes : Bytes,
   catalog : T,
   catalog_none : Bool,
 ) -> LineageResult {
-  let analysis = @analyzer.analyze(root, source_bytes, catalog)
+  // Pass 1: analyze with the inner catalog so stars inside CREATE VIEW bodies
+  // expand over base tables, feeding the view registry (D-03).
+  let analysis_inner = @analyzer.analyze(root, source_bytes, catalog)
+  let registry = build_view_registry(root, source_bytes, analysis_inner.bindings)
+  let view_catalog = ViewCatalog::{ views: registry, inner: catalog }
+  // Pass 2: analyze with the view catalog so `FROM v` resolves to view columns.
+  let analysis = @analyzer.analyze(root, source_bytes, view_catalog)
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
   for element in root.children() {
@@ -609,12 +630,55 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
                       body_has_table_binding,
                       None,
                     )
-                    for edge in e {
-                      edges.push(edge)
+                    append_edges_gaps(edges, gaps, e, g)
+                  }
+                  @syntax.SyntaxKind::CreateView => {
+                    if has_error {
+                      let (e, g) = derive_select_body(
+                        None,
+                        true,
+                        body_start,
+                        body_end,
+                        analysis.bindings,
+                        body_diagnostics,
+                        catalog_none,
+                        body_has_table_binding,
+                        None,
+                      )
+                      append_edges_gaps(edges, gaps, e, g)
+                    } else {
+                      let tokens = @analyzer.source_tokens(body, source_bytes)
+                      let name = view_name(tokens)
+                      let query_start = @analyzer.view_body_location(tokens)
+                      let body_tokens = sub_tokens(tokens, query_start, tokens.length())
+                      let model = @analyzer.split_select_model(body_tokens)
+                      let (e, g) = derive_select_body(
+                        model,
+                        false,
+                        body_start,
+                        body_end,
+                        analysis.bindings,
+                        body_diagnostics,
+                        catalog_none,
+                        body_has_table_binding,
+                        name,
+                      )
+                      append_edges_gaps(edges, gaps, e, g)
                     }
-                    for gap in g {
-                      gaps.push(gap)
-                    }
+                  }
+                  @syntax.SyntaxKind::Insert => {
+                    let tokens = @analyzer.source_tokens(body, source_bytes)
+                    let (e, g) = derive_insert_body(
+                      tokens,
+                      analysis.bindings,
+                      body_diagnostics,
+                      catalog_none,
+                      view_catalog,
+                      body_start,
+                      body_end,
+                      has_error,
+                    )
+                    append_edges_gaps(edges, gaps, e, g)
                   }
                   _ => ()
                 }

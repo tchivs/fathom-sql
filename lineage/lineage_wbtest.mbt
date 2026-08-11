@@ -111,6 +111,18 @@ fn t_fn_binding(name : String, start : Int, end : Int) -> ABinding {
   }
 }
 
+/// Builds a (bytes, span) token array from bare word bytes with monotonically
+/// increasing synthetic byte offsets (mirror of the analyzer's wb_tokens).
+fn t_tokens(words : Array[Bytes]) -> Array[(Bytes, Int, Int)] {
+  let out : Array[(Bytes, Int, Int)] = []
+  let mut offset = 0
+  for word in words {
+    out.push((word, offset, offset + word.length()))
+    offset = offset + word.length() + 1
+  }
+  out
+}
+
 /// Runs the SELECT-family body derivation, appending edges/gaps to the given
 /// output arrays (out-params instead of a tuple return to keep the test file
 /// clear of the moon 0.1.20260724 tuple-return parse quirk).
@@ -396,4 +408,147 @@ test "lineage error body reports requires-complete-parse" {
   assert_eq(gaps[0].code, GAP_REQUIRES_COMPLETE_PARSE)
   assert_eq(gaps[0].start_byte, 0)
   assert_eq(gaps[0].end_byte, 100)
+}
+
+test "lineage view registry and ViewCatalog shadow" {
+  // Task 3 Test 1 (registry + ViewCatalog): `CREATE VIEW v AS SELECT a FROM t`
+  // yields v's output column a; ViewCatalog.table resolves the registry view
+  // before the inner catalog, so a same-name view shadows a catalog table
+  // (Pitfall 4); names outside the registry delegate to the inner catalog.
+  let model = t_model([t_item([t_ref(7, 8)], None, 0, 0)])
+  let bindings : Array[ABinding] = [t_col_binding("a", "a", 7, 8)]
+  let cols = view_output_columns(model, bindings)
+  assert_eq(cols.length(), 1)
+  assert_eq(cols[0].name, "a")
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
+  let vc = ViewCatalog::{ views: Map([("v", cols), ("t", cols)]), inner: catalog }
+  // Registry hit: FROM v resolves to the view's output columns.
+  let tv = match @analyzer.Catalog::table(vc, "v") {
+    Some(i) => i
+    None => panic()
+  }
+  assert_eq(tv.name, "v")
+  assert_eq(tv.columns.length(), 1)
+  assert_eq(tv.columns[0].name, "a")
+  // Same-name view shadows the catalog table t (Pitfall 4).
+  let shadow = match @analyzer.Catalog::table(vc, "t") {
+    Some(i) => i
+    None => panic()
+  }
+  assert_eq(shadow.name, "t")
+  assert_eq(shadow.columns[0].name, "a")
+  // Delegate: a name in the inner catalog but not a view resolves normally.
+  let catalog2 = @analyzer.StaticCatalog::new([
+    { name: "u", columns: [{ name: "x", data_type: "INT" }] },
+  ])
+  let vc2 = ViewCatalog::{ views: Map([("v", cols)]), inner: catalog2 }
+  let tu = match @analyzer.Catalog::table(vc2, "u") {
+    Some(i) => i
+    None => panic()
+  }
+  assert_eq(tu.name, "u")
+  assert_eq(tu.columns[0].name, "x")
+  // External view (Task 3 Test 2): neither registry nor catalog -> None.
+  match @analyzer.Catalog::table(vc2, "nope") {
+    None => ()
+    Some(_) => panic()
+  }
+}
+
+test "lineage view body edge to view output column" {
+  // Task 3 Test 1 (view expansion edge): the CREATE VIEW body's select item
+  // derives an edge t.a -> v.a (view-qualified target, D-03).
+  let model = t_model([t_item([t_ref(7, 8)], None, 0, 0)])
+  let bindings : Array[ABinding] = [t_col_binding("a", "a", 7, 8)]
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, [], false, true, Some("v"), edges, gaps)
+  assert_eq(edges.length(), 1)
+  assert_eq(gaps.length(), 0)
+  assert_eq(edges[0].source_name, "a")
+  assert_eq(edges[0].source_resolved_to, "a")
+  assert_eq(edges[0].source_start_byte, 7)
+  assert_eq(edges[0].source_end_byte, 8)
+  assert_eq(edges[0].target_name, "v.a")
+}
+
+test "lineage external view star without metadata is requires-catalog" {
+  // Task 3 Test 2: `SELECT * FROM v` where v is an external view with no
+  // metadata (not in the document, not in the catalog) -> the unexpanded star
+  // reports a requires-catalog gap and zero edges (SC2).
+  let model = t_model([t_star_item(7, 8)])
+  let bindings : Array[ABinding] = []
+  let edges : Array[LineageEdge] = []
+  let gaps : Array[LineageGap] = []
+  run_body(Some(model), false, bindings, [], true, false, None, edges, gaps)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
+  assert_eq(gaps[0].start_byte, 7)
+  assert_eq(gaps[0].end_byte, 8)
+}
+
+test "lineage INSERT positional mapping" {
+  // Task 3 Test 3: `INSERT INTO t(c1,c2) SELECT a,b FROM u` -> the trailing
+  // SELECT output columns map positionally to the column list: u.a->t.c1 and
+  // u.b->t.c2 (independent empty-scope re-parse, Open Question 4).
+  let tokens = t_tokens([
+    b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")",
+    b"SELECT", b"a", b",", b"b", b"FROM", b"u",
+  ])
+  let catalog = @analyzer.StaticCatalog::new([])
+  let (edges, gaps) = derive_insert_body(tokens, [], [], true, catalog, 0, 100, false)
+  assert_eq(edges.length(), 2)
+  assert_eq(gaps.length(), 0)
+  assert_eq(edges[0].source_name, "a")
+  assert_eq(edges[0].source_resolved_to, "a")
+  assert_eq(edges[0].target_name, "t.c1")
+  assert_eq(edges[1].source_name, "b")
+  assert_eq(edges[1].target_name, "t.c2")
+}
+
+test "lineage INSERT without column list no catalog gap" {
+  // Task 3 Test 4: `INSERT INTO t SELECT a FROM u` (no column list, no
+  // catalog) -> one requires-catalog gap at the target-table span; the source
+  // edge is still produced with the target table as the fallback target
+  // (Open Question 3).
+  let tokens = t_tokens([b"INSERT", b"INTO", b"t", b"SELECT", b"a", b"FROM", b"u"])
+  let catalog = @analyzer.StaticCatalog::new([])
+  let diagnostics : Array[ADiagnostic] = [
+    {
+      code: "unknown-table",
+      message: "table not found in catalog: t",
+      start_byte: 12,
+      end_byte: 13,
+    },
+  ]
+  let (edges, gaps) = derive_insert_body(tokens, [], diagnostics, true, catalog, 0, 100, false)
+  assert_eq(edges.length(), 1)
+  assert_eq(gaps.length(), 1)
+  assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
+  assert_eq(gaps[0].start_byte, 12)
+  assert_eq(gaps[0].end_byte, 13)
+  assert_eq(edges[0].source_name, "a")
+  assert_eq(edges[0].target_name, "t")
+}
+
+test "lineage INSERT VALUES produces no edges" {
+  // Task 3 Test 5: `INSERT INTO t(c1) VALUES (1)` -> no edges, no gaps (row
+  // literals carry no column references; the column list names targets even
+  // without catalog metadata, so the unknown-table gap is suppressed).
+  let tokens = t_tokens([b"INSERT", b"INTO", b"t", b"(", b"c1", b")", b"VALUES", b"(", b"1", b")"])
+  let catalog = @analyzer.StaticCatalog::new([])
+  let diagnostics : Array[ADiagnostic] = [
+    {
+      code: "unknown-table",
+      message: "table not found in catalog: t",
+      start_byte: 12,
+      end_byte: 13,
+    },
+  ]
+  let (edges, gaps) = derive_insert_body(tokens, [], diagnostics, true, catalog, 0, 100, false)
+  assert_eq(edges.length(), 0)
+  assert_eq(gaps.length(), 0)
 }
