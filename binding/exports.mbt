@@ -150,6 +150,96 @@ pub fn fathom_fingerprint_v1(
   }
 }
 
+/// Parse the wire `overrides` argument: a UTF-8 JSON array of
+/// `{"code": "...", "setting": "off|error|warning|info"}` objects. An empty
+/// array / empty bytes is the default registry. Malformed JSON, non-array
+/// input, missing fields, or an unknown severity is a structured error — never
+/// a silent fallback to the default registry (T-06-03-01, ASVS V5).
+fn parse_overrides(overrides : Bytes) -> Result[Array[@api.RuleOverride], String] {
+  if overrides.length() == 0 {
+    return Ok([])
+  }
+  let text = try {
+    @utf8.decode(overrides)
+  } catch {
+    _ => return Err("invalid UTF-8 in lint overrides")
+  }
+  let value = try {
+    @json.parse(text)
+  } catch {
+    _ => return Err("malformed JSON in lint overrides")
+  }
+  match value {
+    Json::Array(items) => {
+      let out : Array[@api.RuleOverride] = []
+      for item in items {
+        let obj = match item {
+          Json::Object(obj) => obj
+          _ => return Err("lint override must be an object")
+        }
+        let code = match obj.get("code") {
+          Some(Json::String(s)) => s
+          _ => return Err("lint override missing string code")
+        }
+        let setting = match obj.get("setting") {
+          Some(Json::String(s)) => s
+          _ => return Err("lint override missing string setting")
+        }
+        let parsed_setting = if setting == "off" {
+          @api.RuleSetting::Disabled
+        } else {
+          match @api.LintSeverity::from_id(setting) {
+            Some(severity) => @api.RuleSetting::Severity(severity)
+            None => return Err("invalid lint severity: \{setting}")
+          }
+        }
+        out.push({ code: code, setting: parsed_setting })
+      }
+      Ok(out)
+    }
+    _ => Err("lint overrides must be a JSON array")
+  }
+}
+
+#export_name("fathom_lint_v1")
+pub fn fathom_lint_v1(
+  raw : Bytes,
+  dialect : String,
+  profile : String,
+  mode : String,
+  overrides : Bytes,
+  fix : Bool,
+) -> Bytes {
+  // Dialect/profile validated FIRST (Pitfall 6, T-09-10): unknown dialect /
+  // unsupported profile map to the fathom.error.v1 envelope before any lint
+  // work. ParseOptions also supplies exact_release for the envelope (D-09).
+  let selection = match @api.ParseOptions::new(dialect, profile, mode) {
+    Ok(options) => options
+    Err(error) => return parse_error_bytes(error)
+  }
+  let rule_overrides = match parse_overrides(overrides) {
+    Ok(value) => value
+    Err(message) => return error_bytes("FATHOM-SCHEMA-004", message)
+  }
+  let lint_options = match @api.LintOptions::new(rule_overrides) {
+    Ok(options) => options
+    Err(_) => return error_bytes("FATHOM-SCHEMA-004", "unknown rule code in lint overrides")
+  }
+  let result = if fix {
+    @api.fix_text(raw, selection, lint_options)
+  } else {
+    @api.lint_text(raw, selection, lint_options)
+  }
+  match result {
+    Ok(result) => {
+      json_bytes(
+        lint_result_json(raw, result, dialect, profile, selection.exact_release()),
+      )
+    }
+    Err(error) => parse_error_bytes(error)
+  }
+}
+
 #export_name("fathom_dialect_v1")
 pub fn fathom_dialect_v1(dialect : String) -> Bytes {
   json_bytes(dialect_json(dialect))

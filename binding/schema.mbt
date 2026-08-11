@@ -168,6 +168,65 @@ pub fn fingerprint_result_json(
     "normalized": byte_array_json(result.normalized),
   })
 }
+
+/// Serialized lint result envelope (LINT-01, D-05): carries the same
+/// dialect/profile/exact_release selection metadata as the parse/format/
+/// fingerprint envelopes (D-09 — consumers must only compare lint results
+/// within the same selection). `findings` carries the rule findings with their
+/// candidate fixes; `output` is the fixed source in fix mode (empty on
+/// refusal); `diagnostics` carries the engine-level FATHOM-LINT-000 refusal
+/// (exactly one when `accepted` is false, D-33).
+pub fn lint_result_json(
+  source : Bytes,
+  result : @api.LintResult,
+  dialect : String,
+  profile : String,
+  exact_release : String,
+) -> String {
+  let findings : Array[Json] = []
+  for finding in result.findings {
+    let fix_json = match finding.fix {
+      Some(edit) => Json::object({
+        "start_byte": Json::number(edit.start_byte.to_double()),
+        "end_byte": Json::number(edit.end_byte.to_double()),
+        "new_text": byte_array_json(edit.new_text),
+      })
+      None => Json::object({})
+    }
+    findings.push(Json::object({
+      "code": Json::string(finding.code),
+      "severity": Json::string(finding.severity),
+      "message": Json::string(finding.message),
+      "start_byte": Json::number(finding.start_byte.to_double()),
+      "end_byte": Json::number(finding.end_byte.to_double()),
+      "statement_id": Json::number(finding.statement_id.to_double()),
+      "fix": fix_json,
+    }))
+  }
+  let diagnostics : Array[Json] = []
+  for diag in result.diagnostics {
+    diagnostics.push(Json::object({
+      "code": Json::string(diag.code),
+      "message": Json::string(diag.message),
+      "start_byte": Json::number(diag.start_byte.to_double()),
+      "end_byte": Json::number(diag.end_byte.to_double()),
+      "statement_id": Json::number(diag.statement_id.to_double()),
+    }))
+  }
+  stringify({
+    "schema_version": Json::string("fathom.lint.v1"),
+    "source_transport": Json::string(SOURCE_TRANSPORT),
+    "dialect": Json::string(dialect),
+    "profile": Json::string(profile),
+    "exact_release": Json::string(exact_release),
+    "source_bytes": byte_array_json(source),
+    "source_byte_length": Json::number(source.length().to_double()),
+    "accepted": Json::boolean(result.accepted),
+    "findings": Json::array(findings),
+    "output": byte_array_json(result.output),
+    "diagnostics": Json::array(diagnostics),
+  })
+}
 pub fn error_json(code : String, message : String) -> String {
   stringify({
     "schema_version": Json::string("fathom.error.v1"),
