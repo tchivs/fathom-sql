@@ -3,6 +3,8 @@
 pub const PARSE_SCHEMA_VERSION : String = "fathom.parse.v1"
 pub const FORMAT_SCHEMA_VERSION : String = "fathom.format.v1"
 pub const COMPLETE_SCHEMA_VERSION : String = "fathom.complete.v1"
+pub const LINT_SCHEMA_VERSION : String = "fathom.lint.v1"
+pub const FINGERPRINT_SCHEMA_VERSION : String = "fathom.fingerprint.v1"
 pub const SOURCE_TRANSPORT : String = "inline-root-v1"
 
 pub enum SchemaError {
@@ -13,15 +15,19 @@ pub enum SchemaError {
   UnsupportedMode(mode~ : String)
 } derive(Eq, @debug.Debug)
 
-/// Accepts exactly the five fathom.*.v1 result/error envelope namespaces
-/// (D-09, D-04): parse, format, complete, error, capabilities.
-/// fathom.dialect.v1 is a metadata-query schema served by fathom_dialect_v1,
-/// not a result envelope. fathom.complete.v1 is the D-04 completion envelope.
+/// Accepts the seven fathom.*.v1 result/error envelope namespaces
+/// (D-09, D-04, schema v2 bump 06-01): parse, format, complete, lint,
+/// fingerprint, error, capabilities. fathom.dialect.v1 is a metadata-query
+/// schema served by fathom_dialect_v1, not a result envelope.
+/// fathom.complete.v1 is the D-04 completion envelope. The v2 bump is PURE
+/// ADDITION (Pitfall V6): the original five namespaces keep their branches.
 pub fn validate_schema_version(version : String) -> Result[Unit, SchemaError] {
   match version {
     PARSE_SCHEMA_VERSION |
     FORMAT_SCHEMA_VERSION |
     COMPLETE_SCHEMA_VERSION |
+    LINT_SCHEMA_VERSION |
+    FINGERPRINT_SCHEMA_VERSION |
     "fathom.error.v1" |
     "fathom.capabilities.v1" => Ok(())
     _ => Err(UnsupportedSchemaVersion(version~))
@@ -132,6 +138,34 @@ pub fn format_result_json(
     "formatted": byte_array_json(result.output),
     "diagnostics": format_diagnostics_json(result.diagnostics),
     "statement_offsets": offsets_json(result.statement_offsets),
+  })
+}
+
+/// Serialized fingerprint result envelope (FING-01, D-08): carries the same
+/// dialect/profile/exact_release selection metadata as the parse/format
+/// envelopes (D-09 — consumers must only compare fingerprints within the same
+/// selection). The UInt64 `fingerprint` field is serialized as a DECIMAL JSON
+/// STRING (`Json::string(value.to_string())`) — NEVER
+/// `Json::number(value.to_double())`, which loses precision above 2^53 and
+/// makes JS hosts read a rounded value (RESEARCH Pitfall 3; 06-01 threat
+/// T-06-01-01).
+pub fn fingerprint_result_json(
+  source : Bytes,
+  result : @api.FingerprintResult,
+  dialect : String,
+  profile : String,
+  exact_release : String,
+) -> String {
+  stringify({
+    "schema_version": Json::string("fathom.fingerprint.v1"),
+    "source_transport": Json::string(SOURCE_TRANSPORT),
+    "dialect": Json::string(dialect),
+    "profile": Json::string(profile),
+    "exact_release": Json::string(exact_release),
+    "source_bytes": byte_array_json(source),
+    "source_byte_length": Json::number(source.length().to_double()),
+    "fingerprint": Json::string(result.fingerprint.to_string()),
+    "normalized": byte_array_json(result.normalized),
   })
 }
 pub fn error_json(code : String, message : String) -> String {

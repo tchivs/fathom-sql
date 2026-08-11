@@ -118,6 +118,38 @@ pub fn fathom_complete_v1(
   }
 }
 
+#export_name("fathom_fingerprint_v1")
+pub fn fathom_fingerprint_v1(
+  raw : Bytes,
+  dialect : String,
+  profile : String,
+  mode : String,
+) -> Bytes {
+  // Dialect/profile validated FIRST (Pitfall 6, T-09-10): unknown dialect /
+  // unsupported profile map to the fathom.error.v1 envelope
+  // (UnknownDialect -> FATHOM-SCHEMA-007, UnknownProfile -> FATHOM-SCHEMA-003)
+  // before any fingerprint work. The ParseOptions supplies exact_release for
+  // the result envelope (D-09).
+  let selection = match @api.ParseOptions::new(dialect, profile, mode) {
+    Ok(options) => options
+    Err(error) => return parse_error_bytes(error)
+  }
+  match @api.fingerprint_text(raw, selection) {
+    Ok(result) => {
+      json_bytes(
+        fingerprint_result_json(
+          raw,
+          result,
+          dialect,
+          profile,
+          selection.exact_release(),
+        ),
+      )
+    }
+    Err(error) => parse_error_bytes(error)
+  }
+}
+
 #export_name("fathom_dialect_v1")
 pub fn fathom_dialect_v1(dialect : String) -> Bytes {
   json_bytes(dialect_json(dialect))
