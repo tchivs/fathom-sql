@@ -31,7 +31,7 @@ Requirements for the v3.0 milestone (Analysis and Intelligence). Each maps to ex
 
 ### Incremental Editing
 
-- [ ] **EDIT-01**: Editor can use bounded incremental parsing and targeted CST refactors without reparsing the full document — **only when `moon bench` benchmarks demonstrate whole-document reparse is a measurable latency bottleneck**; incremental output must be byte-identical to whole-document reparse on the same input (`print_lossless(parse_incremental(x)) == print_lossless(parse_full(x))`).
+- [x] **EDIT-01**: Editor can use bounded incremental parsing and targeted CST refactors without reparsing the full document — **only when `moon bench` benchmarks demonstrate whole-document reparse is a measurable latency bottleneck**; incremental output must be byte-identical to whole-document reparse on the same input (`print_lossless(parse_incremental(x)) == print_lossless(parse_full(x))`). — DESCOPED WITH EVIDENCE 2026-08-12: moon bench gate showed editor-scale (≥100KB) whole-doc reparse median 27.47ms (≤50ms threshold) with linear scaling (2.00×/2.04×/2.10× per doubling), no superlinear signs — see .planning/phases/08-incremental-parsing-benchmark-gated/08-BENCHMARK.md
 
 ## Future Requirements
 
@@ -70,7 +70,7 @@ Populated during v3.0 roadmap creation. Each requirement maps to exactly one pha
 | LINT-01 | Phase 6 | Complete |
 | FING-01 | Phase 6 | Complete |
 | LINE-01 | Phase 7 | Complete |
-| EDIT-01 | Phase 8 | Pending |
+| EDIT-01 | Phase 8 | Descoped with evidence (see .planning/phases/08-incremental-parsing-benchmark-gated/08-BENCHMARK.md) |
 
 **Coverage:**
 
