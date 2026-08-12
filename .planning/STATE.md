@@ -277,6 +277,7 @@ Items acknowledged and deferred at milestone close on 2026-08-05:
 | verification_override | Phase 04 ECO-06 rendered Monaco UI checkpoints (executor-documented 23/23 Chromium assertions; not independently reproducible in verifier env) | verified_by_executor |
 | differential | FE/Nereids differential script execution (D-20 manual; Java FE offline-unavailable) | deferred |
 | ci_recommendation | linear-Wasm runtime execution parity step before release | **closed — Phase 5 CLOSE-02 formally verified** — CI workflow `.github/workflows/` added with `moon build --target wasm` + parity fixture execution step (CLOSE-02) |
+| descope_evidence | EDIT-01 incremental parsing — benchmark-gated descope | closed 2026-08-12 — 08-BENCHMARK.md (≥100KB median 27.47ms, linear, branch A) |
 
 Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: override_closeout.
 

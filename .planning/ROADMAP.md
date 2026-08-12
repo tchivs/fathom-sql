@@ -116,7 +116,7 @@ Success criteria:
 **Mode:** standard
 **Depends on**: Phase 5 (stable CST, source revisions + LineIndex)
 **Requirements**: EDIT-01
-**Status:** Not started (gated)
+**Status:** Complete — descoped with evidence (see 08-BENCHMARK.md)
 
 Success criteria:
 
