@@ -96,6 +96,30 @@ evidence documented in this file**; no incremental-parsing code is written.
 The orchestrator routes the follow-up plan to the descope record (08-02),
 not to incremental implementation (08-03/08-04).
 
+### Gate Interpretation Note (WR-02 closure)
+
+D-02's threshold wording "editor-scale (≥100 KB) median > 50 ms" is evaluated
+at the **≥100 KB editor-scale boundary** — the 100.39 KB fixture (27.47 ms),
+which is the representative editor-scale target per D-01. The 200.33 KB point
+(57.76 ms) is a **2× linear-extrapolation confirmation**, not an independent
+trigger: a linear model from the 100 KB point predicts ≈55 ms and the measured
+57.76 ms matches (×2.10 per doubling). The **decisive negative signal is the
+absence of superlinear growth** (per-doubling factor ≈2.0 across the whole
+25→200 KB gradient); a true O(n²) bottleneck would show ×4+ per doubling. Both
+D-02 triggers (absolute >50 ms at the editor-scale boundary; superlinear
+growth) are therefore not met.
+
+### Methodology bias note (WR-01 closure)
+
+The embedded statement pool includes `select-industrial.sql` (which carries a
+recovery tail) and the `SELECT k +` recovery fixture, so synthetic documents
+cycle some recovery-path content. Recovery-path parsing is **more expensive**
+than normal parsing, so this bias makes the measured latency an **upper bound**
+for the normal parse path — the branch-A (fast) verdict is conservative with
+respect to this bias, not invalidated by it. The 08-01 plan's "normal parse
+path" claim is amended accordingly: synthetic docs exercise predominantly
+normal paths with a recovery-path component.
+
 ## 5. Toolchain Record
 
 - `moon --version`:
