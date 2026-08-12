@@ -107,6 +107,13 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - **parity/docs:** lineage_parity_test 三目标字节一致（605/605 ×3，digest `2eda3582…`）；双语 API 文档 Lineage 章节 + COVERAGE.md api-coverage 声明。
 - **门禁:** lineage 19/19、test 209/209、api 636/636、fathom-sql 37/37、parity 605/605 ×3；frozen Doris parity 455 快照 0 差异；D-21 负门禁干净。
 
+**v3.0 Phase 8 COMPLETE — 2026-08-12** (Incremental Parsing, Benchmark-Gated) — **EDIT-01 DESCoped with benchmark evidence**（verifier 8/8 must-haves；code review WR-01/WR-02 全修复）
+
+- **基准门禁（08-01 tracer）:** 新建 `bench/` 包（`@bench` attribute，moon 0.1.20260724 实测可用）；整文档重解析延迟梯度 25/50/100/200KB（corpus 内嵌语句池 + 合成 editor-scale，运行时零磁盘读）；native release 下 **100KB median 27.47ms（≤50ms 阈值）、200KB 57.76ms（线性外推一致）**，per-doubling ×2.00/×2.04/×2.10 —— **线性、无超线性增长**。
+- **门禁结论（D-02 阈值）:** editor-scale（≥100KB）整文档重解析**不是可测延迟瓶颈** → **分支 A：EDIT-01 descoped with evidence**（ROADMAP SC1 "or" 条款）。`08-BENCHMARK.md` 记录五要素（fixture/规模/median+p95/结论/工具链）+ Gate Interpretation Note（阈值在 ≥100KB 边界输入判定；200KB 为线性确认）+ Methodology bias note（recovery 路径使测量为上界，结论保守）。
+- **descope 记录（08-02）:** REQUIREMENTS.md EDIT-01 → `[x]` + DESCOPED WITH EVIDENCE（引用 08-BENCHMARK.md）；ROADMAP Phase 8 = Complete — descoped with evidence；STATE.md Deferred Items `descope_evidence` 行 closed。**零增量解析代码**（无 incremental/ 包，parser/ 冻结 baseline 未动）。
+- **门禁:** bench 9/9、test 209/209、api 636/636、fathom-sql 37/37、parity 605/605；命名门禁 655 文件零残留；verifier 8/8。
+
 ## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming — SHIPPED 2026-08-10
 
 **Goal:** 将单方言 Doris 解析器升级为多方言 SQL SDK——引入方言抽象层，新增 Flink SQL 方言全链（解析/CST/诊断/格式化/补全/LSP/CLI），并完成产品命名中立化（二进制/schema/错误码/扩展/文档），使同一无损 CST 内核服务 Doris 与 Flink 两个方言。原 v2.0 分析层（Analysis and Intelligence）顺延为 v3.0。
@@ -124,8 +131,8 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01 ✅ Phase 5 完成）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01）。要求已归档于 [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md)。
 
-**Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01 ✅（Phase 6）、FING-01 ✅（Phase 6）、LINE-01 ✅（Phase 7）、EDIT-01（Phase 8，benchmark-gated）
-**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已启动，Phase 5-7 完成，下一 Phase 8 Incremental Parsing）
+**Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01 ✅（Phase 6）、FING-01 ✅（Phase 6）、LINE-01 ✅（Phase 7）、EDIT-01 ⛔ DESCoped with evidence（Phase 8，`moon bench` 门禁：≥100KB median 27.47ms ≤ 50ms、线性）
+**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已全部完成：Phase 5-8；下一里程碑 /gsd:new-milestone）
 
 ## Evolution
 
@@ -145,4 +152,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-11 after v3.0 Phase 7 Column Lineage COMPLETE*
+*Last updated: 2026-08-12 after v3.0 Phase 8 Incremental Parsing (Benchmark-Gated) COMPLETE — EDIT-01 descoped with evidence*
