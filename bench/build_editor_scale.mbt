@@ -8,10 +8,10 @@
 /// pathological deep nesting (parser max_recursion_depth=128 — deep nesting
 /// would trip resource diagnostics instead of the normal parse path).
 ///
-/// NAMING-GATE CONSTRAINT (IN-03): the DORIS- text in this file lives only
-/// inside the byte-embedded fixture literals below (DORIS-03 is exempt via
-/// the check_naming.py negative lookahead). Do NOT add DORIS- text outside
-/// embedded fixture literals here.
+/// NAMING-GATE CONSTRAINT (IN-03): the diagnostic-code-prefix text in this
+/// file lives only inside the byte-embedded fixture literals below; the
+/// embedded `DORIS-03` token is exempt via the check_naming.py negative
+/// lookahead. Do NOT add such text outside embedded fixture literals here.
 
 let corpus_select_industrial_4x : Bytes =
   b"-- Released Apache Doris 4.x SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-query/SELECT/\nSELECT /*+ SET_VAR(exec_mem_limit=1G) */\n  d.k, COUNT(*) AS n,\n  SUM(d.v) OVER (PARTITION BY d.k ORDER BY d.ts RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS running\nFROM (SELECT k, v, ts FROM detail WHERE v IS NOT NULL) AS d\nTABLET (1001)\nGROUP BY CUBE(d.k)\nHAVING COUNT(*) > 1\nORDER BY n DESC\nLIMIT 5 OFFSET 2\nINTO OUTFILE 'result.csv';\n\nSELECT k FROM t1 UNION SELECT k FROM t2 UNION ALL SELECT k FROM t3;\n-- Recovery fixture: the missing expression is intentional and remains source-backed.\nSELECT k +\n"
