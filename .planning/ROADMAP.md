@@ -81,10 +81,14 @@ v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatt
 3. `.planning/research/.cache/`、quick 计划目录、`milestones/v1.0-research/` 已清理或归档
 4. `fathom-native-release.yml` 以钉住的 moon 版本构建（无 `latest`），并记录精确版本到发布工件
 5. 发布门禁矩阵（native/js/wasm parity、`diff_parity --frozen-only`、`check_naming`、corpus `--check`）可运行且通过
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 14-01: TBD
+- [ ] 14-01-PLAN.md — Signed four-native-runner freeze with exact-set verifier, atomic lock, and blocking evidence approval
+- [ ] 14-02-PLAN.md — Behavior-tested Unix/PowerShell installers migrate every ordinary CI MoonBit bootstrap to the lock
+- [ ] 14-03-PLAN.md — Real nine-command release-gates run plus behavior-tested four-record aggregation block publication
+- [ ] 14-04-PLAN.md — Exact JetBrains action-only delta and generated-interface/research-cache hygiene
+- [ ] 14-05-PLAN.md — Quick/archive preservation and executable final porcelain readiness classifier/matrix
 
 ### Phase 15: Product Versioning & Binary `--version`
 
