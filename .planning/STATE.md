@@ -2,11 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Release Readiness
+current_phase: 14
+current_phase_name: Release Hygiene & Toolchain Pinning
 status: planning
-last_updated: "2026-08-13T02:59:27.559Z"
+stopped_at: Phase 14 context gathered
+last_updated: "2026-08-13T03:39:40.673Z"
 last_activity: 2026-08-13
+last_activity_desc: Milestone v4.0 roadmap created
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -280,9 +284,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-12T05:20:07.903Z
-Stopped at: Phase 8 context gathered
-Resume file: /opt/source/Fathom/.planning/phases/08-incremental-parsing-benchmark-gated/08-CONTEXT.md
+Last session: 2026-08-13T03:39:40.649Z
+Stopped at: Phase 14 context gathered
+Resume file: .planning/phases/14-release-hygiene-toolchain-pinning/14-CONTEXT.md
 
 ## Quick Tasks Completed
 
