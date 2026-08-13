@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** 用户可以在同一套 MoonBit 无损 CST 内核上，对显式选择的 Doris 或 Flink SQL 进行高覆盖、精确诊断、无损 round-trip 和编辑器级工具链操作，而不依赖 Doris FE、Flink cluster、数据库或通用方言静默回退。
-**Current focus:** Phase 07 — Column Lineage
+**Current focus:** Phase 14 — Release Hygiene & Toolchain Pinning
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 14 — Release Hygiene & Toolchain Pinning
 Plan: —
-Status: Defining requirements
-Last activity: 2026-08-13 — Milestone v4.0 started
+Status: Planning
+Last activity: 2026-08-13 — Milestone v4.0 roadmap created
 
 ## Performance Metrics
 

@@ -2,13 +2,14 @@
 
 ## Overview
 
-v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatting + CLI, and Native LSP / JS-Wasm facade / Web-Monaco / VS Code integration (27/27 requirements). v2.0 (redefined 2026-08-06) turned the single-dialect Doris parser into a multi-dialect SQL SDK: a dialect abstraction layer, a Flink SQL dialect across the whole toolchain, and product-neutral naming (binaries/schema/error codes/extensions/docs). v3.0 (Analysis and Intelligence, 2026-08-13) delivered catalog-backed analysis (ANAL-01), Doris lint (LINT-01), stable fingerprints (FING-01), column lineage (LINE-01), and benchmark-gated incremental parsing — EDIT-01 descoped with `moon bench` evidence.
+v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatting + CLI, and Native LSP / JS-Wasm facade / Web-Monaco / VS Code integration (27/27 requirements). v2.0 (redefined 2026-08-06) turned the single-dialect Doris parser into a multi-dialect SQL SDK: a dialect abstraction layer, a Flink SQL dialect across the whole toolchain, and product-neutral naming (binaries/schema/error codes/extensions/docs). v3.0 (Analysis and Intelligence, 2026-08-13) delivered catalog-backed analysis (ANAL-01), Doris lint (LINT-01), stable fingerprints (FING-01), column lineage (LINE-01), and benchmark-gated incremental parsing — EDIT-01 descoped with `moon bench` evidence. v4.0 (Release Readiness, 2026-08-13) turns the SDK into a formally releasable 1.0 product: pinned release toolchain, corrected docs, product versioning (semver 1.0.0), npm / VS Code / IntelliJ publication, and a formal 1.0.0 release.
 
 ## Milestones
 
 - ✅ **v1.0 — Doris SQL Parser SDK MVP** — Phases 1-4 (shipped 2026-08-05)
 - ✅ **v2.0 — Multi-Dialect: Flink SQL & Neutral Naming** — Phases 9-13 (shipped 2026-08-10)
 - ✅ **v3.0 — Analysis and Intelligence** — Phases 5-8 (shipped 2026-08-13)
+- 🔄 **v4.0 — Release Readiness** — Phases 14-20 (planning 2026-08-13)
 
 ## Phases
 
@@ -53,6 +54,80 @@ v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatt
 
 </details>
 
+## Current Milestone: v4.0 — Release Readiness (Phases 14-20)
+
+**Status:** Planning — 19 requirements across 8 categories (see [REQUIREMENTS.md](REQUIREMENTS.md))
+
+| # | Phase | Goal | Requirements | Success Criteria |
+|---|-------|------|--------------|------------------|
+| 14 | Release Hygiene & Toolchain Pinning | 干净工作树 + 钉版发布工具链 | HYG-01/02/03, TC-01/02 | 5 |
+| 15 | Product Versioning & Binary `--version` | semver 策略 + 二进制版本报告 | VER-01/02 | 3 |
+| 16 | Documentation Truthfulness & Install Guide | 文档失实修正 + Release 安装指引 | DOC-01/02 | 3 |
+| 17 | Changelog & Release Disclosure | CHANGELOG + 发布披露 | VER-03, DIS-01/02 | 3 |
+| 18 | JS SDK npm Publication | `@fathom/sql` 发布到 npm | NPM-01/02 | 3 |
+| 19 | Editor Extension Publication | VS Code + IntelliJ 发布 | VSC-01/02, JBR-01/02 | 3 |
+| 20 | Formal 1.0.0 Release & Verification | 正式发布 + 产物冒烟 | VER-04 | 3 |
+
+### Phase Details
+
+**Phase 14: Release Hygiene & Toolchain Pinning**
+Goal: 提交未提交 CI 变更、生成物纳入 gitignore、清理 `.planning` 杂项；release 管线钉版 moon 工具链并跑通发布门禁矩阵。
+Requirements: HYG-01, HYG-02, HYG-03, TC-01, TC-02
+Success criteria:
+1. `git status --porcelain` 无未提交产品文件、无 untracked 生成物；`jetbrains-plugin.yml` 升级已提交
+2. `fathom-sql/pkg.generated.mbti` 及同类 `moon info` 产物被 `.gitignore` 覆盖，`git status` 不再列出
+3. `.planning/research/.cache/`、quick 计划目录、`milestones/v1.0-research/` 已清理或归档
+4. `fathom-native-release.yml` 以钉住的 moon 版本构建（无 `latest`），并记录精确版本到发布工件
+5. 发布门禁矩阵（native/js/wasm parity、`diff_parity --frozen-only`、`check_naming`、corpus `--check`）可运行且通过
+
+**Phase 15: Product Versioning & Binary `--version`**
+Goal: 定义产品 semver 策略并为发布二进制实现 `--version` 版本报告。
+Requirements: VER-01, VER-02
+Success criteria:
+1. semver 策略已记录（首个公开版本 1.0.0；`fathom.*.v1` 契约稳定承诺；破坏性变更须 bump 契约版本）
+2. `fathom-sql --version` 与 `fathom-lsp --version` 退出码 0 并输出产品版本字符串，与发布 tag 一致
+3. 测试覆盖 `--version`（退出码 0 + 正确版本字符串）
+
+**Phase 16: Documentation Truthfulness & Install Guide**
+Goal: 修正 README/GETTING-STARTED 失实声明，新增 Release 安装指引。
+Requirements: DOC-01, DOC-02
+Success criteria:
+1. README 链接存在且可用的 Apache-2.0 LICENSE；README/GETTING-STARTED 无 `<repository-url>` 占位符、无"无 LICENSE"假声明，remote 为 `tchivs/fathom-sql`
+2. README 含「从 GitHub Release 安装 `fathom-lsp`」章节（平台资产、SHA-256 校验、安装位置、`fathom-lsp --version` 验证）
+3. 文档核对（docs tmp verify-*.json 工作流）通过
+
+**Phase 17: Changelog & Release Disclosure**
+Goal: 新增 CHANGELOG 与发布披露文档，使 1.0 边界在发布前可见。
+Requirements: VER-03, DIS-01, DIS-02
+Success criteria:
+1. CHANGELOG.md 存在，1.0.0 条目涵盖自 v0.1.0 Release 以来的用户可见变更
+2. RELEASE-NOTES.md（或等价）披露 Flink 语法级范围、Wasm GC 非一等、corpus provenance 缺口、5 项验证 override、工具链版本策略
+3. 发布模板/管线引用披露文档（DIS-02），Release notes 在下载前可见边界
+
+**Phase 18: JS SDK npm Publication**
+Goal: 将 `@fathom/sql` 作为公开 npm 包发布。
+Requirements: NPM-01, NPM-02
+Success criteria:
+1. `@fathom/sql@1.0.0` 发布到 npm，含 binding.js/binding.wasm + `.d.ts` 类型声明
+2. 全新消费方冒烟：临时目录 `npm install @fathom/sql@1.0.0`，Node 加载并成功 parse/format 示例 SQL
+3. 包内 dialect/profile 能力元数据正确
+
+**Phase 19: Editor Extension Publication**
+Goal: 将 VS Code 扩展与 IntelliJ 插件发布到各自市场。
+Requirements: VSC-01, VSC-02, JBR-01, JBR-02
+Success criteria:
+1. VS Code 扩展发布到 Open VSX（及/或 VS Code Marketplace），可从市场安装
+2. IntelliJ 插件发布到 JetBrains Marketplace，可从 IDE 插件市场安装
+3. 两个扩展 README 均为发布版安装说明（非从源码构建），含 fathom-lsp 获取与路径配置
+
+**Phase 20: Formal 1.0.0 Release & Verification**
+Goal: 正式打 `v1.0.0` tag 发布并验证发布产物。
+Requirements: VER-04
+Success criteria:
+1. `v1.0.0` tag 触发 `fathom-native-release`，4 平台资产 + SHA-256 manifest 上传 GitHub Release
+2. Release notes 引用披露文档
+3. 发布后冒烟：下载各平台资产校验 SHA-256，`fathom-lsp --version` 报告 1.0.0
+
 ## Backlog
 
 No unmapped v2.0 requirements remain: all 24 active requirements map exactly once to Phases 9-13. Post-v2 candidates remain deliberately outside this roadmap: `FLINK-FUTURE-01` (planner/catalog/type/execution equivalence), `TOOL-FUTURE-01` (semantic editor intelligence), `DIALECT-FUTURE-01` (third-party dialect registry), `EDIT-FUTURE-01` (benchmark-gated incremental CST/refactors), `TARGET-FUTURE-01` (Wasm GC first-class support), and `CONVERT-FUTURE-01` (explicit opt-in transpilation). The deferred v3.0 analysis requirements remain archived below and are not v2.0 mappings.
@@ -67,8 +142,16 @@ No unmapped v2.0 requirements remain: all 24 active requirements map exactly onc
 
 **Execution order:** Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13. No phase may replace explicit selection with automatic detection, generic MySQL fallback, Flink runtime/planner dependencies, default transpilation, or an unbenchmarked incremental parser.
 
+**v4.0 ordering:** Phase 14 → 15 → 16 → 17 → 18 → 19 → 20.
+1. **Phase 14 first** — every downstream artifact build and the release itself needs a clean tree and a pinned toolchain; the release gate matrix proves the tree is releasable before packaging anything.
+2. **Phase 15 before 16/17** — install guide and changelog reference the version string and semver policy, so versioning must land first.
+3. **Phase 16 before 17** — disclosure/changelog build on corrected docs and the real install surface.
+4. **Phase 17 before 20** — release notes need CHANGELOG + disclosure material.
+5. **Phases 18/19 after 15** — published packages must carry the 1.0.0 version; the two tracks are independent of each other.
+6. **Phase 20 last** — the formal release consumes every prior artifact and gate.
+
 ## Next Milestone
 
-v3.0 (deferred analysis layer) starts only after v2.0 Multi-Dialect completes. Its historical Phase 5-8 structure and requirements remain below, with the original archive link [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md); none of `CLOSE-01/02`, `ANAL-01`, `LINT-01`, `LINE-01`, `FING-01`, or `EDIT-01` is mapped to v2.0.
+v4.0 Release Readiness is the current milestone (Phases 14-20, see above). The v5.0 milestone is not yet defined — rerun `/gsd:new-milestone` after v4.0 ships.
 
-**Coverage (v2.0):** 24/24 requirements mapped exactly once — Phase 9: 8, Phase 10: 1, Phase 11: 6, Phase 12: 4, Phase 13: 5.
+**Coverage (v4.0):** 19/19 requirements mapped exactly once — Phase 14: 5 (HYG-01/02/03, TC-01/02), Phase 15: 2 (VER-01/02), Phase 16: 2 (DOC-01/02), Phase 17: 3 (VER-03, DIS-01/02), Phase 18: 2 (NPM-01/02), Phase 19: 4 (VSC-01/02, JBR-01/02), Phase 20: 1 (VER-04).

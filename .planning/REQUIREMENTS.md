@@ -81,31 +81,31 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TC-01 | | Pending |
-| TC-02 | | Pending |
-| HYG-01 | | Pending |
-| HYG-02 | | Pending |
-| HYG-03 | | Pending |
-| DOC-01 | | Pending |
-| DOC-02 | | Pending |
-| VER-01 | | Pending |
-| VER-02 | | Pending |
-| VER-03 | | Pending |
-| VER-04 | | Pending |
-| NPM-01 | | Pending |
-| NPM-02 | | Pending |
-| VSC-01 | | Pending |
-| VSC-02 | | Pending |
-| JBR-01 | | Pending |
-| JBR-02 | | Pending |
-| DIS-01 | | Pending |
-| DIS-02 | | Pending |
+| TC-01 | Phase 14 | Pending |
+| TC-02 | Phase 14 | Pending |
+| HYG-01 | Phase 14 | Pending |
+| HYG-02 | Phase 14 | Pending |
+| HYG-03 | Phase 14 | Pending |
+| DOC-01 | Phase 16 | Pending |
+| DOC-02 | Phase 16 | Pending |
+| VER-01 | Phase 15 | Pending |
+| VER-02 | Phase 15 | Pending |
+| VER-03 | Phase 17 | Pending |
+| VER-04 | Phase 20 | Pending |
+| NPM-01 | Phase 18 | Pending |
+| NPM-02 | Phase 18 | Pending |
+| VSC-01 | Phase 19 | Pending |
+| VSC-02 | Phase 19 | Pending |
+| JBR-01 | Phase 19 | Pending |
+| JBR-02 | Phase 19 | Pending |
+| DIS-01 | Phase 17 | Pending |
+| DIS-02 | Phase 17 | Pending |
 
 **Coverage:**
 - v4.0 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 ⚠️
+- Mapped to phases: 19
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-08-13*
-*Last updated: 2026-08-13 after v4.0 milestone start*
+*Last updated: 2026-08-13 after v4.0 roadmap creation*
