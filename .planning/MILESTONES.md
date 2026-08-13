@@ -1,5 +1,29 @@
 # Milestones
 
+## v3.0 Analysis and Intelligence (Shipped: 2026-08-13)
+
+**Phases completed:** 4 phases, 17 plans, 40 tasks
+
+**Key accomplishments:**
+
+- CLOSE-01 (VS Code 真 extension-host 验证) 与 CLOSE-02 (linear-Wasm CI 运行时执行) 证据正式核实并升级为 Phase 5 formalized traceability 记录（D-07，纯文档核实，未重跑、未改源码）
+- D-05 one-way Catalog 契约定形（table + table_in_db + function，StaticCatalog db/函数注册表 + case-fold）并以生产级端到端 tracer 打通 `SELECT a, b FROM t` → `AnalysisResult`（带 span bindings + 独立诊断通道），quoted 精确匹配经 case-fold + 字节复核在 resolve 层落地（D-03）
+- 1. [Rule 1 - Bug] 运算符被误判为标识符 → WHERE/HAVING 产生虚假引用
+- 函数调用解析 + 元数检查（D-04，`Catalog::function` case-fold → Function binding / unknown-function / function-arity）+ DML（UPDATE SET/WHERE、DELETE WHERE、INSERT 列清单、MERGE SET）与 CREATE VIEW 体的列级引用（D-02）+ 完整类型诊断集（unknown-table/column/function、ambiguous-reference、function-arity，独立通道 ANLY-01）+ docs/API.md §Optional Name-Resolution API 公共面更新（D-06）
+- Fingerprint/ library with FNV-1a 64-bit hash and CST-normalized canonical form, api.fingerprint_text entry, and fathom_fingerprint_v1 wire export under a purely-additive schema v2 bump
+- lint/ library: SQLFluff-style 8-rule registry with stable FATHOM-LINT-0xx codes, CST-walk engine (001/002/003/008 + analyzer-mapped 004-007), and safe lossless autofix with D-33 absolute refusal
+- api.lint_text/api.fix_text with D-38 lint type aliases, fathom_lint_v1 wire export with structural overrides parsing, and the fathom.lint.v1 JSON envelope
+- fathom-sql lint/fingerprint subcommands with D-39 exit codes, cross-target fingerprint parity proof, and bilingual API docs
+- 1. [Rule 3 - Blocking] insert_body_location return type: named-tuple syntax unsupported
+- `lineage/` independent library delivering `derive_lineage` — D-01 expression-passthrough edges across SELECT/CTE/UNION/CREATE VIEW/INSERT with flattened byte spans, D-06 honest gaps (requires-catalog / unresolved-reference / requires-complete-parse) strictly separate from edges, the D-03 view registry + `ViewCatalog[T]` generic catalog wrapper, and D-04 INSERT positional mapping — zero new dependencies (D-21: imports only analyzer + syntax).
+- `api.lineage_text(raw, parse_options, catalog: StaticCatalog?)` — the library-surface consumer entry for LINE-01: parse_document reuse, D-08 flink gate (structured UnknownProfile after parse, never silent empty), optional catalog mapping Some/None to derive_lineage / derive_lineage_without_catalog, D-38 type re-exports (LineageResult/LineageEdge/LineageGap/StaticCatalog), plus 7 integration snapshot goldens in test/ locking edge/gap structure and document order.
+- LINE-01 host-consumer surface: `fathom.lineage.v1` wire export (8th schema namespace, pure-add), `binding/catalog_json.mbt` (catalog JSON → StaticCatalog with structured errors), and `fathom-sql lineage --catalog <file>` CLI subcommand (D-39 exit 0/1/2).
+- LINE-01 close-out: three-target (native/js/wasm) byte-identical lineage parity proven by hardcoded fathom_lineage_v1 envelope assertions, bilingual Lineage public-API docs, and the locked COVERAGE.md api-coverage declaration.
+- Benchmark gate evidence recorded — @bench + moon bench measured whole-document reparse latency on native across 25/50/100/200 KB; ≥100 KB median 27.47 ms ≤ 50 ms with linear scaling → Branch A (descope) fired.
+- EDIT-01 incremental parsing descoped with evidence — the 08-01 benchmark gate (08-BENCHMARK.md: ≥100KB whole-doc reparse median 27.47ms ≤ 50ms threshold, linear scaling 2.00×/2.04×/2.10× per doubling, branch A) is recorded across REQUIREMENTS.md / ROADMAP.md / STATE.md, with zero incremental-parsing code written.
+
+---
+
 ## v2.0 Multi-Dialect: Flink SQL & Neutral Naming (Shipped: 2026-08-10)
 
 **Phases completed:** 5 phases, 24 plans, 61 tasks

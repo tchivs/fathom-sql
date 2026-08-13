@@ -39,6 +39,10 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - [x] 消费者可端到端使用 `fathom-sql parse|format|lsp --dialect flink` 与 `fathom-lsp`（诊断/格式化/补全/UTF-16/文档级方言选择） — Validated in Phase 13: Toolchain and Editor Packaging
 - [x] 消费者可在 JS/linear-Wasm、Web/Monaco、VS Code、IntelliJ 使用同一 dialect-aware API/schema（含新增 `fathom_complete_v1`/`fathom.complete.v1`），每文件/会话显式选择 Doris 或 Flink，无第二套 parser — Validated in Phase 13: Toolchain and Editor Packaging
 - [x] 用户可检查跨查询/视图的列级数据血缘（SELECT/INSERT/CTE/集合运算与视图展开，边带源码位置）；未解析引用与无 catalog 的 `*` 展开产生显式 "requires catalog" gap 而非伪造边 — Validated in Phase 7: Column Lineage
+- [x] 用户可获得带 catalog 的名字解析与类型诊断（表/列/函数/作用域，限定/非限定引用、别名、CTE、子查询、带 catalog 星号展开；大小写不敏感匹配遵循 Doris 语义并保留源码 span） — Validated in Phase 5: Closeout and Analysis Foundation (ANAL-01)
+- [x] 用户可运行 Doris 专属 Lint 规则集（稳定规则码、per-rule enable/disable + severity；autofix 保留注释/trivia/格式并对 error 树拒绝不安全编辑） — Validated in Phase 6: Lint and Fingerprint (LINT-01)
+- [x] 用户可生成稳定 SQL 指纹与归一化形式（跨空白/关键字大小写/注释稳定；保留标识符拼写/字面量/引号风格；UInt64 哈希跨 Native/JS/linear-Wasm 一致） — Validated in Phase 6: Lint and Fingerprint (FING-01)
+- [x] ~~增量解析~~ **EDIT-01 以 `moon bench` 证据 descope**（Phase 8：≥100KB median 27.47ms ≤ 50ms、线性增长 → 非可测瓶颈；见 `milestones/v3.0-phases/08-incremental-parsing-benchmark-gated/08-BENCHMARK.md`）
 
 ### Active
 
@@ -114,22 +118,21 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - **descope 记录（08-02）:** REQUIREMENTS.md EDIT-01 → `[x]` + DESCOPED WITH EVIDENCE（引用 08-BENCHMARK.md）；ROADMAP Phase 8 = Complete — descoped with evidence；STATE.md Deferred Items `descope_evidence` 行 closed。**零增量解析代码**（无 incremental/ 包，parser/ 冻结 baseline 未动）。
 - **门禁:** bench 9/9、test 209/209、api 636/636、fathom-sql 37/37、parity 605/605；命名门禁 655 文件零残留；verifier 8/8。
 
-## Current Milestone: v2.0 Multi-Dialect: Flink SQL & Neutral Naming — SHIPPED 2026-08-10
+## Current Milestone: v3.0 Analysis and Intelligence — SHIPPED 2026-08-13
 
-**Goal:** 将单方言 Doris 解析器升级为多方言 SQL SDK——引入方言抽象层，新增 Flink SQL 方言全链（解析/CST/诊断/格式化/补全/LSP/CLI），并完成产品命名中立化（二进制/schema/错误码/扩展/文档），使同一无损 CST 内核服务 Doris 与 Flink 两个方言。原 v2.0 分析层（Analysis and Intelligence）顺延为 v3.0。
+**Goal:** 从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01），并收尾 v1.0 遗留验证项（VS Code 宿主验证、linear-Wasm CI 步骤）。
 
-**Target features:**
-- 方言抽象层：Dialect 体系、关键字表隔离、API/schema/LSP 的 dialect 参数、Doris 字节级不变 parity gate
-- Flink SQL 方言：词法/关键字表、文法（DDL/DML/窗口 TVF/MATCH_RECOGNIZE）、CST/诊断
-- Flink 工具链：formatter/analyzer/completion/LSP/CLI 方言分发
-- 命名中立化：`fathom-sql`/`fathom-lsp`、`fathom/sql` 模块、`FATHOM-*` 错误码、`fathom.*.v1` schema、扩展/文档改名（不考虑向后兼容）
-- Flink 官方语料 + CI：来源锁定、快照、跨后端 parity
+**Status:** SHIPPED 2026-08-13 — archived at [milestones/v3.0-ROADMAP.md](milestones/v3.0-ROADMAP.md) · [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md) · [milestones/v3.0-phases](milestones/v3.0-phases/)
 
-**Status:** SHIPPED 2026-08-10 — archived at [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) · [milestones/v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) · [milestones/v2.0-phases](milestones/v2.0-phases/)
+**Delivered (6/7):**
+- Phase 5: CLOSE-01/02 核实 + ANAL-01 catalog 名字解析与类型诊断
+- Phase 6: LINT-01 SQLFluff 风格规则集 + autofix；FING-01 UInt64 稳定指纹 + 跨目标 parity
+- Phase 7: LINE-01 列级血缘（lineage/ + api.lineage_text + fathom.lineage.v1 + CLI）
+- Phase 8: EDIT-01 **benchmark-gated descope**（`moon bench` 证据：≥100KB median 27.47ms ≤ 50ms、线性）
 
-## Next Milestone Goals: v3.0 Analysis and Intelligence
+## Next Milestone Goals: v4.0 (TBD)
 
-从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01 ✅ Phase 5 完成）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01）。要求已归档于 [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md)。
+v3.0 Analysis and Intelligence 已于 2026-08-13 全部完成（6/7 需求交付 + EDIT-01 证据 descope）。下一里程碑内容未定义——运行 `/gsd:new-milestone` 启动：提问 → 研究 → 需求 → 路线图。
 
 **Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01 ✅（Phase 6）、FING-01 ✅（Phase 6）、LINE-01 ✅（Phase 7）、EDIT-01 ⛔ DESCoped with evidence（Phase 8，`moon bench` 门禁：≥100KB median 27.47ms ≤ 50ms、线性）
 **Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已全部完成：Phase 5-8；下一里程碑 /gsd:new-milestone）
@@ -152,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-12 after v3.0 Phase 8 Incremental Parsing (Benchmark-Gated) COMPLETE — EDIT-01 descoped with evidence*
+*Last updated: 2026-08-13 after v3.0 milestone — Analysis and Intelligence SHIPPED*
