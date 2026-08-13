@@ -70,15 +70,105 @@ v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatt
 
 ### Phase Details
 
-**Phase 14: Release Hygiene & Toolchain Pinning**
-Goal: 提交未提交 CI 变更、生成物纳入 gitignore、清理 `.planning` 杂项；release 管线钉版 moon 工具链并跑通发布门禁矩阵。
-Requirements: HYG-01, HYG-02, HYG-03, TC-01, TC-02
-Success criteria:
+### Phase 14: Release Hygiene & Toolchain Pinning
+
+**Goal**: 提交未提交 CI 变更、生成物纳入 gitignore、清理 `.planning` 杂项；release 管线钉版 moon 工具链并跑通发布门禁矩阵。
+**Depends on**: Phase 13
+**Requirements**: HYG-01, HYG-02, HYG-03, TC-01, TC-02
+**Success Criteria** (what must be TRUE):
 1. `git status --porcelain` 无未提交产品文件、无 untracked 生成物；`jetbrains-plugin.yml` 升级已提交
 2. `fathom-sql/pkg.generated.mbti` 及同类 `moon info` 产物被 `.gitignore` 覆盖，`git status` 不再列出
 3. `.planning/research/.cache/`、quick 计划目录、`milestones/v1.0-research/` 已清理或归档
 4. `fathom-native-release.yml` 以钉住的 moon 版本构建（无 `latest`），并记录精确版本到发布工件
 5. 发布门禁矩阵（native/js/wasm parity、`diff_parity --frozen-only`、`check_naming`、corpus `--check`）可运行且通过
+**Plans**: TBD
+
+Plans:
+- [ ] 14-01: TBD
+
+### Phase 15: Product Versioning & Binary `--version`
+
+**Goal**: 定义产品 semver 策略并为发布二进制实现 `--version` 版本报告。
+**Depends on**: Phase 14
+**Requirements**: VER-01, VER-02
+**Success Criteria** (what must be TRUE):
+1. semver 策略已记录（首个公开版本 1.0.0；`fathom.*.v1` 契约稳定承诺；破坏性变更须 bump 契约版本）
+2. `fathom-sql --version` 与 `fathom-lsp --version` 退出码 0 并输出产品版本字符串，与发布 tag 一致
+3. 测试覆盖 `--version`（退出码 0 + 正确版本字符串）
+**Plans**: TBD
+
+Plans:
+- [ ] 15-01: TBD
+
+### Phase 16: Documentation Truthfulness & Install Guide
+
+**Goal**: 修正 README/GETTING-STARTED 失实声明，新增 Release 安装指引。
+**Depends on**: Phase 15
+**Requirements**: DOC-01, DOC-02
+**Success Criteria** (what must be TRUE):
+1. README 链接存在且可用的 Apache-2.0 LICENSE；README/GETTING-STARTED 无 `<repository-url>` 占位符、无"无 LICENSE"假声明，remote 为 `tchivs/fathom-sql`
+2. README 含「从 GitHub Release 安装 `fathom-lsp`」章节（平台资产、SHA-256 校验、安装位置、`fathom-lsp --version` 验证）
+3. 文档核对（docs tmp verify-*.json 工作流）通过
+**Plans**: TBD
+
+Plans:
+- [ ] 16-01: TBD
+
+### Phase 17: Changelog & Release Disclosure
+
+**Goal**: 新增 CHANGELOG 与发布披露文档，使 1.0 边界在发布前可见。
+**Depends on**: Phase 16
+**Requirements**: VER-03, DIS-01, DIS-02
+**Success Criteria** (what must be TRUE):
+1. CHANGELOG.md 存在，1.0.0 条目涵盖自 v0.1.0 Release 以来的用户可见变更
+2. RELEASE-NOTES.md（或等价）披露 Flink 语法级范围、Wasm GC 非一等、corpus provenance 缺口、5 项验证 override、工具链版本策略
+3. 发布模板/管线引用披露文档（DIS-02），Release notes 在下载前可见边界
+**Plans**: TBD
+
+Plans:
+- [ ] 17-01: TBD
+
+### Phase 18: JS SDK npm Publication
+
+**Goal**: 将 `@fathom/sql` 作为公开 npm 包发布。
+**Depends on**: Phase 15
+**Requirements**: NPM-01, NPM-02
+**Success Criteria** (what must be TRUE):
+1. `@fathom/sql@1.0.0` 发布到 npm，含 binding.js/binding.wasm + `.d.ts` 类型声明
+2. 全新消费方冒烟：临时目录 `npm install @fathom/sql@1.0.0`，Node 加载并成功 parse/format 示例 SQL
+3. 包内 dialect/profile 能力元数据正确
+**Plans**: TBD
+
+Plans:
+- [ ] 18-01: TBD
+
+### Phase 19: Editor Extension Publication
+
+**Goal**: 将 VS Code 扩展与 IntelliJ 插件发布到各自市场。
+**Depends on**: Phase 15
+**Requirements**: VSC-01, VSC-02, JBR-01, JBR-02
+**Success Criteria** (what must be TRUE):
+1. VS Code 扩展发布到 Open VSX（及/或 VS Code Marketplace），可从市场安装
+2. IntelliJ 插件发布到 JetBrains Marketplace，可从 IDE 插件市场安装
+3. 两个扩展 README 均为发布版安装说明（非从源码构建），含 fathom-lsp 获取与路径配置
+**Plans**: TBD
+
+Plans:
+- [ ] 19-01: TBD
+
+### Phase 20: Formal 1.0.0 Release & Verification
+
+**Goal**: 正式打 `v1.0.0` tag 发布并验证发布产物。
+**Depends on**: Phases 17, 18, 19
+**Requirements**: VER-04
+**Success Criteria** (what must be TRUE):
+1. `v1.0.0` tag 触发 `fathom-native-release`，4 平台资产 + SHA-256 manifest 上传 GitHub Release
+2. Release notes 引用披露文档
+3. 发布后冒烟：下载各平台资产校验 SHA-256，`fathom-lsp --version` 报告 1.0.0
+**Plans**: TBD
+
+Plans:
+- [ ] 20-01: TBD
 
 **Phase 15: Product Versioning & Binary `--version`**
 Goal: 定义产品 semver 策略并为发布二进制实现 `--version` 版本报告。
