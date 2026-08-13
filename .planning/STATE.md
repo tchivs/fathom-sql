@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Analysis and Intelligence — PLANNING
-status: Awaiting next milestone
-stopped_at: Phase 8 context gathered
-last_updated: "2026-08-13T01:03:43.326Z"
+milestone: v4.0
+milestone_name: Release Readiness
+status: planning
+last_updated: "2026-08-13T02:59:27.559Z"
 last_activity: 2026-08-13
-last_activity_desc: Milestone v3.0 completed and archived
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 17
-  completed_plans: 15
-  percent: 75
-current_phase: 8
-current_phase_name: Incremental Parsing (Benchmark-Gated)
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 ## Current Position
 
-Phase: Milestone v3.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-13 — Milestone v3.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-08-13 — Milestone v4.0 started
 
 ## Performance Metrics
 

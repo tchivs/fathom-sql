@@ -46,7 +46,7 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 
 ### Active
 
-(None — all v1 requirements validated across Phases 1-4; v2.0 requirements land with their phases)
+(None — v4.0 Release Readiness requirements land in `.planning/REQUIREMENTS.md`; see Current Milestone section)
 
 ### Out of Scope
 
@@ -118,24 +118,21 @@ Fathom SQL Parser SDK 是一个面向显式选择 SQL 方言的开源基础设�
 - **descope 记录（08-02）:** REQUIREMENTS.md EDIT-01 → `[x]` + DESCOPED WITH EVIDENCE（引用 08-BENCHMARK.md）；ROADMAP Phase 8 = Complete — descoped with evidence；STATE.md Deferred Items `descope_evidence` 行 closed。**零增量解析代码**（无 incremental/ 包，parser/ 冻结 baseline 未动）。
 - **门禁:** bench 9/9、test 209/209、api 636/636、fathom-sql 37/37、parity 605/605；命名门禁 655 文件零残留；verifier 8/8。
 
-## Current Milestone: v3.0 Analysis and Intelligence — SHIPPED 2026-08-13
+## Current Milestone: v4.0 Release Readiness
 
-**Goal:** 从语法层扩展到语义与分析层：catalog 名字解析（ANAL-01）、Doris 专属 Lint（LINT-01）、列级血缘（LINE-01）、跨后端稳定指纹（FING-01）、基准门控增量解析（EDIT-01），并收尾 v1.0 遗留验证项（VS Code 宿主验证、linear-Wasm CI 步骤）。
+**Goal:** 将 Fathom SQL Parser SDK 从内部开发里程碑推进到可对外发布的 1.0 产品——修复发布阻塞项、补齐发布渠道、正式发布首个公开版本（产品 semver `1.0.0`，里程碑版本 v4.0）。
 
-**Status:** SHIPPED 2026-08-13 — archived at [milestones/v3.0-ROADMAP.md](milestones/v3.0-ROADMAP.md) · [milestones/v3.0-REQUIREMENTS.md](milestones/v3.0-REQUIREMENTS.md) · [milestones/v3.0-phases](milestones/v3.0-phases/)
+**Target features:**
+- REL-TOOLCHAIN: 发布构建工具链钉版（release 管线固定 moon 版本并记录输出，消除 `latest` 不可复现）
+- REL-HYGIENE: 工作树干净 + 生成物 gitignore 规范（提交 jetbrains-plugin.yml 升级、pkg.generated.mbti 入 gitignore、清理 .planning 杂项）
+- REL-DOCS: 文档修正（README/GETTING-STARTED 失实声明 + 新增"从 Release 安装 `fathom-lsp`"指引）
+- REL-VERSION: 产品版本方案（semver 策略、首个 `1.0.0` 发布 tag、CHANGELOG.md）
+- REL-NPM: JS SDK 发布到 npm（`@fathom/sql` 公开包含 binding + 类型）
+- REL-VSCODE: VS Code 扩展发布（Marketplace / Open VSX 发布步骤）
+- REL-JETBRAINS: IntelliJ 插件发布（Marketplace 上传自动化）
+- REL-DISCLOSURE: 发布声明文档（Flink 语法级范围、Wasm GC、corpus provenance 等已知限制如实披露）
 
-**Delivered (6/7):**
-- Phase 5: CLOSE-01/02 核实 + ANAL-01 catalog 名字解析与类型诊断
-- Phase 6: LINT-01 SQLFluff 风格规则集 + autofix；FING-01 UInt64 稳定指纹 + 跨目标 parity
-- Phase 7: LINE-01 列级血缘（lineage/ + api.lineage_text + fathom.lineage.v1 + CLI）
-- Phase 8: EDIT-01 **benchmark-gated descope**（`moon bench` 证据：≥100KB median 27.47ms ≤ 50ms、线性）
-
-## Next Milestone Goals: v4.0 (TBD)
-
-v3.0 Analysis and Intelligence 已于 2026-08-13 全部完成（6/7 需求交付 + EDIT-01 证据 descope）。下一里程碑内容未定义——运行 `/gsd:new-milestone` 启动：提问 → 研究 → 需求 → 路线图。
-
-**Requirements:** CLOSE-01/02 ✅（Phase 5 已核实）、ANAL-01 ✅（Phase 5 已交付）、LINT-01 ✅（Phase 6）、FING-01 ✅（Phase 6）、LINE-01 ✅（Phase 7）、EDIT-01 ⛔ DESCoped with evidence（Phase 8，`moon bench` 门禁：≥100KB median 27.47ms ≤ 50ms、线性）
-**Start:** `/gsd:new-milestone` — 提问 → 研究 → 需求 → 路线图（v3.0 已全部完成：Phase 5-8；下一里程碑 /gsd:new-milestone）
+**Status:** Planning — defining requirements and roadmap (2026-08-13)
 
 ## Evolution
 
@@ -155,4 +152,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-13 after v3.0 milestone — Analysis and Intelligence SHIPPED*
+*Last updated: 2026-08-13 after v4.0 milestone start — Release Readiness*
