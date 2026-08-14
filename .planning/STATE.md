@@ -6,15 +6,15 @@ current_phase: 14
 current_phase_name: Release Hygiene & Toolchain Pinning
 status: executing
 stopped_at: Phase 14 context gathered
-last_updated: "2026-08-13T06:13:39.106Z"
+last_updated: "2026-08-14T07:33:44.287Z"
 last_activity: 2026-08-13
 last_activity_desc: Phase 14 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 20
 ---
 
 # Project State
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 14 (Release Hygiene & Toolchain Pinning) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 14
+Plan: 14-04 done (1/5); 14-05 next; 14-01..14-03 blocked (official MoonBit channel)
+Status: HYG track in progress; TC-01/02 fail-closed blocked pending official toolchain channel
 Last activity: 2026-08-13 — Phase 14 execution started
 
 ## Performance Metrics
@@ -113,6 +113,7 @@ Last activity: 2026-08-13 — Phase 14 execution started
 | Phase 05 P04 | 50min | 3 tasks | 8 files |
 | Phase 07-column-lineage P01 | 42 | 2 tasks | 5 files |
 | Phase 07 P03 | 39 | 2 tasks | 11 files |
+| Phase 14 P04 | 12 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
