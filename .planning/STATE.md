@@ -5,16 +5,16 @@ milestone_name: Release Readiness
 current_phase: 14
 current_phase_name: Release Hygiene & Toolchain Pinning
 status: executing
-stopped_at: Phase 14 context gathered
-last_updated: "2026-08-14T07:33:44.287Z"
-last_activity: 2026-08-13
-last_activity_desc: Phase 14 execution started
+stopped_at: Phase 14 14-05 completed (HYG track done; TC-01/02 blocked)
+last_updated: "2026-08-14T08:36:00Z"
+last_activity: 2026-08-14
+last_activity_desc: Phase 14 14-05 completed — final readiness classifier/matrix
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
-  percent: 20
+  completed_plans: 2
+  percent: 40
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 14 (Release Hygiene & Toolchain Pinning) — EXECUTING
-Plan: 14-04 done (1/5); 14-05 next; 14-01..14-03 blocked (official MoonBit channel)
-Status: HYG track in progress; TC-01/02 fail-closed blocked pending official toolchain channel
-Last activity: 2026-08-13 — Phase 14 execution started
+Plan: 14-05 done (2/5); 14-01..14-03 blocked (official MoonBit channel)
+Status: HYG-01/02/03 complete via 14-04/14-05; TC-01/02 fail-closed blocked pending official toolchain channel
+Last activity: 2026-08-14 — Phase 14 14-05 completed (final porcelain classifier/readiness matrix)
 
 ## Performance Metrics
 
@@ -114,6 +114,7 @@ Last activity: 2026-08-13 — Phase 14 execution started
 | Phase 07-column-lineage P01 | 42 | 2 tasks | 5 files |
 | Phase 07 P03 | 39 | 2 tasks | 11 files |
 | Phase 14 P04 | 12 min | 2 tasks | 2 files |
+| Phase 14 P05 | 55 | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,9 @@ Last activity: 2026-08-13 — Phase 14 execution started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Phase 14, 14-05]: 用户批准 2026-08-14 拆分执行 — HYG waves 4-5 完成；TC-01/02 因官方 MoonBit 渠道缺 darwin-x86_64 工件/静态版本渠道/core 校验和（全部 403 实测）按 D-01/D-03 fail-closed 阻塞，matrix 如实记录 BLOCKED，不伪造 TC 成功。
+- [Phase 14, 14-05]: 14-05 交付 = quick 重复 PLAN 删除（canonical SUMMARY 字节不变，SHA-256 逐行相等）+ 精确五文件 v1.0-research archive commit（e63eec5）+ NUL-safe porcelain-v1/-z 状态分类器（snapshot/pre/post-matrix 模式）与唯一 readiness matrix；post-matrix 分类器证明最终树仅剩两个 allowlisted `.omp-*` runtime 文件（D-11/D-12/D-13）。
+- [Phase 14, 14-05]: 计划 Task-1 verify 单行脚本 digest 解析方向反转（hash->path 字典），按正确 path->hash 语义验证并记录偏差；matrix 的 pre-matrix 观察行修正为"permitted-by-mode、当时未出现"（4bb92fd）。
 - [Phase 1]: Establish lossless CST, explicit Doris profiles, structured diagnostics, and bounded recovery before expanding grammar.
 - [Phase 2]: Use released official Doris documentation as the versioned corpus authority and keep the optional analyzer separate from syntax parsing.
 - [Phase 3]: Keep exact replay and configurable canonical formatting as distinct consumer operations.
@@ -285,9 +289,9 @@ Known verification overrides: 5 (see STATE.md Deferred Items). Closeout type: ov
 
 ## Session Continuity
 
-Last session: 2026-08-13T03:39:40.649Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-release-hygiene-toolchain-pinning/14-CONTEXT.md
+Last session: 2026-08-14T08:36:00Z
+Stopped at: Phase 14 14-05 completed — HYG-01/02/03 complete, TC-01/02 blocked (official MoonBit channel); ready for Phase 15 when TC unblocks
+Resume file: .planning/phases/14-release-hygiene-toolchain-pinning/14-RELEASE-READINESS.md
 
 ## Quick Tasks Completed
 

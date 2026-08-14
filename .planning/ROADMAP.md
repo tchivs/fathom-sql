@@ -83,7 +83,7 @@ v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatt
 4. `fathom-native-release.yml` 以钉住的 moon 版本构建（无 `latest`），并记录精确版本到发布工件
 5. 发布门禁矩阵（native/js/wasm parity、`diff_parity --frozen-only`、`check_naming`、corpus `--check`）可运行且通过
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 Plans:
 **Wave 1**
@@ -104,7 +104,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 14-05-PLAN.md — Quick/archive preservation and executable final porcelain readiness classifier/matrix
+- [x] 14-05-PLAN.md — Quick/archive preservation and executable final porcelain readiness classifier/matrix
 
 > 2026-08-14 用户批准拆分执行：HYG waves 4-5 先行；14-01..14-03 因官方 MoonBit 渠道无 darwin-x86_64 工件、无静态版本渠道、无 core 官方校验和（全部 403 实测证据）按 D-01/D-03 fail-closed 阻塞。
 
