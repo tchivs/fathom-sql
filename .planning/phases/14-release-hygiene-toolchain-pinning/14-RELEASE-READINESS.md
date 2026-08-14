@@ -104,7 +104,7 @@
 
 ## Final Status Evidence
 
-- Pre-matrix-commit classification (`python3 scripts/classify_release_status.py classify --mode pre-matrix-commit --snapshot "$TMP_DIR/phase14-runtime-status.json" --porcelain-command 'git status --porcelain=v1 -z --untracked-files=all'`): **PASS** — allowlisted the two runtime paths (` M`) and the task transients (`scripts/classify_release_status.py`, `scripts/tests/test_classify_release_status.py`, this matrix).
+- Pre-matrix-commit classification (`python3 scripts/classify_release_status.py classify --mode pre-matrix-commit --snapshot "$TMP_DIR/phase14-runtime-status.json" --porcelain-command 'git status --porcelain=v1 -z --untracked-files=all'`): **PASS** — allowlisted the two runtime paths (` M`) and the two task transients present at that time (`scripts/classify_release_status.py`, `scripts/tests/test_classify_release_status.py`). This matrix was created after that classification, so it was permitted-by-mode but absent from the observed allowlist.
 - Post-matrix-commit classification (same snapshot path, same `porcelain=v1 -z` command): **PASS** — only the two pre-existing runtime paths remain modified; no task transient and no other path present.
 - Final porcelain (`git status --porcelain=v1 -z --untracked-files=all` after close-out): only ` M .planning/.omp-next-action.json` and ` M .planning/.omp-task-results.json` (runtime state per D-13).
 - Matrix checks supplement but never replace the executed freeze/installer/aggregate/release-gates/status evidence named above.
