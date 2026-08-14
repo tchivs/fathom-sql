@@ -18,7 +18,7 @@ affects: release hygiene audit, v4.0 release readiness, ship gate
 # estimateTokens scale = chars/4 over the files actually changed (full bytes for
 # created files, delta bytes for modified files) — never a harness token count.
 actuals:
-  tokens: 58700
+  tokens: 60548
   tasks: 3
   commits: 5
 
