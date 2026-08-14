@@ -128,7 +128,7 @@ status: complete
 3. **Task 3: Execute the final porcelain classifier and commit the sole readiness matrix** - `899ae20` (feat: classifier + tests + matrix)
 4. **Task 3 correction: matrix observation accuracy fix** - `4bb92fd` (docs)
 
-**Plan metadata:** close-out commit `b5f5a2d` (docs: complete 14-05 plan) — see final commit list below.
+**Plan metadata:** close-out commit `cf359c6` (docs: complete 14-05 plan) — see final commit list below.
 
 ## Files Created/Modified
 
@@ -215,7 +215,7 @@ None - no external service configuration required.
 ## Self-Check
 
 - `scripts/classify_release_status.py`, `scripts/tests/test_classify_release_status.py`, `14-RELEASE-READINESS.md`, `14-05-SUMMARY.md` exist.
-- Commits `e63eec5`, `899ae20`, `4bb92fd`, `b5f5a2d` exist in history (verified via git log).
+- Commits `e63eec5`, `899ae20`, `4bb92fd`, `cf359c6` exist in history (verified via git log).
 - `python3 -m unittest scripts.tests.test_classify_release_status -v` — 23 tests OK; post-matrix classification PASS with the same snapshot; post-close-out porcelain shows only the two `.omp-*` runtime files.
 
 ## Self-Check: PASSED
