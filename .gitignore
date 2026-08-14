@@ -10,3 +10,9 @@ vscode/.vscode-test/
 jetbrains/.gradle/
 jetbrains/.intellijPlatform/
 jetbrains/build/
+
+# Generated MoonBit package interfaces (moon info) - repository-wide basename rule
+pkg.generated.mbti
+
+# Regenerable research cache
+.planning/research/.cache/
