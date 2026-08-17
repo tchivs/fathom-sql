@@ -170,9 +170,9 @@ jobs:
           tag = os.environ["RELEASE_TAG"]
           dist = Path("dist")
           platforms = {
-              "linux-x86_64": "fathom-lsp-linux-x86_64",
-              "macos-aarch64": "fathom-lsp-macos-aarch64",
-              "windows-x86_64": "fathom-lsp-windows-x86_64.exe",
+              "linux-x86_64": "fathom-lsp-linux-x86_64/fathom-lsp-linux-x86_64",
+              "macos-aarch64": "fathom-lsp-macos-aarch64/fathom-lsp-macos-aarch64",
+              "windows-x86_64": "fathom-lsp-windows-x86_64/fathom-lsp-windows-x86_64.exe",
           }
           assets = {}
           for key, name in platforms.items():
@@ -210,6 +210,7 @@ jobs:
               --title "$RELEASE_TAG" \
               --generate-notes
           fi
-          gh release upload "$RELEASE_TAG" dist/* \
+          gh release upload "$RELEASE_TAG" dist/*/fathom-lsp-* \
+            dist/moon-toolchain-manifest.json dist/fathom-lsp-manifest.json \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
