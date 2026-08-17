@@ -1,8 +1,8 @@
 {
   "binarySha256": "3333333333333333333333333333333333333333333333333333333333333333",
   "binaryUrl": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip",
-  "coreSha256": "4444444444444444444444444444444444444444444444444444444444444444",
-  "coreUrl": "https://cli.moonbitlang.com/cores/core-latest.tar.gz",
+  "coreSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+  "coreUrl": "https://cli.moonbitlang.com/cores/core-latest.zip",
   "provenance": "official-sidecar",
   "reportedVersion": "moon 0.1.OTHER\n",
   "requestedVersion": "latest",

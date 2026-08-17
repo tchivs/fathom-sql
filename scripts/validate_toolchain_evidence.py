@@ -17,6 +17,8 @@ import os
 import sys
 
 ALLOWED = ["linux-x86_64", "macos-aarch64", "windows-x86_64"]
+ARCHIVE_FOR_RUNNER = {"linux-x86_64": "linux-x86_64", "macos-aarch64": "darwin-aarch64",
+                      "windows-x86_64": "windows-x86_64"}
 CORE_ROLES = {"core-tar.gz", "core-zip"}
 
 
@@ -60,10 +62,11 @@ def validate_record(rec, lock, target):
     check(reported == expected, f"{target}: reportedVersion does not match lock")
     check(rec.get("runnerOS") and rec.get("runnerArch"), f"{target}: missing runner facts")
     check(rec.get("targetPlatform") == target, f"{target}: targetPlatform inconsistency")
-    lock_binary = next((a for a in lock["archives"] if a["role"] == "binary" and a["targetPlatform"] == target), None)
-    lock_core = next((a for a in lock["archives"] if a["role"] == "core" and a["targetPlatform"] == "core-tar.gz"), None)
+    lock_binary = next((a for a in lock["archives"] if a["role"] == "binary"
+                        and a["targetPlatform"] == ARCHIVE_FOR_RUNNER[target]), None)
+    lock_core = next((a for a in lock["archives"] if a["role"] == "core" and a.get("url") == rec.get("coreUrl")), None)
     if lock_core is None:
-        lock_core = next((a for a in lock["archives"] if a["role"] == "core" and a["targetPlatform"] == "core-zip"), None)
+        lock_core = next((a for a in lock["archives"] if a["role"] == "core" and a["targetPlatform"] == "core-tar.gz"), None)
     check(lock_binary is not None, f"{target}: lock lacks binary record")
     check(lock_core is not None, f"{target}: lock lacks core record")
     check(rec.get("binarySha256") == lock_binary["sha256"], f"{target}: binarySha256/lock mismatch")

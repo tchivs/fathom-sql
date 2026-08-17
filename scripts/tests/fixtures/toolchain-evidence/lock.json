@@ -15,7 +15,7 @@
       "role": "binary",
       "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
       "sidecarDigest": "2222222222222222222222222222222222222222222222222222222222222222",
-      "targetPlatform": "macos-aarch64",
+      "targetPlatform": "darwin-aarch64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz"
     },
     {
