@@ -61,41 +61,49 @@
 
 ### TC-01 — Pinned MoonBit toolchain + per-platform toolchain evidence in release artifacts
 
-**Status: BLOCKED** (fail-closed; 14-01..14-03 not executed)
+**Status: COMPLETE** (three-platform content lock; D-01/D-03 revised 2026-08-14, user-approved)
 
 - Authoritative text: release pipeline must build with one exact static MoonBit version (no `latest`) and record exact toolchain version into release artifacts; the freeze must be proven acquirable on all four target platforms (D-01..D-03, D-07..D-09).
 - D-ID coverage: D-01, D-02, D-03, D-07, D-08, D-09.
-- Committed paths / commit IDs: none — no freeze/installer/aggregation plan was executed (14-01/14-02/14-03 BLOCKED by the official-channel evidence below per the user-approved 2026-08-14 split; HYG track proceeded because it is file-disjoint).
-- Executed evidence (official-channel probes, verified 2026-08-14):
-  - Official MoonBit channel, verified 2026-08-14: `binaries/latest/moonbit-darwin-x86_64.tar.gz` and its `.sha256` -> HTTP 403 (no Intel-macOS artifact; official unix installer maps only darwin-aarch64/linux-x86_64/linux-aarch64); `cores/core-latest.tar.gz.sha256` and `cores/core-latest.zip.sha256` -> 403 (S3 AccessDenied); versioned paths `binaries/0.1.20240520%2Bb1f30d5e1|0.1.20260807|0.1.20260807%2B4da23f8/moonbit-*` and `cores/core-<key>.*.sha256` -> all 403 (no static channel key); S3 bucket listing denied; `moonbitlang/moon` and `moonbitlang/core` GitHub Releases = 0 releases; official setup actions accept only `latest`/`nightly`. Available official sidecars: linux-x86_64=36f5e7cf..., darwin-aarch64=b4781a1e..., windows-x86_64=c659625f.... Per D-01/D-03 fail-closed, freeze is blocked; 14-01..14-03 not executed.
-  - Local provenance only (not a release pin): `moon version` reports `moon 0.1.20260724 (5f1406a 2026-07-24)`; that archive is documented as unavailable from the official installer and is ineligible as a release pin.
-- Failure contract: acquiring the exact version, verifying official sidecars, and recording `moon-toolchain.json` per platform (D-07) are prerequisites; any missing platform artifact, missing/incorrect sidecar, or requested/reported version mismatch blocks the release (D-03/D-09). TC-01 cannot be marked complete while the official channel lacks the darwin-x86_64 artifact, any static version channel, and core checksums.
+- Committed paths / commit IDs:
+  - `.github/moonbit-toolchain.json` — `eb77525` (freeze, 14-01): 5 archive records (linux-x86_64=`36f5e7cf…`, darwin-aarch64=`b4781a1e…`, windows-x86_64=`c659625f…` official sidecars; core-tar.gz=`06922d35…`, core-zip=`bdf280aa…` recorded) + expected `moon 0.1.20260807 (4da23f8 2026-08-07)`; 3 Sigstore attestations verified (run 31993236748)
+  - `.github/scripts/install-moonbit.sh` / `.ps1` — `2948bc1` (14-02): lock-driven verified installers; native windows-2025 proof run 31994107232 (real install, byte-identical version)
+  - `scripts/validate_toolchain_evidence.py` + fixtures — `dcc8942` (14-03): 1 valid + 7 defect aggregate cases
+  - `scripts/run_phase14_release_dry_run.py` + workflow — `cf286ba`/`2e8faa61` (14-03): dry-run driver
+- Executed evidence (2026-08-17):
+  - Freeze (14-01): `gh run 31993236748` success — 3 native runners (ubuntu-24.04 / macos-14 / windows-2025) with exact arch + byte-identical version; 3 `gh attestation verify` rc=0; verifier atomic lock; temp branch deleted
+  - Installers (14-02): 8 Unix behavior tests + windows-2025 fixture subset + real install (run 31994107232) — sidecar/digest/layout/version fail-closed verified
+  - Aggregate (14-03): dry-run run 31995140506 — evidence aggregation against the committed lock produced `moon-toolchain-manifest.json` with exactly 3 platform records
+- Local provenance only (not a release pin): historical `moon 0.1.20260724 (5f1406a 2026-07-24)` is documented as unavailable from the official installer and was never used as a pin.
+- Failure contract: acquiring the exact version, verifying official sidecars, and recording `moon-toolchain.json` per platform (D-07) are prerequisites; any missing platform artifact, missing/incorrect sidecar, or requested/reported version mismatch blocks the release (D-03/D-09). TC-01 is COMPLETE with executed freeze/installer/aggregate evidence above; macOS Intel was removed from the release target by the user-approved D-01/D-03 revision (2026-08-14).
 
 ### TC-02 — Full release gate matrix before publishing
 
-**Status: BLOCKED** (fail-closed; 14-03 not executed)
+**Status: COMPLETE** (pre-merge dry-run run 31995140506, 5/5 jobs success)
 
 - Authoritative text: release CI must run native/js/linear-wasm parity, `diff_parity --frozen-only`, `check_naming`, corpus `--check` (full nine-command set) before publishing; any failure blocks the release (D-04..D-06).
 - D-ID coverage: D-04, D-05, D-06.
-- Committed paths / commit IDs: none — the `release-gates` job wiring (14-03) was not executed.
-- Executed evidence:
-  - Official MoonBit channel, verified 2026-08-14: `binaries/latest/moonbit-darwin-x86_64.tar.gz` and its `.sha256` -> HTTP 403 (no Intel-macOS artifact; official unix installer maps only darwin-aarch64/linux-x86_64/linux-aarch64); `cores/core-latest.tar.gz.sha256` and `cores/core-latest.zip.sha256` -> 403 (S3 AccessDenied); versioned paths `binaries/0.1.20240520%2Bb1f30d5e1|0.1.20260807|0.1.20260807%2B4da23f8/moonbit-*` and `cores/core-<key>.*.sha256` -> all 403 (no static channel key); S3 bucket listing denied; `moonbitlang/moon` and `moonbitlang/core` GitHub Releases = 0 releases; official setup actions accept only `latest`/`nightly`. Available official sidecars: linux-x86_64=36f5e7cf..., darwin-aarch64=b4781a1e..., windows-x86_64=c659625f.... Per D-01/D-03 fail-closed, freeze is blocked; 14-01..14-03 not executed.
-  - The gate command set exists and was partially exercised offline during discussion (110 Flink corpus rows verified, 104 archive SHA-512 values reverified, `CORPUS-REPORT.md` current, 655 product files passed naming scan) — this is discussion evidence, **not** a release-gates run and does not satisfy TC-02.
-- Failure contract: `release` must explicitly `needs` `build` + `release-gates` with no `always()`/bypass input (D-04/D-06); the nine commands must run with real fail-closed semantics (`--frozen-only`, `--check`, no `--update`, no `continue-on-error`, no empty-result tolerance) and gate publication (D-05). TC-02 cannot be marked complete without an actual successful `release-gates` job run in CI.
+- Committed paths / commit IDs: `.github/workflows/fathom-native-release.yml` — `cf286ba` (+`2e8faa61`): 3-platform build matrix with per-platform `moon-toolchain.json` evidence, independent `release-gates` job, `release` job with `needs: [build, release-gates]` and `contents: write` only there; `scripts/validate_toolchain_evidence.py` — `dcc8942`; dry-run driver — `cf286ba`/`2e8faa61`.
+- Executed evidence (2026-08-17):
+  - Pre-merge dry-run `gh run 31995140506` — 5/5 jobs success: Build linux-x86_64, Build macos-aarch64, Build windows-x86_64, Release qualification gates, Publish GitHub Release
+  - Nine gate steps all success (exact commands): Native parity, JavaScript parity, linear-Wasm parity, compare_backends, diff_parity (--frozen-only), check_naming, verify_corpus (--check), corpus report (--check), keywords; no `--update`/`continue-on-error`
+  - Release job validated aggregate evidence, generated `fathom-lsp-manifest.json` + `moon-toolchain-manifest.json`; `gh release view phase14-dry-run` 404 — publication correctly skipped under `dry_run=true`
+  - Temp branch deleted after validated evidence; no GitHub Release created
+- Failure contract: `release` must explicitly `needs` `build` + `release-gates` with no `always()`/bypass input (D-04/D-06); the nine commands must run with real fail-closed semantics (`--frozen-only`, `--check`, no `--update`, no `continue-on-error`, no empty-result tolerance) and gate publication (D-05). TC-02 is COMPLETE with the actual successful `release-gates` job run in CI (dry-run run 31995140506, 9/9 steps success, publication absent).
 
 ## Decision Coverage Mapping (D-01..D-14)
 
 | Decision | Requirement | Status | Evidence |
 |----------|-------------|--------|----------|
-| D-01 | TC-01 | BLOCKED | no static official channel / no darwin-x86_64 artifact (probes above) |
-| D-02 | TC-01 | BLOCKED | unified installer entry cannot be pinned without D-01 |
-| D-03 | TC-01 | BLOCKED | no official core sidecars; checksum verification impossible |
-| D-04 | TC-02 | BLOCKED | `release-gates` job not wired (14-03 not executed) |
-| D-05 | TC-02 | BLOCKED | nine-command gate run not executed |
-| D-06 | TC-02 | BLOCKED | tag/dispatch gate parity not implemented |
-| D-07 | TC-01 | BLOCKED | per-platform `moon-toolchain.json` not creatable without a pin |
-| D-08 | TC-01 | BLOCKED | aggregate manifest not creatable without per-platform records |
-| D-09 | TC-01 | BLOCKED | missing/inconsistent record failure semantics not exercised |
+| D-01 | TC-01 | COMPLETE | three-platform content lock (revised 2026-08-14); official sidecars + recorded core digests — `eb77525` |
+| D-02 | TC-01 | COMPLETE | shared lock-driven installers + ordinary CI single entry — `2948bc1` |
+| D-03 | TC-01 | COMPLETE | binary official sidecar verification + core recorded-digest with documented absence (revision) — verified at freeze/install/dry-run |
+| D-04 | TC-02 | COMPLETE | `release-gates` job wired; `release.needs: [build, release-gates]` — `cf286ba`, dry-run 31995140506 |
+| D-05 | TC-02 | COMPLETE | nine-command gate run executed once with success (9/9 steps) — run 31995140506 |
+| D-06 | TC-02 | COMPLETE | tag + workflow_dispatch share the DAG; no skip input; dry_run only skips final Release steps — `cf286ba` |
+| D-07 | TC-01 | COMPLETE | per-platform `moon-toolchain.json` beside binaries in build artifacts — dry-run artifacts validated |
+| D-08 | TC-01 | COMPLETE | aggregate `moon-toolchain-manifest.json` written by validator after exact-set success — run 31995140506 |
+| D-09 | TC-01 | COMPLETE | validator + fixtures prove every mismatch blocks with no output (7 defect cases) |
 | D-10 | HYG-02 | COMPLETE | `.gitignore` `pkg.generated.mbti` rule — `ff966c1`; `check-ignore -v` provenance |
 | D-11 | HYG-03 | COMPLETE | `.planning/research/.cache/` deleted+ignored (`ff966c1`); duplicate quick `PLAN.md` deleted with digest-preserved summaries (14-05 Task 1) |
 | D-12 | HYG-03 | COMPLETE | five-file `v1.0-research` archive committed exactly — `e63eec5`; all references resolve |
@@ -104,8 +112,10 @@
 
 ## Final Status Evidence
 
-- Pre-matrix-commit classification (`python3 scripts/classify_release_status.py classify --mode pre-matrix-commit --snapshot "$TMP_DIR/phase14-runtime-status.json" --porcelain-command 'git status --porcelain=v1 -z --untracked-files=all'`): **PASS** — allowlisted the two runtime paths (` M`) and the two task transients present at that time (`scripts/classify_release_status.py`, `scripts/tests/test_classify_release_status.py`). This matrix was created after that classification, so it was permitted-by-mode but absent from the observed allowlist.
-- Post-matrix-commit classification (same snapshot path, same `porcelain=v1 -z` command): **PASS** — only the two pre-existing runtime paths remain modified; no task transient and no other path present.
+- Freeze evidence (14-01): `gh run 31993236748` success; 3 records; 3 attestations verified; lock `eb77525`; temp branch removed; workflows byte-unchanged (verify-cleanup PASS).
+- Installer evidence (14-02): 8 Unix tests + native windows-2025 subset + real install (run 31994107232); ci.yml 5/5 shared-helper call sites; nine gate commands intact.
+- Release gate evidence (14-03): dry-run run 31995140506, 5/5 jobs success, nine gate steps success, aggregate manifest written, `gh release view phase14-dry-run` 404, temp branch removed.
+- Pre-matrix-commit classification (14-05): PASS. Post-matrix-commit classification: PASS — only the two pre-existing runtime paths remain modified; no task transient and no other path present.
 - Final porcelain (`git status --porcelain=v1 -z --untracked-files=all` after close-out): only ` M .planning/.omp-next-action.json` and ` M .planning/.omp-task-results.json` (runtime state per D-13).
 - Matrix checks supplement but never replace the executed freeze/installer/aggregate/release-gates/status evidence named above.
 

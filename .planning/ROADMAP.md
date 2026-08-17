@@ -88,15 +88,15 @@ v1.0 shipped the lossless CST core, Doris DML/DDL + corpus, configurable formatt
 Plans:
 **Wave 1**
 
-- [ ] 14-01-PLAN.md — Signed four-native-runner freeze with exact-set verifier, atomic lock, and blocking evidence approval
+- [x] 14-01-PLAN.md — Signed three-native-runner freeze with exact-set verifier, atomic lock, and blocking evidence approval
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14-02-PLAN.md — Behavior-tested Unix/PowerShell installers migrate every ordinary CI MoonBit bootstrap to the lock
+- [x] 14-02-PLAN.md — Behavior-tested Unix/PowerShell installers migrate every ordinary CI MoonBit bootstrap to the lock
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 14-03-PLAN.md — Real nine-command release-gates run plus behavior-tested four-record aggregation block publication
+- [x] 14-03-PLAN.md — Real nine-command release-gates run plus behavior-tested three-record aggregation block publication
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -106,7 +106,7 @@ Plans:
 
 - [x] 14-05-PLAN.md — Quick/archive preservation and executable final porcelain readiness classifier/matrix
 
-> 2026-08-14 用户批准拆分执行：HYG waves 4-5 先行；14-01..14-03 因官方 MoonBit 渠道无 darwin-x86_64 工件、无静态版本渠道、无 core 官方校验和（全部 403 实测证据）按 D-01/D-03 fail-closed 阻塞。同日用户进一步批准修订 D-01/D-03 为三平台内容锁定（linux-x86_64 / darwin-aarch64 / windows-x86_64），TC 已解冻执行中。
+> 2026-08-14 用户批准拆分执行：HYG waves 4-5 先行；14-01..14-03 因官方 MoonBit 渠道无 darwin-x86_64 工件、无静态版本渠道、无 core 官方校验和（全部 403 实测证据）按 D-01/D-03 fail-closed 阻塞。同日用户进一步批准修订 D-01/D-03 为三平台内容锁定（linux-x86_64 / darwin-aarch64 / windows-x86_64）。2026-08-17 全部 5 计划完成：三平台冻结（attested）、共享安装器 + CI 迁移、发布门禁 dry-run 全绿、hygiene 收口与 readiness 矩阵。
 
 ### Phase 15: Product Versioning & Binary `--version`
 

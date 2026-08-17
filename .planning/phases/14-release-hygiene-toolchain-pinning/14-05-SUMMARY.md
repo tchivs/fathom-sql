@@ -220,6 +220,14 @@ None - no external service configuration required.
 
 ## Self-Check: PASSED
 
+## Revision (2026-08-17): TC-01/02 COMPLETE
+
+- User-approved D-01/D-03 three-platform revision (14-CONTEXT.md) unblocked the TC track.
+- 14-01 freeze (commit `eb77525`): 3-platform content lock, run 31993236748, 3 attestations verified.
+- 14-02 installers (commit `2948bc1`): shared lock-driven helpers + ci.yml migration + windows-2025 proof (run 31994107232).
+- 14-03 release gates (commits `cf286ba`/`2e8faa61`/`dcc8942`): dry-run run 31995140506 — 5/5 jobs, 9/9 gate steps success, aggregate validated, publication absent.
+- `14-RELEASE-READINESS.md` updated: TC-01/TC-02 and D-01..D-09 now COMPLETE with executed evidence; this revision supersedes the BLOCKED rows.
+
 ---
 *Phase: 14-release-hygiene-toolchain-pinning*
-*Completed: 2026-08-14*
+*Completed: 2026-08-17*
