@@ -4,6 +4,22 @@ This extension is a thin standard `vscode-languageclient` host for the local Nat
 `fathom-lsp` executable. It does not start a service, connect to a database, or
 provide a remote fallback.
 
+## Install
+
+1. Install this extension from the **VS Code Marketplace** or **Open VSX**
+   (search "Fathom SQL Language Client").
+2. Acquire the `fathom-lsp` language server from a **GitHub Release**
+   (<https://github.com/tchivs/fathom-sql/releases>) — see the repository
+   README's "Install `fathom-lsp` from GitHub Release" section: pick the
+   asset for your platform (`fathom-lsp-linux-x86_64`,
+   `fathom-lsp-macos-aarch64`, or `fathom-lsp-windows-x86_64.exe`), verify its
+   SHA-256 against `fathom-lsp-manifest.json`, and place it on your `PATH`
+   (recommended: `~/.fathom/bin`).
+3. Verify the server: `fathom-lsp --version` must print `fathom-lsp 1.0.0`.
+4. Set `fathom.serverPath` to the installed executable if it is not on
+   `PATH`, and set the required `fathom.dialect` / `fathom.profile` settings
+   (see Configuration below).
+
 ## Configuration
 
 Set these explicit settings before opening a SQL document:
