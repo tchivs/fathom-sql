@@ -142,8 +142,14 @@ def main():
         require(rv.returncode == 0, "run view failed")
         runj = json.loads(rv.stdout)
         require(runj["event"] == "workflow_dispatch" and runj["headBranch"] == branch
-                and runj["headSha"] == temp_head and runj["workflowName"] == "Fathom Native Release"
-                and runj["conclusion"] == "success", f"run identity/conclusion mismatch: {runj}")
+                and runj["headSha"] == temp_head and runj["conclusion"] == "success",
+                f"run identity/conclusion mismatch: {runj}")
+        require(runj.get("workflowName") in ("Fathom Native Release", "Doris Native Release"),
+                f"unexpected workflow name: {runj.get('workflowName')}")
+        step_names = [s["name"] for j in runj.get("jobs", []) for s in j.get("steps", [])]
+        require("Validate toolchain evidence and write aggregate manifest" in step_names
+                and "keywords" in step_names and "Native parity" in step_names,
+                "run did not execute the proposed Fathom workflow content")
         job_names = {j["name"] for j in runj.get("jobs", [])}
         require(all(j["conclusion"] == "success" for j in runj["jobs"]), "not all jobs succeeded")
         with open(os.path.join(out_dir, "run.json"), "w", encoding="utf-8") as f:
