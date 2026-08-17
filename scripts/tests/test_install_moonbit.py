@@ -76,7 +76,27 @@ class FixtureServer:
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
-def build_fixture(server, bad_traversal=False, wrong_version=False, corrupt_sidecar=False, corrupt_archive=False):
+def build_fixture(server, platform="unix", exe_bytes=None, bad_traversal=False, wrong_version=False,
+                  corrupt_sidecar=False, corrupt_archive=False):
+    if platform == "windows":
+        assert exe_bytes is not None
+        bin_zip = make_zip([("bin/moon.exe", exe_bytes), ("bin/moonc.exe", exe_bytes), ("lib/x", b"x")])
+        core_zip = make_zip([("core/a.mbt", b"a")])
+        bin_name = "moonbit-windows-x86_64.zip"
+        core_name = "core-latest.zip"
+        bin_digest = hashlib.sha256(bin_zip).hexdigest()
+        core_digest = hashlib.sha256(core_zip).hexdigest()
+        served_bin = b"not-a-zip" if corrupt_archive else bin_zip
+        with open(os.path.join(server.dir, bin_name), "wb") as f:
+            f.write(served_bin)
+        sidecar = f"{bin_digest}  {bin_name}\n"
+        if corrupt_sidecar:
+            sidecar = f"{'0' * 64}  {bin_name}\n"
+        with open(os.path.join(server.dir, bin_name + ".sha256"), "w") as f:
+            f.write(sidecar)
+        with open(os.path.join(server.dir, core_name), "wb") as f:
+            f.write(core_zip)
+        return bin_digest, core_digest
     moon_data = b"#!/bin/sh\necho 'moon 0.1.20260807 (4da23f8 2026-08-07)'\necho\necho 'Feature flags enabled: rr_moon_mod,rr_moon_pkg'\n"
     if wrong_version:
         moon_data = b"#!/bin/sh\necho 'moon 0.1.OTHER'\n"
@@ -97,18 +117,26 @@ def build_fixture(server, bad_traversal=False, wrong_version=False, corrupt_side
     return bin_digest, core_digest
 
 
-def make_lock(server, bin_digest, core_digest, missing_core=False, extra_binary=False):
-    archives = [
-        {"role": "binary", "targetPlatform": "linux-x86_64", "filename": "moonbit-linux-x86_64.tar.gz",
-         "url": server.url("moonbit-linux-x86_64.tar.gz"), "sha256": bin_digest,
-         "sidecarDigest": bin_digest, "provenance": "official-sidecar"},
-    ]
+def make_lock(server, bin_digest, core_digest, platform="unix", missing_core=False, extra_binary=False):
+    if platform == "windows":
+        bin_rec = {"role": "binary", "targetPlatform": "windows-x86_64", "filename": "moonbit-windows-x86_64.zip",
+                   "url": server.url("moonbit-windows-x86_64.zip"), "sha256": bin_digest,
+                   "sidecarDigest": bin_digest, "provenance": "official-sidecar"}
+        core_rec = {"role": "core", "targetPlatform": "core-zip", "filename": "core-latest.zip",
+                    "url": server.url("core-latest.zip"), "sha256": core_digest,
+                    "sidecarDigest": None, "provenance": "recorded-digest"}
+    else:
+        bin_rec = {"role": "binary", "targetPlatform": "linux-x86_64", "filename": "moonbit-linux-x86_64.tar.gz",
+                   "url": server.url("moonbit-linux-x86_64.tar.gz"), "sha256": bin_digest,
+                   "sidecarDigest": bin_digest, "provenance": "official-sidecar"}
+        core_rec = {"role": "core", "targetPlatform": "core-tar.gz", "filename": "core-latest.tar.gz",
+                    "url": server.url("core-latest.tar.gz"), "sha256": core_digest,
+                    "sidecarDigest": None, "provenance": "recorded-digest"}
+    archives = [bin_rec]
     if extra_binary:
-        archives.append(dict(archives[0], targetPlatform="darwin-aarch64", sha256=bin_digest))
+        archives.append(dict(bin_rec, targetPlatform="darwin-aarch64" if platform != "windows" else "linux-x86_64"))
     if not missing_core:
-        archives.append({"role": "core", "targetPlatform": "core-tar.gz", "filename": "core-latest.tar.gz",
-                         "url": server.url("core-latest.tar.gz"), "sha256": core_digest,
-                         "sidecarDigest": None, "provenance": "recorded-digest"})
+        archives.append(core_rec)
     return {
         "schemaVersion": 1,
         "channelKey": "latest",
@@ -219,48 +247,92 @@ class UnixInstallerTest(unittest.TestCase):
         self.assertFalse(os.path.exists(obs))
 
 
+CS_OK = r"""using System;
+class P { static void Main() {
+  Console.WriteLine("moon 0.1.20260807 (4da23f8 2026-08-07)");
+  Console.WriteLine();
+  Console.WriteLine("Feature flags enabled: rr_moon_mod,rr_moon_pkg");
+} }"""
+CS_BAD = r"""using System;
+class P { static void Main() { Console.WriteLine("moon 0.1.OTHER"); } }"""
+
+
+def compile_exe(exe_path, cs_source_path):
+    ps = (f"Add-Type -TypeDefinition (Get-Content -Raw '{cs_source_path}') "
+          f"-OutputAssembly '{exe_path}' -OutputType ConsoleApplication")
+    return subprocess.run(["pwsh", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=300)
+
+
 def windows_subset():
     """Run on a native windows-2025 runner via the installer matrix driver."""
     server = FixtureServer({})
     try:
-        bin_digest, core_digest = build_fixture(server)
-        lock = make_lock(server, bin_digest, core_digest)
         tmp = tempfile.mkdtemp(prefix="win-installer-")
-        lock_path = os.path.join(tmp, "lock.json")
-        json.dump(lock, open(lock_path, "w"))
-        obs_path = os.path.join(tmp, "obs.json")
-        env = dict(os.environ)
-        env["LOCK_PATH"] = lock_path
-        env["MOON_HOME"] = os.path.join(tmp, "home")
-        env["OBSERVATION_PATH"] = obs_path
-        env.pop("GITHUB_PATH", None)
-        proc = subprocess.run(["pwsh", "-NoProfile", "-File", PS_HELPER], capture_output=True, text=True, env=env, timeout=300)
-        if proc.returncode != 0:
+        cs_ok = os.path.join(tmp, "ok.cs")
+        cs_bad = os.path.join(tmp, "bad.cs")
+        exe_ok = os.path.join(tmp, "moon-ok.exe")
+        exe_bad = os.path.join(tmp, "moon-bad.exe")
+        with open(cs_ok, "w") as f:
+            f.write(CS_OK)
+        with open(cs_bad, "w") as f:
+            f.write(CS_BAD)
+        r = compile_exe(exe_ok, cs_ok)
+        if r.returncode != 0:
+            print("COMPILE-OK FAILED:", r.stdout, r.stderr)
+            return 1
+        r = compile_exe(exe_bad, cs_bad)
+        if r.returncode != 0:
+            print("COMPILE-BAD FAILED:", r.stdout, r.stderr)
+            return 1
+        ok_bytes = open(exe_ok, "rb").read()
+        bad_bytes = open(exe_bad, "rb").read()
+
+        def run_ps1(lock, obs_name, home_name):
+            lock_path = os.path.join(tmp, lock)
+            json.dump(lock, open(lock_path, "w"))
+            env = dict(os.environ)
+            env["LOCK_PATH"] = lock_path
+            env["MOON_HOME"] = os.path.join(tmp, home_name)
+            env["OBSERVATION_PATH"] = os.path.join(tmp, obs_name)
+            env.pop("GITHUB_PATH", None)
+            return subprocess.run(["pwsh", "-NoProfile", "-File", PS_HELPER],
+                                  capture_output=True, text=True, env=env, timeout=300), env
+
+        # valid install
+        bd, cd = build_fixture(server, platform="windows", exe_bytes=ok_bytes)
+        proc, env = run_ps1(make_lock(server, bd, cd, platform="windows"), "obs.json", "home")
+        if proc.returncode != 0 or not os.path.exists(os.path.join(env["MOON_HOME"], "bin", "moon.exe")) \
+                or not os.path.exists(env["OBSERVATION_PATH"]):
             print("VALID FAILED:", proc.stdout, proc.stderr)
             return 1
-        if not os.path.exists(os.path.join(env["MOON_HOME"], "bin", "moon.exe")) or not os.path.exists(obs_path):
-            print("VALID: missing artifacts")
-            return 1
-        # negative: corrupt sidecar
-        bin_digest2, core_digest2 = build_fixture(server, corrupt_sidecar=True)
-        lock2 = make_lock(server, bin_digest2, core_digest2)
-        lock_path2 = os.path.join(tmp, "lock2.json")
-        json.dump(lock2, open(lock_path2, "w"))
-        env["LOCK_PATH"] = lock_path2
-        env["OBSERVATION_PATH"] = os.path.join(tmp, "obs2.json")
-        proc2 = subprocess.run(["pwsh", "-NoProfile", "-File", PS_HELPER], capture_output=True, text=True, env=env, timeout=300)
-        if proc2.returncode == 0 or os.path.exists(env["OBSERVATION_PATH"]):
+        # corrupt sidecar
+        bd2, cd2 = build_fixture(server, platform="windows", exe_bytes=ok_bytes, corrupt_sidecar=True)
+        proc2, env2 = run_ps1(make_lock(server, bd2, cd2, platform="windows"), "obs2.json", "home2")
+        if proc2.returncode == 0 or os.path.exists(env2["OBSERVATION_PATH"]):
             print("CORRUPT-SIDECAR: did not fail closed")
             return 1
-        # negative: wrong version
-        bin_digest3, core_digest3 = build_fixture(server, wrong_version=True)
-        lock3 = make_lock(server, bin_digest3, core_digest3)
-        lock_path3 = os.path.join(tmp, "lock3.json")
-        json.dump(lock3, open(lock_path3, "w"))
-        env["LOCK_PATH"] = lock_path3
-        env["OBSERVATION_PATH"] = os.path.join(tmp, "obs3.json")
-        proc3 = subprocess.run(["pwsh", "-NoProfile", "-File", PS_HELPER], capture_output=True, text=True, env=env, timeout=300)
-        if proc3.returncode == 0 or os.path.exists(env["OBSERVATION_PATH"]):
+        # corrupt archive
+        bd3, cd3 = build_fixture(server, platform="windows", exe_bytes=ok_bytes, corrupt_archive=True)
+        proc3, env3 = run_ps1(make_lock(server, bd3, cd3, platform="windows"), "obs3.json", "home3")
+        if proc3.returncode == 0 or os.path.exists(env3["OBSERVATION_PATH"]):
+            print("CORRUPT-ARCHIVE: did not fail closed")
+            return 1
+        # traversal zip
+        evil_zip = make_zip([("../evil", b"x")])
+        evil_digest = hashlib.sha256(evil_zip).hexdigest()
+        with open(os.path.join(server.dir, "moonbit-windows-x86_64.zip"), "wb") as f:
+            f.write(evil_zip)
+        with open(os.path.join(server.dir, "moonbit-windows-x86_64.zip.sha256"), "w") as f:
+            f.write(f"{evil_digest}  moonbit-windows-x86_64.zip\n")
+        lock_evil = make_lock(server, evil_digest, hashlib.sha256(make_zip([("core/a.mbt", b"a")])).hexdigest(), platform="windows")
+        proc4, env4 = run_ps1(lock_evil, "obs4.json", "home4")
+        if proc4.returncode == 0 or os.path.exists(env4["OBSERVATION_PATH"]):
+            print("TRAVERSAL: did not fail closed")
+            return 1
+        # wrong version
+        bd5, cd5 = build_fixture(server, platform="windows", exe_bytes=bad_bytes)
+        proc5, env5 = run_ps1(make_lock(server, bd5, cd5, platform="windows"), "obs5.json", "home5")
+        if proc5.returncode == 0 or os.path.exists(env5["OBSERVATION_PATH"]):
             print("WRONG-VERSION: did not fail closed")
             return 1
         print("WINDOWS-SUBSET PASS")
