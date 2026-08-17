@@ -157,11 +157,13 @@ Plans:
 2. RELEASE-NOTES.md（或等价）披露 Flink 语法级范围、Wasm GC 非一等、corpus provenance 缺口、5 项验证 override、工具链版本策略
 3. 发布模板/管线引用披露文档（DIS-02），Release notes 在下载前可见边界
 
-**Plans**: TBD
+**Plans**: 1/1 plans executed
 
 Plans:
 
-- [ ] 17-01: TBD
+- [x] 17-01-PLAN.md
+
+- [x] 17-01: Changelog & release disclosure — CHANGELOG 1.0.0 条目、RELEASE-NOTES 五段边界披露、gh release --notes-file 接线
 
 ### Phase 18: JS SDK npm Publication
 
