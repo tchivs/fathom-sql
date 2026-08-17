@@ -18,18 +18,18 @@
 ## Implementation Decisions
 
 ### Toolchain Identity and Acquisition
-- **D-01:** 普通 CI 与 release CI 使用同一个、当前可从官方渠道为 Linux/macOS/Windows 全部 runner 获取的**精确稳定 MoonBit 版本**。不得继续使用 `latest`，也不得把已确认无法下载的历史本地 `0.1.20260724` 归档强行作为 release pin。研究/规划必须先验证候选版本在所有目标平台的官方工件与 core 工件均可获取，再锁定具体值。— **Reversibility:** costly — 更换 compiler pin 会使全部平台工件与 parity 证据重新生成并重新验证。
+- **D-01（2026-08-14 修订，用户批准）:** 普通 CI 与 release CI 使用同一个精确 MoonBit 版本，以官方 CDN 内容锁定快照获取。2026-08-14 实测官方分发面（cli.moonbitlang.com 及 .cn 镜像、latest/nightly/pre-release/bleeding 通道、GitHub Releases）均无 `darwin-x86_64` 工件、无任何静态版本化渠道、无 core 官方校验和（全部 403/404）。冻结目标因此修订为官方实际分发的三平台 `linux-x86_64` / `darwin-aarch64` / `windows-x86_64`：二进制以 `binaries/latest` 快照的官方 `.sha256` sidecar 校验，并冻结字节摘要锁定内容（上游漂移即 fail，绝不静默跟随）；macOS Intel 不作为发布目标（GitHub 2027 秋退役 Intel runner）。历史本地 `0.1.20260724` 归档仍不得作为 pin。— **Reversibility:** costly — 更换 compiler pin 会使全部平台工件与 parity 证据重新生成并重新验证。
 - **D-02:** 工具链安装复用一个仓库内的统一 CI 安装入口或等价单一配置源，避免 `ci.yml` 与 `fathom-native-release.yml` 各自漂移；Unix 与 Windows 可以保留平台专属解包步骤，但必须消费相同版本常量与验证规则。
-- **D-03:** 只使用官方版本化工件，并在执行构建前验证官方校验和和精确 `moon version` 输出；下载失败、checksum 不符或报告版本不符均立即失败。不得用安装器的移动 channel 伪装成 pin。— **Reversibility:** one-way — 这是 1.0 发布供应链与可重复构建承诺，放宽需要公开修改发布安全政策。
+- **D-03（2026-08-14 修订，用户批准）:** 只使用官方工件，并在执行构建前验证校验和和精确 `moon version` 输出；下载失败、checksum 不符或报告版本不符均立即失败。二进制归档使用官方 `.sha256` sidecar（三平台均存在）；core 归档官方在任何通道都不提供校验和（实测 403/404），改为冻结时记录 SHA-256 + 官方 URL + 审计声明（记录式校验，属文档化放宽）；`latest` 快照按 D-01 内容锁定，禁止静默跟随漂移。— **Reversibility:** one-way — 这是 1.0 发布供应链与可重复构建承诺，再次放宽需要公开修改发布安全政策。
 
 ### Release Gate Topology
-- **D-04:** `fathom-native-release.yml` 增加独立、fail-closed 的 `release-gates` job；最终 publish job 必须通过显式 `needs` 依赖它和全部平台 build。门禁不依赖另一个 workflow 的历史成功状态，也不在四个平台中重复运行。
+- **D-04:** `fathom-native-release.yml` 增加独立、fail-closed 的 `release-gates` job；最终 publish job 必须通过显式 `needs` 依赖它和全部平台 build。门禁不依赖另一个 workflow 的历史成功状态，也不在各平台 build 中重复运行。
 - **D-05:** release gate 复用现有真实命令，至少覆盖：Native/JS/linear-Wasm `parity` 测试、`scripts/compare_backends.py`、`scripts/diff_parity.py --frozen-only`、`scripts/check_naming.py`、`scripts/verify_corpus.py --check`、`corpus/tools/generate_corpus_report.py --check`、`corpus/tools/check_keywords.py corpus/keywords.tsv`。不得使用 `--update`、`continue-on-error` 或空结果容错。— **Reversibility:** one-way — 这些门禁是发布资格契约，删除或旁路会降低已承诺的 1.0 保证。
 - **D-06:** tag 与 `workflow_dispatch` 两条发布路径运行完全相同的门禁；不提供 skip/bypass 输入。正式 `v1.0.0` tag 与 GitHub Release 的创建仍留给 Phase 20。
 
 ### Toolchain Evidence in Release Artifacts
 - **D-07:** 每个平台 build 生成结构相同、机器可读的 `moon-toolchain.json`（或同等稳定名称），至少记录请求的精确版本、完整 `moon version` 原始输出、runner OS/arch 与目标平台；该记录与对应 Native binary 放入同一上传 artifact。
-- **D-08:** publish job 下载四个平台记录，验证全部存在、请求版本一致、报告版本符合 pin，并生成一个聚合工具链清单作为最终 release asset。日志输出仅作诊断，不满足 TC-01 的“记录到发布工件”。
+- **D-08:** publish job 下载三个平台记录，验证全部存在、请求版本一致、报告版本符合 pin，并生成一个聚合工具链清单作为最终 release asset。日志输出仅作诊断，不满足 TC-01 的“记录到发布工件”。
 - **D-09:** 缺少工具链记录、requested/reported 不一致或跨平台版本不一致均阻断发布；不允许警告后继续。— **Reversibility:** one-way — 发布消费者和后续复现流程将依赖该证据格式；破坏性改动需版本化迁移。
 
 ### Working-Tree Hygiene
@@ -41,6 +41,12 @@
 
 ### Claude's Discretion
 `--auto` 模式下四个灰区均采用上述推荐方案。研究者/规划者可决定统一安装入口的文件名、JSON 字段附加项、release-gates job 内步骤拆分与具体可获取版本，但不得改变 D-01..D-14 的边界或失败语义。
+
+### Decision Revisions (2026-08-14, user-approved)
+- 依据：官方分发面实测（2026-08-14）——`binaries/latest|nightly|pre-release|bleeding/moonbit-darwin-x86_64.tar.gz(.sha256)` 全部 403、`.cn` 镜像 404；`cores/core-*.sha256` 全部 403（S3 AccessDenied）；versioned 键 `0.1.20240520%2Bb1f30d5e1`/`0.1.20260807`/`0.1.20260807%2B4da23f8` 全部 403；S3 listing 拒绝；moonbitlang/moon 与 core Releases 均为 0；moonbit-compiler Releases 仅 wasm 资产；官方 setup action 仅接受 latest/nightly。可用官方 sidecar：linux-x86_64=`36f5e7cf…`、darwin-aarch64=`b4781a1e…`、windows-x86_64=`c659625f…`。
+- 修订内容：D-01（三平台内容锁定）与 D-03（core 记录式校验）如上；D-04/D-08 平台计数同步为三。
+- 批准：用户在 blocking-human 决策中明确选择「批准修订 D-01/D-03：三平台内容锁定」。
+
 
 </decisions>
 

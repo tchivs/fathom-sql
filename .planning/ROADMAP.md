@@ -106,7 +106,7 @@ Plans:
 
 - [x] 14-05-PLAN.md — Quick/archive preservation and executable final porcelain readiness classifier/matrix
 
-> 2026-08-14 用户批准拆分执行：HYG waves 4-5 先行；14-01..14-03 因官方 MoonBit 渠道无 darwin-x86_64 工件、无静态版本渠道、无 core 官方校验和（全部 403 实测证据）按 D-01/D-03 fail-closed 阻塞。
+> 2026-08-14 用户批准拆分执行：HYG waves 4-5 先行；14-01..14-03 因官方 MoonBit 渠道无 darwin-x86_64 工件、无静态版本渠道、无 core 官方校验和（全部 403 实测证据）按 D-01/D-03 fail-closed 阻塞。同日用户进一步批准修订 D-01/D-03 为三平台内容锁定（linux-x86_64 / darwin-aarch64 / windows-x86_64），TC 已解冻执行中。
 
 ### Phase 15: Product Versioning & Binary `--version`
 
