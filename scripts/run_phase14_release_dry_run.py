@@ -68,8 +68,9 @@ def main():
     require(len(proposed) > 0, "proposed workflow bytes empty")
 
     # registration preflight: numeric ID bound to the legacy default-branch path
-    reg = gh("workflow", "view", str(wf_id), "-R", "tchivs/fathom-sql", "--json", "id,path,name,state")
-    require(reg.returncode == 0, f"workflow view failed: {reg.stderr[:300]}")
+    reg = gh("api", f"repos/tchivs/fathom-sql/actions/workflows/{wf_id}",
+             "--jq", "{id,path,name,state}")
+    require(reg.returncode == 0, f"workflow query failed: {reg.stderr[:300]}")
     regj = json.loads(reg.stdout)
     require(regj["id"] == wf_id, f"workflow id mismatch: {regj['id']}")
     require(regj["state"] == "active", f"workflow not active: {regj['state']}")
