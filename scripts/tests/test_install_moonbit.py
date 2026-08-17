@@ -249,12 +249,10 @@ class UnixInstallerTest(unittest.TestCase):
 
 CS_OK = r"""using System;
 class P { static void Main() {
-  Console.WriteLine("moon 0.1.20260807 (4da23f8 2026-08-07)");
-  Console.WriteLine();
-  Console.WriteLine("Feature flags enabled: rr_moon_mod,rr_moon_pkg");
+  Console.Write("moon 0.1.20260807 (4da23f8 2026-08-07)\n\nFeature flags enabled: rr_moon_mod,rr_moon_pkg\n");
 } }"""
 CS_BAD = r"""using System;
-class P { static void Main() { Console.WriteLine("moon 0.1.OTHER"); } }"""
+class P { static void Main() { Console.Write("moon 0.1.OTHER\n"); } }"""
 
 
 def compile_exe(exe_path, cs_source_path):
