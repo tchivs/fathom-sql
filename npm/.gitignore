@@ -1,0 +1,5 @@
+binding.js
+binding.wasm
+capabilities.json
+*.tgz
+node_modules/

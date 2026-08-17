@@ -1,0 +1,28 @@
+{
+  "name": "@fathom/sql",
+  "version": "1.0.0",
+  "description": "Fathom SQL Parser SDK — MoonBit-built parse/format/complete/lint/fingerprint/lineage for Doris and Flink SQL",
+  "type": "module",
+  "files": [
+    "binding.js",
+    "binding.wasm",
+    "index.mjs",
+    "index.d.ts",
+    "capabilities.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs"
+    }
+  },
+  "main": "./index.mjs",
+  "types": "./index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["sql", "parser", "doris", "flink", "moonbit", "lsp"],
+  "sideEffects": false
+}
