@@ -103,9 +103,10 @@ def main():
                 f"expected exactly one legacy-path release workflow copy, got {copies}")
         with open(copies[0], "rb") as f:
             require(f.read() == proposed, "temporary workflow bytes differ from proposed implementation")
-        r = sh("git", "-C", worktree, "add", ".github/workflows/doris-native-release.yml",
-               "-u", ".github/workflows/fathom-native-release.yml")
-        require(r.returncode == 0, "git add failed")
+        r = sh("git", "-C", worktree, "add", "-A", "--",
+               ".github/workflows/doris-native-release.yml",
+               ".github/workflows/fathom-native-release.yml")
+        require(r.returncode == 0, f"git add failed: {r.stderr[:300]}")
         r = sh("git", "-C", worktree, "commit", "-q", "-m",
                f"chore(14): temporary same-path release dry-run mapping {nonce}")
         require(r.returncode == 0, f"commit failed: {r.stderr[:300]}")
