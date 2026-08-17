@@ -9,12 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # Historical local toolchain was moon 0.1.20260724 (official v0.10.5 docs line).
-  # The installer no longer serves that archive, so CI pins `latest` and logs the
-  # exact version in every run (see moon.mod policy comment).
-  MOONBIT_INSTALL_VERSION: "latest"
-
 jobs:
   check:
     name: moon check + fmt
@@ -23,12 +17,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Install MoonBit
+      - name: Install MoonBit (lock-driven)
         shell: bash
-        run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
+        run: .github/scripts/install-moonbit.sh
 
       - name: moon fmt --check
         run: moon fmt --check
@@ -48,12 +39,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Install MoonBit
+      - name: Install MoonBit (lock-driven)
         shell: bash
-        run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
+        run: .github/scripts/install-moonbit.sh
 
       - name: moon test (native)
         # Bare `moon test` triggers MoonBit error 4219 (foreign_library binding
@@ -74,12 +62,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Install MoonBit
+      - name: Install MoonBit (lock-driven)
         shell: bash
-        run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
+        run: .github/scripts/install-moonbit.sh
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -129,12 +114,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Install MoonBit
+      - name: Install MoonBit (lock-driven)
         shell: bash
-        run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
+        run: .github/scripts/install-moonbit.sh
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -237,12 +219,9 @@ jobs:
       # build-time dependency restore (setup-node/setup-java), never a smoke
       # runtime call. NO --update anywhere (Pitfall 1): this is a smoke job,
       # never a snapshot writer.
-      - name: Install MoonBit
+      - name: Install MoonBit (lock-driven)
         shell: bash
-        run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
+        run: .github/scripts/install-moonbit.sh
 
       - name: Build native fathom-lsp + JS binding
         run: |
