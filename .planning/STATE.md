@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Release Readiness
-current_phase: 17
-current_phase_name: Changelog & Release Disclosure
+current_phase: 18
+current_phase_name: JS SDK npm Publication
 status: completed
-stopped_at: Phase 17 complete — CHANGELOG + RELEASE-NOTES + notes wiring (1/1 plans)
-last_updated: "2026-08-17T06:50:00Z"
+stopped_at: Phase 18 complete — @fathom/sql package built/verified; publish auth-gated (1/1 plans)
+last_updated: "2026-08-17T07:10:00Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 17 complete — changelog, disclosure, notes-file wiring
+last_activity_desc: Phase 18 complete — npm package + consumer smoke; registry push gated on NPM_TOKEN
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  completed_phases: 5
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 ## Current Position
 
-Phase: 17 (Changelog & Release Disclosure) — COMPLETE (1/1 plans)
-Plan: 17-01 done — CHANGELOG 1.0.0 条目、五段边界披露、Release notes 接线
-Status: VER-03/DIS-01/DIS-02 complete; next Phase 18 (JS SDK npm Publication)
-Last activity: 2026-08-17 — Phase 17 complete
+Phase: 18 (JS SDK npm Publication) — COMPLETE (1/1 plans)
+Plan: 18-01 done — @fathom/sql 1.0.0 构建/打包/消费者冒烟通过；真实发布认证门（需 NPM_TOKEN）
+Status: NPM-01/02 complete (publish pending credentials); next Phase 19 (Editor Extension Publication)
+Last activity: 2026-08-17 — Phase 18 complete
 
 ## Performance Metrics
 

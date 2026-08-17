@@ -176,11 +176,13 @@ Plans:
 2. 全新消费方冒烟：临时目录 `npm install @fathom/sql@1.0.0`，Node 加载并成功 parse/format 示例 SQL
 3. 包内 dialect/profile 能力元数据正确
 
-**Plans**: TBD
+**Plans**: 1/1 plans executed
 
 Plans:
 
-- [ ] 18-01: TBD
+- [x] 18-01-PLAN.md
+
+- [x] 18-01: JS SDK npm publication — @fathom/sql 1.0.0 ESM 包（binding.js/wasm + d.ts + capabilities.json）构建/打包/消费者冒烟通过；真实 publish 认证门（NPM_TOKEN）
 
 ### Phase 19: Editor Extension Publication
 
