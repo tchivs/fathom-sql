@@ -18,6 +18,14 @@ fn main {
     ignore(write_fd(1, usage, usage.length()))
     exit_process(0)
   }
+  // --version (VER-02/D-02): only when it is the sole argument — product
+  // version on stdout, exit 0. Any other occurrence falls through to
+  // parse_args (UnknownFlag -> exit 2), preserving the D-39 usage contract.
+  if rest.length() == 1 && rest[0] == "--version" {
+    let outcome = run_version("fathom-sql")
+    ignore(write_fd(1, outcome.stdout, outcome.stdout.length()))
+    exit_process(0)
+  }
   let command = match parse_args(rest) {
     Ok(command) => command
     Err(error) => {

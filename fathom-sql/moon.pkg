@@ -10,6 +10,7 @@ import {
   "fathom/sql/api" @api,
   "fathom/sql/binding" @binding,
   "fathom/sql/lsp" @lsp,
+  "fathom/sql/version" @version,
   "moonbitlang/core/buffer" @buffer,
   "moonbitlang/core/debug" @debug,
   "moonbitlang/core/env" @env,

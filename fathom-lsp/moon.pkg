@@ -6,4 +6,6 @@
 pkgtype(kind: "executable")
 import {
   "fathom/sql/lsp" @lsp,
+  "fathom/sql/version" @version,
+  "moonbitlang/core/env" @env,
 }

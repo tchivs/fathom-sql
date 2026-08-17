@@ -25,6 +25,15 @@ const DEFAULT_LINE_WIDTH : Int = 100
 ///     refusal never masks them, T-03-20);
 /// 2 = usage error (missing/unknown dialect, missing file, bad option value,
 ///     unknown profile) — stderr message only, no SQL output.
+/// `--version` (VER-02/D-02/D-07): exit 0, stdout exactly
+/// `"<name> <product_version>\n"`, empty stderr. The string comes from the
+/// single source @version.version_line — the binary never carries a second
+/// version constant.
+pub fn run_version(name : String) -> CliOutcome {
+  let bytes = @utf8.encode(@version.version_line(name))
+  { exit_code: 0, stdout: bytes, stderr: b"" }
+}
+
 pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   let keyword_case = match command.keyword_case {
     Some(id) => match @api.KeywordCase::from_id(id) {
