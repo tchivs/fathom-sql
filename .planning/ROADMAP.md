@@ -195,11 +195,13 @@ Plans:
 2. IntelliJ 插件发布到 JetBrains Marketplace，可从 IDE 插件市场安装
 3. 两个扩展 README 均为发布版安装说明（非从源码构建），含 fathom-lsp 获取与路径配置
 
-**Plans**: TBD
+**Plans**: 1/1 plans executed
 
 Plans:
 
-- [ ] 19-01: TBD
+- [x] 19-01-PLAN.md
+
+- [x] 19-01: Editor extension publication — manifest 1.0.0 非 private、README 安装指引、vsix 打包验证；市场推送认证门（OVSX_TOKEN / Azure DevOps PAT）
 
 ### Phase 20: Formal 1.0.0 Release & Verification
 
