@@ -10,13 +10,14 @@ on:
         description: "Git tag/release name to build (for example v0.1.0)"
         required: true
         type: string
+      dry_run:
+        description: "Validate the full DAG without publishing a GitHub Release"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-
-env:
-  # The installer no longer serves the repository's historical 0.1.20260724 archive; latest is logged by every build.
-  MOONBIT_INSTALL_VERSION: "latest"
 
 jobs:
   build:
@@ -28,8 +29,6 @@ jobs:
         include:
           - platform: linux-x86_64
             runner: ubuntu-latest
-          - platform: macos-x86_64
-            runner: macos-14
           - platform: macos-aarch64
             runner: macos-14
           - platform: windows-x86_64
@@ -39,50 +38,28 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Install MoonBit on Unix
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install MoonBit (lock-driven) on Unix
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          OBSERVATION_PATH: dist/moon-toolchain.json
         run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
-          if [[ "${{ matrix.platform }}" == "macos-x86_64" ]]; then
-            cat > "$RUNNER_TEMP/x86_64-apple-clang" <<'EOF'
-          #!/bin/bash
-          args=()
-          for arg in "$@"; do
-            if [[ "$arg" != "-DMOONBIT_USE_SIMDUTF" ]]; then
-              args+=("$arg")
-            fi
-          done
-          exec clang -arch x86_64 "${args[@]}"
-          EOF
-            chmod +x "$RUNNER_TEMP/x86_64-apple-clang"
-            echo "MOON_CC=$RUNNER_TEMP/x86_64-apple-clang" >> "$GITHUB_ENV"
-          fi
+          mkdir -p dist
+          .github/scripts/install-moonbit.sh
 
-      - name: Install MoonBit on Windows
+      - name: Install MoonBit (lock-driven) on Windows
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          OBSERVATION_PATH: dist/moon-toolchain.json
         run: |
-          $moonHome = Join-Path $env:USERPROFILE ".moon"
-          $moonBin = Join-Path $moonHome "bin"
-          New-Item -ItemType Directory -Force -Path $moonBin | Out-Null
-          $archive = Join-Path $env:RUNNER_TEMP "moonbit.zip"
-          $uri = "https://cli.moonbitlang.com/binaries/$env:MOONBIT_INSTALL_VERSION/moonbit-windows-x86_64.zip"
-          Invoke-WebRequest -Uri $uri -OutFile $archive
-          Expand-Archive -Path $archive -DestinationPath $moonHome -Force
-          $moon = Get-ChildItem -Path $moonHome -Filter "moon.exe" -Recurse | Select-Object -First 1
-          if ($null -eq $moon) { throw "moon.exe was not found after extraction" }
-          $moon.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $coreArchive = Join-Path $env:RUNNER_TEMP "moonbit-core.tar.gz"
-          $coreUri = "https://cli.moonbitlang.com/cores/core-$env:MOONBIT_INSTALL_VERSION.tar.gz"
-          Invoke-WebRequest -Uri $coreUri -OutFile $coreArchive
-          New-Item -ItemType Directory -Force -Path (Join-Path $moonHome "lib") | Out-Null
-          tar.exe -xf $coreArchive -C (Join-Path $moonHome "lib")
-          & $moon.FullName -C (Join-Path $moonHome "lib/core") bundle --warn-list -a --all
-          & $moon.FullName -C (Join-Path $moonHome "lib/core") bundle --warn-list -a --target wasm-gc --quiet
-          & $moon.FullName version
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          .github/scripts/install-moonbit.ps1
 
       - name: Build Native LSP
         shell: bash
@@ -96,9 +73,6 @@ jobs:
             asset="dist/fathom-lsp-${{ matrix.platform }}"
             cp _build/native/release/build/fathom-lsp/fathom-lsp.exe "$asset"
             chmod +x "$asset"
-            if [[ "${{ matrix.platform }}" == "macos-x86_64" ]]; then
-              test "$(lipo -archs "$asset")" = "x86_64"
-            fi
           fi
 
       - name: Upload Native asset
@@ -108,46 +82,78 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-  linear-wasm-parity:
-    name: linear-Wasm runtime execution parity (release gate)
+  release-gates:
+    name: Release qualification gates
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Install MoonBit
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install MoonBit (lock-driven)
         shell: bash
-        run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
-          "$HOME/.moon/bin/moon" version
+        run: .github/scripts/install-moonbit.sh
 
       - name: Build linear-Wasm facade + parity runner
         run: |
           moon build --target wasm binding
           moon build --target wasm parity
 
-      - name: Execute parity suite on linear-Wasm target
+      - name: Native parity
+        run: moon test --target native --package parity
+
+      - name: JavaScript parity
+        run: moon test --target js --package parity
+
+      - name: linear-Wasm parity
         run: moon test --target wasm --package parity
 
-      - name: Execute parity suite on native target
-        run: moon test --target native --package parity
+      - name: compare_backends
+        run: python3 scripts/compare_backends.py
+
+      - name: diff_parity
+        run: python3 scripts/diff_parity.py --frozen-only
+
+      - name: check_naming
+        run: python3 scripts/check_naming.py
+
+      - name: verify_corpus
+        run: python3 scripts/verify_corpus.py --check
+
+      - name: corpus report
+        run: python3 corpus/tools/generate_corpus_report.py --check
+
+      - name: keywords
+        run: python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 
   release:
     name: Publish GitHub Release
-    needs: [build, linear-wasm-parity]
+    needs: [build, release-gates]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      DRY_RUN: ${{ inputs.dry_run }}
     steps:
       - name: Download Native assets
         uses: actions/download-artifact@v8
         with:
           pattern: fathom-lsp-*
           path: dist
-          merge-multiple: true
+          merge-multiple: false
+
+      - name: Validate toolchain evidence and write aggregate manifest
+        shell: bash
+        run: |
+          python3 scripts/validate_toolchain_evidence.py \
+            --evidence-dir dist \
+            --lock .github/moonbit-toolchain.json \
+            --output dist/moon-toolchain-manifest.json
 
       - name: Generate SHA-256 manifest
         shell: bash
@@ -162,7 +168,6 @@ jobs:
           dist = Path("dist")
           platforms = {
               "linux-x86_64": "fathom-lsp-linux-x86_64",
-              "macos-x86_64": "fathom-lsp-macos-x86_64",
               "macos-aarch64": "fathom-lsp-macos-aarch64",
               "windows-x86_64": "fathom-lsp-windows-x86_64.exe",
           }
@@ -181,7 +186,17 @@ jobs:
           PY
           cat dist/fathom-lsp-manifest.json
 
+      - name: Upload aggregate manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: fathom-release-manifests
+          path: |
+            dist/moon-toolchain-manifest.json
+            dist/fathom-lsp-manifest.json
+          if-no-files-found: error
+
       - name: Create or update GitHub Release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
