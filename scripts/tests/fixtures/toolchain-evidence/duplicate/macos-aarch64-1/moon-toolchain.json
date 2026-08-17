@@ -1,0 +1,13 @@
+{
+  "binarySha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "binaryUrl": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz",
+  "coreSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+  "coreUrl": "https://cli.moonbitlang.com/cores/core-latest.tar.gz",
+  "provenance": "official-sidecar",
+  "reportedVersion": "moon 0.1.20260807 (4da23f8 2026-08-07)\n\nFeature flags enabled: rr_moon_mod,rr_moon_pkg\n",
+  "requestedVersion": "latest",
+  "runnerArch": "arm64",
+  "runnerOS": "Linux",
+  "schemaVersion": 1,
+  "targetPlatform": "macos-aarch64"
+}

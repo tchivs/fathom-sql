@@ -1,0 +1,51 @@
+{
+  "archives": [
+    {
+      "filename": "x",
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sidecarDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "targetPlatform": "linux-x86_64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz"
+    },
+    {
+      "filename": "x",
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "sidecarDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "targetPlatform": "macos-aarch64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz"
+    },
+    {
+      "filename": "x",
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "sidecarDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "targetPlatform": "windows-x86_64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip"
+    },
+    {
+      "filename": "core-latest.tar.gz",
+      "provenance": "recorded-digest",
+      "role": "core",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "targetPlatform": "core-tar.gz",
+      "url": "https://cli.moonbitlang.com/cores/core-latest.tar.gz"
+    },
+    {
+      "filename": "core-latest.zip",
+      "provenance": "recorded-digest",
+      "role": "core",
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "targetPlatform": "core-zip",
+      "url": "https://cli.moonbitlang.com/cores/core-latest.zip"
+    }
+  ],
+  "channelKey": "latest",
+  "expectedMoonVersion": "bW9vbiAwLjEuMjAyNjA4MDcgKDRkYTIzZjggMjAyNi0wOC0wNykKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
+  "provenance": "fixture",
+  "schemaVersion": 1
+}
