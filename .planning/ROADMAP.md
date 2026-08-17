@@ -138,11 +138,13 @@ Plans:
 2. README 含「从 GitHub Release 安装 `fathom-lsp`」章节（平台资产、SHA-256 校验、安装位置、`fathom-lsp --version` 验证）
 3. 文档核对（docs tmp verify-*.json 工作流）通过
 
-**Plans**: TBD
+**Plans**: 1/1 plans executed
 
 Plans:
 
-- [ ] 16-01: TBD
+- [x] 16-01-PLAN.md
+
+- [x] 16-01: Documentation truthfulness & install guide — LICENSE 假声明/工具链引用/占位符修正（en+zh），Release 安装章节（资产表 + SHA-256 + --version 验证），verify 记录全绿
 
 ### Phase 17: Changelog & Release Disclosure
 

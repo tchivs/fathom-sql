@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Release Readiness
-current_phase: 15
-current_phase_name: Product Versioning & Binary `--version`
+current_phase: 16
+current_phase_name: Documentation Truthfulness & Install Guide
 status: completed
-stopped_at: Phase 15 complete — semver policy + --version on both binaries (1/1 plans)
-last_updated: "2026-08-17T05:40:00Z"
+stopped_at: Phase 16 complete — README/GETTING-STARTED truthfulness + install guide (1/1 plans)
+last_updated: "2026-08-17T06:20:00Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 15 complete — version package, --version wiring, release-tag assertion
+last_activity_desc: Phase 16 complete — doc claims fixed, install-from-Release guide, verify records green
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
   percent: 100
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 ## Current Position
 
-Phase: 15 (Product Versioning & Binary `--version`) — COMPLETE (1/1 plans)
-Plan: 15-01 done — version 1.0.0 single-sourced; --version on both binaries; release-tag assertion
-Status: VER-01/02 complete; next Phase 16 (Documentation Truthfulness & Install Guide)
-Last activity: 2026-08-17 — Phase 15 complete
+Phase: 16 (Documentation Truthfulness & Install Guide) — COMPLETE (1/1 plans)
+Plan: 16-01 done — LICENSE/工具链/占位符失实声明修正 + Release 安装章节 + 核对记录全绿
+Status: DOC-01/02 complete; next Phase 17 (Changelog & Release Disclosure)
+Last activity: 2026-08-17 — Phase 16 complete
 
 ## Performance Metrics
 
