@@ -223,7 +223,7 @@ jobs:
             gh release create "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
-              --generate-notes
+              --notes-file RELEASE-NOTES.md
           fi
           gh release upload "$RELEASE_TAG" dist/*/fathom-lsp-* \
             dist/moon-toolchain-manifest.json dist/fathom-lsp-manifest.json \
