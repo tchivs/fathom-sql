@@ -53,7 +53,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     # implementation commit must carry the planned files
-    ls = sh("git", "-C", REPO, "ls-tree", "--name-only", sha)
+    ls = sh("git", "-C", REPO, "ls-tree", "-r", "--name-only", sha)
     require(ls.returncode == 0, f"cannot resolve implementation sha {sha}")
     for path in (".github/scripts/install-moonbit.sh", ".github/scripts/install-moonbit.ps1",
                  "scripts/tests/test_install_moonbit.py", "scripts/run_phase14_installer_matrix.py"):
@@ -135,8 +135,7 @@ jobs:
         run_id = None
         deadline = time.time() + 120
         while time.time() < deadline:
-            q = gh("api", "repos/tchivs/fathom-sql/actions/runs",
-                   "-f", "event=push", "-f", "per_page=100")
+            q = gh("api", "repos/tchivs/fathom-sql/actions/runs?event=push&per_page=100")
             require(q.returncode == 0, f"runs query failed: {q.stderr[:300]}")
             rows = json.loads(q.stdout).get("workflow_runs", [])
             cands = [r for r in rows
