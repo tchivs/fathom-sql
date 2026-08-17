@@ -91,12 +91,23 @@ for fn in os.listdir(bin_dir):
 exe = os.path.join(bin_dir, "moon")
 env = dict(os.environ)
 env["MOON_HOME"] = moon_home
+lib_dir = os.path.join(moon_home, "lib")
+os.makedirs(lib_dir, exist_ok=True)
+safe_extract(core_data, lib_dir)
+core_dir = os.path.join(lib_dir, "core")
+if not os.path.isdir(core_dir):
+    print("error: core directory missing after extraction", file=sys.stderr); sys.exit(1)
 proc = subprocess.run([exe, "version"], capture_output=True, timeout=180, env=env)
 if proc.returncode != 0:
     print("error: moon version failed", proc.stderr.decode("utf-8", "replace")[:200], file=sys.stderr); sys.exit(1)
 expected = base64.b64decode(lock["expectedMoonVersion"])
 if proc.stdout != expected:
     print("error: moon version bytes mismatch", file=sys.stderr); sys.exit(1)
+for bargs in (["bundle", "--warn-list", "-a", "--all"],
+              ["bundle", "--warn-list", "-a", "--target", "wasm-gc", "--quiet"]):
+    b = subprocess.run([exe, "-C", core_dir] + bargs, capture_output=True, timeout=900, env=env)
+    if b.returncode != 0:
+        print("error: core bundle failed", b.stderr.decode("utf-8", "replace")[:300], file=sys.stderr); sys.exit(1)
 print(f"VERIFIED moon {proc.stdout.decode('utf-8','replace').splitlines()[0]} at {bin_dir}")
 print(f"BIN_DIR={bin_dir}")
 PYEOF
