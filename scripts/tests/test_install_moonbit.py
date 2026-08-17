@@ -288,8 +288,9 @@ def windows_subset():
         bad_bytes = open(exe_bad, "rb").read()
 
         def run_ps1(lock, obs_name, home_name):
-            lock_path = os.path.join(tmp, lock)
-            json.dump(lock, open(lock_path, "w"))
+            lock_path = os.path.join(tmp, f"lock-{obs_name}.json")
+            with open(lock_path, "w", encoding="utf-8") as f:
+                json.dump(lock, f)
             env = dict(os.environ)
             env["LOCK_PATH"] = lock_path
             env["MOON_HOME"] = os.path.join(tmp, home_name)
