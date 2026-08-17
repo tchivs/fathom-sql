@@ -258,8 +258,8 @@ class P { static void Main() { Console.WriteLine("moon 0.1.OTHER"); } }"""
 
 
 def compile_exe(exe_path, cs_source_path):
-    ps = (f"Add-Type -TypeDefinition (Get-Content -Raw '{cs_source_path}') "
-          f"-OutputAssembly '{exe_path}' -OutputType ConsoleApplication")
+    ps = (f"& \"$env:WINDIR\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe\" "
+          f"/nologo /out:'{exe_path}' '{cs_source_path}'")
     return subprocess.run(["pwsh", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=300)
 
 
