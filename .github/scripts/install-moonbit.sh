@@ -132,13 +132,15 @@ lock = json.load(open(lock_path))
 binary = next(a for a in lock["archives"] if a["role"] == "binary" and a["targetPlatform"] == target)
 core = next(a for a in lock["archives"] if a["role"] == "core" and a["targetPlatform"] == "core-tar.gz")
 raw = base64.b64decode(lock["expectedMoonVersion"]).decode("utf-8", "replace")
+obs_target = {"linux-x86_64": "linux-x86_64", "darwin-aarch64": "macos-aarch64",
+              "windows-x86_64": "windows-x86_64"}[target]
 obs = {
     "schemaVersion": 1,
     "requestedVersion": lock["channelKey"],
     "reportedVersion": raw,
     "runnerOS": platform.system(),
     "runnerArch": platform.machine().lower(),
-    "targetPlatform": target,
+    "targetPlatform": obs_target,
     "binarySha256": binary["sha256"],
     "binaryUrl": binary["url"],
     "coreSha256": core["sha256"],
