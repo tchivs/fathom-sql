@@ -1,0 +1,117 @@
+{
+  "archives": [
+    {
+      "computedSha256": "36f5e7cf1545594e17cd3f1c0b757fe6e86ad0218bc96f419369cbb8502e62ba",
+      "filename": "moonbit-linux-x86_64.tar.gz",
+      "layoutOk": true,
+      "memberCount": 253,
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sidecarDigest": "36f5e7cf1545594e17cd3f1c0b757fe6e86ad0218bc96f419369cbb8502e62ba",
+      "sidecarUrl": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz.sha256",
+      "targetPlatform": "linux-x86_64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz"
+    },
+    {
+      "computedSha256": "b4781a1e38c800d1fd65693b1970b2d2429faef31d8933d266a1f6e2693a96ef",
+      "filename": "moonbit-darwin-aarch64.tar.gz",
+      "layoutOk": true,
+      "memberCount": 254,
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sidecarDigest": "b4781a1e38c800d1fd65693b1970b2d2429faef31d8933d266a1f6e2693a96ef",
+      "sidecarUrl": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz.sha256",
+      "targetPlatform": "darwin-aarch64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz"
+    },
+    {
+      "computedSha256": "c659625f5c3a9fca5d17866bff3de07b6328c59628d74df5d5b4d79b78524880",
+      "filename": "moonbit-windows-x86_64.zip",
+      "layoutOk": true,
+      "memberCount": 232,
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sidecarDigest": "c659625f5c3a9fca5d17866bff3de07b6328c59628d74df5d5b4d79b78524880",
+      "sidecarUrl": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip.sha256",
+      "targetPlatform": "windows-x86_64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip"
+    },
+    {
+      "computedSha256": "06922d35dd94dc0baea7682295fe6084f0d854eed3b497cd6b527f77d899a7f5",
+      "filename": "core-latest.tar.gz",
+      "layoutOk": true,
+      "memberCount": 1146,
+      "officialChecksumAvailable": false,
+      "provenance": "recorded-digest",
+      "role": "core",
+      "sidecarDigest": null,
+      "sidecarUrl": null,
+      "targetPlatform": "core-tar.gz",
+      "url": "https://cli.moonbitlang.com/cores/core-latest.tar.gz"
+    },
+    {
+      "computedSha256": "bdf280aaefe377976cc31f8c5e243464a56ec93a5a7942427e223118b81c8a61",
+      "filename": "core-latest.zip",
+      "layoutOk": true,
+      "memberCount": 1045,
+      "officialChecksumAvailable": false,
+      "provenance": "recorded-digest",
+      "role": "core",
+      "sidecarDigest": null,
+      "sidecarUrl": null,
+      "targetPlatform": "core-zip",
+      "url": "https://cli.moonbitlang.com/cores/core-latest.zip"
+    }
+  ],
+  "candidateSha256": "4763d8022b6fc99a382622a763542be2de43c6144d2613dd0ae080c99ff68c0c",
+  "channelKey": "latest",
+  "probeCommit": "0ffbe853fdd10a2f07009b950b1171ef598e01c5",
+  "repository": "tchivs/fathom-sql",
+  "runAttempt": 1,
+  "runId": 31993236748,
+  "runners": [
+    {
+      "archiveSha256": "36f5e7cf1545594e17cd3f1c0b757fe6e86ad0218bc96f419369cbb8502e62ba",
+      "coreSha256": "06922d35dd94dc0baea7682295fe6084f0d854eed3b497cd6b527f77d899a7f5",
+      "execArch": "x86_64",
+      "exitCode": 0,
+      "hostArch": "x86_64",
+      "rawVersionBase64": "bW9vbiAwLjEuMjAyNjA4MDcgKDRkYTIzZjggMjAyNi0wOC0wNykKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
+      "recordPath": "records/linux-x86_64/moon-toolchain-runner.json",
+      "runnerLabel": "ubuntu-24.04",
+      "schemaVersion": 1,
+      "targetPlatform": "linux-x86_64"
+    },
+    {
+      "archiveSha256": "b4781a1e38c800d1fd65693b1970b2d2429faef31d8933d266a1f6e2693a96ef",
+      "coreSha256": "06922d35dd94dc0baea7682295fe6084f0d854eed3b497cd6b527f77d899a7f5",
+      "execArch": "arm64",
+      "exitCode": 0,
+      "hostArch": "arm64",
+      "rawVersionBase64": "bW9vbiAwLjEuMjAyNjA4MDcgKDRkYTIzZjggMjAyNi0wOC0wNykKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
+      "recordPath": "records/macos-aarch64/moon-toolchain-runner.json",
+      "runnerLabel": "macos-14",
+      "schemaVersion": 1,
+      "targetPlatform": "macos-aarch64"
+    },
+    {
+      "archiveSha256": "c659625f5c3a9fca5d17866bff3de07b6328c59628d74df5d5b4d79b78524880",
+      "coreSha256": "06922d35dd94dc0baea7682295fe6084f0d854eed3b497cd6b527f77d899a7f5",
+      "execArch": "x86_64",
+      "exitCode": 0,
+      "hostArch": "x86_64",
+      "rawVersionBase64": "bW9vbiAwLjEuMjAyNjA4MDcgKDRkYTIzZjggMjAyNi0wOC0wNykKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
+      "recordPath": "records/windows-x86_64/moon-toolchain-runner.json",
+      "runnerLabel": "windows-2025",
+      "schemaVersion": 1,
+      "targetPlatform": "windows-x86_64"
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceCommit": "16c9dc7ca9226925d9a8b8e9ae9bb326b91db671",
+  "tempBranch": "phase14-freeze-20260817035525-33412e17",
+  "workflowBaselines": {
+    ".github/workflows/ci.yml": "4104509fc3d4f4f043f15dfef69f728f21f027692a5c16cdaed4f8a42567ede9",
+    ".github/workflows/fathom-native-release.yml": "e4e859bbc3f74b271e9fed7406477ca2019b2e6111d3fe507e8ac3a610c4139c"
+  }
+}

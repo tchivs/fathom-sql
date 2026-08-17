@@ -1,0 +1,53 @@
+{
+  "archives": [
+    {
+      "filename": "core-latest.tar.gz",
+      "provenance": "recorded-digest",
+      "role": "core",
+      "sha256": "06922d35dd94dc0baea7682295fe6084f0d854eed3b497cd6b527f77d899a7f5",
+      "sidecarDigest": null,
+      "targetPlatform": "core-tar.gz",
+      "url": "https://cli.moonbitlang.com/cores/core-latest.tar.gz"
+    },
+    {
+      "filename": "core-latest.zip",
+      "provenance": "recorded-digest",
+      "role": "core",
+      "sha256": "bdf280aaefe377976cc31f8c5e243464a56ec93a5a7942427e223118b81c8a61",
+      "sidecarDigest": null,
+      "targetPlatform": "core-zip",
+      "url": "https://cli.moonbitlang.com/cores/core-latest.zip"
+    },
+    {
+      "filename": "moonbit-darwin-aarch64.tar.gz",
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sha256": "b4781a1e38c800d1fd65693b1970b2d2429faef31d8933d266a1f6e2693a96ef",
+      "sidecarDigest": "b4781a1e38c800d1fd65693b1970b2d2429faef31d8933d266a1f6e2693a96ef",
+      "targetPlatform": "darwin-aarch64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz"
+    },
+    {
+      "filename": "moonbit-linux-x86_64.tar.gz",
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sha256": "36f5e7cf1545594e17cd3f1c0b757fe6e86ad0218bc96f419369cbb8502e62ba",
+      "sidecarDigest": "36f5e7cf1545594e17cd3f1c0b757fe6e86ad0218bc96f419369cbb8502e62ba",
+      "targetPlatform": "linux-x86_64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz"
+    },
+    {
+      "filename": "moonbit-windows-x86_64.zip",
+      "provenance": "official-sidecar",
+      "role": "binary",
+      "sha256": "c659625f5c3a9fca5d17866bff3de07b6328c59628d74df5d5b4d79b78524880",
+      "sidecarDigest": "c659625f5c3a9fca5d17866bff3de07b6328c59628d74df5d5b4d79b78524880",
+      "targetPlatform": "windows-x86_64",
+      "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip"
+    }
+  ],
+  "channelKey": "latest",
+  "expectedMoonVersion": "bW9vbiAwLjEuMjAyNjA4MDcgKDRkYTIzZjggMjAyNi0wOC0wNykKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
+  "provenance": "official channel content-locked snapshot (D-01/D-03 revision 2026-08-14); core digests recorded, official checksum absent",
+  "schemaVersion": 1
+}
