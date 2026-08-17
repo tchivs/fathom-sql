@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Release Readiness
-current_phase: 14
-current_phase_name: Release Hygiene & Toolchain Pinning
+current_phase: 15
+current_phase_name: Product Versioning & Binary `--version`
 status: completed
-stopped_at: Phase 14 complete — HYG + TC tracks delivered (5/5 plans)
-last_updated: "2026-08-17T05:00:00Z"
+stopped_at: Phase 15 complete — semver policy + --version on both binaries (1/1 plans)
+last_updated: "2026-08-17T05:40:00Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 14 all five plans complete — freeze, installers, release gates, hygiene, readiness
+last_activity_desc: Phase 15 complete — version package, --version wiring, release-tag assertion
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 
 ## Current Position
 
-Phase: 14 (Release Hygiene & Toolchain Pinning) — COMPLETE (5/5 plans)
-Plan: 14-01 freeze, 14-02 installers, 14-03 release gates, 14-04 hygiene, 14-05 readiness — all done
-Status: HYG-01/02/03 and TC-01/02 complete; three-platform content lock (D-01/D-03 revision 2026-08-14)
-Last activity: 2026-08-17 — Phase 14 all plans complete; release dry-run proven
+Phase: 15 (Product Versioning & Binary `--version`) — COMPLETE (1/1 plans)
+Plan: 15-01 done — version 1.0.0 single-sourced; --version on both binaries; release-tag assertion
+Status: VER-01/02 complete; next Phase 16 (Documentation Truthfulness & Install Guide)
+Last activity: 2026-08-17 — Phase 15 complete
 
 ## Performance Metrics
 

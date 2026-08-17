@@ -119,11 +119,13 @@ Plans:
 2. `fathom-sql --version` 与 `fathom-lsp --version` 退出码 0 并输出产品版本字符串，与发布 tag 一致
 3. 测试覆盖 `--version`（退出码 0 + 正确版本字符串）
 
-**Plans**: TBD
+**Plans**: 1/1 plans executed
 
 Plans:
 
-- [ ] 15-01: TBD
+- [x] 15-01-PLAN.md
+
+- [x] 15-01: Product versioning & `--version` — single-source 1.0.0, both binaries report it (exit 0), release-tag assertion, VERSIONING.md policy
 
 ### Phase 16: Documentation Truthfulness & Install Guide
 
