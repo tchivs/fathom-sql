@@ -33,6 +33,8 @@ jobs:
             runner: macos-14
           - platform: windows-x86_64
             runner: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
     steps:
       - name: Check out source
@@ -74,6 +76,19 @@ jobs:
             cp _build/native/release/build/fathom-lsp/fathom-lsp.exe "$asset"
             chmod +x "$asset"
           fi
+
+      - name: Assert --version matches release tag
+        shell: bash
+        run: |
+          asset="dist/fathom-lsp-${{ matrix.platform }}"
+          if [[ "${{ matrix.platform }}" == "windows-x86_64" ]]; then asset="$asset.exe"; fi
+          expected="${RELEASE_TAG#v}"
+          out="$("$asset" --version)"
+          if [[ "$out" != *"$expected"* ]]; then
+            echo "version mismatch: '$out' does not contain '$expected'" >&2
+            exit 1
+          fi
+          echo "version OK: $out"
 
       - name: Upload Native asset
         uses: actions/upload-artifact@v7

@@ -64,6 +64,15 @@ test "cli_stdin_happy_path_exit_0" {
   assert_eq(outcome.stderr.length(), 0)
 }
 
+test "cli_version_exit_0_exact_output" {
+  // VER-02/D-02: `fathom-sql --version` reports the single-source product
+  // version with exit 0 and no stderr.
+  let outcome = run_version("fathom-sql")
+  assert_eq(outcome.exit_code, 0)
+  assert_eq(outcome.stdout, b"fathom-sql 1.0.0\n")
+  assert_eq(outcome.stderr.length(), 0)
+}
+
 test "cli_file_input_exit_0" {
   // Write a fixture through the FFI helpers (fopen "wb" + fwrite + fclose).
   let path = "/tmp/fathom-sql-cli-fixture-file-input.sql"
