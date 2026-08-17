@@ -7,7 +7,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-byte prese
 ## Prerequisites
 
 - **Git**: Required to obtain the source code.
-- **MoonBit CLI**: Must be compatible with the repository manifest: `moon 0.1.20260724 (5f1406a 2026-07-24)`. Check with `moon version`; installation depends on the operating system and official distribution channel.<!-- VERIFY: MoonBit CLI platform installation steps and download address must be confirmed against the official release notes. -->
+- **MoonBit CLI**: The repository pins `moon 0.1.20260807` via `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked). Install the MoonBit CLI from the official channel and confirm with `moon version`; installation depends on the operating system and official distribution channel.<!-- VERIFY: MoonBit CLI platform installation steps and download address must be confirmed against the official release notes. -->
 - **Python 3**: Required only for running corpus report or differential tools under `corpus/`. The parser itself does not require a Python runtime.
 - **Optional Python dependencies**: `corpus/requirements.txt` pins the differential comparison tool `sqlglot==30.14.0`; install it only when using that differential tool.
 
@@ -15,10 +15,10 @@ The repository has no Node.js dependencies, database, `.env` file, or deployment
 
 ## Installation
 
-1. Clone the repository (the current working copy does not have a verifiable Git remote configured; replace the placeholder with the actual repository address):
+1. Clone the repository:
 
    ```bash
-   git clone <repository-url> Fathom
+   git clone https://github.com/tchivs/fathom-sql.git Fathom
    cd Fathom
    ```
 
@@ -87,6 +87,7 @@ If `python3` cannot be found, install Python 3. If the command reports that `COR
 
 ## Next Steps
 
+- To install the prebuilt `fathom-lsp` binary from a GitHub Release, see the "Install `fathom-lsp` from GitHub Release" section of [README.md](../README.md).
 - Read [README.md](../README.md) to learn the basics of `parse_with_ids`, `format_with_ids`, and `printer`.
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the `source → lexer → parser → syntax` data flow and package boundaries.
 - Read [CONFIGURATION.md](CONFIGURATION.md) to choose the Doris profile, parsing mode, resource limits, and formatting options.

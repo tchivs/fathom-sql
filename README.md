@@ -1,6 +1,6 @@
 <!-- GSD:generated -->
 English | [简体中文](README.zh-CN.md)
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260724-2f80ed)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260807-2f80ed)](https://www.moonbitlang.com/)
 [![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](README.zh-CN.md)
 # Fathom SQL Parser SDK
@@ -20,7 +20,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity p
 
 ## Installation
 
-This repository contains no Node.js package manifest or other runtime dependencies; module metadata is defined in `moon.mod`, and the currently recorded MoonBit CLI version is `moon 0.1.20260724`. Install a MoonBit CLI compatible with this version line first (the installation source is outside the repository).<!-- VERIFY: The platform installation method for the MoonBit CLI must be confirmed against the external official release instructions. -->
+This repository contains no Node.js package manifest or other runtime dependencies; module metadata is defined in `moon.mod`. The MoonBit toolchain is pinned to `moon 0.1.20260807` by `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked); install the MoonBit CLI from the official channel and confirm with `moon version`.<!-- VERIFY: The platform installation method for the MoonBit CLI must be confirmed against the external official release instructions. -->
 
 Run the checks from the repository root:
 
@@ -156,6 +156,58 @@ Public callers typically start with `api`; use the corresponding package when di
 
 Doris SQL support is defined by the fixtures and expected errors marked by profile in `corpus/manifest.tsv`, `corpus/coverage.tsv`, and `corpus/CORPUS-REPORT.md`; acceptance by an individual parser reference should not be treated as a public compatibility commitment.
 
+## Install `fathom-lsp` from GitHub Release
+
+Prebuilt `fathom-lsp` binaries are published with each GitHub Release
+(<https://github.com/tchivs/fathom-sql/releases>). Pick the release tag that
+matches the version you want (for example `v1.0.0`; the binary reports
+`fathom-lsp 1.0.0` via `--version`).
+
+### Per-platform assets
+
+| Platform | Asset |
+|----------|-------|
+| Linux x86_64 | `fathom-lsp-linux-x86_64` |
+| macOS (Apple Silicon) | `fathom-lsp-macos-aarch64` |
+| Windows x86_64 | `fathom-lsp-windows-x86_64.exe` |
+
+### Verify SHA-256
+
+Download `fathom-lsp-manifest.json` from the same release and compare the
+digest of your asset against its `assets` entry (per-platform `sha256`):
+
+```bash
+# Linux/macOS
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.0/fathom-lsp-linux-x86_64
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.0/fathom-lsp-manifest.json
+python3 - <<'PY'
+import hashlib, json
+m = json.load(open("fathom-lsp-manifest.json"))
+a = m["assets"]["linux-x86_64"]
+got = hashlib.sha256(open(a["name"], "rb").read()).hexdigest()
+assert got == a["sha256"], f"MISMATCH {got} != {a['sha256']}"
+print("SHA-256 OK")
+PY
+```
+
+### Install
+
+```bash
+mkdir -p ~/.fathom/bin
+mv fathom-lsp-linux-x86_64 ~/.fathom/bin/fathom-lsp
+chmod +x ~/.fathom/bin/fathom-lsp
+export PATH="$HOME/.fathom/bin:$PATH"   # add this line to your shell profile
+```
+
+On Windows, move `fathom-lsp-windows-x86_64.exe` to your chosen directory and
+add it to `PATH` (PowerShell: `Move-Item`).
+
+### Verify the installation
+
+```bash
+fathom-lsp --version   # prints: fathom-lsp 1.0.0
+```
+
 ## License
 
-The repository currently does not include a `LICENSE` file; the license type and link are to be confirmed.
+This project is licensed under the [Apache-2.0](LICENSE) license.

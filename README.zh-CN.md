@@ -1,6 +1,6 @@
 <!-- GSD:generated -->
 English: [README.md](README.md) | 简体中文
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260724-2f80ed)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260807-2f80ed)](https://www.moonbitlang.com/)
 [![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](docs/zh-CN/ARCHITECTURE.md)
 
@@ -21,7 +21,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 
 ## 安装
 
-本仓库不包含 Node.js package 清单或其他运行时依赖；模块元数据位于 `moon.mod`，当前记录的 MoonBit CLI 版本为 `moon 0.1.20260724`。请先安装与该版本线兼容的 MoonBit CLI（安装来源不在仓库内）。<!-- VERIFY: MoonBit CLI 的平台安装方式需以外部官方发行说明为准。 -->
+本仓库不包含 Node.js package 清单或其他运行时依赖；模块元数据位于 `moon.mod`。MoonBit 工具链由 `.github/moonbit-toolchain.json` 钉版为 `moon 0.1.20260807`（官方 SHA-256 校验、内容锁定）；请从官方渠道安装 MoonBit CLI 并用 `moon version` 确认。<!-- VERIFY: MoonBit CLI 的平台安装方式需以外部官方发行说明为准。 -->
 
 在仓库根目录执行检查：
 
@@ -157,6 +157,54 @@ corpus/     按 Doris 版本组织的 SQL fixture、manifest 与覆盖报告
 
 Doris SQL 的支持范围以 `corpus/manifest.tsv`、`corpus/coverage.tsv` 和 `corpus/CORPUS-REPORT.md` 中按 profile 标注的 fixture 与预期错误为准，不应将单个 parser reference 的接受结果当作公开兼容性承诺。
 
+## 从 GitHub Release 安装 `fathom-lsp`
+
+预编译的 `fathom-lsp` 二进制随每个 GitHub Release 发布
+（<https://github.com/tchivs/fathom-sql/releases>）。选择与所需版本匹配的 release tag（例如 `v1.0.0`；二进制通过 `--version` 报告 `fathom-lsp 1.0.0`）。
+
+### 各平台资产
+
+| 平台 | 资产 |
+|----------|-------|
+| Linux x86_64 | `fathom-lsp-linux-x86_64` |
+| macOS（Apple Silicon） | `fathom-lsp-macos-aarch64` |
+| Windows x86_64 | `fathom-lsp-windows-x86_64.exe` |
+
+### 校验 SHA-256
+
+从同一 release 下载 `fathom-lsp-manifest.json`，并将资产摘要与其中 `assets` 条目（各平台 `sha256`）比对：
+
+```bash
+# Linux/macOS
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.0/fathom-lsp-linux-x86_64
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.0/fathom-lsp-manifest.json
+python3 - <<'PY'
+import hashlib, json
+m = json.load(open("fathom-lsp-manifest.json"))
+a = m["assets"]["linux-x86_64"]
+got = hashlib.sha256(open(a["name"], "rb").read()).hexdigest()
+assert got == a["sha256"], f"MISMATCH {got} != {a['sha256']}"
+print("SHA-256 OK")
+PY
+```
+
+### 安装
+
+```bash
+mkdir -p ~/.fathom/bin
+mv fathom-lsp-linux-x86_64 ~/.fathom/bin/fathom-lsp
+chmod +x ~/.fathom/bin/fathom-lsp
+export PATH="$HOME/.fathom/bin:$PATH"   # 将本行加入你的 shell 配置文件
+```
+
+Windows 上将 `fathom-lsp-windows-x86_64.exe` 移入所选目录并加入 `PATH`（PowerShell：`Move-Item`）。
+
+### 验证安装
+
+```bash
+fathom-lsp --version   # 输出：fathom-lsp 1.0.0
+```
+
 ## 许可证
 
-仓库当前未包含 `LICENSE` 文件，许可证类型及链接待确认。
+本项目采用 [Apache-2.0](LICENSE) 许可证。

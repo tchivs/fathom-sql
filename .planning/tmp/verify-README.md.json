@@ -1,7 +1,16 @@
 {
-  "doc_path": "README.md",
-  "claims_checked": 11,
-  "claims_passed": 11,
+  "claims": [
+    "LICENSE linked and Apache-2.0",
+    "no moon 0.1.20260724 reference",
+    "no <repository-url> placeholder",
+    "install section present with three platform assets",
+    "fathom-lsp-manifest.json SHA-256 verification documented",
+    "install location ~/.fathom/bin documented",
+    "--version verification (fathom-lsp 1.0.0) documented"
+  ],
+  "claims_checked": 7,
   "claims_failed": 0,
+  "claims_passed": 7,
+  "doc_path": "README.md",
   "failures": []
 }

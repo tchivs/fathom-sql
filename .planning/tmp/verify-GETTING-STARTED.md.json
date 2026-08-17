@@ -1,7 +1,14 @@
 {
-  "doc_path": "docs/GETTING-STARTED.md",
-  "claims_checked": 24,
-  "claims_passed": 24,
+  "claims": [
+    "real repository clone URL (tchivs/fathom-sql.git)",
+    "no <repository-url> placeholder",
+    "no moon 0.1.20260724 reference",
+    "pinned toolchain 0.1.20260807 referenced",
+    "install-from-release pointer present"
+  ],
+  "claims_checked": 5,
   "claims_failed": 0,
+  "claims_passed": 5,
+  "doc_path": "docs/GETTING-STARTED.md",
   "failures": []
 }
