@@ -112,6 +112,11 @@ status: complete
 ## Issues Encountered
 - None beyond the envelope field fix
 
+## Revision (2026-08-17): npm publish wired to CI
+
+- `NPM_TOKEN` is configured in GitHub secrets; new `.github/workflows/npm-publish.yml` (tag `v*` trigger + `workflow_dispatch` with `dry_run` input) builds the binding via the lock-driven installer, packs, asserts the package version matches the release tag, and runs `npm publish --access public` using `secrets.NPM_TOKEN`. `npm/build.mjs` now resolves `moon` via PATH.
+- The Phase 18 publish gate is thereby an executable CI path: it fires automatically at the `v1.0.0` tag (Phase 20) or on an explicit dispatch; `dry_run=true` validates without pushing to the registry.
+
 ## Next Phase Readiness
 - Package ready to publish on providing `NPM_TOKEN` (or at Phase 20 formal release); next Phase 19 (VS Code extension publication)
 
