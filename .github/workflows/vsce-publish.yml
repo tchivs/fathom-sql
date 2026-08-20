@@ -39,8 +39,11 @@ jobs:
         working-directory: vscode
         shell: bash
         run: |
-          expected="${GITHUB_REF_NAME#v}"
-          [ -z "$expected" ] && expected="1.0.0"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            expected="${GITHUB_REF_NAME#v}"
+          else
+            expected="$(node -p 'require("./package.json").version')"
+          fi
           actual="$(node -p 'require("./package.json").version')"
           if [ "$expected" != "$actual" ]; then
             echo "version mismatch: package $actual vs expected $expected" >&2
