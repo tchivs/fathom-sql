@@ -62,8 +62,27 @@ jobs:
           VSCODE_MARKETPLACE_PAT: ${{ secrets.VSCODE_MARKETPLACE_PAT }}
         run: npx vsce verify-pat fathom-sql -p "$VSCODE_MARKETPLACE_PAT"
 
+      - name: Check if this version is already published
+        id: exists
+        working-directory: vscode
+        shell: bash
+        run: |
+          ver="$(node -p 'require("./package.json").version')"
+          body=$(curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+            -H "Content-Type: application/json" -H "Accept: application/json;api-version=7.1-preview.1" \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"fathom-sql.sql"}]}],"flags":950}')
+          exists=$(printf '%s' "$body" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+ext = d.get("results", [{}])[0].get("extensions", [])
+vs = ext[0].get("versions", []) if ext else []
+print("true" if any(v.get("version") == sys.argv[1] for v in vs) else "false")
+' "$ver" 2>/dev/null || echo "false")
+          echo "already_published=$exists" >> "$GITHUB_OUTPUT"
+          echo "version $ver already_published=$exists"
+
       - name: Publish to VS Code Marketplace
-        if: ${{ inputs.publish == true }}
+        if: ${{ inputs.publish == true && steps.exists.outputs.already_published != 'true' }}
         working-directory: vscode
         shell: bash
         env:
