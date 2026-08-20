@@ -36,7 +36,7 @@ verification coverage.
 
 ## 5. Toolchain version policy
 
-- The release toolchain is **content-locked** to `moon 0.1.20260807` via
+- The release toolchain is **content-locked** to `moon 0.1.20260819` via
   `.github/moonbit-toolchain.json`, with official SHA-256 sidecar
   verification for the binary archives on all three release platforms
   (Linux x86_64, macOS Apple Silicon, Windows x86_64).

@@ -7,7 +7,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-byte prese
 ## Prerequisites
 
 - **Git**: Required to obtain the source code.
-- **MoonBit CLI**: The repository pins `moon 0.1.20260807` via `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked). Install the MoonBit CLI from the official channel and confirm with `moon version`; installation depends on the operating system and official distribution channel.<!-- VERIFY: MoonBit CLI platform installation steps and download address must be confirmed against the official release notes. -->
+- **MoonBit CLI**: The repository pins `moon 0.1.20260819` via `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked). Install the MoonBit CLI from the official channel and confirm with `moon version`; installation depends on the operating system and official distribution channel.<!-- VERIFY: MoonBit CLI platform installation steps and download address must be confirmed against the official release notes. -->
 - **Python 3**: Required only for running corpus report or differential tools under `corpus/`. The parser itself does not require a Python runtime.
 - **Optional Python dependencies**: `corpus/requirements.txt` pins the differential comparison tool `sqlglot==30.14.0`; install it only when using that differential tool.
 

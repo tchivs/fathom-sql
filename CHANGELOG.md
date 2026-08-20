@@ -34,7 +34,7 @@ changelog covers the changes shipped in `1.0.0`.
   plus editor integrations (VS Code, IntelliJ, Monaco web demo).
 - **Three-platform native release assets**: Linux x86_64, macOS (Apple
   Silicon), and Windows x86_64 binaries with SHA-256 manifests; the MoonBit
-  toolchain is content-locked (`moon 0.1.20260807`) with official sidecar
+  toolchain is content-locked (`moon 0.1.20260819`) with official sidecar
   verification.
 - **Product versioning**: `fathom-sql --version` and `fathom-lsp --version`
   report `1.0.0` (exit 0); see `docs/VERSIONING.md` for the semver policy.

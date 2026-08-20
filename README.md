@@ -1,6 +1,6 @@
 <!-- GSD:generated -->
 English | [简体中文](README.zh-CN.md)
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260807-2f80ed)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
 [![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](README.zh-CN.md)
 # Fathom SQL Parser SDK
@@ -20,7 +20,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity p
 
 ## Installation
 
-This repository contains no Node.js package manifest or other runtime dependencies; module metadata is defined in `moon.mod`. The MoonBit toolchain is pinned to `moon 0.1.20260807` by `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked); install the MoonBit CLI from the official channel and confirm with `moon version`.<!-- VERIFY: The platform installation method for the MoonBit CLI must be confirmed against the external official release instructions. -->
+This repository contains no Node.js package manifest or other runtime dependencies; module metadata is defined in `moon.mod`. The MoonBit toolchain is pinned to `moon 0.1.20260819` by `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked); install the MoonBit CLI from the official channel and confirm with `moon version`.<!-- VERIFY: The platform installation method for the MoonBit CLI must be confirmed against the external official release instructions. -->
 
 Run the checks from the repository root:
 

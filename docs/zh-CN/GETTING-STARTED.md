@@ -7,7 +7,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 ## 前置条件
 
 - **Git**：用于获取源码。
-- **MoonBit CLI**：仓库通过 `.github/moonbit-toolchain.json` 将工具链钉版为 `moon 0.1.20260807`（官方 SHA-256 校验、内容锁定）。请从官方渠道安装 MoonBit CLI 并用 `moon version` 确认；安装方式取决于操作系统和官方发行渠道。<!-- VERIFY: MoonBit CLI 的平台安装步骤和下载地址需以官方发行说明为准。 -->
+- **MoonBit CLI**：仓库通过 `.github/moonbit-toolchain.json` 将工具链钉版为 `moon 0.1.20260819`（官方 SHA-256 校验、内容锁定）。请从官方渠道安装 MoonBit CLI 并用 `moon version` 确认；安装方式取决于操作系统和官方发行渠道。<!-- VERIFY: MoonBit CLI 的平台安装步骤和下载地址需以官方发行说明为准。 -->
 - **Python 3**：仅在运行 `corpus/` 下的语料报告工具或差分工具时需要。解析器本身不需要 Python 运行时。
 - **可选的 Python 依赖**：`corpus/requirements.txt` 固定了差分比较工具 `sqlglot==30.14.0`；只在使用该差分工具时安装。
 

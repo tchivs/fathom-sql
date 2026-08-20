@@ -1,6 +1,6 @@
 <!-- GSD:generated -->
 English: [README.md](README.md) | 简体中文
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260807-2f80ed)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
 [![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](docs/zh-CN/ARCHITECTURE.md)
 
@@ -21,7 +21,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 
 ## 安装
 
-本仓库不包含 Node.js package 清单或其他运行时依赖；模块元数据位于 `moon.mod`。MoonBit 工具链由 `.github/moonbit-toolchain.json` 钉版为 `moon 0.1.20260807`（官方 SHA-256 校验、内容锁定）；请从官方渠道安装 MoonBit CLI 并用 `moon version` 确认。<!-- VERIFY: MoonBit CLI 的平台安装方式需以外部官方发行说明为准。 -->
+本仓库不包含 Node.js package 清单或其他运行时依赖；模块元数据位于 `moon.mod`。MoonBit 工具链由 `.github/moonbit-toolchain.json` 钉版为 `moon 0.1.20260819`（官方 SHA-256 校验、内容锁定）；请从官方渠道安装 MoonBit CLI 并用 `moon version` 确认。<!-- VERIFY: MoonBit CLI 的平台安装方式需以外部官方发行说明为准。 -->
 
 在仓库根目录执行检查：
 
