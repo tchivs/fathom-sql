@@ -24,11 +24,11 @@ const caps = capabilities();
 const dialects = caps.dialects.map((d) => d.dialect ?? d.id ?? d);
 assert.ok(dialects.includes('doris'), 'doris dialect present');
 assert.ok(dialects.includes('flink'), 'flink dialect present');
-const doris = caps.dialects.find((d) => (d.dialect ?? d.id) === 'doris');
-const flink = caps.dialects.find((d) => (d.dialect ?? d.id) === 'flink');
-const dorisProfiles = (doris.profiles ?? []).map((p) => p.id ?? p);
-const flinkProfiles = (flink.profiles ?? []).map((p) => p.id ?? p);
-for (const p of ['2.1', '3.x', '4.x']) assert.ok(dorisProfiles.includes(p), `doris profile ${p}`);
-for (const p of ['flink-2.3.0', 'flink-2.1.3', 'flink-1.20.5']) assert.ok(flinkProfiles.includes(p), `flink profile ${p}`);
+const dorisInfo = caps.dialects.find((d) => (d.dialect ?? d.id) === 'doris');
+const flinkInfo = caps.dialects.find((d) => (d.dialect ?? d.id) === 'flink');
+const dProfiles = (dorisInfo?.profiles ?? []).map((p) => p.id ?? p);
+const fProfiles = (flinkInfo?.profiles ?? []).map((p) => p.id ?? p);
+for (const p of ['2.1', '3.x', '4.x']) assert.ok(dProfiles.includes(p), `doris profile ${p}`);
+for (const p of ['flink-2.3.0', 'flink-2.1.3', 'flink-1.20.5']) assert.ok(fProfiles.includes(p), `flink profile ${p}`);
 
 console.log('SMOKE PASS: parse/format/fingerprint/capabilities verified');
