@@ -113,6 +113,14 @@ None - plan executed exactly as written (lockfile identity also corrected as par
 ## Next Phase Readiness
 - vsix ready to publish on providing OVSX_TOKEN / Azure DevOps PAT (or at Phase 20 formal release); next Phase 20 (Formal 1.0.0 Release & Verification)
 
+## Revision (2026-08-20): Published to VS Code Marketplace
+
+- Extension identity settled as **`fathom-sql.sql`** (publisher `fathom-sql` registered by the user; extension name `sql` per the approved `fathom.sql` recommendation adjusted to the registered publisher; displayName "Fathom SQL Language Client").
+- New `.github/workflows/vsce-publish.yml` (tag `v*` + `workflow_dispatch` with `publish` input): npm ci → compile → version assertion (tag-matched on tag pushes, manifest on dispatch) → `vsce package` → `vsce verify-pat fathom-sql` → `vsce publish --packagePath` with `secrets.VSCODE_MARKETPLACE_PAT` → gallery API listing verification.
+- **Published live**: run 32340010700 success — `Published fathom-sql.sql v1.0.0`; gallery verification `MARKETPLACE OK: sql fathom-sql`.
+- Two failed attempts diagnosed and fixed en route: (1) dispatch-triggered version assertion used the branch name (fixed to tag-only matching); (2) manifest publisher was still `fathom` while the registered publisher is `fathom-sql` (PAT denied on `/fathom`; fixed to `fathom-sql`).
+- Master pushed to origin (365 commits fast-forward), enabling workflow registration; post-cutover check: `fathom-native-release.yml` active; legacy `doris-native-release.yml` registration lingers (GitHub retention — file absent from master, no trigger surface).
+
 ---
 *Phase: 19-editor-extension-publication*
 *Completed: 2026-08-17*
