@@ -1,0 +1,65 @@
+name: Publish @fathom/sql to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate the full build+pack+publish path without pushing to the registry"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install MoonBit (lock-driven)
+        shell: bash
+        run: .github/scripts/install-moonbit.sh
+
+      - name: Build binding, copy artifacts, generate capabilities, pack
+        shell: bash
+        run: node npm/build.mjs
+
+      - name: Assert package version matches the release tag
+        shell: bash
+        run: |
+          expected="${GITHUB_REF_NAME#v}"
+          actual="$(node -p 'require("./npm/package.json").version')"
+          if [ "$expected" != "$actual" ]; then
+            echo "version mismatch: package $actual vs tag $expected" >&2
+            exit 1
+          fi
+          echo "package version OK: $actual"
+
+      - name: Publish to npm
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd npm
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            npm publish --dry-run
+          else
+            npm publish --access public
+          fi

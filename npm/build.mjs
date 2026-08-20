@@ -10,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const npmDir = resolve(root, 'npm');
 
 function moon(...args) {
-  execFileSync('/opt/moonbit/bin/moon', args, { cwd: root, stdio: 'inherit' });
+  execFileSync('moon', args, { cwd: root, stdio: 'inherit' });
 }
 
 console.log('[build] moon build --target js binding (release)');
