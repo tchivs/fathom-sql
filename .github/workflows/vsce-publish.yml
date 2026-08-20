@@ -1,0 +1,80 @@
+name: Publish VS Code extension to Marketplace
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Actually publish to the VS Code Marketplace (false = package + verify PAT only)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies (offline-capable)
+        working-directory: vscode
+        run: npm ci
+
+      - name: Compile extension
+        working-directory: vscode
+        run: npm run compile
+
+      - name: Assert version matches the release tag
+        working-directory: vscode
+        shell: bash
+        run: |
+          expected="${GITHUB_REF_NAME#v}"
+          [ -z "$expected" ] && expected="1.0.0"
+          actual="$(node -p 'require("./package.json").version')"
+          if [ "$expected" != "$actual" ]; then
+            echo "version mismatch: package $actual vs expected $expected" >&2
+            exit 1
+          fi
+          echo "package version OK: $actual"
+
+      - name: Package vsix
+        working-directory: vscode
+        run: npx vsce package
+
+      - name: Verify publisher PAT
+        working-directory: vscode
+        shell: bash
+        env:
+          VSCODE_MARKETPLACE_PAT: ${{ secrets.VSCODE_MARKETPLACE_PAT }}
+        run: npx vsce verify-pat fathom-sql -p "$VSCODE_MARKETPLACE_PAT"
+
+      - name: Publish to VS Code Marketplace
+        if: ${{ inputs.publish == true }}
+        working-directory: vscode
+        shell: bash
+        env:
+          VSCODE_MARKETPLACE_PAT: ${{ secrets.VSCODE_MARKETPLACE_PAT }}
+        run: |
+          vsix="$(ls sql-*.vsix | head -1)"
+          npx vsce publish -p "$VSCODE_MARKETPLACE_PAT" --packagePath "$vsix"
+
+      - name: Verify marketplace listing
+        if: ${{ inputs.publish == true }}
+        shell: bash
+        run: |
+          curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json;api-version=7.1-preview.1" \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"fathom-sql.sql"}]}],"flags":914}' \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); results=d.get("results",[{}])[0].get("extensions",[]); assert len(results) >= 1, "extension not found on marketplace"; print("MARKETPLACE OK:", results[0]["extensionName"], results[0]["publisher"]["publisherName"])'
