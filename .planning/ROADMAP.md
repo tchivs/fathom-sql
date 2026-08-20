@@ -214,11 +214,13 @@ Plans:
 2. Release notes 引用披露文档
 3. 发布后冒烟：下载各平台资产校验 SHA-256，`fathom-lsp --version` 报告 1.0.0
 
-**Plans**: TBD
+**Plans**: 1/1 plans executed
 
 Plans:
 
-- [ ] 20-01: TBD
+- [x] 20-01-PLAN.md
+
+- [x] 20-01: Formal 1.0.0 release & verification — v1.0.0 tag → 三平台 Release + 双 manifest + 披露 notes；冒烟 PASS；工具链漂移再冻结 0.1.20260819；npm 待 bypass-2FA token
 
 **Phase 15: Product Versioning & Binary `--version`**
 Goal: 定义产品 semver 策略并为发布二进制实现 `--version` 版本报告。
