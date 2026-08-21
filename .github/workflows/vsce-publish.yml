@@ -82,7 +82,7 @@ print("true" if any(v.get("version") == sys.argv[1] for v in vs) else "false")
           echo "version $ver already_published=$exists"
 
       - name: Publish to VS Code Marketplace
-        if: ${{ inputs.publish == true && steps.exists.outputs.already_published != 'true' }}
+        if: ${{ (github.event_name == 'push' || inputs.publish == true) && steps.exists.outputs.already_published != 'true' }}
         working-directory: vscode
         shell: bash
         env:
@@ -92,7 +92,7 @@ print("true" if any(v.get("version") == sys.argv[1] for v in vs) else "false")
           npx vsce publish -p "$VSCODE_MARKETPLACE_PAT" --packagePath "$vsix"
 
       - name: Verify marketplace listing
-        if: ${{ inputs.publish == true }}
+        if: ${{ github.event_name == 'push' || inputs.publish == true }}
         shell: bash
         run: |
           curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
