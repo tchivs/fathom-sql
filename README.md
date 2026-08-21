@@ -5,7 +5,7 @@ English | [简体中文](README.zh-CN.md)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](README.zh-CN.md)
 # Fathom SQL Parser SDK
 
-Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity parsing, diagnostics, and formatting for editors, formatting tools, and automation pipelines. **Repository:** https://github.com/tchivs/fathom-sql
+Fathom is a MoonBit parser SDK for Apache Doris and Flink SQL, providing source-fidelity parsing, diagnostics, formatting, and toolchain capabilities for editors, Web tools, and automation pipelines. **Repository:** https://github.com/tchivs/fathom-sql
 
 
 ## Features
@@ -20,32 +20,32 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-fidelity p
 
 ## Installation
 
-This repository contains no Node.js package manifest or other runtime dependencies; module metadata is defined in `moon.mod`. The MoonBit toolchain is pinned to `moon 0.1.20260819` by `.github/moonbit-toolchain.json` (official SHA-256 sidecars, content-locked); install the MoonBit CLI from the official channel and confirm with `moon version`.<!-- VERIFY: The platform installation method for the MoonBit CLI must be confirmed against the external official release instructions. -->
+Fathom is available as three independent artifacts:
 
-Run the checks from the repository root:
-
-```bash
-moon version
-moon check
-```
-
-The module has no additional MoonBit dependencies to download; `moon check` builds the current module and its library packages.
-
-## Quick Start
-
-1. Install the MoonBit CLI and confirm its version:
+1. **npm package** (`@fathom-sql/sql`) — for Node.js and browser consumers:
 
    ```bash
-   moon version
+   npm install @fathom-sql/sql
    ```
 
-2. Check the library code:
+   See [npm/README.md](npm/README.md) for the JS API and usage examples.
+
+2. **Prebuilt `fathom-lsp` binary** — from [GitHub Releases](https://github.com/tchivs/fathom-sql/releases); see [Install fathom-lsp](#install-fathom-lsp-from-github-release) below.
+
+3. **MoonBit library** — clone this repository and build from source with the MoonBit toolchain (`moon 0.1.20260819`, content-locked via `.github/moonbit-toolchain.json`):
 
    ```bash
+   git clone https://github.com/tchivs/fathom-sql.git
+   cd fathom-sql
+   moon version   # confirm: moon 0.1.20260819 (fc2a4ee 2026-08-19)
    moon check
    ```
 
-3. Import `fathom/sql/api` into your own MoonBit package, then call `parse_with_ids` or `format_with_ids` (see the examples below).
+   Import `fathom/sql/api` into your own MoonBit package to call `parse_with_ids` or `format_with_ids` (see [Usage Examples](#usage-examples) below).
+
+## Quick Start (MoonBit library)
+
+After [installation](#installation) (option 3, MoonBit library), import `fathom/sql/api` and call `parse_with_ids` or `format_with_ids`:
 
 ## Usage Examples
 

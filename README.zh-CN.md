@@ -6,7 +6,7 @@ English: [README.md](README.md) | 简体中文
 
 # Fathom SQL Parser SDK
 
-Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供带源码保真度的解析、诊断与格式化能力。**GitHub 仓库：** https://github.com/tchivs/fathom-sql
+Fathom 是面向 Apache Doris 和 Flink SQL 的 MoonBit 解析器 SDK，为编辑器、Web 工具和自动化流水线提供带源码保真度的解析、诊断、格式化与工具链能力。**GitHub 仓库：** https://github.com/tchivs/fathom-sql
 
 
 ## 特性
@@ -21,32 +21,32 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 
 ## 安装
 
-本仓库不包含 Node.js package 清单或其他运行时依赖；模块元数据位于 `moon.mod`。MoonBit 工具链由 `.github/moonbit-toolchain.json` 钉版为 `moon 0.1.20260819`（官方 SHA-256 校验、内容锁定）；请从官方渠道安装 MoonBit CLI 并用 `moon version` 确认。<!-- VERIFY: MoonBit CLI 的平台安装方式需以外部官方发行说明为准。 -->
+Fathom 提供三种独立的安装方式：
 
-在仓库根目录执行检查：
-
-```bash
-moon version
-moon check
-```
-
-模块没有需要额外下载的 MoonBit 依赖；`moon check` 会构建当前模块及其库包。
-
-## 快速开始
-
-1. 安装 MoonBit CLI，并确认版本：
+1. **npm 包**（`@fathom-sql/sql`）—— Node.js 和浏览器消费者：
 
    ```bash
-   moon version
+   npm install @fathom-sql/sql
    ```
 
-2. 检查库代码：
+   JS API 与使用示例见 [npm/README.md](npm/README.md)。
+
+2. **预编译 `fathom-lsp` 二进制** —— 从 [GitHub Releases](https://github.com/tchivs/fathom-sql/releases) 下载；安装步骤见下文 [从 GitHub Release 安装 `fathom-lsp`](#从-github-release-安装-fathom-lsp)。
+
+3. **MoonBit 库** —— 克隆本仓库并用 MoonBit 工具链（`moon 0.1.20260819`，通过 `.github/moonbit-toolchain.json` 内容锁定）从源码构建：
 
    ```bash
+   git clone https://github.com/tchivs/fathom-sql.git
+   cd fathom-sql
+   moon version   # 确认：moon 0.1.20260819 (fc2a4ee 2026-08-19)
    moon check
    ```
 
-3. 在自己的 MoonBit package 中导入 `fathom/sql/api`，然后调用 `parse_with_ids` 或 `format_with_ids`（示例见下文）。
+   在自己的 MoonBit package 中导入 `fathom/sql/api`，即可调用 `parse_with_ids` 或 `format_with_ids`（示例见下文 [使用示例](#使用示例)）。
+
+## 快速开始（MoonBit 库）
+
+[安装](#安装)完成后（方式 3，MoonBit 库），导入 `fathom/sql/api` 并调用 `parse_with_ids` 或 `format_with_ids`：
 
 ## 使用示例
 

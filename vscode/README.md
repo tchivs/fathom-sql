@@ -6,7 +6,7 @@ provide a remote fallback.
 
 ## Install
 
-1. Install this extension from the **VS Code Marketplace** or **Open VSX**
+1. Install this extension from the **VS Code Marketplace**
    (search "Fathom SQL Language Client").
 2. Acquire the `fathom-lsp` language server from a **GitHub Release**
    (<https://github.com/tchivs/fathom-sql/releases>) — see the repository

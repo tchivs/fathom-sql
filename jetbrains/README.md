@@ -15,7 +15,7 @@ Configure **Settings | Tools | Fathom SQL**:
 
 Settings are read when a new LSP4IJ server connection starts. Applying settings does not mutate an already-running process; restart the server for changes to take effect. SQL files are mapped by filename (`*.sql`) and receive language id `sql`. The dialect and profile are forwarded as LSP `initializationOptions` (`{"dialect": ..., "profile": ...}`); an empty selection is surfaced as an explicit server-side configuration error, never an implicit fallback.
 
-When managed downloads are enabled, the plugin detects Linux x64, macOS x64, macOS arm64, and Windows x64, downloads the matching `fathom-lsp-*` asset from the latest release of `tchivs/fathom-sql`, verifies the SHA-256 listed in `fathom-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms, missing releases, and hash mismatches fall back to the configured executable.
+When managed downloads are enabled, the plugin detects Linux x64, macOS arm64, and Windows x64, downloads the matching `fathom-lsp-*` asset from the latest release of `tchivs/fathom-sql`, verifies the SHA-256 listed in `fathom-lsp-manifest.json`, and caches the executable under the platform cache directory. Network errors, unsupported platforms (including macOS Intel), missing releases, and hash mismatches fall back to the configured executable.
 
 ## Build and verification
 
@@ -32,12 +32,11 @@ The resulting ZIP is written to `build/distributions/`. The CI workflow runs the
 
 ## Native release assets
 
-The root workflow `.github/workflows/fathom-native-release.yml` builds the `fathom-lsp/` executable on four runners and publishes these exact assets:
+The root workflow `.github/workflows/fathom-native-release.yml` builds the `fathom-lsp/` executable on three runners and publishes these exact assets:
 
 | Platform key | Release asset |
 | --- | --- |
 | `linux-x86_64` | `fathom-lsp-linux-x86_64` |
-| `macos-x86_64` | `fathom-lsp-macos-x86_64` |
 | `macos-aarch64` | `fathom-lsp-macos-aarch64` |
 | `windows-x86_64` | `fathom-lsp-windows-x86_64.exe` |
 
@@ -74,7 +73,7 @@ The Marketplace metadata uses the public project homepage `https://github.com/tc
 4. IntelliJ Plugin Verifier compatibility checks;
 5. plugin ZIP packaging and artifact upload.
 
-`.github/workflows/fathom-native-release.yml` runs on `v*` tag pushes or manual dispatch, builds and verifies the four Native assets, generates the signed-by-hash manifest, and uploads the release assets. Marketplace publishing remains manual until the first listing and signing secrets are approved.
+`.github/workflows/fathom-native-release.yml` runs on `v*` tag pushes or manual dispatch, builds and verifies the three Native assets, generates the signed-by-hash manifest, and uploads the release assets. Marketplace publishing remains manual until the first listing and signing secrets are approved.
 
 ## External release links
 

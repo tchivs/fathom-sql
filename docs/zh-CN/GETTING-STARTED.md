@@ -2,7 +2,7 @@
 English: [English getting started](../GETTING-STARTED.md) | 简体中文
 # 开始使用 Fathom
 
-Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供保留源码字节、诊断和格式化能力。当前仓库提供库包和 `fathom-sql/` native CLI 适配器，不提供需要启动的 HTTP 服务。
+Fathom 是面向 Apache Doris 和 Flink SQL 的 MoonBit 解析器 SDK，为编辑器、格式化工具和自动化流水线提供保留源码字节、诊断和格式化能力。当前仓库提供库包和 `fathom-sql/` native CLI 适配器，不提供需要启动的 HTTP 服务。
 
 ## 前置条件
 
@@ -11,7 +11,7 @@ Fathom 是面向 Apache Doris SQL 的 MoonBit 解析器 SDK，为编辑器、格
 - **Python 3**：仅在运行 `corpus/` 下的语料报告工具或差分工具时需要。解析器本身不需要 Python 运行时。
 - **可选的 Python 依赖**：`corpus/requirements.txt` 固定了差分比较工具 `sqlglot==30.14.0`；只在使用该差分工具时安装。
 
-仓库没有 Node.js 依赖、数据库、`.env` 文件或部署服务。MoonBit 模块身份和首选构建目标记录在根目录 `moon.mod` 中：模块名为 `fathom/sql`，版本为 `0.1.0`，首选目标为 `native`。
+仓库核心包仅含 MoonBit，但为 Node.js 和浏览器消费者提供了独立的 npm 包（`@fathom-sql/sql`）——详见 [npm/README.md](../../npm/README.md)。MoonBit 库开发本身无 Node.js 运行时依赖、无数据库、无 `.env` 文件、无部署服务。MoonBit 模块身份和首选构建目标记录在根目录 `moon.mod` 中：模块名为 `fathom/sql`，版本为 `0.1.0`，首选目标为 `native`。
 
 ## 安装步骤
 

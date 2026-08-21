@@ -11,7 +11,7 @@ Fathom is a MoonBit parser SDK for Apache Doris SQL, providing source-byte prese
 - **Python 3**: Required only for running corpus report or differential tools under `corpus/`. The parser itself does not require a Python runtime.
 - **Optional Python dependencies**: `corpus/requirements.txt` pins the differential comparison tool `sqlglot==30.14.0`; install it only when using that differential tool.
 
-The repository has no Node.js dependencies, database, `.env` file, or deployment service. The MoonBit module identity and preferred build target are recorded in the root `moon.mod`: the module name is `fathom/sql`, the version is `0.1.0`, and the preferred target is `native`.
+The repository's core packages are MoonBit-only, but a standalone npm package (`@fathom-sql/sql`) is available for Node.js and browser consumers — see [npm/README.md](../../npm/README.md). For MoonBit library development, there are no Node.js runtime dependencies, no database, no `.env` file, and no deployment service. The MoonBit module identity and preferred build target are recorded in the root `moon.mod`: the module name is `fathom/sql`, the version is `0.1.0`, and the preferred target is `native`.
 
 ## Installation
 
