@@ -212,3 +212,18 @@ CI 在 push/PR 时执行（`.github/workflows/ci.yml`）：
 3. **JetBrains** 插件 — IDEA 语言服务器集成
 4. **Native CLI** `fathom-sql` — 命令行 parse/format/lsp
 5. **Web** — Monaco 演示页
+
+## 详细文档
+
+| 文档 | 路径 | 内容 |
+|---|---|---|
+| API 参考 | [docs/API.md](./docs/API.md) | 公开 API 签名与用法（[中文](./docs/zh-CN/API.md)） |
+| 系统架构 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 组件图与分层管线详解（[中文](./docs/zh-CN/ARCHITECTURE.md)） |
+| 开发指南 | [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) | 本地开发、构建、语料维护（[中文](./docs/zh-CN/DEVELOPMENT.md)） |
+| 测试指南 | [docs/TESTING.md](./docs/TESTING.md) | 测试框架、运行方式、覆盖策略（[中文](./docs/zh-CN/TESTING.md)） |
+| 版本策略 | [docs/VERSIONING.md](./docs/VERSIONING.md) | 产品 semver 与 release tag 规范 |
+| 入门指南 | [docs/GETTING-STARTED.md](./docs/GETTING-STARTED.md) | 环境搭建与快速上手（[中文](./docs/zh-CN/GETTING-STARTED.md)） |
+| 配置说明 | [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | 环境变量与配置文件（[中文](./docs/zh-CN/CONFIGURATION.md)） |
+| 贡献指南 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 提交规范与 issue 自动关闭 |
+| 变更日志 | [CHANGELOG.md](./CHANGELOG.md) | 用户可见变更记录 |
+| 语料报告 | [corpus/CORPUS-REPORT.md](./corpus/CORPUS-REPORT.md) | Doris/Flink 语法覆盖率 |

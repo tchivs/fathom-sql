@@ -181,14 +181,40 @@ Doris SQL Parser SDK 是一个面向 Apache Doris SQL 的开源基础设施项�
 
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+### 提交规范
+- Conventional Commits 格式 `type(scope): subject`
+- 自动关闭 issue：`Fixes #N` / `Closes #N` / `Resolves #N`（详见 [CONTRIBUTING.md](../../CONTRIBUTING.md)）
+
+### 代码规范
+- MoonBit 手写递归下降 + Pratt 解析，不使用 parser generator
+- CST 无损保留注释/空白/换行/span
+- 关键字判断单一来源：`@dialect.classification_of`（禁止第二张表）
+- 方言隔离：Flink 请求绝不回退 Doris 语法
+- Parser 不得 import analyzer（D-21）；source/syntax 不得依赖 dialect
+- binding 是唯一 FFI 边界
+
+### 构建
+```bash
+moon check          # 类型检查
+moon test           # 测试
+moon fmt            # 格式化
+moon build --target native --release   # Native 构建
+moon build --target js --release binding   # JS binding
+moon build --target wasm --release binding # Wasm binding
+```
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
+架构已映射，详见：
+- [根级 AI 上下文](../../CLAUDE.md) — 项目概述 + Mermaid 架构图 + 28 模块索引
+- [系统架构文档](../../docs/ARCHITECTURE.md) — 组件图与分层管线详解
+- 每个模块目录下的 `CLAUDE.md` — 模块级接口、依赖、测试、关键文件
+
+核心管线：`SourceText → Lexer → TokenStream → Parser → Syntax CST → (printer | formatter | analyzer | lint | fingerprint | lineage)`
+统一门面：`api/` 聚合所有核心包；`binding/` 提供 JS/Wasm FFI；`lsp/` 提供 stdio LSP 服务器。
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->
