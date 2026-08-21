@@ -74,7 +74,7 @@ The binding is self-contained — no Node built-ins, no `fs`, no `path`.
 
 ```html
 <script type="module">
-  import { parse } from 'https://esm.sh/@fathom-sql/sql@1.0.1';
+  import { parse } from 'https://esm.sh/@fathom-sql/sql@1.0.2';
 
   const result = parse('SELECT * FROM t', 'doris', '4.x', 'strict');
   console.log(result.valid);

@@ -3,7 +3,28 @@
 All notable user-visible changes to the Fathom SQL Parser SDK are documented
 in this file. The prior public baseline is the `v0.1.0` release.
 
-## [1.0.1] - 2026-08-21
+## [1.0.2] - 2026-08-21
+
+### Changed
+
+- **README five-channel install table**: npm SDK, VS Code extension, JetBrains
+  plugin, LSP binary, and MoonBit library — each with badge, link, and
+  quick-start snippet (en + zh-CN).
+- **README badge header**: 12 dynamic shields.io badges (release, npm, VS Code
+  Marketplace, CI, license, MoonBit, targets, Doris, Flink, last-commit,
+  repo-size, stars).
+- **CI fixes**: `moon fmt` compliance (120 files reformatted); corrected
+  `approved-changes.md` path in `ci.yml`; added `--offline` flag to web smoke;
+  `moon check --target js/wasm` now scoped to cross-platform packages (excludes
+  native-only C FFI in `lsp/` and `fathom-sql/`).
+
+### Fixed
+
+- **453 MoonBit compiler warnings eliminated** (496→43): reserved-keyword
+  renames (`ref`→`name_ref`, `alias`→`alias_name`, `method`→`method_name`;
+  171 warnings; JSON-RPC wire keys preserved), missing `debug`/`buffer` imports
+  in 5 `moon.pkg` files (48 warnings), test-target import separation (20
+  warnings), `priv` on internal types, duplicate test name, redundant modifier.
 
 ### Added
 
