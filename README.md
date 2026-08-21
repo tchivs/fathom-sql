@@ -1,7 +1,7 @@
 <!-- GSD:generated -->
 English | [简体中文](README.zh-CN.md)
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
-[![Target](https://img.shields.io/badge/target-native-555555)](moon.mod)
+[![Target](https://img.shields.io/badge/target-native%20%7C%20js%20%7C%20wasm-555555)](moon.mod)
 [![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](README.zh-CN.md)
 # Fathom SQL Parser SDK
 
