@@ -1,5 +1,5 @@
 /**
- * Type declarations for @fathom/sql.
+ * Type declarations for @fathom-sql/sql.
  *
  * Every API returns the raw JSON envelope decoded from the corresponding
  * `fathom.*.v1` wire namespace. Envelope fields beyond the documented core

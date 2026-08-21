@@ -1,4 +1,4 @@
-// @fathom/sql build pipeline: build the binding for js+wasm, copy artifacts
+// @fathom-sql/sql build pipeline: build the binding for js+wasm, copy artifacts
 // into the package root, regenerate capabilities.json, and produce the
 // publish tarball. Run from the repository root: `node npm/build.mjs`.
 import { execFileSync } from 'node:child_process';

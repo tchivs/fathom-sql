@@ -1,5 +1,6 @@
 {
-  "label": "**Phase 1: Core Kernel** — 建立无损、可恢复的 Doris SQL 解析内核",
-  "command": "/gsd-discuss-phase 1 --auto",
-  "requiresFreshContext": false
+  "label": "**Phase 13: Toolchain and Editor Packaging**（v2.0 最后阶段，STATE 已置 Ready to plan）",
+  "command": "/gsd-discuss-phase 13 --auto",
+  "requiresFreshContext": true,
+  "deferredAt": "2026-08-09T16:02:48.560Z"
 }

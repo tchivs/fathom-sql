@@ -1,4 +1,4 @@
-# @fathom/sql
+# @fathom-sql/sql
 
 Fathom SQL Parser SDK — a MoonBit-built parser and toolchain for Apache Doris
 and Flink SQL, exposed as an ES module. The package ships the built
@@ -8,13 +8,13 @@ typed declarations, and dialect/profile capability metadata.
 ## Install
 
 ```bash
-npm install @fathom/sql
+npm install @fathom-sql/sql
 ```
 
 ## Usage (Node)
 
 ```js
-import { parse, format, fingerprint, capabilities } from '@fathom/sql';
+import { parse, format, fingerprint, capabilities } from '@fathom-sql/sql';
 
 const result = parse('SELECT 1', 'doris', '4.x', 'strict');
 console.log(result.valid);          // true

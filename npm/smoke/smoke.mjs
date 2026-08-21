@@ -1,7 +1,7 @@
-// Consumer smoke test (NPM-02): installs @fathom/sql from the packed tarball
+// Consumer smoke test (NPM-02): installs @fathom-sql/sql from the packed tarball
 // and exercises parse/format/fingerprint/capabilities end to end.
 import assert from 'node:assert/strict';
-import { parse, format, fingerprint, capabilities } from '@fathom/sql';
+import { parse, format, fingerprint, capabilities } from '@fathom-sql/sql';
 
 // parse: valid statement, no diagnostics
 const parsed = parse('SELECT 1', 'doris', '4.x', 'strict');

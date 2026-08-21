@@ -14,7 +14,7 @@ const [manifestText, indexText, adapterText, mainText, bindingText] = await Prom
   readFile(resolve(root, '../_build/js/debug/build/binding/binding.js'), 'utf8'),
 ]);
 const manifest = JSON.parse(manifestText);
-assert.equal(manifest.name, '@fathom/sql-web-demo', 'neutral npm package identity');
+assert.equal(manifest.name, '@fathom-sql/sql-web-demo', 'neutral npm package identity');
 assert.equal(manifest.dependencies['monaco-editor'], '0.56.0');
 assert.match(indexText, /monaco-editor/);
 assert.match(indexText, /src\/main\.ts/);

@@ -1,4 +1,4 @@
-name: Publish @fathom/sql to npm
+name: Publish @fathom-sql/sql to npm
 
 on:
   push:

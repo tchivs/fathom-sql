@@ -4,5 +4,59 @@
     "plan": "04",
     "task": "01-04",
     "status": "completed"
+  },
+  {
+    "phase": "04",
+    "plan": "04",
+    "task": "completed",
+    "status": "completed"
+  },
+  {
+    "phase": "10",
+    "plan": "10-02",
+    "task": "2",
+    "status": "completed"
+  },
+  {
+    "phase": "12",
+    "plan": "03",
+    "task": "all",
+    "status": "completed"
+  },
+  {
+    "phase": "13",
+    "plan": "02",
+    "task": "all",
+    "status": "completed"
+  },
+  {
+    "phase": "13",
+    "plan": "03",
+    "task": "0",
+    "status": "completed"
+  },
+  {
+    "phase": "13",
+    "plan": "04",
+    "task": "04",
+    "status": "completed"
+  },
+  {
+    "phase": "05",
+    "plan": "01",
+    "task": "01",
+    "status": "completed"
+  },
+  {
+    "phase": "05",
+    "plan": "03",
+    "task": "3",
+    "status": "completed"
+  },
+  {
+    "phase": "05",
+    "plan": "04",
+    "task": "3",
+    "status": "completed"
   }
 ]

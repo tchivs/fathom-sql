@@ -1,4 +1,4 @@
-// @fathom/sql — typed ESM wrapper over the MoonBit-built binding.
+// @fathom-sql/sql — typed ESM wrapper over the MoonBit-built binding.
 // The binding exports the fathom.*.v1 byte functions (raw bytes in, JSON
 // bytes out); this module provides UTF-8 handling and typed call sites.
 import * as binding from './binding.js';
