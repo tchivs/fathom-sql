@@ -21,7 +21,7 @@ affects: milestone v4.0 completion
 actuals:
   tokens: 2400
   tasks: 2
-  commits: 6 (incl. refreeze + naming fix)
+  commits: 8 (incl. refreeze + naming fix + npm assertion fix + close-out)
 
 # Tech tracking
 tech-stack:
@@ -37,11 +37,11 @@ key-files:
     - .github/moonbit-toolchain.json (re-frozen to moon 0.1.20260819)
     - README.md, README.zh-CN.md, docs/GETTING-STARTED.md, docs/zh-CN/GETTING-STARTED.md, CHANGELOG.md, RELEASE-NOTES.md (toolchain version sync)
     - npm/smoke/smoke.mjs (naming-gate identifiers)
+    - .github/workflows/npm-publish.yml (version assertion: dispatch trusts manifest)
     - .github/workflows/vsce-publish.yml (idempotency)
-
 key-decisions:
   - "v1.0.0 tagged at the release commit; three-platform assets per the D-01/D-03 revision"
-  - "npm publish blocked on token bypass-2FA (E403) — user action; everything else shipped"
+  - "npm publish blocked on token 2FA: first E403 (bypass-2FA missing), then EOTP after assertion fix — user action; everything else shipped"
 
 patterns-established:
   - "Release = tag -> pipelines -> manifest SHA-256 smoke against the live asset"
@@ -74,14 +74,14 @@ coverage:
         status: pass
     human_judgment: false
   - id: D4
-    description: "npm @fathom/sql@1.0.0 publication blocked on token bypass-2FA (E403); vsce fathom-sql.sql 1.0.0 already live"
+    description: "npm @fathom/sql@1.0.0 publication blocked on token 2FA (E403 then EOTP after assertion fix); vsce fathom-sql.sql 1.0.0 live"
     requirement: VER-04
     verification:
       - kind: other
-        ref: "npm view @fathom/sql@1.0.0 -> E404 (not published; tag run E403 bypass-2FA); marketplace gallery confirms fathom-sql.sql 1.0.0"
+        ref: "npm view @fathom/sql@1.0.0 -> E404 (not published); run 32438208991: assertion PASS (manifest-trusted 1.0.0), npm publish EOTP (requires one-time password); marketplace gallery confirms fathom-sql.sql 1.0.0"
         status: pass
     human_judgment: true
-    rationale: "npm registry push requires the user to regenerate NPM_TOKEN with bypass-2FA; the release itself is complete"
+    rationale: "npm registry push requires a granular access token with bypass-2FA enabled (classic token triggers OTP); the release itself is complete"
 
 # Metrics
 duration: 3h (incl. drift re-freeze rounds)
@@ -97,7 +97,7 @@ status: complete
 
 - **Duration:** ~3h (two drift-driven re-freeze rounds)
 - **Tasks:** 2
-- **Commits:** 6 (refreeze + naming fix + idempotency + close-out)
+- **Commits:** 8 (refreeze + naming fix + npm assertion fix + idempotency + close-out)
 
 ## Accomplishments
 - `v1.0.0` annotated tag on master; `fathom-native-release` run 32343439589 **success** — 3 builds (linux-x86_64/macos-aarch64/windows-x86_64) with per-platform toolchain evidence, nine-command release-gates, release job writing `fathom-lsp-manifest.json` + `moon-toolchain-manifest.json` and creating the GitHub Release with `RELEASE-NOTES.md` as the body (disclosure visible before download)
@@ -133,10 +133,11 @@ Plus: refreeze commit, doc version sync, naming fix, idempotency.
 **Impact:** required for a real, honest release; the drift re-freeze is the documented cost of content-locking a moving alias.
 
 ## Issues Encountered
-- npm publish E403: the configured `NPM_TOKEN` lacks bypass-2FA for the `@fathom` scope — **user action required** (regenerate a granular token with "Bypass 2FA for packages in this scope" enabled, or disable 2FA on the publish token); once provided, the tag-triggered `npm-publish.yml` publishes `@fathom/sql@1.0.0` automatically (or via dispatch)
+- npm publish EOTP (after assertion fix): the `NPM_TOKEN` is a classic automation token but the npm account has 2FA enabled, so publish requires a one-time password — **user action required**. Fix: on npmjs.com → Access Tokens → Generate New Token → **Granular Access Token** (scope: `@fathom`, permission: Read/Write, **"Require two-factor authentication" = OFF for this token** aka bypass-2FA). Update the GitHub secret `NPM_TOKEN`, then dispatch `npm-publish.yml` or re-tag. The version-assertion bug (dispatch compared against `GITHUB_REF_NAME=master`) was fixed in commit `78b4567`.
 
 ## Next Phase Readiness
 - Milestone v4.0 (Release Readiness) complete: 7/7 phases; VS Code extension live, GitHub Release live, npm pending token fix, Open VSX pending OVSX_TOKEN
+  - npm assertion bug fixed: `npm-publish.yml` now trusts manifest version on `workflow_dispatch` (commit `78b4567`), so the only remaining blocker is the token 2FA setting
 
 ---
 *Phase: 20-formal-1-0-0-release-verification*
