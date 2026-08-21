@@ -125,7 +125,7 @@ for path in ROOT.rglob("*"):
     rel_parts = path.relative_to(ROOT).as_posix().split("/")
     if any(part in {".gradle", ".intellijPlatform", "build", "__pycache__"} for part in rel_parts):
         continue
-    if path.name in {"source-smoke.py", "README.md", "gradlew", "gradlew.bat", "plugin.xml"}:
+    if path.name in {"source-smoke.py", "README.md", "CLAUDE.md", "gradlew", "gradlew.bat", "plugin.xml"}:
         continue
     if path in allowed_remote_sources:
         continue
