@@ -1,3 +1,4 @@
+///|
 /// Thin IO/argv wiring only (D-37/D-38): argv -> stdin/file bytes ->
 /// run_format/run_parse/run_lsp -> stdout/stderr/exit. Every decision lives in
 /// the pure run.mbt functions; this file only moves bytes between the OS and
@@ -9,7 +10,7 @@ fn main {
   let args = @env.args()
   // arg[0] is the executable path; drop it.
   let rest : Array[String] = []
-  for i in 1 ..< args.length() {
+  for i in 1..<args.length() {
     rest.push(args[i])
   }
   // --help wins over every other argument: usage on stdout, exit 0.

@@ -2,6 +2,7 @@
 // native executables fathom-sql and fathom-lsp only; the FFI helpers are cfg'd
 // to native so js/wasm builds never pull this package in.
 pkgtype(kind: "library")
+
 import {
-  "moonbitlang/core/encoding/utf8" @utf8,
+  "moonbitlang/core/encoding/utf8",
 }

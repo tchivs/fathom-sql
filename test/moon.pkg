@@ -1,16 +1,16 @@
 import {
-  "fathom/sql/analyzer" @analyzer,
-  "fathom/sql/api" @api,
-  "fathom/sql/binding" @binding,
-  "fathom/sql/parser" @parser,
-  "fathom/sql/printer" @printer,
-  "fathom/sql/source" @source,
-  "fathom/sql/syntax" @syntax,
-  "fathom/sql/token" @token,
-  "fathom/sql/formatter" @formatter,
-  "fathom/sql/dialect" @dialect,
-  "fathom/sql/lineage" @lineage,
-  "moonbitlang/core/encoding/utf8" @utf8,
+  "fathom/sql/analyzer",
+  "fathom/sql/api",
+  "fathom/sql/binding",
+  "fathom/sql/parser",
+  "fathom/sql/printer",
+  "fathom/sql/source",
+  "fathom/sql/syntax",
+  "fathom/sql/token",
+  "fathom/sql/formatter",
+  "fathom/sql/dialect",
+  "fathom/sql/lineage",
+  "moonbitlang/core/encoding/utf8",
 }
 
 import {

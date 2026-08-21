@@ -1,3 +1,4 @@
+///|
 fn parse_editor(raw : Bytes) -> @api.ParseResult {
   match @api.parse_with_ids(raw, "doris", "4.x", "editor") {
     Ok(result) => result
@@ -5,13 +6,10 @@ fn parse_editor(raw : Bytes) -> @api.ParseResult {
   }
 }
 
+///|
 test "source_replay_preserves_line_endings_bom_unicode_and_invalid_bytes" {
   let inputs = [
-    b"",
-    b"\n",
-    b"\r\n",
-    b"a\r\nb\nc\r",
-    b"\xef\xbb\xbfSELECT \xf0\x9f\x98\x80\r\n",
+    b"", b"\n", b"\r\n", b"a\r\nb\nc\r", b"\xef\xbb\xbfSELECT \xf0\x9f\x98\x80\r\n",
     b"SELECT \xff\xfe",
   ]
   for raw in inputs {
@@ -22,6 +20,7 @@ test "source_replay_preserves_line_endings_bom_unicode_and_invalid_bytes" {
   }
 }
 
+///|
 test "empty_input_has_no_diagnostic_and_trailing_newline_replays" {
   let empty = parse_editor(b"")
   assert_true(empty.valid)

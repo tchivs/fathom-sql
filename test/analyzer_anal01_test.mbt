@@ -8,6 +8,7 @@
 // (analyzer_test.mbt precedent). Parsing uses @parser.parse_with_limits (the
 // api facade's PrimitiveNode is not an @syntax.SyntaxNode).
 
+///|
 /// Deterministic JSON rendering of an AnalysisResult for the snapshot golden.
 fn analysis_result_to_json(result : @analyzer.AnalysisResult) -> String {
   fn kind_id(kind : @analyzer.BindingKind) -> String {
@@ -40,12 +41,20 @@ fn analysis_result_to_json(result : @analyzer.AnalysisResult) -> String {
     } else {
       out = out + ","
     }
-    out = out + "\n    {\"kind\":" + json_string(kind_id(binding.kind)) +
-      ",\"name\":" + json_string(binding.name) +
-      ",\"resolved_to\":" + json_string(binding.resolved_to) +
-      ",\"data_type\":" + json_string(binding.data_type) +
-      ",\"start_byte\":" + binding.start_byte.to_string() +
-      ",\"end_byte\":" + binding.end_byte.to_string() + "}"
+    out = out +
+      "\n    {\"kind\":" +
+      json_string(kind_id(binding.kind)) +
+      ",\"name\":" +
+      json_string(binding.name) +
+      ",\"resolved_to\":" +
+      json_string(binding.resolved_to) +
+      ",\"data_type\":" +
+      json_string(binding.data_type) +
+      ",\"start_byte\":" +
+      binding.start_byte.to_string() +
+      ",\"end_byte\":" +
+      binding.end_byte.to_string() +
+      "}"
   }
   out = out + "\n  ],\n  \"diagnostics\": ["
   let mut first_diag = true
@@ -55,18 +64,28 @@ fn analysis_result_to_json(result : @analyzer.AnalysisResult) -> String {
     } else {
       out = out + ","
     }
-    out = out + "\n    {\"code\":" + json_string(diagnostic.code) +
-      ",\"message\":" + json_string(diagnostic.message) +
-      ",\"start_byte\":" + diagnostic.start_byte.to_string() +
-      ",\"end_byte\":" + diagnostic.end_byte.to_string() + "}"
+    out = out +
+      "\n    {\"code\":" +
+      json_string(diagnostic.code) +
+      ",\"message\":" +
+      json_string(diagnostic.message) +
+      ",\"start_byte\":" +
+      diagnostic.start_byte.to_string() +
+      ",\"end_byte\":" +
+      diagnostic.end_byte.to_string() +
+      "}"
   }
   out + "\n  ]\n}"
 }
 
+///|
 /// Parses `raw` as a Doris 4.x strict document and analyzes it with `catalog`.
 /// Uses the parser-level entry (root is an @syntax.SyntaxNode), matching the
 /// analyzer_test.mbt integration setup.
-fn analyze_sql(raw : Bytes, catalog : @analyzer.StaticCatalog) -> @analyzer.AnalysisResult {
+fn analyze_sql(
+  raw : Bytes,
+  catalog : @analyzer.StaticCatalog,
+) -> @analyzer.AnalysisResult {
   let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
     Ok(source) => source
     Err(_) => panic()
@@ -83,13 +102,19 @@ fn analyze_sql(raw : Bytes, catalog : @analyzer.StaticCatalog) -> @analyzer.Anal
   @analyzer.analyze(parsed.root, source.bytes(), catalog)
 }
 
+///|
 /// Snapshot helper (parity/flink_grammar_test.mbt:677-680): `moon test
 /// --update` is the only write path.
-fn analyzer_snapshot_test(t : @mtest.Test, content : String, filename : String) -> Unit raise SnapshotError {
+fn analyzer_snapshot_test(
+  t : @mtest.Test,
+  content : String,
+  filename : String,
+) -> Unit raise SnapshotError {
   t.write(content)
-  t.snapshot(filename=filename)
+  t.snapshot(filename~)
 }
 
+///|
 test "analyzer-anal01 select-basic doris-4.x" {
   let t = @mtest.Test("analyzer-anal01 select-basic doris-4.x")
   let raw = b"SELECT a, b FROM t"
@@ -128,9 +153,14 @@ test "analyzer-anal01 select-basic doris-4.x" {
   assert_eq(b.start_byte, 10)
   assert_eq(b.end_byte, 11)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.select-basic.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.select-basic.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 unknown-table diagnostic" {
   // A missing table produces an unknown-table diagnostic on the analyzer's own
   // channel; the syntax valid flag stays true (ANLY-01 — analyzer diagnostics
@@ -148,12 +178,17 @@ test "analyzer-anal01 unknown-table diagnostic" {
   )
   assert_true(parsed.valid)
   assert_eq(parsed.diagnostics.length(), 0)
-  let catalog = @analyzer.StaticCatalog::new([{ name: "t", columns: [{ name: "a", data_type: "INT" }] }])
+  let catalog = @analyzer.StaticCatalog::new([
+    { name: "t", columns: [{ name: "a", data_type: "INT" }] },
+  ])
   let result = @analyzer.analyze(parsed.root, source.bytes(), catalog)
   assert_eq(result.bindings.length(), 0)
   assert_eq(result.diagnostics.length(), 1)
   assert_eq(result.diagnostics[0].code, "unknown-table")
-  assert_eq(result.diagnostics[0].message, "table not found in catalog: missing")
+  assert_eq(
+    result.diagnostics[0].message,
+    "table not found in catalog: missing",
+  )
   // Re-parsing the same bytes yields the identical syntax result.
   let parsed_again = @parser.parse_with_limits(
     source,
@@ -166,6 +201,7 @@ test "analyzer-anal01 unknown-table diagnostic" {
   assert_eq(parsed_again.root.kind(), parsed.root.kind())
 }
 
+///|
 test "analyzer-anal01 quoted-exact generic" {
   // D-03: quoted identifiers resolve through Catalog::table (case-fold) and a
   // byte-exact re-check of the returned TableInfo.name. StaticCatalog
@@ -189,7 +225,9 @@ test "analyzer-anal01 quoted-exact generic" {
   // Unquoted `t` against a catalog keyed "T": direct case-fold hit, no byte
   // re-check (D-03).
   let raw_unquoted = b"SELECT a FROM t"
-  let catalog_up = @analyzer.StaticCatalog::new([{ name: "T", columns: [{ name: "a", data_type: "INT" }] }])
+  let catalog_up = @analyzer.StaticCatalog::new([
+    { name: "T", columns: [{ name: "a", data_type: "INT" }] },
+  ])
   let result_unquoted = analyze_sql(raw_unquoted, catalog_up)
   assert_eq(result_unquoted.bindings.length(), 2)
   assert_eq(result_unquoted.bindings[0].kind, @analyzer.BindingKind::Table)
@@ -202,6 +240,7 @@ test "analyzer-anal01 quoted-exact generic" {
   assert_eq(result_unquoted.diagnostics.length(), 0)
 }
 
+///|
 test "analyzer-anal01 cte-scope doris-4.x" {
   // D-02 / Pitfall 4: WITH c AS (SELECT a FROM t) SELECT a FROM c — the FROM c
   // reference resolves to the CTE (Cte binding), not to a catalog table, and
@@ -242,9 +281,14 @@ test "analyzer-anal01 cte-scope doris-4.x" {
   assert_eq(main_col.start_byte, 35)
   assert_eq(main_col.end_byte, 36)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.cte-scope.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.cte-scope.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 subquery-alias doris-4.x" {
   // D-02 / Pitfall 4: SELECT x.a FROM (SELECT a FROM t) x — the subquery alias
   // x shadows any outer table; the inner a resolves inside the subquery and
@@ -283,9 +327,14 @@ test "analyzer-anal01 subquery-alias doris-4.x" {
   assert_eq(outer_col.start_byte, 7)
   assert_eq(outer_col.end_byte, 10)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.subquery-alias.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.subquery-alias.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 union-chain doris-4.x" {
   // D-02 / Pitfall 2: UNION chain — each branch resolves independently.
   // SELECT[0,6) a[7,8) FROM[9,13) t[14,15) UNION[16,21) SELECT[22,28)
@@ -321,9 +370,14 @@ test "analyzer-anal01 union-chain doris-4.x" {
   assert_eq(b.start_byte, 29)
   assert_eq(b.end_byte, 30)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.union-chain.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.union-chain.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 as-alias doris-4.x" {
   // D-02: AS aliases on both a projection and a table ref. SELECT[0,6)
   // a[7,8) AS[9,11) x[12,13) FROM[14,18) t[19,20) AS[21,23) y[24,25)
@@ -360,9 +414,14 @@ test "analyzer-anal01 as-alias doris-4.x" {
   assert_eq(proj_alias.start_byte, 12)
   assert_eq(proj_alias.end_byte, 13)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.as-alias.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.as-alias.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 qualified-name doris-4.x" {
   // D-05 / Pitfall 3: db.table.col (3 parts) resolves via table_in_db while
   // alias.col (2 parts) resolves through the scope. SELECT[0,6) t[7,8) .[8]
@@ -372,11 +431,13 @@ test "analyzer-anal01 qualified-name doris-4.x" {
   let raw = b"SELECT t.a, db.t.b FROM db.t"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
-  ]).with_db(
-    "db",
-    "t",
-    { name: "t", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "VARCHAR(20)" }] },
-  )
+  ]).with_db("db", "t", {
+    name: "t",
+    columns: [
+      { name: "a", data_type: "INT" },
+      { name: "b", data_type: "VARCHAR(20)" },
+    ],
+  })
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 3)
   let table = result.bindings[0]
@@ -400,16 +461,27 @@ test "analyzer-anal01 qualified-name doris-4.x" {
   assert_eq(b.start_byte, 12)
   assert_eq(b.end_byte, 18)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.qualified-name.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.qualified-name.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 star-expansion doris-4.x" {
   // D-05: table.* star expansion over the resolved FROM table.
   // SELECT[0,6) t[7,8) .[8] *[9,10) FROM[11,15) t[16,17)
   let t = @mtest.Test("analyzer-anal01 star-expansion doris-4.x")
   let raw = b"SELECT t.* FROM t"
   let catalog = @analyzer.StaticCatalog::new([
-    { name: "t", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "VARCHAR(10)" }] },
+    {
+      name: "t",
+      columns: [
+        { name: "a", data_type: "INT" },
+        { name: "b", data_type: "VARCHAR(10)" },
+      ],
+    },
   ])
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 3)
@@ -433,7 +505,11 @@ test "analyzer-anal01 star-expansion doris-4.x" {
   assert_eq(b.start_byte, 9)
   assert_eq(b.end_byte, 10)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.star-expansion.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.star-expansion.doris-4.x.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -441,6 +517,7 @@ test "analyzer-anal01 star-expansion doris-4.x" {
 // column-level references (D-02), and the complete analyzer diagnostic set.
 // ---------------------------------------------------------------------------
 
+///|
 test "analyzer-anal01 function basic doris-4.x" {
   // SELECT abs(a) FROM t — abs resolves via Catalog::function to a Function
   // binding whose data_type is the catalog return type (D-04/D-05).
@@ -448,10 +525,12 @@ test "analyzer-anal01 function basic doris-4.x" {
   let raw = b"SELECT abs(a) FROM t"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
-  ]).with_function(
-    "abs",
-    { name: "abs", param_types: ["INT"], return_type: "INT", min_arity: 1 },
-  )
+  ]).with_function("abs", {
+    name: "abs",
+    param_types: ["INT"],
+    return_type: "INT",
+    min_arity: 1,
+  })
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 3)
   let table = result.bindings[0]
@@ -476,6 +555,7 @@ test "analyzer-anal01 function basic doris-4.x" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+///|
 test "analyzer-anal01 function unknown doris-4.x" {
   // SELECT nope(a) FROM t — nope is absent from the function registry ->
   // unknown-function on the analyzer channel; `a` still resolves as a column.
@@ -495,11 +575,15 @@ test "analyzer-anal01 function unknown doris-4.x" {
   assert_eq(result.bindings[1].data_type, "INT")
   assert_eq(result.diagnostics.length(), 1)
   assert_eq(result.diagnostics[0].code, "unknown-function")
-  assert_eq(result.diagnostics[0].message, "function not found in catalog: nope")
+  assert_eq(
+    result.diagnostics[0].message,
+    "function not found in catalog: nope",
+  )
   assert_eq(result.diagnostics[0].start_byte, 7)
   assert_eq(result.diagnostics[0].end_byte, 11)
 }
 
+///|
 test "analyzer-anal01 function arity doris-4.x" {
   // SELECT concat(a) FROM t — concat requires >= 2 args; 1 arg -> function-arity.
   // The Function binding is still emitted (the name resolved); the arity
@@ -508,10 +592,12 @@ test "analyzer-anal01 function arity doris-4.x" {
   let raw = b"SELECT concat(a) FROM t"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
-  ]).with_function(
-    "concat",
-    { name: "concat", param_types: ["VARCHAR", "VARCHAR"], return_type: "VARCHAR", min_arity: 2 },
-  )
+  ]).with_function("concat", {
+    name: "concat",
+    param_types: ["VARCHAR", "VARCHAR"],
+    return_type: "VARCHAR",
+    min_arity: 2,
+  })
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 3)
   assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
@@ -527,11 +613,15 @@ test "analyzer-anal01 function arity doris-4.x" {
   assert_eq(result.bindings[2].data_type, "INT")
   assert_eq(result.diagnostics.length(), 1)
   assert_eq(result.diagnostics[0].code, "function-arity")
-  assert_eq(result.diagnostics[0].message, "function concat expects between 2 and 2 arguments, got 1")
+  assert_eq(
+    result.diagnostics[0].message,
+    "function concat expects between 2 and 2 arguments, got 1",
+  )
   assert_eq(result.diagnostics[0].start_byte, 7)
   assert_eq(result.diagnostics[0].end_byte, 13)
 }
 
+///|
 test "analyzer-anal01 unknown-column doris-4.x" {
   // D-04: SELECT nope FROM t — t has columns but not `nope` -> unknown-column
   // on the analyzer channel (never the syntax valid channel, ANLY-01).
@@ -548,11 +638,15 @@ test "analyzer-anal01 unknown-column doris-4.x" {
   assert_eq(result.bindings[0].end_byte, 18)
   assert_eq(result.diagnostics.length(), 1)
   assert_eq(result.diagnostics[0].code, "unknown-column")
-  assert_eq(result.diagnostics[0].message, "column not found in any visible table: nope")
+  assert_eq(
+    result.diagnostics[0].message,
+    "column not found in any visible table: nope",
+  )
   assert_eq(result.diagnostics[0].start_byte, 7)
   assert_eq(result.diagnostics[0].end_byte, 11)
 }
 
+///|
 test "analyzer-anal01 dml update columns doris-4.x" {
   // D-02: UPDATE t SET a = 1 WHERE b = 2 — SET and WHERE column refs resolve
   // against the target table's columns (data_type from the catalog);
@@ -561,7 +655,13 @@ test "analyzer-anal01 dml update columns doris-4.x" {
   let t = @mtest.Test("analyzer-anal01 dml update columns doris-4.x")
   let raw = b"UPDATE t SET a = 1 WHERE b = 2"
   let catalog = @analyzer.StaticCatalog::new([
-    { name: "t", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "VARCHAR(10)" }] },
+    {
+      name: "t",
+      columns: [
+        { name: "a", data_type: "INT" },
+        { name: "b", data_type: "VARCHAR(10)" },
+      ],
+    },
   ])
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 3)
@@ -585,9 +685,14 @@ test "analyzer-anal01 dml update columns doris-4.x" {
   assert_eq(b.start_byte, 25)
   assert_eq(b.end_byte, 26)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.dml-update-columns.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.dml-update-columns.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 create-view body doris-4.x" {
   // D-02: CREATE VIEW v AS SELECT a FROM t — the query body after AS is
   // re-parsed through the existing SELECT analysis, binding the body's t
@@ -614,9 +719,14 @@ test "analyzer-anal01 create-view body doris-4.x" {
   assert_eq(col.start_byte, 24)
   assert_eq(col.end_byte, 25)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.create-view-body.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.create-view-body.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 ambiguous reference doris-4.x" {
   // D-04: SELECT a FROM t1 JOIN t2 ON t1.id = t2.id — unqualified `a` exists in
   // both visible tables -> ambiguous-reference on the analyzer channel.
@@ -625,8 +735,20 @@ test "analyzer-anal01 ambiguous reference doris-4.x" {
   let t = @mtest.Test("analyzer-anal01 ambiguous reference doris-4.x")
   let raw = b"SELECT a FROM t1 JOIN t2 ON t1.id = t2.id"
   let catalog = @analyzer.StaticCatalog::new([
-    { name: "t1", columns: [{ name: "a", data_type: "INT" }, { name: "id", data_type: "INT" }] },
-    { name: "t2", columns: [{ name: "a", data_type: "VARCHAR(5)" }, { name: "id", data_type: "INT" }] },
+    {
+      name: "t1",
+      columns: [
+        { name: "a", data_type: "INT" },
+        { name: "id", data_type: "INT" },
+      ],
+    },
+    {
+      name: "t2",
+      columns: [
+        { name: "a", data_type: "VARCHAR(5)" },
+        { name: "id", data_type: "INT" },
+      ],
+    },
   ])
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 2)
@@ -643,24 +765,34 @@ test "analyzer-anal01 ambiguous reference doris-4.x" {
   assert_eq(result.diagnostics[0].message, "ambiguous reference: a")
   assert_eq(result.diagnostics[0].start_byte, 7)
   assert_eq(result.diagnostics[0].end_byte, 8)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.ambiguous-reference.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.ambiguous-reference.doris-4.x.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
 // Phase 5 code-review fixes (05-REVIEW.md): CR-01 and WR-01..WR-06.
 // ---------------------------------------------------------------------------
 
+///|
 test "analyzer-anal01 binary expr no fabricated alias doris-4.x" {
   // CR-01 (BLOCKER): SELECT price * qty FROM orders — the trailing bare-alias
   // heuristic must NOT bind `qty` as an alias. Both operands resolve as Column
   // bindings and no Alias binding is fabricated.
   // SELECT[0,6) price[7,12) *[13,14) qty[15,18) FROM[19,23) orders[24,30)
-  let t = @mtest.Test("analyzer-anal01 binary expr no fabricated alias doris-4.x")
+  let t = @mtest.Test(
+    "analyzer-anal01 binary expr no fabricated alias doris-4.x",
+  )
   let raw = b"SELECT price * qty FROM orders"
   let catalog = @analyzer.StaticCatalog::new([
     {
       name: "orders",
-      columns: [{ name: "price", data_type: "DECIMAL(10,2)" }, { name: "qty", data_type: "INT" }],
+      columns: [
+        { name: "price", data_type: "DECIMAL(10,2)" },
+        { name: "qty", data_type: "INT" },
+      ],
     },
   ])
   let result = analyze_sql(raw, catalog)
@@ -686,9 +818,14 @@ test "analyzer-anal01 binary expr no fabricated alias doris-4.x" {
     assert_true(binding.kind != @analyzer.BindingKind::Alias)
   }
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.binary-expr-no-alias.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.binary-expr-no-alias.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 window over partition no false unknown doris-4.x" {
   // WR-03: SUM(x) OVER (PARTITION BY y ORDER BY z) — the window spec must not
   // produce unknown-column diagnostics for y/z/PARTITION/ORDER. Only the
@@ -699,10 +836,12 @@ test "analyzer-anal01 window over partition no false unknown doris-4.x" {
   let raw = b"SELECT SUM(x) OVER (PARTITION BY y ORDER BY z) AS s FROM t"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "x", data_type: "INT" }] },
-  ]).with_function(
-    "SUM",
-    { name: "SUM", param_types: ["INT"], return_type: "INT", min_arity: 1 },
-  )
+  ]).with_function("SUM", {
+    name: "SUM",
+    param_types: ["INT"],
+    return_type: "INT",
+    min_arity: 1,
+  })
   let result = analyze_sql(raw, catalog)
   assert_eq(result.bindings.length(), 4)
   assert_eq(result.bindings[0].kind, @analyzer.BindingKind::Table)
@@ -725,6 +864,7 @@ test "analyzer-anal01 window over partition no false unknown doris-4.x" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+///|
 test "analyzer-anal01 correlated subquery no false ambiguous doris-4.x" {
   // WR-04: SELECT t1.id FROM t1, (SELECT a FROM t2) x — the inner unqualified
   // `a` resolves against the subquery's own block (t2.a) and must NOT collide
@@ -733,7 +873,13 @@ test "analyzer-anal01 correlated subquery no false ambiguous doris-4.x" {
   // ([22,40) SELECT[23,29) a[30,31) FROM[32,36) t2[37,39) )[39] x[41,42)
   let raw = b"SELECT t1.id FROM t1, (SELECT a FROM t2) x"
   let catalog = @analyzer.StaticCatalog::new([
-    { name: "t1", columns: [{ name: "id", data_type: "INT" }, { name: "a", data_type: "INT" }] },
+    {
+      name: "t1",
+      columns: [
+        { name: "id", data_type: "INT" },
+        { name: "a", data_type: "INT" },
+      ],
+    },
     { name: "t2", columns: [{ name: "a", data_type: "VARCHAR(5)" }] },
   ])
   let result = analyze_sql(raw, catalog)
@@ -765,6 +911,7 @@ test "analyzer-anal01 correlated subquery no false ambiguous doris-4.x" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+///|
 test "analyzer-anal01 anonymous subquery star expansion doris-4.x" {
   // WR-05: SELECT * FROM (SELECT a FROM t) — the anonymous subquery's columns
   // must participate in bare `*` expansion (previously skipped because its
@@ -794,6 +941,7 @@ test "analyzer-anal01 anonymous subquery star expansion doris-4.x" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+///|
 test "analyzer-anal01 order-by projection alias doris-4.x" {
   // WR-06: SELECT a AS x FROM t ORDER BY x — the ORDER BY projection-alias
   // reference must resolve (no unknown-column) and binds before table columns.
@@ -826,20 +974,24 @@ test "analyzer-anal01 order-by projection alias doris-4.x" {
   assert_eq(result.bindings[3].start_byte, 30)
   assert_eq(result.bindings[3].end_byte, 31)
   assert_eq(result.diagnostics.length(), 0)
-  analyzer_snapshot_test(t, analysis_result_to_json(result), "analyzer.order-by-proj-alias.doris-4.x.json")
+  analyzer_snapshot_test(
+    t,
+    analysis_result_to_json(result),
+    "analyzer.order-by-proj-alias.doris-4.x.json",
+  )
 }
 
+///|
 test "analyzer-anal01 db quoted star byte recheck doris-4.x" {
   // WR-01: `db.\`T\`.*` must byte-recheck the quoted table segment (D-03).
   // A catalog holding only `db.t` (lowercase) must NOT satisfy the quoted
   // `T` spelling -> unknown-table. The unquoted `db.t.*` form still resolves.
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
-  ]).with_db(
-    "db",
-    "t",
-    { name: "t", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "INT" }] },
-  )
+  ]).with_db("db", "t", {
+    name: "t",
+    columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "INT" }],
+  })
   // Positive: unquoted db.t.* expands columns.
   let ok = analyze_sql(b"SELECT db.t.* FROM db.t", catalog)
   assert_eq(ok.bindings.length(), 3)

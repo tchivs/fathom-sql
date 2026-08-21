@@ -15,6 +15,7 @@
 /// inner catalog) is a documented limitation — such a view reports zero output
 /// columns and a referencing `SELECT *` yields a requires-catalog gap.
 
+///|
 /// Token index just past the CREATE VIEW leading-keyword prefix (mirror of
 /// the analyzer's `view_body_location` prefix scan; needed to recover the
 /// view name itself).
@@ -41,6 +42,7 @@ fn view_prefix_end(tokens : Array[(Bytes, Int, Int)]) -> Int {
   prefix
 }
 
+///|
 /// The dotted name of a CREATE VIEW statement, or None when unrecoverable.
 fn view_name(tokens : Array[(Bytes, Int, Int)]) -> String? {
   let prefix = view_prefix_end(tokens)
@@ -50,6 +52,7 @@ fn view_name(tokens : Array[(Bytes, Int, Int)]) -> String? {
   }
 }
 
+///|
 /// The explicit CREATE VIEW column-name list `(x, y)` between the view name
 /// and AS (D-03 / WR-03), or None when the view declares no such list. When
 /// present, these names (in order) are the view's output columns regardless
@@ -58,7 +61,7 @@ fn view_name(tokens : Array[(Bytes, Int, Int)]) -> String? {
 fn view_column_list(tokens : Array[(Bytes, Int, Int)]) -> Array[String]? {
   let prefix = view_prefix_end(tokens)
   match @analyzer.qualified_ref_at(tokens, prefix) {
-    Some((_, after_name)) => {
+    Some((_, after_name)) =>
       if after_name < tokens.length() && tokens[after_name].0 == b"(" {
         let close = @analyzer.matching_paren(tokens, after_name)
         if close >= tokens.length() {
@@ -76,11 +79,11 @@ fn view_column_list(tokens : Array[(Bytes, Int, Int)]) -> Array[String]? {
       } else {
         None
       }
-    }
     None => None
   }
 }
 
+///|
 /// Output columns of a view body's first branch (D-03): explicit column-name
 /// list first (WR-03), else alias, else the single-ref column name, else
 /// star-expanded Column bindings (from the pass-1 analysis). `data_type` is
@@ -104,7 +107,7 @@ fn view_output_columns(
           Some(names) if idx < names.length() => names[idx]
           _ => col.resolved_to
         }
-        out.push({ name: name, data_type: col.data_type })
+        out.push({ name, data_type: col.data_type })
         idx = idx + 1
       }
     } else {
@@ -122,6 +125,7 @@ fn view_output_columns(
   out
 }
 
+///|
 /// Builds the in-document view registry: walks CreateView bodies in document
 /// order and maps each view name to its output columns (D-03).
 fn build_view_registry(
@@ -132,40 +136,45 @@ fn build_view_registry(
   let registry : Map[String, Array[@analyzer.ColumnInfo]] = Map([])
   for element in root.children() {
     match element {
-      @syntax.SyntaxElement::ChildNode(statement_node) => {
+      @syntax.SyntaxElement::ChildNode(statement_node) =>
         if statement_node.kind() is @syntax.SyntaxKind::Statement {
           for inner in statement_node.children() {
             match inner {
-              @syntax.SyntaxElement::ChildNode(body) => {
+              @syntax.SyntaxElement::ChildNode(body) =>
                 if body.kind() is @syntax.SyntaxKind::CreateView {
                   let tokens = @analyzer.source_tokens(body, source_bytes)
                   match view_name(tokens) {
                     Some(name) => {
                       let query_start = @analyzer.view_body_location(tokens)
-                      let body_tokens = sub_tokens(tokens, query_start, tokens.length())
+                      let body_tokens = sub_tokens(
+                        tokens,
+                        query_start,
+                        tokens.length(),
+                      )
                       let explicit_names = view_column_list(tokens)
                       match @analyzer.split_select_model(body_tokens) {
-                        Some(model) => {
-                          registry.set(name, view_output_columns(model, bindings, explicit_names))
-                        }
+                        Some(model) =>
+                          registry.set(
+                            name,
+                            view_output_columns(model, bindings, explicit_names),
+                          )
                         None => ()
                       }
                     }
                     None => ()
                   }
                 }
-              }
               @syntax.SyntaxElement::Leaf(_) => ()
             }
           }
         }
-      }
       @syntax.SyntaxElement::Leaf(_) => ()
     }
   }
   registry
 }
 
+///|
 /// Case-insensitive view-registry lookup returning the stored (author-casing)
 /// key alongside the columns, so the resolve layer's quoted byte-recheck
 /// compares against the stored view name (D-03, Pitfall 4).
@@ -181,6 +190,7 @@ fn view_lookup(
   None
 }
 
+///|
 /// View registry + inner catalog wrapper (D-03 / Pattern 2). `views` maps a
 /// view name (author casing preserved) to its output columns; lookup is
 /// parsing-time ASCII case-fold with the resolve layer's quoted byte-recheck
@@ -190,23 +200,36 @@ pub struct ViewCatalog[T] {
   pub inner : T
 }
 
+///|
 /// `table` consults the view registry first (case-fold hit -> view output
 /// columns as a TableInfo), then delegates to the inner catalog. A same-name
 /// view shadows a catalog table (Pitfall 4).
-pub impl[T : @analyzer.Catalog] @analyzer.Catalog for ViewCatalog[T] with table(self, name) {
+pub impl[T : @analyzer.Catalog] @analyzer.Catalog for ViewCatalog[T] with fn table(
+  self,
+  name,
+) {
   match view_lookup(self.views, name) {
     Some((key, cols)) => Some({ name: key, columns: cols })
     None => self.inner.table(name)
   }
 }
 
+///|
 /// Views live only in the default-db namespace (A3): db-qualified lookups
 /// delegate to the inner catalog.
-pub impl[T : @analyzer.Catalog] @analyzer.Catalog for ViewCatalog[T] with table_in_db(self, db, name) {
+pub impl[T : @analyzer.Catalog] @analyzer.Catalog for ViewCatalog[T] with fn table_in_db(
+  self,
+  db,
+  name,
+) {
   self.inner.table_in_db(db, name)
 }
 
+///|
 /// Function lookups delegate to the inner catalog (views carry no functions).
-pub impl[T : @analyzer.Catalog] @analyzer.Catalog for ViewCatalog[T] with function(self, name) {
+pub impl[T : @analyzer.Catalog] @analyzer.Catalog for ViewCatalog[T] with fn function(
+  self,
+  name,
+) {
   self.inner.function(name)
 }

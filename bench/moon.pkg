@@ -1,9 +1,10 @@
 pkgtype(kind: "library")
+
 import {
-  "fathom/sql/api" @api,
-  "fathom/sql/parser" @parser,
-  "fathom/sql/source" @source,
-  "fathom/sql/dialect" @dialect,
-  "moonbitlang/core/bench" @bench,
-  "moonbitlang/core/buffer" @buffer,
+  "fathom/sql/api",
+  "fathom/sql/parser",
+  "fathom/sql/source",
+  "fathom/sql/dialect",
+  "moonbitlang/core/bench",
+  "moonbitlang/core/buffer",
 }

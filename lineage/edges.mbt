@@ -11,6 +11,7 @@
 /// branch/CTE order -> SelectItem order -> refs order; star expansion follows
 /// scope-entry order x catalog column order. Deterministic across targets.
 
+///|
 /// UTF-8 decode of a byte slice into a String (lossy: malformed bytes become
 /// U+FFFD). Local decoder keeps this package's D-21 import list to
 /// analyzer + syntax only (mirrors analyzer/analyzer.mbt utf8_to_string).
@@ -30,14 +31,23 @@ fn utf8_to_string(bytes : Bytes) -> String {
     } else if first >= 0xE0 && first < 0xF0 && i + 2 < len {
       let second = bytes[i + 1].to_int()
       let third = bytes[i + 2].to_int()
-      chars.push(Char::from_int(((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F)))
+      chars.push(
+        Char::from_int(
+          ((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F),
+        ),
+      )
       i = i + 3
     } else if first >= 0xF0 && first < 0xF8 && i + 3 < len {
       let second = bytes[i + 1].to_int()
       let third = bytes[i + 2].to_int()
       let fourth = bytes[i + 3].to_int()
       chars.push(
-        Char::from_int(((first & 0x07) << 18) | ((second & 0x3F) << 12) | ((third & 0x3F) << 6) | (fourth & 0x3F)),
+        Char::from_int(
+          ((first & 0x07) << 18) |
+          ((second & 0x3F) << 12) |
+          ((third & 0x3F) << 6) |
+          (fourth & 0x3F),
+        ),
       )
       i = i + 4
     } else {
@@ -48,6 +58,7 @@ fn utf8_to_string(bytes : Bytes) -> String {
   String::from_iter(chars.iter())
 }
 
+///|
 /// Identifier text for resolution: quoted identifiers (backtick/`"`) return
 /// the inner text; unquoted identifiers return the whole text (D-03).
 fn identifier_text(bytes : Bytes) -> String {
@@ -61,6 +72,7 @@ fn identifier_text(bytes : Bytes) -> String {
   }
 }
 
+///|
 /// ASCII case-insensitive byte compare (mirror of parser/analyzer helpers).
 fn bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
   if actual.length() != expected.length() {
@@ -72,7 +84,11 @@ fn bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
       let left = actual[index].to_int()
       let right = expected[index].to_int()
       let folded_left = if left >= 97 && left <= 122 { left - 32 } else { left }
-      let folded_right = if right >= 97 && right <= 122 { right - 32 } else { right }
+      let folded_right = if right >= 97 && right <= 122 {
+        right - 32
+      } else {
+        right
+      }
       if folded_left != folded_right {
         equal = false
       }
@@ -82,6 +98,7 @@ fn bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
   }
 }
 
+///|
 /// Joins an array of strings with a separator.
 fn join_strings(parts : Array[String], sep : String) -> String {
   let mut out = ""
@@ -97,6 +114,7 @@ fn join_strings(parts : Array[String], sep : String) -> String {
   out
 }
 
+///|
 /// Dotted display name of a NameRef (identifier segments joined by `.`).
 fn dotted_name(ref : @analyzer.NameRef) -> String {
   let parts : Array[String] = []
@@ -106,6 +124,7 @@ fn dotted_name(ref : @analyzer.NameRef) -> String {
   join_strings(parts, ".")
 }
 
+///|
 /// Last identifier segment of a NameRef (the column name for `t.c`).
 fn ref_last_part(ref : @analyzer.NameRef) -> String {
   let n = ref.parts.length()
@@ -116,6 +135,7 @@ fn ref_last_part(ref : @analyzer.NameRef) -> String {
   }
 }
 
+///|
 /// The first Column-kind binding at the exact span, or None. A regular NameRef
 /// span is unique per token run; star expansion emits one binding per column
 /// sharing the star span (see `column_bindings_at`).
@@ -126,13 +146,15 @@ fn column_binding_at(
 ) -> @analyzer.Binding? {
   for binding in bindings {
     if binding.kind is @analyzer.BindingKind::Column &&
-      binding.start_byte == start && binding.end_byte == end {
+      binding.start_byte == start &&
+      binding.end_byte == end {
       return Some(binding)
     }
   }
   None
 }
 
+///|
 /// All Column-kind bindings at the exact span (star expansion: one per
 /// expanded column, all sharing the star span).
 fn column_bindings_at(
@@ -143,26 +165,34 @@ fn column_bindings_at(
   let out : Array[@analyzer.Binding] = []
   for binding in bindings {
     if binding.kind is @analyzer.BindingKind::Column &&
-      binding.start_byte == start && binding.end_byte == end {
+      binding.start_byte == start &&
+      binding.end_byte == end {
       out.push(binding)
     }
   }
   out
 }
 
+///|
 /// True when any Table-kind binding falls within `[start, end)` — the signal
 /// that a star in the same body has a resolvable table (so a zero-column star
 /// is an all-excluded/empty expansion, not a catalog miss).
-fn has_table_binding_in(bindings : Array[@analyzer.Binding], start : Int, end : Int) -> Bool {
+fn has_table_binding_in(
+  bindings : Array[@analyzer.Binding],
+  start : Int,
+  end : Int,
+) -> Bool {
   for binding in bindings {
     if binding.kind is @analyzer.BindingKind::Table &&
-      binding.start_byte >= start && binding.end_byte <= end {
+      binding.start_byte >= start &&
+      binding.end_byte <= end {
       return true
     }
   }
   false
 }
 
+///|
 /// Diagnostics whose span falls within `[start, end)`.
 fn diagnostics_in(
   diagnostics : Array[@analyzer.AnalysisDiagnostic],
@@ -178,6 +208,7 @@ fn diagnostics_in(
   out
 }
 
+///|
 /// Token sub-range `[start, end)` (loop-based to avoid a core slice API).
 fn sub_tokens(
   tokens : Array[(Bytes, Int, Int)],
@@ -193,6 +224,7 @@ fn sub_tokens(
   out
 }
 
+///|
 /// The star token span of a star SelectItem (the last token of the item's
 /// token list — the `*`, or the trailing `*` of `t.*`/`db.t.*`).
 fn star_span(item : @analyzer.SelectItem) -> (Int, Int) {
@@ -204,6 +236,7 @@ fn star_span(item : @analyzer.SelectItem) -> (Int, Int) {
   }
 }
 
+///|
 /// The first resolved Column binding among an item's refs (the analyzer's
 /// `resolved_refs[0]` equivalent), or None.
 fn first_resolved_column(
@@ -212,13 +245,15 @@ fn first_resolved_column(
 ) -> (String, Int, Int)? {
   for ref in item.refs {
     match column_binding_at(bindings, ref.start_byte, ref.end_byte) {
-      Some(binding) => return Some((binding.resolved_to, ref.start_byte, ref.end_byte))
+      Some(binding) =>
+        return Some((binding.resolved_to, ref.start_byte, ref.end_byte))
       None => ()
     }
   }
   None
 }
 
+///|
 /// The output column (name, start, end) of one non-star SelectItem, matching
 /// the analyzer's own output-column derivation (Pattern 1 / A4): alias ->
 /// alias slice; single ref -> resolved column (ref span); multi-ref -> first
@@ -229,19 +264,18 @@ fn item_target(
   bindings : Array[@analyzer.Binding],
 ) -> (String, Int, Int) {
   match item.alias {
-    Some(alias) => {
+    Some(alias) =>
       match item.alias_slice {
         Some(slice) => (alias, slice.start_byte, slice.end_byte)
         None => (alias, 0, 0)
       }
-    }
-    None => {
+    None =>
       if item.star {
         let (s, e) = star_span(item)
         ("", s, e)
       } else {
         match first_resolved_column(item, bindings) {
-          Some((name, s, e)) => {
+          Some((name, s, e)) =>
             if item.refs.length() == 1 {
               (name, s, e)
             } else {
@@ -257,24 +291,25 @@ fn item_target(
               }
               (name, start, end)
             }
-          }
-          None => {
+          None =>
             if item.refs.length() > 0 {
               let ref = item.refs[0]
               (ref_last_part(ref), ref.start_byte, ref.end_byte)
             } else {
               ("", 0, 0)
             }
-          }
         }
       }
-    }
   }
 }
 
+///|
 /// Number of output columns one SelectItem produces (star items produce one
 /// per expanded column binding at the star span).
-fn output_count(item : @analyzer.SelectItem, bindings : Array[@analyzer.Binding]) -> Int {
+fn output_count(
+  item : @analyzer.SelectItem,
+  bindings : Array[@analyzer.Binding],
+) -> Int {
   if item.star {
     let (s, e) = star_span(item)
     column_bindings_at(bindings, s, e).length()
@@ -283,6 +318,7 @@ fn output_count(item : @analyzer.SelectItem, bindings : Array[@analyzer.Binding]
   }
 }
 
+///|
 /// Output column NAMES of one SELECT core (star items expand to one name per
 /// expanded column). Used as the positional map for UNION branches.
 fn output_names(
@@ -304,6 +340,7 @@ fn output_names(
   names
 }
 
+///|
 /// Qualifies an output column name with a nested-body qualifier (CTE name,
 /// view name, or subquery alias): `c.a` / `v.a` / `s.a`. None returns the
 /// plain name.
@@ -314,6 +351,7 @@ fn qualify(name : String, qualifier : String?) -> String {
   }
 }
 
+///|
 /// Derives edges + star gaps for one SELECT-list item at flat position `pos`
 /// (UNION positional mapping via `union_names`). Returns whether an
 /// unexpanded-star requires-catalog gap was emitted.
@@ -381,7 +419,7 @@ fn derive_item(
     // output-column expression contributes one edge to that output column.
     for ref in item.refs {
       match column_binding_at(bindings, ref.start_byte, ref.end_byte) {
-        Some(binding) => {
+        Some(binding) =>
           out_edges.push({
             source_name: binding.name,
             source_resolved_to: binding.resolved_to,
@@ -391,7 +429,6 @@ fn derive_item(
             target_start_byte: ts,
             target_end_byte: te,
           })
-        }
         None => ()
       }
     }
@@ -399,6 +436,7 @@ fn derive_item(
   }
 }
 
+///|
 /// Derives edges + star gaps for one SELECT core (subquery bodies first, then
 /// select-list items). Returns whether any unexpanded-star gap fired.
 fn derive_core(
@@ -415,19 +453,18 @@ fn derive_core(
   for item in core.from {
     if item.is_subquery {
       match item.subquery {
-        Some(model) => {
+        Some(model) =>
           if derive_model(
-            model,
-            bindings,
-            catalog_none,
-            item.alias,
-            body_has_table_binding,
-            out_edges,
-            out_gaps,
-          ) {
+              model,
+              bindings,
+              catalog_none,
+              item.alias,
+              body_has_table_binding,
+              out_edges,
+              out_gaps,
+            ) {
             star_fired = true
           }
-        }
         None => ()
       }
     }
@@ -435,26 +472,28 @@ fn derive_core(
   for item in core.joins {
     if item.is_subquery {
       match item.subquery {
-        Some(model) => {
+        Some(model) =>
           if derive_model(
-            model,
-            bindings,
-            catalog_none,
-            item.alias,
-            body_has_table_binding,
-            out_edges,
-            out_gaps,
-          ) {
+              model,
+              bindings,
+              catalog_none,
+              item.alias,
+              body_has_table_binding,
+              out_edges,
+              out_gaps,
+            ) {
             star_fired = true
           }
-        }
         None => ()
       }
     }
   }
   let mut pos = 0
   for item in core.select_list {
-    if derive_item(item, bindings, qualifier, union_names, body_has_table_binding, pos, out_edges, out_gaps) {
+    if derive_item(
+        item, bindings, qualifier, union_names, body_has_table_binding, pos, out_edges,
+        out_gaps,
+      ) {
       star_fired = true
     }
     pos = pos + output_count(item, bindings)
@@ -462,6 +501,7 @@ fn derive_core(
   star_fired
 }
 
+///|
 /// Derives edges + star gaps for a full SELECT model: CTE bodies first (each
 /// qualified by its CTE name), then UNION branches positionally mapped to the
 /// first branch's output column names (D-04). Returns whether any
@@ -479,15 +519,15 @@ fn derive_model(
   for cte in model.ctes {
     let names = output_names(cte.body, bindings)
     if derive_core(
-      cte.body,
-      bindings,
-      catalog_none,
-      Some(cte.name),
-      names,
-      body_has_table_binding,
-      out_edges,
-      out_gaps,
-    ) {
+        cte.body,
+        bindings,
+        catalog_none,
+        Some(cte.name),
+        names,
+        body_has_table_binding,
+        out_edges,
+        out_gaps,
+      ) {
       star_fired = true
     }
   }
@@ -498,21 +538,16 @@ fn derive_model(
   }
   for branch in model.branches {
     if derive_core(
-      branch,
-      bindings,
-      catalog_none,
-      qualifier,
-      union_names,
-      body_has_table_binding,
-      out_edges,
-      out_gaps,
-    ) {
+        branch, bindings, catalog_none, qualifier, union_names, body_has_table_binding,
+        out_edges, out_gaps,
+      ) {
       star_fired = true
     }
   }
   star_fired
 }
 
+///|
 /// The first diagnostic with the given code, or None.
 fn first_diag_with_code(
   diagnostics : Array[@analyzer.AnalysisDiagnostic],
@@ -526,6 +561,7 @@ fn first_diag_with_code(
   None
 }
 
+///|
 /// One SELECT-family body's lineage contribution (shared by top-level SELECT
 /// bodies and CREATE VIEW query bodies — the latter pass the view name as
 /// `qualifier`). `model` is None when the body re-parse failed (a
@@ -544,13 +580,15 @@ fn derive_select_body(
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
   if has_error {
-    let message = match first_diag_with_code(diagnostics, "requires-complete-parse") {
+    let message = match
+      first_diag_with_code(diagnostics, "requires-complete-parse") {
       Some(d) => d.message
-      None => "refusing to derive lineage for a statement with error/missing material"
+      None =>
+        "refusing to derive lineage for a statement with error/missing material"
     }
     gaps.push({
       code: GAP_REQUIRES_COMPLETE_PARSE,
-      message: message,
+      message,
       start_byte: body_start,
       end_byte: body_end,
     })
@@ -561,11 +599,12 @@ fn derive_select_body(
   // unknown-table -> requires-catalog gaps in the same body — gaps.mbt).
   let mut star_fired = false
   match model {
-    Some(m) => {
-      if derive_model(m, bindings, catalog_none, qualifier, body_has_table_binding, edges, gaps) {
+    Some(m) =>
+      if derive_model(
+          m, bindings, catalog_none, qualifier, body_has_table_binding, edges, gaps,
+        ) {
         star_fired = true
       }
-    }
     None => ()
   }
   let mapped = map_diagnostic_gaps(diagnostics, catalog_none, star_fired)
@@ -575,6 +614,7 @@ fn derive_select_body(
   (edges, gaps)
 }
 
+///|
 /// Appends edge/gap batches to the accumulators.
 fn append_edges_gaps(
   edges : Array[LineageEdge],
@@ -590,6 +630,7 @@ fn append_edges_gaps(
   }
 }
 
+///|
 /// Walks one parsed document's statement bodies and derives lineage edges +
 /// gaps: SELECT bodies, CREATE VIEW bodies (edges into the view's output
 /// columns), and INSERT bodies (D-04 positional mapping).
@@ -602,7 +643,11 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
   // Pass 1: analyze with the inner catalog so stars inside CREATE VIEW bodies
   // expand over base tables, feeding the view registry (D-03).
   let analysis_inner = @analyzer.analyze(root, source_bytes, catalog)
-  let registry = build_view_registry(root, source_bytes, analysis_inner.bindings)
+  let registry = build_view_registry(
+    root,
+    source_bytes,
+    analysis_inner.bindings,
+  )
   let view_catalog = ViewCatalog::{ views: registry, inner: catalog }
   // Pass 2: analyze with the view catalog so `FROM v` resolves to view columns.
   let analysis = @analyzer.analyze(root, source_bytes, view_catalog)
@@ -610,16 +655,26 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
   let gaps : Array[LineageGap] = []
   for element in root.children() {
     match element {
-      @syntax.SyntaxElement::ChildNode(statement_node) => {
+      @syntax.SyntaxElement::ChildNode(statement_node) =>
         if statement_node.kind() is @syntax.SyntaxKind::Statement {
           for inner in statement_node.children() {
             match inner {
               @syntax.SyntaxElement::ChildNode(body) => {
                 let body_start = body.span().start_byte
                 let body_end = body.span().end_byte
-                let body_diagnostics = diagnostics_in(analysis.diagnostics, body_start, body_end)
-                let body_has_table_binding = has_table_binding_in(analysis.bindings, body_start, body_end)
-                let has_error = body.is_error() || body.is_missing() || @analyzer.has_error_missing(body)
+                let body_diagnostics = diagnostics_in(
+                  analysis.diagnostics,
+                  body_start,
+                  body_end,
+                )
+                let body_has_table_binding = has_table_binding_in(
+                  analysis.bindings,
+                  body_start,
+                  body_end,
+                )
+                let has_error = body.is_error() ||
+                  body.is_missing() ||
+                  @analyzer.has_error_missing(body)
                 match body.kind() {
                   @syntax.SyntaxKind::Select => {
                     let tokens = @analyzer.source_tokens(body, source_bytes)
@@ -637,7 +692,7 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
                     )
                     append_edges_gaps(edges, gaps, e, g)
                   }
-                  @syntax.SyntaxKind::CreateView => {
+                  @syntax.SyntaxKind::CreateView =>
                     if has_error {
                       let (e, g) = derive_select_body(
                         None,
@@ -655,7 +710,11 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
                       let tokens = @analyzer.source_tokens(body, source_bytes)
                       let name = view_name(tokens)
                       let query_start = @analyzer.view_body_location(tokens)
-                      let body_tokens = sub_tokens(tokens, query_start, tokens.length())
+                      let body_tokens = sub_tokens(
+                        tokens,
+                        query_start,
+                        tokens.length(),
+                      )
                       let model = @analyzer.split_select_model(body_tokens)
                       let (e, g) = derive_select_body(
                         model,
@@ -670,7 +729,6 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
                       )
                       append_edges_gaps(edges, gaps, e, g)
                     }
-                  }
                   @syntax.SyntaxKind::Insert => {
                     let tokens = @analyzer.source_tokens(body, source_bytes)
                     let (e, g) = derive_insert_body(
@@ -692,13 +750,13 @@ fn[T : @analyzer.Catalog] derive_lineage_inner(
             }
           }
         }
-      }
       @syntax.SyntaxElement::Leaf(_) => ()
     }
   }
-  { edges: edges, gaps: gaps }
+  { edges, gaps }
 }
 
+///|
 /// Derives column lineage for a parsed document (LINE-01).
 ///
 /// - `root`: the parsed document root (`@syntax.SyntaxNode`).
@@ -718,6 +776,7 @@ pub fn[T : @analyzer.Catalog] derive_lineage(
   derive_lineage_inner(root, source_bytes, catalog, false)
 }
 
+///|
 /// Derives column lineage with no catalog metadata: every star/`table.*`
 /// projection and every external view reports a `requires-catalog` gap —
 /// lineage never fabricates edges (SC2 / D-05).
@@ -732,5 +791,10 @@ pub fn derive_lineage_without_catalog(
   root : @syntax.SyntaxNode,
   source_bytes : Bytes,
 ) -> LineageResult {
-  derive_lineage_inner(root, source_bytes, @analyzer.StaticCatalog::new([]), true)
+  derive_lineage_inner(
+    root,
+    source_bytes,
+    @analyzer.StaticCatalog::new([]),
+    true,
+  )
 }

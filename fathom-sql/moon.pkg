@@ -6,13 +6,14 @@
 // this package (the formatter and api stay backend-neutral for the Wasm/JS
 // targets).
 pkgtype(kind: "executable")
+
 import {
-  "fathom/sql/api" @api,
-  "fathom/sql/binding" @binding,
-  "fathom/sql/lsp" @lsp,
-  "fathom/sql/version" @version,
-  "moonbitlang/core/buffer" @buffer,
-  "moonbitlang/core/debug" @debug,
-  "moonbitlang/core/env" @env,
-  "moonbitlang/core/encoding/utf8" @utf8,
+  "fathom/sql/api",
+  "fathom/sql/binding",
+  "fathom/sql/lsp",
+  "fathom/sql/version",
+  "moonbitlang/core/buffer",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
 }

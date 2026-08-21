@@ -1,29 +1,33 @@
+///|
 /// Formatting policy knobs (D-25/D-26): exactly the six FMT-02 dimensions,
 /// mirroring ParseMode (api.mbt:3-6) and the ParseOptions constructor/accessor
 /// convention (api.mbt:19-118).
-
 pub(all) enum KeywordCase {
   Upper
   Lower
 } derive(Eq, @debug.Debug)
 
+///|
 pub(all) enum CommaStyle {
   Trailing
   Leading
 } derive(Eq, @debug.Debug)
 
+///|
 pub(all) enum NewlineStyle {
   FollowInput
   Lf
   Crlf
 } derive(Eq, @debug.Debug)
 
+///|
 /// Maximum accepted indent width (WR-02). A sane cap so a typo like
 /// `--indent 5000000` fails construction (InvalidIndent) instead of
 /// materializing `indent * break_indent` leading spaces per broken line —
 /// multi-gigabyte output / OOM. Realistic indents (2-8) are far below it.
 pub const MAX_INDENT : Int = 64
 
+///|
 /// Six locked fields (D-26). Construction validates (ASVS V5) mirroring
 /// ParseError::InvalidLimit (api.mbt:57-58): negative or over-cap (above
 /// MAX_INDENT) indent and non-positive line width fail construction and
@@ -37,6 +41,7 @@ pub struct FormatOptions {
   trailing_newline : Bool
 }
 
+///|
 /// Defaults per D-29..D-32: UPPERCASE, 2-space indent, 100 columns,
 /// trailing comma style, FollowInput newlines, trailing newline on.
 pub fn FormatOptions::default() -> FormatOptions {
@@ -50,6 +55,7 @@ pub fn FormatOptions::default() -> FormatOptions {
   }
 }
 
+///|
 pub fn FormatOptions::new(
   keyword_case : KeywordCase,
   indent : Int,
@@ -65,39 +71,46 @@ pub fn FormatOptions::new(
     return Err(InvalidLineWidth(value=line_width))
   }
   Ok({
-    keyword_case: keyword_case,
-    indent: indent,
-    line_width: line_width,
-    comma_style: comma_style,
-    newline_style: newline_style,
-    trailing_newline: trailing_newline,
+    keyword_case,
+    indent,
+    line_width,
+    comma_style,
+    newline_style,
+    trailing_newline,
   })
 }
 
+///|
 pub fn FormatOptions::keyword_case(self : FormatOptions) -> KeywordCase {
   self.keyword_case
 }
 
+///|
 pub fn FormatOptions::indent(self : FormatOptions) -> Int {
   self.indent
 }
 
+///|
 pub fn FormatOptions::line_width(self : FormatOptions) -> Int {
   self.line_width
 }
 
+///|
 pub fn FormatOptions::comma_style(self : FormatOptions) -> CommaStyle {
   self.comma_style
 }
 
+///|
 pub fn FormatOptions::newline_style(self : FormatOptions) -> NewlineStyle {
   self.newline_style
 }
 
+///|
 pub fn FormatOptions::trailing_newline(self : FormatOptions) -> Bool {
   self.trailing_newline
 }
 
+///|
 /// String-id mapping for the CLI flag surface (plan 03-04) and the
 /// option-combination test driver (plan 03-03), mirroring
 /// DorisProfile::from_id (token.mbt:241-248). Unknown ids return None.
@@ -109,6 +122,7 @@ pub fn KeywordCase::from_id(id : String) -> KeywordCase? {
   }
 }
 
+///|
 pub fn CommaStyle::from_id(id : String) -> CommaStyle? {
   match id {
     "trailing" => Some(CommaStyle::Trailing)
@@ -117,6 +131,7 @@ pub fn CommaStyle::from_id(id : String) -> CommaStyle? {
   }
 }
 
+///|
 pub fn NewlineStyle::from_id(id : String) -> NewlineStyle? {
   match id {
     "follow" => Some(NewlineStyle::FollowInput)

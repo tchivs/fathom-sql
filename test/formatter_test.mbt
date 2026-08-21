@@ -1,3 +1,4 @@
+///|
 /// Formatter tracer tests (plan 03-01): embedded fixtures mirroring the Phase 2
 /// EmbeddedManifestFixture convention (test/parser_test.mbt:463-505). Runtime
 /// tests never load the disk — raw bytes and goldens are embedded (STATE.md).
@@ -15,7 +16,6 @@
 /// - absolute refusal with FATHOM-FORMAT-001 on error trees (D-33);
 /// - CRLF byte-for-byte preservation (flagged assumption A2);
 /// - empty input formats to empty output.
-
 struct FormatterFixture {
   fixture_id : String
   profile : String
@@ -29,12 +29,20 @@ struct FormatterFixture {
   options : @formatter.FormatOptions?
 }
 
+///|
 fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
   let options = match fixture.options {
     Some(opts) => opts
     None => @formatter.FormatOptions::default()
   }
-  let formatted = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
+  let formatted = match
+    @api.format_with_ids(
+      fixture.raw,
+      "doris",
+      fixture.profile,
+      fixture.mode,
+      options,
+    ) {
     Ok(result) => result
     Err(_) => return false
   }
@@ -43,7 +51,14 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
       return false
     }
     // D-34: idempotence — formatting the formatted output is byte-identical.
-    let again = match @api.format_with_ids(formatted.output, "doris", fixture.profile, fixture.mode, options) {
+    let again = match
+      @api.format_with_ids(
+        formatted.output,
+        "doris",
+        fixture.profile,
+        fixture.mode,
+        options,
+      ) {
       Ok(result) => result
       Err(_) => return false
     }
@@ -51,7 +66,13 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
       return false
     }
     // D-35: the formatted output reparses cleanly with zero diagnostics.
-    let reparsed = match @api.parse_with_ids(formatted.output, "doris", fixture.profile, fixture.mode) {
+    let reparsed = match
+      @api.parse_with_ids(
+        formatted.output,
+        "doris",
+        fixture.profile,
+        fixture.mode,
+      ) {
       Ok(result) => result
       Err(_) => return false
     }
@@ -74,6 +95,7 @@ fn formatter_fixture_ok(fixture : FormatterFixture) -> Bool {
   }
 }
 
+///|
 test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
   let fixtures = [
     // 4.x SELECT with lowercase keywords, a hint block, an inline block
@@ -147,6 +169,7 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
   }
 }
 
+///|
 test "formatter_options_default_and_validation" {
   let defaults = @formatter.FormatOptions::default()
   assert_true(defaults.keyword_case() is @formatter.KeywordCase::Upper)
@@ -164,7 +187,9 @@ test "formatter_options_default_and_validation" {
     @formatter.NewlineStyle::FollowInput,
     true,
   )
-  assert_true(bad_indent is Err(@formatter.FormatError::InvalidIndent(value=-1)))
+  assert_true(
+    bad_indent is Err(@formatter.FormatError::InvalidIndent(value=-1)),
+  )
   // WR-02: indent is capped (MAX_INDENT = 64) so a typo like --indent
   // 5000000 fails construction instead of materializing gigabytes of
   // leading spaces per broken line.
@@ -176,7 +201,9 @@ test "formatter_options_default_and_validation" {
     @formatter.NewlineStyle::FollowInput,
     true,
   )
-  assert_true(over_cap_indent is Err(@formatter.FormatError::InvalidIndent(value=65)))
+  assert_true(
+    over_cap_indent is Err(@formatter.FormatError::InvalidIndent(value=65)),
+  )
   // The cap itself remains a valid indent.
   let cap_indent = @formatter.FormatOptions::new(
     @formatter.KeywordCase::Upper,
@@ -195,9 +222,12 @@ test "formatter_options_default_and_validation" {
     @formatter.NewlineStyle::FollowInput,
     true,
   )
-  assert_true(bad_width is Err(@formatter.FormatError::InvalidLineWidth(value=0)))
+  assert_true(
+    bad_width is Err(@formatter.FormatError::InvalidLineWidth(value=0)),
+  )
 }
 
+///|
 test "formatter_refusal_never_masks_parse_diagnostics" {
   // Threat T-03-01: format_text converts FATHOM-PARSE-* diagnostics and
   // prepends them so FATHOM-FORMAT-001 never masks parse errors.
@@ -224,7 +254,10 @@ test "formatter_refusal_never_masks_parse_diagnostics" {
     }
   }
   assert_eq(format_count, 1)
-  assert_eq(result.diagnostics[result.diagnostics.length() - 1].code, "FATHOM-FORMAT-001")
+  assert_eq(
+    result.diagnostics[result.diagnostics.length() - 1].code,
+    "FATHOM-FORMAT-001",
+  )
   // The diagnostic shape mirrors PrimitiveDiagnostic fields.
   let refusal = result.diagnostics[result.diagnostics.length() - 1]
   assert_eq(refusal.severity, "error")
@@ -233,23 +266,48 @@ test "formatter_refusal_never_masks_parse_diagnostics" {
   assert_eq(refusal.statement_id, 0U)
 }
 
+///|
 test "formatter_from_id_maps_cli_string_ids" {
   // The CLI flag surface (03-04) maps string values with these helpers.
-  assert_true(@formatter.KeywordCase::from_id("upper") is Some(@formatter.KeywordCase::Upper))
-  assert_true(@formatter.KeywordCase::from_id("lower") is Some(@formatter.KeywordCase::Lower))
+  assert_true(
+    @formatter.KeywordCase::from_id("upper")
+    is Some(@formatter.KeywordCase::Upper),
+  )
+  assert_true(
+    @formatter.KeywordCase::from_id("lower")
+    is Some(@formatter.KeywordCase::Lower),
+  )
   assert_true(@formatter.KeywordCase::from_id("mixed") is None)
-  assert_true(@formatter.CommaStyle::from_id("trailing") is Some(@formatter.CommaStyle::Trailing))
-  assert_true(@formatter.CommaStyle::from_id("leading") is Some(@formatter.CommaStyle::Leading))
+  assert_true(
+    @formatter.CommaStyle::from_id("trailing")
+    is Some(@formatter.CommaStyle::Trailing),
+  )
+  assert_true(
+    @formatter.CommaStyle::from_id("leading")
+    is Some(@formatter.CommaStyle::Leading),
+  )
   assert_true(@formatter.CommaStyle::from_id("none") is None)
-  assert_true(@formatter.NewlineStyle::from_id("follow") is Some(@formatter.NewlineStyle::FollowInput))
-  assert_true(@formatter.NewlineStyle::from_id("lf") is Some(@formatter.NewlineStyle::Lf))
-  assert_true(@formatter.NewlineStyle::from_id("crlf") is Some(@formatter.NewlineStyle::Crlf))
+  assert_true(
+    @formatter.NewlineStyle::from_id("follow")
+    is Some(@formatter.NewlineStyle::FollowInput),
+  )
+  assert_true(
+    @formatter.NewlineStyle::from_id("lf") is Some(@formatter.NewlineStyle::Lf),
+  )
+  assert_true(
+    @formatter.NewlineStyle::from_id("crlf")
+    is Some(@formatter.NewlineStyle::Crlf),
+  )
   assert_true(@formatter.NewlineStyle::from_id("auto") is None)
 }
 
+///|
 test "formatter_statement_offsets_index_into_output" {
   let options = @formatter.FormatOptions::default()
-  let result = match @api.format_with_ids(b"select 1; select 2", "doris", "4.x", "strict", options) {
+  let result = match
+    @api.format_with_ids(
+      b"select 1; select 2", "doris", "4.x", "strict", options,
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -267,7 +325,8 @@ test "formatter_statement_offsets_index_into_output" {
   // trailing semicolon, so neither does the output.
   assert_eq(result.output, b"SELECT 1;\nSELECT 2\n")
   // Empty documents yield an empty offsets array.
-  let empty = match @api.format_with_ids(b"", "doris", "4.x", "strict", options) {
+  let empty = match
+    @api.format_with_ids(b"", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -275,24 +334,22 @@ test "formatter_statement_offsets_index_into_output" {
   assert_eq(empty.output.length(), 0)
 }
 
+///|
 test "formatter_metadata_and_ids_agree_on_output" {
   // format_with_metadata (manifest-style) and format_with_ids must produce the
   // same formatted output — metadata propagation is irrelevant to formatting.
   let raw = b"select /*+ SET_VAR(enable_vectorized_engine=true) */ a, /* keep */ b -- trailing\nfrom t"
   let options = @formatter.FormatOptions::default()
-  let via_ids = match @api.format_with_ids(raw, "doris", "4.x", "strict", options) {
+  let via_ids = match
+    @api.format_with_ids(raw, "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
-  let via_metadata = match @api.format_with_metadata(
-    raw,
-    "doris",
-    "4.x",
-    "4.x",
-    "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
-    "strict",
-    options,
-  ) {
+  let via_metadata = match
+    @api.format_with_metadata(
+      raw, "doris", "4.x", "4.x", "2.1 baseline SELECT; DML/DDL released; 4.x released SELECT",
+      "strict", options,
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -302,6 +359,7 @@ test "formatter_metadata_and_ids_agree_on_output" {
   assert_eq(via_metadata.diagnostics.length(), via_ids.diagnostics.length())
 }
 
+///|
 test "formatter_determinism_pure_function_backstop" {
   // Probe FMT-01: format_text is a pure function of (raw, parse_options,
   // format_options) — repeated calls return byte-identical output and
@@ -326,6 +384,7 @@ test "formatter_determinism_pure_function_backstop" {
   assert_eq(second.diagnostics.length(), first.diagnostics.length())
 }
 
+///|
 test "formatter_options_error_propagation_never_reaches_api" {
   // ASVS V5: invalid option structs fail construction, so the api entry only
   // ever receives validated FormatOptions values (type-safe by construction).
@@ -337,7 +396,9 @@ test "formatter_options_error_propagation_never_reaches_api" {
     @formatter.NewlineStyle::FollowInput,
     true,
   )
-  assert_true(bad_indent is Err(@formatter.FormatError::InvalidIndent(value=-2)))
+  assert_true(
+    bad_indent is Err(@formatter.FormatError::InvalidIndent(value=-2)),
+  )
   let bad_width = @formatter.FormatOptions::new(
     @formatter.KeywordCase::Upper,
     2,
@@ -346,9 +407,12 @@ test "formatter_options_error_propagation_never_reaches_api" {
     @formatter.NewlineStyle::FollowInput,
     true,
   )
-  assert_true(bad_width is Err(@formatter.FormatError::InvalidLineWidth(value=-10)))
+  assert_true(
+    bad_width is Err(@formatter.FormatError::InvalidLineWidth(value=-10)),
+  )
 }
 
+///|
 /// 03-02 Task 1: per-family clause tables (research Pattern 1) — every
 /// supported statement family renders with hard breaks only at its table's
 /// clause keywords (never at the statement's first token), subquery bodies
@@ -449,6 +513,7 @@ test "formatter_03_02_family_clause_tables_and_subquery_indent" {
   }
 }
 
+///|
 /// 03-02 Task 1: a family without a clause table (a bare ValueList-shaped
 /// document, constructed directly against the CST since the parser never
 /// produces one) falls back to token-sequence-preserving flat emission — no
@@ -466,34 +531,50 @@ test "formatter_unknown_family_falls_back_to_flat_emission" {
     }
   }
   let leaves = [
-    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(0, 1))),
-    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(1, 2))),
-    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(2, 3))),
-    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceTrivia, span(3, 4))),
-    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(4, 5))),
-    @syntax.SyntaxElement::Leaf(@syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(5, 6))),
+    @syntax.SyntaxElement::Leaf(
+      @syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(0, 1)),
+    ),
+    @syntax.SyntaxElement::Leaf(
+      @syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(1, 2)),
+    ),
+    @syntax.SyntaxElement::Leaf(
+      @syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(2, 3)),
+    ),
+    @syntax.SyntaxElement::Leaf(
+      @syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceTrivia, span(3, 4)),
+    ),
+    @syntax.SyntaxElement::Leaf(
+      @syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(4, 5)),
+    ),
+    @syntax.SyntaxElement::Leaf(
+      @syntax.SyntaxLeaf::new(@syntax.LeafKind::SourceToken, span(5, 6)),
+    ),
   ]
-  let family = match @syntax.SyntaxNode::new(@syntax.SyntaxKind::ValueList, span(0, 6), leaves) {
+  let family = match
+    @syntax.SyntaxNode::new(@syntax.SyntaxKind::ValueList, span(0, 6), leaves) {
     Some(node) => node
     None => panic()
   }
-  let statement = match @syntax.SyntaxNode::new(
-    @syntax.SyntaxKind::Statement,
-    span(0, 6),
-    [@syntax.SyntaxElement::ChildNode(family)],
-  ) {
+  let statement = match
+    @syntax.SyntaxNode::new(@syntax.SyntaxKind::Statement, span(0, 6), [
+      @syntax.SyntaxElement::ChildNode(family),
+    ]) {
     Some(node) => node
     None => panic()
   }
-  let root = match @syntax.SyntaxNode::new(
-    @syntax.SyntaxKind::Document,
-    span(0, 6),
-    [@syntax.SyntaxElement::ChildNode(statement)],
-  ) {
+  let root = match
+    @syntax.SyntaxNode::new(@syntax.SyntaxKind::Document, span(0, 6), [
+      @syntax.SyntaxElement::ChildNode(statement),
+    ]) {
     Some(node) => node
     None => panic()
   }
-  let result = @formatter.format(root, source, @formatter.FormatOptions::default(), doris_context("4.x"))
+  let result = @formatter.format(
+    root,
+    source,
+    @formatter.FormatOptions::default(),
+    doris_context("4.x"),
+  )
   assert_true(result.accepted)
   // Flat emission: `(1, 2)` with the canonical single trailing newline — the
   // ValueList family has no clause table, so no break is forced anywhere and
@@ -502,6 +583,7 @@ test "formatter_unknown_family_falls_back_to_flat_emission" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+///|
 /// 03-02 Task 2: measure-then-break list layout (research Pattern 2). The
 /// flat-fit decision reads only the summed leaf spans (never the running
 /// column), so idempotence holds by construction; comma placement follows
@@ -520,25 +602,27 @@ test "formatter_unknown_family_falls_back_to_flat_emission" {
 /// appear only in the two accepted contexts below (goldens assert the
 /// reparse gate); every other context emits no last-item comma.
 test "formatter_03_02_list_layout_and_comma_styles" {
-  let narrow = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    20,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let narrow = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      20,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let leading = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    20,
-    @formatter.CommaStyle::Leading,
-    @formatter.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let leading = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      20,
+      @formatter.CommaStyle::Leading,
+      @formatter.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
@@ -655,6 +739,7 @@ test "formatter_03_02_list_layout_and_comma_styles" {
   }
 }
 
+///|
 /// 03-02 Task 3: multi-statement script layout (research Open Q4 resolution)
 /// and the full comment/hint attachment rule (research Pattern 3). Each
 /// statement renders on its own line at column 0 with one newline between
@@ -751,7 +836,10 @@ test "formatter_03_02_script_layout_and_comment_attachment" {
   // statement_offsets stay correct under the per-line loop: the second
   // statement's offset points at the separator byte (len("SELECT 1;")).
   let options = @formatter.FormatOptions::default()
-  let result = match @api.format_with_ids(b"select 1; select 2;", "doris", "4.x", "strict", options) {
+  let result = match
+    @api.format_with_ids(
+      b"select 1; select 2;", "doris", "4.x", "strict", options,
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -761,6 +849,7 @@ test "formatter_03_02_script_layout_and_comment_attachment" {
   assert_eq(result.statement_offsets[1], b"SELECT 1;".length())
 }
 
+///|
 /// 03-03 Task 1: every one of the six FormatOptions dimensions drives real
 /// layout behavior (FMT-02, D-26) — keyword case (Upper/Lower), indent width,
 /// line width, comma style, newline style (FollowInput/Lf/Crlf), and the
@@ -769,80 +858,87 @@ test "formatter_03_02_script_layout_and_comment_attachment" {
 /// hints stay byte-identical (D-28/D-36). All fixtures run the full oracle
 /// (golden + byte-exact idempotence D-34 + zero-diagnostic reparse D-35).
 test "formatter_03_03_all_six_dimensions_functional" {
-  let lower = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Lower,
-    2,
-    100,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let lower = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Lower,
+      2,
+      100,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let indent4 = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    4,
-    20,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let indent4 = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      4,
+      20,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let width20 = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    20,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let width20 = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      20,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let leading = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    100,
-    @formatter.CommaStyle::Leading,
-    @formatter.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let leading = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      100,
+      @formatter.CommaStyle::Leading,
+      @formatter.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let lf_override = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    100,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::Lf,
-    true,
-  ) {
+  let lf_override = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      100,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::Lf,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let crlf_override = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    100,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::Crlf,
-    true,
-  ) {
+  let crlf_override = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      100,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::Crlf,
+      true,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let no_trailing = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    100,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::FollowInput,
-    false,
-  ) {
+  let no_trailing = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      100,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::FollowInput,
+      false,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
@@ -952,6 +1048,7 @@ test "formatter_03_03_all_six_dimensions_functional" {
   }
 }
 
+///|
 /// 03-03 Task 2: the FULL 44-row manifest mirror (D-34/D-35 corpus
 /// contract, research Pattern 6 — the Phase 2 embedded fixture
 /// convention, test/parser_test.mbt:463-505). One row per
@@ -1373,6 +1470,7 @@ let formatter_corpus_fixtures : Array[FormatterFixture] = [
   },
 ]
 
+///|
 /// Oracle per row: accepted fixtures hit the reviewed golden
 /// byte-exact, stay idempotent format(format(x)) == format(x)
 /// (D-34), reparse with zero diagnostics (D-35), and keep every
@@ -1385,7 +1483,14 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
     Some(opts) => opts
     None => @formatter.FormatOptions::default()
   }
-  let formatted = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
+  let formatted = match
+    @api.format_with_ids(
+      fixture.raw,
+      "doris",
+      fixture.profile,
+      fixture.mode,
+      options,
+    ) {
     Ok(result) => result
     Err(_) => return fixture.fixture_id + ": api Err"
   }
@@ -1401,14 +1506,27 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
         return fixture.fixture_id + ": statement offset out of bounds"
       }
     }
-    let again = match @api.format_with_ids(formatted.output, "doris", fixture.profile, fixture.mode, options) {
+    let again = match
+      @api.format_with_ids(
+        formatted.output,
+        "doris",
+        fixture.profile,
+        fixture.mode,
+        options,
+      ) {
       Ok(result) => result
       Err(_) => return fixture.fixture_id + ": idempotence api Err"
     }
     if again.output != formatted.output {
       return fixture.fixture_id + ": not idempotent"
     }
-    let reparsed = match @api.parse_with_ids(formatted.output, "doris", fixture.profile, fixture.mode) {
+    let reparsed = match
+      @api.parse_with_ids(
+        formatted.output,
+        "doris",
+        fixture.profile,
+        fixture.mode,
+      ) {
       Ok(result) => result
       Err(_) => return fixture.fixture_id + ": reparse api Err"
     }
@@ -1418,7 +1536,8 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
     ""
   } else {
     if formatted.accepted || formatted.output.length() != 0 {
-      return fixture.fixture_id + ": expected refusal but accepted or emitted output"
+      return fixture.fixture_id +
+        ": expected refusal but accepted or emitted output"
     }
     let mut found = false
     for diagnostic in formatted.diagnostics {
@@ -1433,6 +1552,7 @@ fn formatter_corpus_fixture_check(fixture : FormatterFixture) -> String {
   }
 }
 
+///|
 test "formatter_corpus_44_row_harness" {
   assert_eq(formatter_corpus_fixtures.length(), 44)
   let mut failures = ""
@@ -1445,7 +1565,7 @@ test "formatter_corpus_44_row_harness" {
   assert_eq(failures, "")
 }
 
-
+///|
 /// 03-03 Task 3: the FMT-03 contract is closed with the option-matrix
 /// idempotence + determinism suite (D-34 across configurations), the
 /// never-panic boundary suite (threat T-03-16/T-03-18), and the
@@ -1458,11 +1578,13 @@ fn formatter_matrix_check(
   options : @formatter.FormatOptions,
   profile : String,
 ) -> String {
-  let first = match @api.format_with_ids(raw, "doris", profile, "strict", options) {
+  let first = match
+    @api.format_with_ids(raw, "doris", profile, "strict", options) {
     Ok(result) => result
     Err(_) => return label + ": format api Err"
   }
-  let again = match @api.format_with_ids(first.output, "doris", profile, "strict", options) {
+  let again = match
+    @api.format_with_ids(first.output, "doris", profile, "strict", options) {
     Ok(result) => result
     Err(_) => return label + ": idempotence api Err"
   }
@@ -1471,7 +1593,8 @@ fn formatter_matrix_check(
   }
   // Determinism (probe FMT-01 backstop): a second run from the original raw
   // must be byte-identical to the first.
-  let second = match @api.format_with_ids(raw, "doris", profile, "strict", options) {
+  let second = match
+    @api.format_with_ids(raw, "doris", profile, "strict", options) {
     Ok(result) => result
     Err(_) => return label + ": determinism api Err"
   }
@@ -1481,6 +1604,7 @@ fn formatter_matrix_check(
   ""
 }
 
+///|
 fn matrix_combo_name(
   kc : @formatter.KeywordCase,
   cs : @formatter.CommaStyle,
@@ -1502,10 +1626,20 @@ fn matrix_combo_name(
     @formatter.NewlineStyle::Lf => "Lf"
     @formatter.NewlineStyle::Crlf => "Crlf"
   }
-  kc_name + "/" + cs_name + "/" + ns_name + "/trailing=" + tn.to_string() +
-    "/indent=" + indent.to_string() + "/width=" + width.to_string()
+  kc_name +
+  "/" +
+  cs_name +
+  "/" +
+  ns_name +
+  "/trailing=" +
+  tn.to_string() +
+  "/indent=" +
+  indent.to_string() +
+  "/width=" +
+  width.to_string()
 }
 
+///|
 test "formatter_03_03_option_matrix_idempotence_and_determinism" {
   let keyword_cases = [
     @formatter.KeywordCase::Upper,
@@ -1534,16 +1668,21 @@ test "formatter_03_03_option_matrix_idempotence_and_determinism" {
         for tn in trailing_newlines {
           for indent in indents {
             for width in line_widths {
-              let options = match @formatter.FormatOptions::new(kc, indent, width, cs, ns, tn) {
+              let options = match
+                @formatter.FormatOptions::new(kc, indent, width, cs, ns, tn) {
                 Ok(opts) => opts
                 Err(_) => panic()
               }
               let combo = matrix_combo_name(kc, cs, ns, tn, indent, width)
-              let select_failure = formatter_matrix_check("select", select_raw, options, "4.x")
+              let select_failure = formatter_matrix_check(
+                "select", select_raw, options, "4.x",
+              )
               if select_failure.length() > 0 {
                 failures = failures + combo + "/" + select_failure + "\n"
               }
-              let ddl_failure = formatter_matrix_check("ddl", ddl_raw, options, "4.x")
+              let ddl_failure = formatter_matrix_check(
+                "ddl", ddl_raw, options, "4.x",
+              )
               if ddl_failure.length() > 0 {
                 failures = failures + combo + "/" + ddl_failure + "\n"
               }
@@ -1556,6 +1695,7 @@ test "formatter_03_03_option_matrix_idempotence_and_determinism" {
   assert_eq(failures, "")
 }
 
+///|
 /// Never-panic boundary suite (threat T-03-16/T-03-18, research Pitfall 4):
 /// empty, whitespace-only, and comment-only documents format without panic
 /// and without fabricated statements; the max_bytes boundary propagates
@@ -1564,7 +1704,8 @@ test "formatter_03_03_option_matrix_idempotence_and_determinism" {
 test "formatter_03_03_never_panic_boundary_suite" {
   let options = @formatter.FormatOptions::default()
   // Empty document: accepted, empty output, no diagnostics, no offsets.
-  let empty = match @api.format_with_ids(b"", "doris", "4.x", "strict", options) {
+  let empty = match
+    @api.format_with_ids(b"", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1573,7 +1714,8 @@ test "formatter_03_03_never_panic_boundary_suite" {
   assert_eq(empty.diagnostics.length(), 0)
   assert_eq(empty.statement_offsets.length(), 0)
   // Whitespace-only: same shape, nothing fabricated.
-  let ws = match @api.format_with_ids(b"   \n", "doris", "4.x", "strict", options) {
+  let ws = match
+    @api.format_with_ids(b"   \n", "doris", "4.x", "strict", options) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1582,7 +1724,10 @@ test "formatter_03_03_never_panic_boundary_suite" {
   assert_eq(ws.statement_offsets.length(), 0)
   // Comment-only document: the comment is preserved verbatim, no fabricated
   // statements, and the trailing-newline policy applies (on -> exactly one).
-  let comment = match @api.format_with_ids(b"-- only a comment", "doris", "4.x", "strict", options) {
+  let comment = match
+    @api.format_with_ids(
+      b"-- only a comment", "doris", "4.x", "strict", options,
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1591,18 +1736,22 @@ test "formatter_03_03_never_panic_boundary_suite" {
   assert_eq(comment.diagnostics.length(), 0)
   assert_eq(comment.statement_offsets.length(), 0)
   // trailing-newline off on a comment-only document: no trailing newline.
-  let no_trailing = match @formatter.FormatOptions::new(
-    @formatter.KeywordCase::Upper,
-    2,
-    100,
-    @formatter.CommaStyle::Trailing,
-    @formatter.NewlineStyle::FollowInput,
-    false,
-  ) {
+  let no_trailing = match
+    @formatter.FormatOptions::new(
+      @formatter.KeywordCase::Upper,
+      2,
+      100,
+      @formatter.CommaStyle::Trailing,
+      @formatter.NewlineStyle::FollowInput,
+      false,
+    ) {
     Ok(opts) => opts
     Err(_) => panic()
   }
-  let comment_nt = match @api.format_with_ids(b"-- only a comment", "doris", "4.x", "strict", no_trailing) {
+  let comment_nt = match
+    @api.format_with_ids(
+      b"-- only a comment", "doris", "4.x", "strict", no_trailing,
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -1615,27 +1764,49 @@ test "formatter_03_03_never_panic_boundary_suite" {
     @api.ParseMode::Strict,
     @api.ParseLimits::new(8, 1000, 8, 8, 8),
   )
-  let too_large = @api.format_text(b"SELECT abcdefghijklmnopqrstuvwxyz", tight, options)
-  assert_true(too_large is Err(@api.ParseError::InputTooLarge(requested_bytes=_, max_bytes=8)))
+  let too_large = @api.format_text(
+    b"SELECT abcdefghijklmnopqrstuvwxyz", tight, options,
+  )
+  assert_true(
+    too_large
+    is Err(@api.ParseError::InputTooLarge(requested_bytes=_, max_bytes=8)),
+  )
   // Never-panic backstop: every corpus fixture (supported AND error rows)
   // and every boundary input formats without crashing. The oracle already
   // asserts the results; this loop is the explicit no-crash assertion.
   for i in 0..<formatter_corpus_fixtures.length() {
     let fixture = formatter_corpus_fixtures[i]
-    let _ = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
+    let _ = match
+      @api.format_with_ids(
+        fixture.raw,
+        "doris",
+        fixture.profile,
+        fixture.mode,
+        options,
+      ) {
       Ok(result) => result
       Err(_) => panic()
     }
   }
-  let boundary_inputs = [b"", b"   \n", b"-- only a comment", b"/* block only */"]
+  let boundary_inputs = [
+    b"", b"   \n", b"-- only a comment", b"/* block only */",
+  ]
   for i in 0..<boundary_inputs.length() {
-    let _ = match @api.format_with_ids(boundary_inputs[i], "doris", "4.x", "strict", options) {
+    let _ = match
+      @api.format_with_ids(
+        boundary_inputs[i],
+        "doris",
+        "4.x",
+        "strict",
+        options,
+      ) {
       Ok(result) => result
       Err(_) => panic()
     }
   }
 }
 
+///|
 /// Refusal-diagnostic shape gate: every FATHOM-FORMAT- diagnostic on the
 /// error half of the corpus is well-formed — "error" severity, expected_class
 /// "format", valid span ordering, and a statement_id.
@@ -1649,7 +1820,14 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
       Some(opts) => opts
       None => @formatter.FormatOptions::default()
     }
-    let result = match @api.format_with_ids(fixture.raw, "doris", fixture.profile, fixture.mode, options) {
+    let result = match
+      @api.format_with_ids(
+        fixture.raw,
+        "doris",
+        fixture.profile,
+        fixture.mode,
+        options,
+      ) {
       Ok(result) => result
       Err(_) => panic()
     }
@@ -1668,6 +1846,7 @@ test "formatter_03_03_refusal_diagnostics_are_well_formed" {
   }
 }
 
+///|
 /// DIALECT-03 / Pitfall 6: the format path is dialect-aware end-to-end.
 /// (a) A flink selection is accepted only for the pinned release profiles; the
 /// not-implemented tree is refused with FATHOM-FORMAT-001 (never partial
@@ -1681,27 +1860,60 @@ test "formatter_dialect_selection_is_validated_first" {
   // FATHOM-PARSE-008 is retired (D-06), so the not-implemented refusal is
   // gone. An unknown flink profile (the Doris-shaped "2.1") is rejected by
   // the api entry before any work.
-  let flink = match @api.format_with_ids(b"select 1", "flink", "flink-2.3.0", "strict", @formatter.FormatOptions::default()) {
+  let flink = match
+    @api.format_with_ids(
+      b"select 1",
+      "flink",
+      "flink-2.3.0",
+      "strict",
+      @formatter.FormatOptions::default(),
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_true(flink.accepted)
   assert_true(flink.output.length() > 0)
   assert_eq(flink.diagnostics.length(), 0)
-  let flink_unknown = @api.format_with_ids(b"select 1", "flink", "2.1", "strict", @formatter.FormatOptions::default())
-  assert_true(flink_unknown is Err(@api.ParseError::UnknownProfile(profile_id="2.1")))
+  let flink_unknown = @api.format_with_ids(
+    b"select 1",
+    "flink",
+    "2.1",
+    "strict",
+    @formatter.FormatOptions::default(),
+  )
+  assert_true(
+    flink_unknown is Err(@api.ParseError::UnknownProfile(profile_id="2.1")),
+  )
   // Unknown dialect: structured UnknownDialect, never a Doris fallback.
-  let unknown = @api.format_with_ids(b"select 1", "mysql", "4.x", "strict", @formatter.FormatOptions::default())
-  assert_true(unknown is Err(@api.ParseError::UnknownDialect(dialect_id="mysql")))
+  let unknown = @api.format_with_ids(
+    b"select 1",
+    "mysql",
+    "4.x",
+    "strict",
+    @formatter.FormatOptions::default(),
+  )
+  assert_true(
+    unknown is Err(@api.ParseError::UnknownDialect(dialect_id="mysql")),
+  )
   // (b) A refusal on malformed input carries exactly one FATHOM-FORMAT-001
   // and the parse diagnostics are prepended, never masked (T-03-01).
-  let refused = match @api.format_with_ids(b"select (", "doris", "4.x", "strict", @formatter.FormatOptions::default()) {
+  let refused = match
+    @api.format_with_ids(
+      b"select (",
+      "doris",
+      "4.x",
+      "strict",
+      @formatter.FormatOptions::default(),
+    ) {
     Ok(result) => result
     Err(_) => panic()
   }
   assert_true(!refused.accepted)
   assert_eq(refused.output.length(), 0)
-  assert_eq(refused.diagnostics[refused.diagnostics.length() - 1].code, "FATHOM-FORMAT-001")
+  assert_eq(
+    refused.diagnostics[refused.diagnostics.length() - 1].code,
+    "FATHOM-FORMAT-001",
+  )
   // Doris formatting output is unchanged by the dialect dimension: the corpus
   // harness above asserts byte-exact goldens and idempotence under "doris".
 }

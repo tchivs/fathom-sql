@@ -1,7 +1,14 @@
 // Deterministic schema contract fixtures for Phase 4 adapters.
+///|
 fn schema_fixture_has_frozen_fields() -> Unit raise {
-  let fields = ["schema_version", "source_transport", "dialect", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
-  let expected = ["schema_version", "source_transport", "dialect", "profile", "mode", "valid", "recovered", "source_bytes", "source_byte_length", "root", "diagnostics"]
+  let fields = [
+    "schema_version", "source_transport", "dialect", "profile", "mode", "valid",
+    "recovered", "source_bytes", "source_byte_length", "root", "diagnostics",
+  ]
+  let expected = [
+    "schema_version", "source_transport", "dialect", "profile", "mode", "valid",
+    "recovered", "source_bytes", "source_byte_length", "root", "diagnostics",
+  ]
   assert_eq(fields.length(), 11)
   assert_eq(fields, expected)
   assert_eq(fields[0], "schema_version")
@@ -17,10 +24,15 @@ fn schema_fixture_has_frozen_fields() -> Unit raise {
   assert_eq(fields[10], "diagnostics")
 }
 
-test "schema_fixture_has_frozen_fields" { schema_fixture_has_frozen_fields() }
+///|
+test "schema_fixture_has_frozen_fields" {
+  schema_fixture_has_frozen_fields()
+}
 
+///|
 test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
-  let result = match @api.parse_with_ids(b"SELECT /* note */ 1", "doris", "4.x", "editor") {
+  let result = match
+    @api.parse_with_ids(b"SELECT /* note */ 1", "doris", "4.x", "editor") {
     Ok(result) => result
     Err(_) => panic()
   }
@@ -34,8 +46,13 @@ test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
   assert_true(@binding.validate_schema_version("fathom.parse.v1") is Ok(_))
   assert_true(@binding.validate_schema_version("fathom.format.v1") is Ok(_))
   assert_true(@binding.validate_schema_version("fathom.error.v1") is Ok(_))
-  assert_true(@binding.validate_schema_version("fathom.capabilities.v1") is Ok(_))
-  assert_true(@binding.validate_schema_version("fathom.parse.v9") is Err(@binding.SchemaError::UnsupportedSchemaVersion(..)))
+  assert_true(
+    @binding.validate_schema_version("fathom.capabilities.v1") is Ok(_),
+  )
+  assert_true(
+    @binding.validate_schema_version("fathom.parse.v9")
+    is Err(@binding.SchemaError::UnsupportedSchemaVersion(..)),
+  )
   // validate_dialect_profile is the single gate: doris accepts exactly
   // 2.1/3.x/4.x; flink accepts exactly the three pinned release profiles
   // (Phase 10, D-01); unknown dialects return UnknownDialect
@@ -43,18 +60,43 @@ test "schema_serializes_real_parse_result_and_refuses_unknown_versions" {
   assert_true(@binding.validate_dialect_profile("doris", "2.1") is Ok(_))
   assert_true(@binding.validate_dialect_profile("doris", "3.x") is Ok(_))
   assert_true(@binding.validate_dialect_profile("doris", "4.x") is Ok(_))
-  assert_true(@binding.validate_dialect_profile("doris", "5.x") is Err(@binding.SchemaError::UnsupportedProfile(..)))
-  assert_true(@binding.validate_dialect_profile("mysql", "4.x") is Err(@binding.SchemaError::UnknownDialect(..)))
-  assert_true(@binding.validate_dialect_profile("doris", "mysql") is Err(@binding.SchemaError::UnsupportedProfile(..)))
-  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3.0") is Ok(_))
-  assert_true(@binding.validate_dialect_profile("flink", "flink-2.1.3") is Ok(_))
-  assert_true(@binding.validate_dialect_profile("flink", "flink-1.20.5") is Ok(_))
+  assert_true(
+    @binding.validate_dialect_profile("doris", "5.x")
+    is Err(@binding.SchemaError::UnsupportedProfile(..)),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("mysql", "4.x")
+    is Err(@binding.SchemaError::UnknownDialect(..)),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("doris", "mysql")
+    is Err(@binding.SchemaError::UnsupportedProfile(..)),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("flink", "flink-2.3.0") is Ok(_),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("flink", "flink-2.1.3") is Ok(_),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("flink", "flink-1.20.5") is Ok(_),
+  )
   // Exact-match only: the Doris-shaped "2.1" and adjacent ids are rejected.
-  assert_true(@binding.validate_dialect_profile("flink", "2.1") is Err(@binding.SchemaError::UnsupportedProfile(..)))
-  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3.0-rc1") is Err(@binding.SchemaError::UnsupportedProfile(..)))
-  assert_true(@binding.validate_dialect_profile("flink", "flink-2.3") is Err(@binding.SchemaError::UnsupportedProfile(..)))
+  assert_true(
+    @binding.validate_dialect_profile("flink", "2.1")
+    is Err(@binding.SchemaError::UnsupportedProfile(..)),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("flink", "flink-2.3.0-rc1")
+    is Err(@binding.SchemaError::UnsupportedProfile(..)),
+  )
+  assert_true(
+    @binding.validate_dialect_profile("flink", "flink-2.3")
+    is Err(@binding.SchemaError::UnsupportedProfile(..)),
+  )
 }
 
+///|
 test "schema_fixture_requires_leaf_kinds_and_half_open_spans" {
   let leaves = ["token", "trivia", "error", "missing", "skipped"]
   let expected = ["token", "trivia", "error", "missing", "skipped"]

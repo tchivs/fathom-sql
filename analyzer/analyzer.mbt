@@ -16,6 +16,7 @@
 /// - Full ANAL-01 name resolution and type diagnostics are v2, not promised
 ///   here; catalog diagnostics are a separate caller-side result channel.
 
+///|
 /// One catalog column: name plus a Doris type string (metadata only — the
 /// analyzer performs no type inference or type checking this phase).
 /// `pub(all)` so catalog consumers can construct entries from their own
@@ -25,6 +26,7 @@ pub(all) struct ColumnInfo {
   data_type : String
 }
 
+///|
 /// One catalog table: name plus its column list. The record field set is
 /// deliberately minimal (D-22); the planner/executor may extend it in v2
 /// alongside full ANAL-01 resolution.
@@ -33,6 +35,7 @@ pub(all) struct TableInfo {
   columns : Array[ColumnInfo]
 }
 
+///|
 /// Name-resolution contract (D-22 extended by D-05). Implementors answer
 /// whether a table/function exists and what its columns/signature are; they
 /// never influence syntax parsing or the syntax-only valid channel. `open` so
@@ -42,11 +45,12 @@ pub(all) struct TableInfo {
 /// external implementors, so the full set is frozen at once — the plain table
 /// lookup, the db-qualified path, and the function registry.
 pub(open) trait Catalog {
-  table(Self, String) -> TableInfo?
-  table_in_db(Self, db : String, name : String) -> TableInfo?
-  function(Self, String) -> FunctionInfo?
+  fn table(Self, String) -> TableInfo?
+  fn table_in_db(Self, db : String, name : String) -> TableInfo?
+  fn function(Self, String) -> FunctionInfo?
 }
 
+///|
 /// Concrete in-memory catalog backed by name-keyed maps. Lookup matches with
 /// parsing-time ASCII case-fold (D-03): `lookup("T")` hits a key "t"; quoted
 /// identifiers match exactly (byte-for-byte) instead.
@@ -56,6 +60,7 @@ pub struct StaticCatalog {
   functions : Map[String, FunctionInfo]
 }
 
+///|
 /// Builds a catalog from the given entries; later entries with the same name
 /// overwrite earlier ones (last-wins, documented).
 pub fn StaticCatalog::new(entries : Array[TableInfo]) -> StaticCatalog {
@@ -63,9 +68,10 @@ pub fn StaticCatalog::new(entries : Array[TableInfo]) -> StaticCatalog {
   for entry in entries {
     tables.set(entry.name, entry)
   }
-  { tables: tables, db_tables: Map([]), functions: Map([]) }
+  { tables, db_tables: Map([]), functions: Map([]) }
 }
 
+///|
 /// Returns a copy of this catalog with `table` additionally registered under
 /// the named database scope (D-05). Keys keep author casing; resolution folds
 /// ASCII case at lookup time (D-03).
@@ -82,9 +88,10 @@ pub fn StaticCatalog::with_db(
   }
   scope.set(name, table)
   db_tables.set(db, scope)
-  { tables: self.tables, db_tables: db_tables, functions: self.functions }
+  { tables: self.tables, db_tables, functions: self.functions }
 }
 
+///|
 /// Returns a copy of this catalog with `info` registered in the function
 /// registry (D-05).
 pub fn StaticCatalog::with_function(
@@ -94,9 +101,10 @@ pub fn StaticCatalog::with_function(
 ) -> StaticCatalog {
   let functions = self.functions.copy()
   functions.set(name, info)
-  { tables: self.tables, db_tables: self.db_tables, functions: functions }
+  { tables: self.tables, db_tables: self.db_tables, functions }
 }
 
+///|
 /// Case-insensitive scan of a String-keyed map (parsing-time ASCII case-fold,
 /// D-03): the first key that folds equal to `name` wins.
 fn[V] case_insensitive_get(m : Map[String, V], name : String) -> V? {
@@ -110,6 +118,7 @@ fn[V] case_insensitive_get(m : Map[String, V], name : String) -> V? {
   result
 }
 
+///|
 /// Direct map lookup with parsing-time ASCII case-fold (D-03): `lookup("T")`
 /// hits a catalog entry keyed "t". Quoted identifiers never use this path —
 /// they resolve via the case-fold hit plus a byte-exact re-check on
@@ -118,37 +127,53 @@ pub fn StaticCatalog::lookup(self : StaticCatalog, name : String) -> TableInfo? 
   case_insensitive_get(self.tables, name)
 }
 
+///|
 /// Byte-exact (case-sensitive) lookup: the only path that does not fold ASCII
 /// case. Exists for direct unit-testing of quoted-identifier semantics (D-03)
 /// and is NOT a Catalog trait method, so the generic resolve path can never
 /// call it.
-pub fn StaticCatalog::lookup_exact(self : StaticCatalog, name : String) -> TableInfo? {
+pub fn StaticCatalog::lookup_exact(
+  self : StaticCatalog,
+  name : String,
+) -> TableInfo? {
   self.tables.get(name)
 }
 
+///|
 /// Case-insensitive lookup within a named database scope (D-05). Returns None
 /// when the database or table is absent.
-pub fn StaticCatalog::lookup_in_db(self : StaticCatalog, db : String, name : String) -> TableInfo? {
+pub fn StaticCatalog::lookup_in_db(
+  self : StaticCatalog,
+  db : String,
+  name : String,
+) -> TableInfo? {
   match self.db_tables.get(db) {
     Some(scope) => case_insensitive_get(scope, name)
     None => None
   }
 }
 
+///|
 /// Case-insensitive function-registry lookup (D-05).
-pub fn StaticCatalog::lookup_function(self : StaticCatalog, name : String) -> FunctionInfo? {
+pub fn StaticCatalog::lookup_function(
+  self : StaticCatalog,
+  name : String,
+) -> FunctionInfo? {
   case_insensitive_get(self.functions, name)
 }
 
-pub impl Catalog for StaticCatalog with table(self, name) {
+///|
+pub impl Catalog for StaticCatalog with fn table(self, name) {
   self.lookup(name)
 }
 
-pub impl Catalog for StaticCatalog with table_in_db(self, db, name) {
+///|
+pub impl Catalog for StaticCatalog with fn table_in_db(self, db, name) {
   self.lookup_in_db(db, name)
 }
 
-pub impl Catalog for StaticCatalog with function(self, name) {
+///|
+pub impl Catalog for StaticCatalog with fn function(self, name) {
   self.lookup_function(name)
 }
 
@@ -169,6 +194,7 @@ pub impl Catalog for StaticCatalog with function(self, name) {
 // recovered via the source slice. The walk is read-only and consumes only
 // `@syntax.SyntaxNode` read views; the parser is never involved.
 
+///|
 /// Case-folded byte comparison (ASCII), mirroring parser.mbt `bytes_equal_ci`.
 fn bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
   if actual.length() != expected.length() {
@@ -180,7 +206,11 @@ fn bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
       let left = actual[index].to_int()
       let right = expected[index].to_int()
       let folded_left = if left >= 97 && left <= 122 { left - 32 } else { left }
-      let folded_right = if right >= 97 && right <= 122 { right - 32 } else { right }
+      let folded_right = if right >= 97 && right <= 122 {
+        right - 32
+      } else {
+        right
+      }
       if folded_left != folded_right {
         equal = false
       }
@@ -190,6 +220,7 @@ fn bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
   }
 }
 
+///|
 /// UTF-8 decode of a byte slice into a String (lossy: malformed bytes become
 /// U+FFFD). The analyzer package deliberately keeps its import list to syntax
 /// read views only (D-21), so this small decoder replaces the @encoding/utf8
@@ -210,14 +241,23 @@ fn utf8_to_string(bytes : Bytes) -> String {
     } else if first >= 0xE0 && first < 0xF0 && i + 2 < len {
       let second = bytes[i + 1].to_int()
       let third = bytes[i + 2].to_int()
-      chars.push(Char::from_int(((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F)))
+      chars.push(
+        Char::from_int(
+          ((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F),
+        ),
+      )
       i = i + 3
     } else if first >= 0xF0 && first < 0xF8 && i + 3 < len {
       let second = bytes[i + 1].to_int()
       let third = bytes[i + 2].to_int()
       let fourth = bytes[i + 3].to_int()
       chars.push(
-        Char::from_int(((first & 0x07) << 18) | ((second & 0x3F) << 12) | ((third & 0x3F) << 6) | (fourth & 0x3F)),
+        Char::from_int(
+          ((first & 0x07) << 18) |
+          ((second & 0x3F) << 12) |
+          ((third & 0x3F) << 6) |
+          (fourth & 0x3F),
+        ),
       )
       i = i + 4
     } else {
@@ -228,13 +268,17 @@ fn utf8_to_string(bytes : Bytes) -> String {
   String::from_iter(chars.iter())
 }
 
+///|
 /// Source-token leaf texts of a node in source order (trivia, error, and
 /// skipped leaves are ignored; only SourceToken leaves carry grammar tokens).
-fn source_token_texts(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[Bytes] {
+fn source_token_texts(
+  node : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+) -> Array[Bytes] {
   let texts : Array[Bytes] = []
   for element in node.children() {
     match element {
-      @syntax.SyntaxElement::Leaf(leaf) => {
+      @syntax.SyntaxElement::Leaf(leaf) =>
         if leaf.kind is @syntax.LeafKind::SourceToken {
           let start = leaf.span.start_byte
           let end = leaf.span.end_byte
@@ -242,13 +286,13 @@ fn source_token_texts(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[
             texts.push(source_bytes[start:end].to_owned())
           }
         }
-      }
       @syntax.SyntaxElement::ChildNode(_) => ()
     }
   }
   texts
 }
 
+///|
 /// Returns the token index just past the statement-specific leading keyword
 /// sequence (case-insensitive). Optional words (INSERT OVERWRITE TABLE,
 /// UPSERT INTO, CREATE TEMPORARY/EXTERNAL TABLE, CREATE [TEMPORARY] VIEW,
@@ -263,8 +307,11 @@ fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
       // UPSERT is the Flink RichSqlInsert form; the Flink parser maps UPSERT
       // to SyntaxKind::Insert (parser.mbt:4196), so the Insert arm must
       // recognize the UPSERT leading keyword too. Doris forms unchanged.
-      if position < length && (bytes_equal_ci(tokens[position], b"INSERT") ||
-        bytes_equal_ci(tokens[position], b"UPSERT")) {
+      if position < length &&
+        (
+          bytes_equal_ci(tokens[position], b"INSERT") ||
+          bytes_equal_ci(tokens[position], b"UPSERT")
+        ) {
         position = position + 1
       }
       if position < length && bytes_equal_ci(tokens[position], b"OVERWRITE") {
@@ -272,17 +319,14 @@ fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
         if position < length && bytes_equal_ci(tokens[position], b"TABLE") {
           position = position + 1
         }
-      } else {
-        if position < length && bytes_equal_ci(tokens[position], b"INTO") {
-          position = position + 1
-        }
-      }
-    }
-    @syntax.SyntaxKind::Update => {
-      if position < length && bytes_equal_ci(tokens[position], b"UPDATE") {
+      } else if position < length && bytes_equal_ci(tokens[position], b"INTO") {
         position = position + 1
       }
     }
+    @syntax.SyntaxKind::Update =>
+      if position < length && bytes_equal_ci(tokens[position], b"UPDATE") {
+        position = position + 1
+      }
     @syntax.SyntaxKind::Delete => {
       if position < length && bytes_equal_ci(tokens[position], b"DELETE") {
         position = position + 1
@@ -350,6 +394,7 @@ fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
   position
 }
 
+///|
 /// Target table name segments of one DML/DDL statement node: the qualified
 /// name (identifier [ "." identifier ]*) immediately following the leading
 /// keywords. Each segment returns its identifier text (quotes stripped via
@@ -358,7 +403,10 @@ fn leading_prefix_end(kind : @syntax.SyntaxKind, tokens : Array[Bytes]) -> Int {
 /// name cannot be recovered (e.g. an incomplete statement with no name token).
 /// WR-02: quoted targets (`INSERT INTO `t``) and db-qualified targets
 /// (`INSERT INTO db.t`) now resolve instead of being silently missed.
-fn target_table_name(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(String, Bool)]? {
+fn target_table_name(
+  node : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+) -> Array[(String, Bool)]? {
   let tokens = source_token_texts(node, source_bytes)
   let length = tokens.length()
   let mut position = leading_prefix_end(node.kind(), tokens)
@@ -369,12 +417,15 @@ fn target_table_name(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(
   parts.push((identifier_text(tokens[position]), is_quoted(tokens[position])))
   position = position + 1
   while position + 1 < length && tokens[position] == b"." {
-    parts.push((identifier_text(tokens[position + 1]), is_quoted(tokens[position + 1])))
+    parts.push(
+      (identifier_text(tokens[position + 1]), is_quoted(tokens[position + 1])),
+    )
     position = position + 2
   }
   Some(parts)
 }
 
+///|
 /// Joins an array of strings with a separator (avoids core `join` dependency).
 fn join_dot(parts : Array[String]) -> String {
   let mut out = ""
@@ -390,6 +441,7 @@ fn join_dot(parts : Array[String]) -> String {
   out
 }
 
+///|
 /// Resolves the target tables of a parsed document's DML/DDL statements
 /// against the injected catalog, returning only the names present in the
 /// catalog (missing tables are simply absent — name-resolution level only).
@@ -406,16 +458,18 @@ pub fn[T : Catalog] resolve_table_references(
   let resolved : Array[String] = []
   for element in node.children() {
     match element {
-      @syntax.SyntaxElement::ChildNode(statement_node) => {
+      @syntax.SyntaxElement::ChildNode(statement_node) =>
         if statement_node.kind() is @syntax.SyntaxKind::Statement {
           for inner in statement_node.children() {
             match inner {
-              @syntax.SyntaxElement::ChildNode(body) => {
+              @syntax.SyntaxElement::ChildNode(body) =>
                 match body.kind() {
-                  @syntax.SyntaxKind::Insert | @syntax.SyntaxKind::Update |
-                  @syntax.SyntaxKind::Delete | @syntax.SyntaxKind::Merge |
-                  @syntax.SyntaxKind::CreateTable |
-                  @syntax.SyntaxKind::CreateView => {
+                  @syntax.SyntaxKind::Insert
+                  | @syntax.SyntaxKind::Update
+                  | @syntax.SyntaxKind::Delete
+                  | @syntax.SyntaxKind::Merge
+                  | @syntax.SyntaxKind::CreateTable
+                  | @syntax.SyntaxKind::CreateView =>
                     match target_table_name(body, source_bytes) {
                       Some(parts) => {
                         let texts : Array[String] = []
@@ -432,8 +486,10 @@ pub fn[T : Catalog] resolve_table_references(
                           let db_text = parts[parts.length() - 2].0
                           let table_text = parts[parts.length() - 1].0
                           let table_quoted = parts[parts.length() - 1].1
-                          match Catalog::table_in_db(catalog, db_text, table_text) {
-                            Some(info) => !table_quoted || info.name == table_text
+                          match
+                            Catalog::table_in_db(catalog, db_text, table_text) {
+                            Some(info) =>
+                              !table_quoted || info.name == table_text
                             None => false
                           }
                         } else {
@@ -450,15 +506,12 @@ pub fn[T : Catalog] resolve_table_references(
                       }
                       None => ()
                     }
-                  }
                   _ => ()
                 }
-              }
               @syntax.SyntaxElement::Leaf(_) => ()
             }
           }
         }
-      }
       @syntax.SyntaxElement::Leaf(_) => ()
     }
   }

@@ -1,3 +1,4 @@
+///|
 /// FNV-1a 64-bit pure hash (D-07): canonical bytes -> UInt64.
 ///
 /// Cross-target stability: `UInt64` is fixed 64-bit on Native, JS, and linear
@@ -19,8 +20,11 @@
 ///     the FNV prime); the FNV-1a vector `fnv1a64(b"a")` matches the public
 ///     reference value, so the wrap arithmetic is byte-correct.
 const FNV1A_OFFSET_BASIS : UInt64 = 0xcbf29ce484222325UL
+
+///|
 const FNV1A_PRIME : UInt64 = 0x100000001b3UL
 
+///|
 /// FNV-1a 64-bit over the input bytes. Empty input returns the offset basis.
 pub fn fnv1a64(bytes : Bytes) -> UInt64 {
   let mut hash : UInt64 = FNV1A_OFFSET_BASIS

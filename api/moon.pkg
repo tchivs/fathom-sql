@@ -1,12 +1,13 @@
 pkgtype(kind: "library")
+
 import {
-  "fathom/sql/source" @source,
-  "fathom/sql/parser" @parser,
-  "fathom/sql/syntax" @syntax,
-  "fathom/sql/formatter" @formatter,
-  "fathom/sql/dialect" @dialect,
-  "fathom/sql/fingerprint" @fingerprint,
-  "fathom/sql/lint" @lint,
-  "fathom/sql/analyzer" @analyzer,
-  "fathom/sql/lineage" @lineage,
+  "fathom/sql/source",
+  "fathom/sql/parser",
+  "fathom/sql/syntax",
+  "fathom/sql/formatter",
+  "fathom/sql/dialect",
+  "fathom/sql/fingerprint",
+  "fathom/sql/lint",
+  "fathom/sql/analyzer",
+  "fathom/sql/lineage",
 }

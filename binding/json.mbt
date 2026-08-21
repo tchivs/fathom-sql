@@ -1,9 +1,9 @@
+///|
 /// Versioned primitive serialization helpers for the Native/JS/Wasm boundary.
 ///
 /// The schema deliberately carries source bytes once at the envelope root. CST
 /// nodes contain only primitive fields and half-open UTF-8 byte spans; clients
 /// must not infer editor coordinates from statement_offsets.
-
 fn byte_array_json(bytes : Bytes) -> Json {
   let values : Array[Json] = []
   for byte in bytes {
@@ -12,6 +12,7 @@ fn byte_array_json(bytes : Bytes) -> Json {
   Json::array(values)
 }
 
+///|
 fn node_json(node : @api.PrimitiveNode) -> Json {
   let children : Array[Json] = []
   for child in node.children {
@@ -26,6 +27,7 @@ fn node_json(node : @api.PrimitiveNode) -> Json {
   }
 }
 
+///|
 fn diagnostic_json(diagnostic : @api.PrimitiveDiagnostic) -> Json {
   {
     "severity": Json::string(diagnostic.severity),
@@ -38,6 +40,7 @@ fn diagnostic_json(diagnostic : @api.PrimitiveDiagnostic) -> Json {
   }
 }
 
+///|
 fn format_diagnostic_json(diagnostic : @api.FormatDiagnostic) -> Json {
   {
     "severity": Json::string(diagnostic.severity),
@@ -50,6 +53,7 @@ fn format_diagnostic_json(diagnostic : @api.FormatDiagnostic) -> Json {
   }
 }
 
+///|
 fn diagnostics_json(diagnostics : Array[@api.PrimitiveDiagnostic]) -> Json {
   let values : Array[Json] = []
   for diagnostic in diagnostics {
@@ -58,6 +62,7 @@ fn diagnostics_json(diagnostics : Array[@api.PrimitiveDiagnostic]) -> Json {
   Json::array(values)
 }
 
+///|
 fn format_diagnostics_json(diagnostics : Array[@api.FormatDiagnostic]) -> Json {
   let values : Array[Json] = []
   for diagnostic in diagnostics {
@@ -66,6 +71,7 @@ fn format_diagnostics_json(diagnostics : Array[@api.FormatDiagnostic]) -> Json {
   Json::array(values)
 }
 
+///|
 fn offsets_json(offsets : Array[Int]) -> Json {
   let values : Array[Json] = []
   for offset in offsets {
@@ -74,10 +80,12 @@ fn offsets_json(offsets : Array[Int]) -> Json {
   Json::array(values)
 }
 
+///|
 pub fn stringify(value : Json) -> String {
   value.stringify()
 }
 
+///|
 /// Serialized lineage result envelope (LINE-01, D-07): the
 /// fathom.lineage.v1 envelope carries the same dialect/profile/exact_release
 /// selection metadata as the parse/format/lint envelopes (D-09 — consumers
@@ -98,24 +106,28 @@ pub fn lineage_result_json(
 ) -> String {
   let edges : Array[Json] = []
   for edge in result.edges {
-    edges.push(Json::object({
-      "source_name": Json::string(edge.source_name),
-      "source_resolved_to": Json::string(edge.source_resolved_to),
-      "source_start_byte": Json::number(edge.source_start_byte.to_double()),
-      "source_end_byte": Json::number(edge.source_end_byte.to_double()),
-      "target_name": Json::string(edge.target_name),
-      "target_start_byte": Json::number(edge.target_start_byte.to_double()),
-      "target_end_byte": Json::number(edge.target_end_byte.to_double()),
-    }))
+    edges.push(
+      Json::object({
+        "source_name": Json::string(edge.source_name),
+        "source_resolved_to": Json::string(edge.source_resolved_to),
+        "source_start_byte": Json::number(edge.source_start_byte.to_double()),
+        "source_end_byte": Json::number(edge.source_end_byte.to_double()),
+        "target_name": Json::string(edge.target_name),
+        "target_start_byte": Json::number(edge.target_start_byte.to_double()),
+        "target_end_byte": Json::number(edge.target_end_byte.to_double()),
+      }),
+    )
   }
   let gaps : Array[Json] = []
   for gap in result.gaps {
-    gaps.push(Json::object({
-      "code": Json::string(gap.code),
-      "message": Json::string(gap.message),
-      "start_byte": Json::number(gap.start_byte.to_double()),
-      "end_byte": Json::number(gap.end_byte.to_double()),
-    }))
+    gaps.push(
+      Json::object({
+        "code": Json::string(gap.code),
+        "message": Json::string(gap.message),
+        "start_byte": Json::number(gap.start_byte.to_double()),
+        "end_byte": Json::number(gap.end_byte.to_double()),
+      }),
+    )
   }
   stringify({
     "schema_version": Json::string(LINEAGE_SCHEMA_VERSION),

@@ -1,5 +1,6 @@
 pkgtype(kind: "library")
+
 import {
-  "fathom/sql/source" @source,
-  "fathom/sql/dialect" @dialect,
+  "fathom/sql/source",
+  "fathom/sql/dialect",
 }

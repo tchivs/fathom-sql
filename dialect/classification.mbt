@@ -5,6 +5,7 @@
 /// acceptance and vice versa. No parameterless public query survives
 /// (Pitfall 1).
 
+///|
 /// Three-layer keyword classification (D-14): reserved words require backticks
 /// as identifiers, non-reserved grammar words stay usable as unquoted
 /// identifiers, and contextual words are clause-only (identifiers elsewhere).
@@ -15,6 +16,7 @@ pub enum ClassificationKind {
   Contextual
 } derive(Eq, @debug.Debug)
 
+///|
 /// One classified keyword row: word spelling, classification, the released
 /// profile that introduced the classification-relevant usage, and the official
 /// docs source row. Every word the parser productions use has a row
@@ -28,6 +30,7 @@ pub struct KeywordEntry {
   pub source : String
 } derive(Eq, @debug.Debug)
 
+///|
 /// ASCII case-insensitive byte compare (moved verbatim from
 /// token/token.mbt:221-236): the shared lookup algorithm for every dialect's
 /// row array.
@@ -41,14 +44,21 @@ fn token_bytes_equal_ci(actual : Bytes, expected : Bytes) -> Bool {
       let left = actual[index].to_int()
       let right = expected[index].to_int()
       let folded_left = if left >= 97 && left <= 122 { left - 32 } else { left }
-      let folded_right = if right >= 97 && right <= 122 { right - 32 } else { right }
-      if folded_left != folded_right { equal = false }
+      let folded_right = if right >= 97 && right <= 122 {
+        right - 32
+      } else {
+        right
+      }
+      if folded_left != folded_right {
+        equal = false
+      }
       index = index + 1
     }
     equal
   }
 }
 
+///|
 /// Release-order rank for the pinned Flink profile ids
 /// (flink-1.20.5 < flink-2.1.3 < flink-2.3.0, D-02). A row introduced in a
 /// later release must be ABSENT under earlier profiles; unknown ids return
@@ -62,16 +72,22 @@ fn flink_release_rank(profile_id : String) -> Int? {
   }
 }
 
+///|
 /// True iff the row's introduced_profile is <= the selected Flink profile in
 /// release order — the per-release gate for Flink keyword visibility
 /// (T-10-13). Doris rows are never routed through this filter (Pitfall 4).
 fn flink_row_visible(row : KeywordEntry, context : DialectContext) -> Bool {
-  match (flink_release_rank(row.introduced_profile), flink_release_rank(context.profile_id)) {
+  match
+    (
+      flink_release_rank(row.introduced_profile),
+      flink_release_rank(context.profile_id),
+    ) {
     (Some(required), Some(selected)) => required <= selected
     _ => false
   }
 }
 
+///|
 /// The dialect's classification rows, selected by context.dialect (Pitfall 7):
 /// two independent module-level arrays, no shared mutable state (DIALECT-02
 /// structural independence). Doris rows are selected by context.dialect and
@@ -95,8 +111,12 @@ fn classification_rows_for(context : DialectContext) -> Array[KeywordEntry] {
   }
 }
 
+///|
 /// Case-insensitive lookup of a word's classification row (D-13/D-14).
-pub fn classification_of(context : DialectContext, raw : Bytes) -> KeywordEntry? {
+pub fn classification_of(
+  context : DialectContext,
+  raw : Bytes,
+) -> KeywordEntry? {
   let rows = classification_rows_for(context)
   let mut index = 0
   while index < rows.length() {
@@ -109,6 +129,7 @@ pub fn classification_of(context : DialectContext, raw : Bytes) -> KeywordEntry?
   None
 }
 
+///|
 /// All rows for the context's dialect (replaces token's
 /// classification_entry_count/classification_entry_at accessors used by
 /// completion and the keyword audit tests).
@@ -116,18 +137,27 @@ pub fn classification_entries(context : DialectContext) -> Array[KeywordEntry] {
   classification_rows_for(context)
 }
 
+///|
 /// Released-profile clause boundaries shared by parser contexts.
 pub fn is_clause_keyword(context : DialectContext, raw : Bytes) -> Bool {
-  token_bytes_equal_ci(raw, b"SELECT") || token_bytes_equal_ci(raw, b"WITH") ||
-    token_bytes_equal_ci(raw, b"FROM") || token_bytes_equal_ci(raw, b"WHERE") ||
-    token_bytes_equal_ci(raw, b"GROUP") || token_bytes_equal_ci(raw, b"HAVING") ||
-    token_bytes_equal_ci(raw, b"ORDER") || token_bytes_equal_ci(raw, b"LIMIT") ||
-    token_bytes_equal_ci(raw, b"JOIN") || token_bytes_equal_ci(raw, b"UNION") ||
-    token_bytes_equal_ci(raw, b"QUALIFY") || token_bytes_equal_ci(raw, b"WINDOW") ||
-    token_bytes_equal_ci(raw, b"INTO") || token_bytes_equal_ci(raw, b"ON") ||
-    token_bytes_equal_ci(raw, b"USING")
+  token_bytes_equal_ci(raw, b"SELECT") ||
+  token_bytes_equal_ci(raw, b"WITH") ||
+  token_bytes_equal_ci(raw, b"FROM") ||
+  token_bytes_equal_ci(raw, b"WHERE") ||
+  token_bytes_equal_ci(raw, b"GROUP") ||
+  token_bytes_equal_ci(raw, b"HAVING") ||
+  token_bytes_equal_ci(raw, b"ORDER") ||
+  token_bytes_equal_ci(raw, b"LIMIT") ||
+  token_bytes_equal_ci(raw, b"JOIN") ||
+  token_bytes_equal_ci(raw, b"UNION") ||
+  token_bytes_equal_ci(raw, b"QUALIFY") ||
+  token_bytes_equal_ci(raw, b"WINDOW") ||
+  token_bytes_equal_ci(raw, b"INTO") ||
+  token_bytes_equal_ci(raw, b"ON") ||
+  token_bytes_equal_ci(raw, b"USING")
 }
 
+///|
 /// Released-profile reserved words: table-backed (D-14) — true iff a Reserved
 /// row exists (case-insensitive). Answers match the Phase 1 clause/operator
 /// set exactly; TABLET remains contextual.
@@ -138,10 +168,12 @@ pub fn is_reserved_word(context : DialectContext, raw : Bytes) -> Bool {
   }
 }
 
+///|
 pub fn is_unquoted_identifier(context : DialectContext, raw : Bytes) -> Bool {
   !is_reserved_word(context, raw)
 }
 
+///|
 fn doris_test_context() -> DialectContext {
   {
     dialect: Dialect::Doris,
@@ -151,22 +183,32 @@ fn doris_test_context() -> DialectContext {
   }
 }
 
+///|
 fn flink_test_context(profile_id : String) -> DialectContext {
-  { dialect: Dialect::Flink, profile_id: profile_id, exact_release: profile_id, feature_introduction: "" }
+  {
+    dialect: Dialect::Flink,
+    profile_id,
+    exact_release: profile_id,
+    feature_introduction: "",
+  }
 }
 
+///|
 fn flink_2_3_0_context() -> DialectContext {
   flink_test_context("flink-2.3.0")
 }
 
+///|
 fn flink_2_1_3_context() -> DialectContext {
   flink_test_context("flink-2.1.3")
 }
 
+///|
 fn flink_1_20_5_context() -> DialectContext {
   flink_test_context("flink-1.20.5")
 }
 
+///|
 /// True iff the word has a Reserved row under the context (D-14 reserved-word
 /// gate). Helper used by the release-aware independence test.
 fn classification_is_reserved(context : DialectContext, raw : Bytes) -> Bool {
@@ -176,6 +218,7 @@ fn classification_is_reserved(context : DialectContext, raw : Bytes) -> Bool {
   }
 }
 
+///|
 test "released_identifier_classification_is_case_insensitive_and_contextual" {
   let context = doris_test_context()
   for raw in [b"SELECT", b"with", b"As", b"AND", b"or", b"FROM", b"window"] {
@@ -190,6 +233,7 @@ test "released_identifier_classification_is_case_insensitive_and_contextual" {
   assert_true(is_unquoted_identifier(context, b"user_name"))
 }
 
+///|
 test "classification_is_dialect_independent_and_release_aware" {
   let doris = doris_test_context()
   let flink_230 = flink_2_3_0_context()
@@ -243,7 +287,10 @@ test "classification_is_dialect_independent_and_release_aware" {
   // VARIANT is not a Doris reserved word, SELECT is — no cross-dialect
   // leakage, no global union (DIALECT-02, Pitfall 4, T-10-12). The count
   // assertion still cross-checks the two access paths agree.
-  assert_eq(classification_entries(doris).length(), doris_classification_rows.length())
+  assert_eq(
+    classification_entries(doris).length(),
+    doris_classification_rows.length(),
+  )
   assert_true(!is_reserved_word(doris, b"VARIANT"))
   assert_true(is_reserved_word(doris, b"SELECT"))
   // The same core word classifies under both dialects independently.

@@ -4,8 +4,9 @@
 // starts it with None defaults (no workspace default selection — missing
 // selection is a configuration error per D-02 once 09-06 resolves it).
 pkgtype(kind: "executable")
+
 import {
-  "fathom/sql/lsp" @lsp,
-  "fathom/sql/version" @version,
-  "moonbitlang/core/env" @env,
+  "fathom/sql/lsp",
+  "fathom/sql/version",
+  "moonbitlang/core/env",
 }

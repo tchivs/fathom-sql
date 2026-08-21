@@ -1,9 +1,10 @@
 pkgtype(kind: "library")
+
 import {
-  "fathom/sql/source" @source,
-  "fathom/sql/syntax" @syntax,
-  "fathom/sql/token" @token,
-  "fathom/sql/lexer" @lexer,
-  "fathom/sql/api" @api,
-  "fathom/sql/dialect" @dialect,
+  "fathom/sql/source",
+  "fathom/sql/syntax",
+  "fathom/sql/token",
+  "fathom/sql/lexer",
+  "fathom/sql/api",
+  "fathom/sql/dialect",
 }

@@ -8,6 +8,7 @@
 /// `--profile <id>` are REQUIRED for every subcommand (parse|format|lsp);
 /// missing or unknown values exit 2 — the CLI never defaults a dialect.
 
+///|
 /// Usage errors map to exit 2 (D-39).
 pub enum UsageError {
   MissingSubcommand
@@ -21,6 +22,7 @@ pub enum UsageError {
   UnknownValue(flag~ : String, value~ : String)
 } derive(Eq, @debug.Debug)
 
+///|
 /// Parsed invocation. `subcommand` is one of "parse"|"format"|"lsp"|"lint"|
 /// "fingerprint"|"lineage" (D-11); `dialect` and `profile` are always set by
 /// parse_args. `file` None or "-" means stdin; trailing_newline defaults true
@@ -46,6 +48,7 @@ pub(all) struct Command {
   normalized : Bool
 }
 
+///|
 /// Flag surface (D-11, research Open Q2 RESOLVED):
 /// `fathom-sql parse|format|lsp|lint|fingerprint|lineage --dialect <doris|flink>
 /// --profile <id> [--keyword-case upper|lower] [--indent N] [--line-width N]
@@ -56,10 +59,16 @@ pub(all) struct Command {
 /// MissingProfile -> exit 2 (D-11 — no silent default dialect). --help is
 /// handled in main before parse_args.
 pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
-  if args.length() == 0 { return Err(MissingSubcommand) }
+  if args.length() == 0 {
+    return Err(MissingSubcommand)
+  }
   let subcommand = args[0]
-  if subcommand != "parse" && subcommand != "format" && subcommand != "lsp" &&
-    subcommand != "lint" && subcommand != "fingerprint" && subcommand != "lineage" {
+  if subcommand != "parse" &&
+    subcommand != "format" &&
+    subcommand != "lsp" &&
+    subcommand != "lint" &&
+    subcommand != "fingerprint" &&
+    subcommand != "lineage" {
     return Err(UnknownSubcommand(sub=subcommand))
   }
   let mut dialect : String? = None
@@ -80,65 +89,78 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
     let arg = args[index]
     if arg == "--dialect" {
       index = index + 1
-      if index >= args.length() { return Err(MissingValue(flag="--dialect")) }
+      if index >= args.length() {
+        return Err(MissingValue(flag="--dialect"))
+      }
       let value = args[index]
-      if value != "doris" && value != "flink" { return Err(UnknownDialect(dialect_id=value)) }
+      if value != "doris" && value != "flink" {
+        return Err(UnknownDialect(dialect_id=value))
+      }
       dialect = Some(value)
     } else if arg == "--profile" {
       index = index + 1
-      if index >= args.length() { return Err(MissingValue(flag="--profile")) }
+      if index >= args.length() {
+        return Err(MissingValue(flag="--profile"))
+      }
       profile = Some(args[index])
     } else if arg == "--rule" {
       index = index + 1
-      if index >= args.length() { return Err(MissingValue(flag="--rule")) }
+      if index >= args.length() {
+        return Err(MissingValue(flag="--rule"))
+      }
       match parse_rule_flag(args[index]) {
         Ok(rule_override) => overrides.push(rule_override)
         Err(error) => return Err(error)
       }
     } else if arg == "--catalog" {
       index = index + 1
-      if index >= args.length() { return Err(MissingValue(flag="--catalog")) }
+      if index >= args.length() {
+        return Err(MissingValue(flag="--catalog"))
+      }
       catalog = Some(args[index])
     } else if arg == "--fix" {
       fix = true
     } else if arg == "--normalized" {
       normalized = true
-    } else if arg == "--keyword-case" || arg == "--comma-style" || arg == "--newline-style" ||
-      arg == "--indent" || arg == "--line-width" {
+    } else if arg == "--keyword-case" ||
+      arg == "--comma-style" ||
+      arg == "--newline-style" ||
+      arg == "--indent" ||
+      arg == "--line-width" {
       index = index + 1
-      if index >= args.length() { return Err(MissingValue(flag=arg)) }
+      if index >= args.length() {
+        return Err(MissingValue(flag=arg))
+      }
       let value = args[index]
       match arg {
         "--keyword-case" => {
           if value != "upper" && value != "lower" {
-            return Err(UnknownValue(flag="--keyword-case", value=value))
+            return Err(UnknownValue(flag="--keyword-case", value~))
           }
           keyword_case = Some(value)
         }
         "--comma-style" => {
           if value != "trailing" && value != "leading" {
-            return Err(UnknownValue(flag="--comma-style", value=value))
+            return Err(UnknownValue(flag="--comma-style", value~))
           }
           comma_style = Some(value)
         }
         "--newline-style" => {
           if value != "follow" && value != "lf" && value != "crlf" {
-            return Err(UnknownValue(flag="--newline-style", value=value))
+            return Err(UnknownValue(flag="--newline-style", value~))
           }
           newline_style = Some(value)
         }
-        "--indent" => {
+        "--indent" =>
           match parse_int_arg(value) {
             Some(number) => indent = Some(number)
-            None => return Err(UnknownValue(flag="--indent", value=value))
+            None => return Err(UnknownValue(flag="--indent", value~))
           }
-        }
-        "--line-width" => {
+        "--line-width" =>
           match parse_int_arg(value) {
             Some(number) => line_width = Some(number)
-            None => return Err(UnknownValue(flag="--line-width", value=value))
+            None => return Err(UnknownValue(flag="--line-width", value~))
           }
-        }
         _ => ()
       }
     } else if arg == "--no-trailing-newline" {
@@ -166,26 +188,29 @@ pub fn parse_args(args : Array[String]) -> Result[Command, UsageError] {
   // The dialect travels with the error so the exit-2 message can list the
   // released values (MI-02).
   if !is_valid_dialect_profile(dialect_value, profile_value) {
-    return Err(UnknownProfile(profile_id=profile_value, dialect_id=dialect_value))
+    return Err(
+      UnknownProfile(profile_id=profile_value, dialect_id=dialect_value),
+    )
   }
   Ok({
-    subcommand: subcommand,
+    subcommand,
     dialect: dialect_value,
     profile: profile_value,
-    keyword_case: keyword_case,
-    indent: indent,
-    line_width: line_width,
-    comma_style: comma_style,
-    newline_style: newline_style,
-    trailing_newline: trailing_newline,
-    file: file,
-    catalog: catalog,
-    overrides: overrides,
-    fix: fix,
-    normalized: normalized,
+    keyword_case,
+    indent,
+    line_width,
+    comma_style,
+    newline_style,
+    trailing_newline,
+    file,
+    catalog,
+    overrides,
+    fix,
+    normalized,
   })
 }
 
+///|
 /// Parse one `--rule <code>=<severity|off>` flag into a RuleOverride (D-04).
 /// The value must contain exactly one `=`, a non-empty code, and a severity of
 /// error/warning/info/off; anything else is an UnknownValue usage error that
@@ -198,22 +223,23 @@ fn parse_rule_flag(value : String) -> Result[@api.RuleOverride, UsageError] {
       let code = code_view.to_string()
       let setting = setting_view.to_string()
       if code.length() == 0 {
-        return Err(UnknownValue(flag="--rule", value=value))
+        return Err(UnknownValue(flag="--rule", value~))
       }
       let parsed = if setting == "off" {
         @api.RuleSetting::Disabled
       } else {
         match @api.LintSeverity::from_id(setting) {
           Some(severity) => @api.RuleSetting::Severity(severity)
-          None => return Err(UnknownValue(flag="--rule", value=value))
+          None => return Err(UnknownValue(flag="--rule", value~))
         }
       }
-      Ok({ code: code, setting: parsed })
+      Ok({ code, setting: parsed })
     }
-    None => Err(UnknownValue(flag="--rule", value=value))
+    None => Err(UnknownValue(flag="--rule", value~))
   }
 }
 
+///|
 /// Explicit dialect+profile validation (D-11, mirrors binding's
 /// validate_dialect_profile): doris accepts 2.1/3.x/4.x; flink accepts the
 /// three pinned release profiles (Phase 10, D-01) — exact match only, no
@@ -221,11 +247,13 @@ fn parse_rule_flag(value : String) -> Result[@api.RuleOverride, UsageError] {
 pub fn is_valid_dialect_profile(dialect : String, id : String) -> Bool {
   match dialect {
     "doris" => id == "2.1" || id == "3.x" || id == "4.x"
-    "flink" => id == "flink-2.3.0" || id == "flink-2.1.3" || id == "flink-1.20.5"
+    "flink" =>
+      id == "flink-2.3.0" || id == "flink-2.1.3" || id == "flink-1.20.5"
     _ => false
   }
 }
 
+///|
 /// Hand-rolled optional-sign integer parse (no @strconv import — the CLI
 /// dependency surface stays at api/lsp/binding/env/buffer/utf8/debug). "4" ->
 /// Some(4), "-1" -> Some(-1), "abc" -> None. Negative values reach
@@ -236,21 +264,33 @@ pub fn is_valid_dialect_profile(dialect : String, id : String) -> Bool {
 /// applies the authoritative bounds (indent 0..64).
 fn parse_int_arg(value : String) -> Int? {
   let chars = value.to_array()
-  if chars.length() == 0 { return None }
+  if chars.length() == 0 {
+    return None
+  }
   let mut start = 0
   let mut negative = false
   if chars[0] == '-' {
     negative = true
     start = 1
   }
-  if start >= chars.length() { return None }
+  if start >= chars.length() {
+    return None
+  }
   let mut number = 0
   while start < chars.length() {
     let code = chars[start].to_int()
-    if code < 48 || code > 57 { return None }
-    if number > 100000000 { return None }
+    if code < 48 || code > 57 {
+      return None
+    }
+    if number > 100000000 {
+      return None
+    }
     number = number * 10 + (code - 48)
     start = start + 1
   }
-  if negative { Some(-number) } else { Some(number) }
+  if negative {
+    Some(-number)
+  } else {
+    Some(number)
+  }
 }

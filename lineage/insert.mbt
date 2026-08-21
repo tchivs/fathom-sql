@@ -14,12 +14,16 @@
 /// unknown-table diagnostic mapping (Open Question 3). A trailing `WITH LABEL`
 /// prefix is part of the INSERT prefix, not the query body, and is skipped.
 
+///|
 /// The INSERT statement's leading-keyword prefix end (mirror of
 /// `insert_body_location`'s first half).
 fn insert_prefix_end(tokens : Array[(Bytes, Int, Int)]) -> Int {
   let mut prefix = 0
-  if prefix < tokens.length() && (bytes_equal_ci(tokens[prefix].0, b"INSERT") ||
-    bytes_equal_ci(tokens[prefix].0, b"UPSERT")) {
+  if prefix < tokens.length() &&
+    (
+      bytes_equal_ci(tokens[prefix].0, b"INSERT") ||
+      bytes_equal_ci(tokens[prefix].0, b"UPSERT")
+    ) {
     prefix = prefix + 1
   }
   if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"OVERWRITE") {
@@ -27,22 +31,28 @@ fn insert_prefix_end(tokens : Array[(Bytes, Int, Int)]) -> Int {
     if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"TABLE") {
       prefix = prefix + 1
     }
-  } else if prefix < tokens.length() && bytes_equal_ci(tokens[prefix].0, b"INTO") {
+  } else if prefix < tokens.length() &&
+    bytes_equal_ci(tokens[prefix].0, b"INTO") {
     prefix = prefix + 1
   }
   prefix
 }
 
+///|
 /// True when the trailing body begins with a WITH LABEL prefix (part of the
 /// INSERT prefix, not the query body).
 fn starts_with_label(tokens : Array[(Bytes, Int, Int)]) -> Bool {
-  tokens.length() >= 2 && bytes_equal_ci(tokens[0].0, b"WITH") &&
-    bytes_equal_ci(tokens[1].0, b"LABEL")
+  tokens.length() >= 2 &&
+  bytes_equal_ci(tokens[0].0, b"WITH") &&
+  bytes_equal_ci(tokens[1].0, b"LABEL")
 }
 
+///|
 /// Strips a WITH LABEL <label> prefix so the remaining tokens are the actual
 /// VALUES/SELECT/WITH body.
-fn strip_label_prefix(tokens : Array[(Bytes, Int, Int)]) -> Array[(Bytes, Int, Int)] {
+fn strip_label_prefix(
+  tokens : Array[(Bytes, Int, Int)],
+) -> Array[(Bytes, Int, Int)] {
   if !starts_with_label(tokens) {
     return tokens
   }
@@ -53,6 +63,7 @@ fn strip_label_prefix(tokens : Array[(Bytes, Int, Int)]) -> Array[(Bytes, Int, I
   sub_tokens(tokens, i, tokens.length())
 }
 
+///|
 /// Target column names from an INSERT column-list token range, qualified with
 /// the target table name (D-04 positional mapping): `(c1, c2)` -> t.c1, t.c2.
 fn col_list_targets(
@@ -67,18 +78,26 @@ fn col_list_targets(
   for ref in refs {
     if ref.parts.length() > 0 {
       let p = ref.parts[0]
-      out.push((target_table + "." + identifier_text(p.bytes), p.start_byte, p.end_byte))
+      out.push(
+        (
+          target_table + "." + identifier_text(p.bytes),
+          p.start_byte,
+          p.end_byte,
+        ),
+      )
     }
   }
   out
 }
 
+///|
 /// True when a whole token is a quoted identifier (backtick or double quote),
 /// mirroring the analyzer's D-03 quoted byte-exact rule.
 fn is_quoted(bytes : Bytes) -> Bool {
   bytes.length() > 0 && (bytes[0].to_int() == 96 || bytes[0].to_int() == 34)
 }
 
+///|
 /// Resolves the target table's column list via the catalog (default-db or
 /// db-qualified), or None when the table is absent (D-04 column-order path).
 /// Quoted target tables apply the D-03 byte-exact re-check against the
@@ -120,6 +139,7 @@ fn[T : @analyzer.Catalog] resolve_insert_target_columns(
   }
 }
 
+///|
 /// True when `name` is in the resolved-source set (ASCII case-insensitive).
 fn source_resolved(resolved : Array[String], name : String) -> Bool {
   for r in resolved {
@@ -130,6 +150,7 @@ fn source_resolved(resolved : Array[String], name : String) -> Bool {
   false
 }
 
+///|
 /// Resolves one FROM/JOIN table reference of the trailing INSERT source
 /// against the catalog. A resolved table is recorded by its last identifier
 /// segment; an unresolved table emits exactly one honest gap at the table-ref
@@ -172,7 +193,11 @@ fn[T : @analyzer.Catalog] resolve_from_source(
     resolved.push(texts[n - 1])
   } else {
     gaps.push({
-      code: if catalog_none { GAP_REQUIRES_CATALOG } else { GAP_UNRESOLVED_REFERENCE },
+      code: if catalog_none {
+        GAP_REQUIRES_CATALOG
+      } else {
+        GAP_UNRESOLVED_REFERENCE
+      },
       message: "source table not found in catalog: " + join_strings(texts, "."),
       start_byte: name_ref.start_byte,
       end_byte: name_ref.end_byte,
@@ -180,6 +205,7 @@ fn[T : @analyzer.Catalog] resolve_from_source(
   }
 }
 
+///|
 /// Resolves every non-subquery FROM/JOIN table of the trailing SELECT model
 /// against the catalog, recording resolved tables and emitting one honest gap
 /// per unresolved table (CR-01 / SC2).
@@ -201,6 +227,7 @@ fn[T : @analyzer.Catalog] resolve_insert_source_tables(
   resolved
 }
 
+///|
 /// True when at least one non-subquery FROM/JOIN table of the branch resolved
 /// (an unqualified source column reference may come from any of them).
 fn branch_has_resolved_from(
@@ -214,7 +241,8 @@ fn branch_has_resolved_from(
         None => continue
       }
       let n = name_ref.parts.length()
-      if n > 0 && source_resolved(resolved, identifier_text(name_ref.parts[n - 1].bytes)) {
+      if n > 0 &&
+        source_resolved(resolved, identifier_text(name_ref.parts[n - 1].bytes)) {
         return true
       }
     }
@@ -226,7 +254,8 @@ fn branch_has_resolved_from(
         None => continue
       }
       let n = name_ref.parts.length()
-      if n > 0 && source_resolved(resolved, identifier_text(name_ref.parts[n - 1].bytes)) {
+      if n > 0 &&
+        source_resolved(resolved, identifier_text(name_ref.parts[n - 1].bytes)) {
         return true
       }
     }
@@ -234,6 +263,7 @@ fn branch_has_resolved_from(
   false
 }
 
+///|
 /// True when a source reference's table resolved against the catalog.
 /// Qualified refs use the table segment (last two parts as db.table, matching
 /// the analyzer's two-level model); unqualified refs require at least one
@@ -251,6 +281,7 @@ fn source_ref_resolved(
   }
 }
 
+///|
 /// Positionally maps a trailing INSERT SELECT model's output columns to the
 /// INSERT target columns (D-04). Source edges are emitted ONLY for references
 /// whose source table resolved against the catalog; references from an
@@ -272,7 +303,9 @@ fn[T : @analyzer.Catalog] derive_insert_source_edges(
   edges : Array[LineageEdge],
   gaps : Array[LineageGap],
 ) -> Unit {
-  let resolved = resolve_insert_source_tables(model, catalog_none, catalog, gaps)
+  let resolved = resolve_insert_source_tables(
+    model, catalog_none, catalog, gaps,
+  )
   for branch in model.branches {
     let mut pos = 0
     let mut star_seen = false
@@ -296,7 +329,11 @@ fn[T : @analyzer.Catalog] derive_insert_source_edges(
           if !source_ref_resolved(branch, ref, resolved) {
             continue
           }
-          let binding = column_binding_at(bindings, ref.start_byte, ref.end_byte)
+          let binding = column_binding_at(
+            bindings,
+            ref.start_byte,
+            ref.end_byte,
+          )
           let source_name = match binding {
             Some(b) => b.name
             None => ref_last_part(ref)
@@ -311,7 +348,7 @@ fn[T : @analyzer.Catalog] derive_insert_source_edges(
             (target_table, target_table_start, target_table_end)
           }
           edges.push({
-            source_name: source_name,
+            source_name,
             source_resolved_to: source_resolved,
             source_start_byte: ref.start_byte,
             source_end_byte: ref.end_byte,
@@ -326,6 +363,7 @@ fn[T : @analyzer.Catalog] derive_insert_source_edges(
   }
 }
 
+///|
 /// One INSERT body's lineage contribution (D-04 / Pattern 3).
 fn[T : @analyzer.Catalog] derive_insert_body(
   tokens : Array[(Bytes, Int, Int)],
@@ -340,13 +378,15 @@ fn[T : @analyzer.Catalog] derive_insert_body(
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
   if has_error {
-    let message = match first_diag_with_code(diagnostics, "requires-complete-parse") {
+    let message = match
+      first_diag_with_code(diagnostics, "requires-complete-parse") {
       Some(d) => d.message
-      None => "refusing to derive lineage for a statement with error/missing material"
+      None =>
+        "refusing to derive lineage for a statement with error/missing material"
     }
     gaps.push({
       code: GAP_REQUIRES_COMPLETE_PARSE,
-      message: message,
+      message,
       start_byte: body_start,
       end_byte: body_end,
     })
@@ -374,51 +414,44 @@ fn[T : @analyzer.Catalog] derive_insert_body(
   // requires-catalog at the target-table span (Open Question 3).
   let target_cols : Array[(String, Int, Int)] = match loc {
     Some((Some((cs, ce)), _)) => col_list_targets(target_table, tokens, cs, ce)
-    _ => match resolve_insert_target_columns(catalog, target_ref) {
-      Some(cols) => {
-        let out : Array[(String, Int, Int)] = []
-        for col in cols {
-          out.push((target_table + "." + col.name, target_start, target_end))
+    _ =>
+      match resolve_insert_target_columns(catalog, target_ref) {
+        Some(cols) => {
+          let out : Array[(String, Int, Int)] = []
+          for col in cols {
+            out.push((target_table + "." + col.name, target_start, target_end))
+          }
+          out
         }
-        out
+        None => []
       }
-      None => []
-    }
   }
   match loc {
-    Some((_, body_start_idx)) => {
+    Some((_, body_start_idx)) =>
       if body_start_idx < tokens.length() {
-        let body_tokens = strip_label_prefix(sub_tokens(tokens, body_start_idx, tokens.length()))
-        if body_tokens.length() > 0 && bytes_equal_ci(body_tokens[0].0, b"VALUES") {
+        let body_tokens = strip_label_prefix(
+          sub_tokens(tokens, body_start_idx, tokens.length()),
+        )
+        if body_tokens.length() > 0 &&
+          bytes_equal_ci(body_tokens[0].0, b"VALUES") {
           // VALUES rows carry no column references -> no edges.
         } else {
           match @analyzer.split_select_model(body_tokens) {
-            Some(model) => {
+            Some(model) =>
               derive_insert_source_edges(
-                model,
-                target_table,
-                target_start,
-                target_end,
-                target_cols,
-                bindings,
-                catalog_none,
-                catalog,
-                edges,
-                gaps,
+                model, target_table, target_start, target_end, target_cols, bindings,
+                catalog_none, catalog, edges, gaps,
               )
-            }
-            None => {
+            None =>
               gaps.push({
                 code: GAP_REQUIRES_COMPLETE_PARSE,
                 message: "INSERT source body could not be re-parsed",
                 start_byte: body_start,
                 end_byte: body_end,
               })
-            }
           }
         }
       }
-    }
     None => ()
   }
   // Diagnostic mapping for the INSERT body: an unknown target table produces

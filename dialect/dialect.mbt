@@ -4,6 +4,7 @@
 /// never depend on it; token/lexer/parser/api consume the context downward
 /// (09-RESEARCH.md §4.1).
 
+///|
 /// Closed dialect enum: the only selection values (D-01, D-11). Flink is a
 /// legal selection value through every public boundary from Phase 9 on, but
 /// Flink profiles are rejected until Phase 10 and every Flink parse is an
@@ -14,6 +15,7 @@ pub(all) enum Dialect {
   Flink
 } derive(Eq, @debug.Debug)
 
+///|
 /// Immutable selection context threaded through token/lexer/parser/api: the
 /// dialect plus the validated profile/metadata strings identifying the exact
 /// released product surface. Field shapes follow the ProfileMetadata pub-field

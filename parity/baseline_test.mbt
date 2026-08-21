@@ -1,3 +1,4 @@
+///|
 /// D-07/D-08 v1 baseline freeze (wave 1 of phase 09): snapshot EVERY corpus
 /// fixture x profile x mode combination through the CURRENT (pre-rename)
 /// shared entries so later dialect/naming waves can only land byte-identical
@@ -21,13 +22,13 @@
 /// bytes or `moon test` fails. CI runs the parity suite on native and
 /// linear-Wasm (and the suite is runnable on js) so a target-specific
 /// serialization regression is caught by the same byte-level gate.
-
 pub(all) struct BaselineFixture {
   pub fixture_id : String
   pub profile : String
   pub raw : Bytes
 }
 
+///|
 /// All 44 corpus/manifest.tsv data rows, in manifest order. File-backed rows
 /// embed the exact committed bytes of the corpus .sql files (including the
 /// provenance comment headers; the 4.x-industrial file carries the TABLET (1001)
@@ -41,26 +42,14 @@ let baseline_fixtures : Array[BaselineFixture] = [
     profile: "2.1",
     raw: b"-- Released Apache Doris 2.1 SELECT grammar examples.\n-- Source: https://doris.apache.org/docs/2.1/sql-manual/sql-statements/data-query/SELECT/\nSELECT DISTINCT k, SUM(v) AS total\nFROM fact PARTITION (p0) TABLESAMPLE (10)\nWHERE v BETWEEN 1 AND 9\nGROUP BY ROLLUP(k)\nHAVING SUM(v) > 0\nORDER BY total DESC\nLIMIT 10;\n\nSELECT a FROM left_table LEFT OUTER JOIN right_table ON left_table.k = right_table.k;\nSELECT a FROM first_table UNION ALL SELECT a FROM second_table;\nSELECT `group`, `window` FROM `table`;\n",
   },
-  {
-    fixture_id: "2.1-boundary-empty",
-    profile: "2.1",
-    raw: b"SELECT FROM t",
-  },
-  {
-    fixture_id: "2.1-boundary-single",
-    profile: "2.1",
-    raw: b"SELECT 1",
-  },
+  { fixture_id: "2.1-boundary-empty", profile: "2.1", raw: b"SELECT FROM t" },
+  { fixture_id: "2.1-boundary-single", profile: "2.1", raw: b"SELECT 1" },
   {
     fixture_id: "2.1-contextual-keyword",
     profile: "2.1",
     raw: b"SELECT `group`, `window` FROM `table`",
   },
-  {
-    fixture_id: "2.1-invalid-encoding",
-    profile: "2.1",
-    raw: b"SELECT \xff",
-  },
+  { fixture_id: "2.1-invalid-encoding", profile: "2.1", raw: b"SELECT \xff" },
   {
     fixture_id: "3.x-industrial",
     profile: "3.x",
@@ -76,11 +65,7 @@ let baseline_fixtures : Array[BaselineFixture] = [
     profile: "3.x",
     raw: b"SELECT 1 UNION SELECT 2 UNION ALL SELECT 3 UNION DISTINCT SELECT 4",
   },
-  {
-    fixture_id: "3.x-recovery",
-    profile: "3.x",
-    raw: b"SELECT k FROM t WHERE",
-  },
+  { fixture_id: "3.x-recovery", profile: "3.x", raw: b"SELECT k FROM t WHERE" },
   {
     fixture_id: "3.x-unsupported-profile",
     profile: "2.1",
@@ -96,16 +81,8 @@ let baseline_fixtures : Array[BaselineFixture] = [
     profile: "4.x",
     raw: b"SELECT 1 UNION SELECT 2; SELECT 3 UNION ALL SELECT 4",
   },
-  {
-    fixture_id: "4.x-recovery",
-    profile: "4.x",
-    raw: b"SELECT k +",
-  },
-  {
-    fixture_id: "4.x-invalid-encoding",
-    profile: "4.x",
-    raw: b"SELECT \xff",
-  },
+  { fixture_id: "4.x-recovery", profile: "4.x", raw: b"SELECT k +" },
+  { fixture_id: "4.x-invalid-encoding", profile: "4.x", raw: b"SELECT \xff" },
   {
     fixture_id: "2.1-insert-values",
     profile: "2.1",
@@ -258,18 +235,25 @@ let baseline_fixtures : Array[BaselineFixture] = [
   },
 ]
 
+///|
 fn baseline_fixture(id : String) -> BaselineFixture {
   for fixture in baseline_fixtures {
-    if fixture.fixture_id == id { return fixture }
+    if fixture.fixture_id == id {
+      return fixture
+    }
   }
   panic()
 }
 
+///|
 fn parse_json(id : String, mode : String) -> String {
   let fixture = baseline_fixture(id)
-  @utf8.decode_lossy(@binding.fathom_parse_v1(fixture.raw, "doris", fixture.profile, mode))
+  @utf8.decode_lossy(
+    @binding.fathom_parse_v1(fixture.raw, "doris", fixture.profile, mode),
+  )
 }
 
+///|
 /// Default formatter options per D-29..D-32 (upper, 2, 100, trailing, follow,
 /// trailing newline on) — the same values the v1 parity harness calls
 /// fathom_format_v1 with.
@@ -277,11 +261,21 @@ fn format_json(id : String) -> String {
   let fixture = baseline_fixture(id)
   @utf8.decode_lossy(
     @binding.fathom_format_v1(
-      fixture.raw, "doris", fixture.profile, "strict", "upper", 2, 100, "trailing", "follow", true,
+      fixture.raw,
+      "doris",
+      fixture.profile,
+      "strict",
+      "upper",
+      2,
+      100,
+      "trailing",
+      "follow",
+      true,
     ),
   )
 }
 
+///|
 /// CLI homomorph (D-37/D-38, D-11): the fathom-sql format CLI is a thin
 /// wrapper over @api.format_with_ids mapped to CliOutcome; its stdout envelope
 /// is @binding.format_result_json, frozen here via the same call chain. The
@@ -291,35 +285,57 @@ fn format_json(id : String) -> String {
 /// the frozen bytes are unchanged (09-04 approved-changes.md item 10).
 fn cli_format_json(id : String) -> String {
   let fixture = baseline_fixture(id)
-  let options = match @api.FormatOptions::new(
-    @api.KeywordCase::Upper,
-    2,
-    100,
-    @api.CommaStyle::Trailing,
-    @api.NewlineStyle::FollowInput,
-    true,
-  ) {
+  let options = match
+    @api.FormatOptions::new(
+      @api.KeywordCase::Upper,
+      2,
+      100,
+      @api.CommaStyle::Trailing,
+      @api.NewlineStyle::FollowInput,
+      true,
+    ) {
     Ok(options) => options
     Err(_) => panic()
   }
-  match @api.format_with_ids(fixture.raw, "doris", fixture.profile, "strict", options) {
+  match
+    @api.format_with_ids(
+      fixture.raw,
+      "doris",
+      fixture.profile,
+      "strict",
+      options,
+    ) {
     Ok(result) => {
-      let exact_release = match @api.ParseOptions::new("doris", fixture.profile, "strict") {
+      let exact_release = match
+        @api.ParseOptions::new("doris", fixture.profile, "strict") {
         Ok(options) => options.profile_metadata().exact_release
         Err(_) => panic()
       }
-      @binding.format_result_json(fixture.raw, result, "doris", fixture.profile, exact_release)
+      @binding.format_result_json(
+        fixture.raw,
+        result,
+        "doris",
+        fixture.profile,
+        exact_release,
+      )
     }
     Err(_) => panic()
   }
 }
 
+///|
 /// Completion items JSON (RESEARCH §9.1: label/detail/start/end/new_text +
 /// is_incomplete) at cursor=end, via the shared @completion.complete facade
 /// the LSP completion handler consumes.
 fn completion_json(id : String) -> String {
   let fixture = baseline_fixture(id)
-  let list = match @completion.complete(fixture.raw, "doris", fixture.profile, fixture.raw.length()) {
+  let list = match
+    @completion.complete(
+      fixture.raw,
+      "doris",
+      fixture.profile,
+      fixture.raw.length(),
+    ) {
     Ok(list) => list
     Err(_) => return "{\"error\":\"completion failed\"}"
   }
@@ -339,6 +355,7 @@ fn completion_json(id : String) -> String {
   })
 }
 
+///|
 /// LSP homomorph (parity/fixtures/lsp-tracer.json pattern): the protocol
 /// output for a didOpen (publishDiagnostics carries the editor-mode parse
 /// envelope) plus a formatting round-trip (the strict format envelope), as
@@ -348,1086 +365,2048 @@ fn lsp_json(id : String) -> String {
   parse_json(id, "editor") + "\n" + format_json(id)
 }
 
-fn snapshot_test(t : @test.Test, content : String, filename : String) -> Unit raise SnapshotError {
+///|
+fn snapshot_test(
+  t : @test.Test,
+  content : String,
+  filename : String,
+) -> Unit raise SnapshotError {
   t.write(content)
-  t.snapshot(filename=filename)
+  t.snapshot(filename~)
 }
 
 // ---------------------------------------------------------------------------
 // Parse snapshots: full 44-fixture x {strict, editor} matrix (D-07).
 // ---------------------------------------------------------------------------
+
+///|
 test "parse 2.1-industrial strict" {
   let t = @test.Test("parse 2.1-industrial strict")
-  snapshot_test(t, parse_json("2.1-industrial", "strict"), "2.1-industrial.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-industrial", "strict"),
+    "2.1-industrial.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-industrial editor" {
   let t = @test.Test("parse 2.1-industrial editor")
-  snapshot_test(t, parse_json("2.1-industrial", "editor"), "2.1-industrial.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-industrial", "editor"),
+    "2.1-industrial.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-boundary-empty strict" {
   let t = @test.Test("parse 2.1-boundary-empty strict")
-  snapshot_test(t, parse_json("2.1-boundary-empty", "strict"), "2.1-boundary-empty.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-boundary-empty", "strict"),
+    "2.1-boundary-empty.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-boundary-empty editor" {
   let t = @test.Test("parse 2.1-boundary-empty editor")
-  snapshot_test(t, parse_json("2.1-boundary-empty", "editor"), "2.1-boundary-empty.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-boundary-empty", "editor"),
+    "2.1-boundary-empty.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-boundary-single strict" {
   let t = @test.Test("parse 2.1-boundary-single strict")
-  snapshot_test(t, parse_json("2.1-boundary-single", "strict"), "2.1-boundary-single.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-boundary-single", "strict"),
+    "2.1-boundary-single.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-boundary-single editor" {
   let t = @test.Test("parse 2.1-boundary-single editor")
-  snapshot_test(t, parse_json("2.1-boundary-single", "editor"), "2.1-boundary-single.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-boundary-single", "editor"),
+    "2.1-boundary-single.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-contextual-keyword strict" {
   let t = @test.Test("parse 2.1-contextual-keyword strict")
-  snapshot_test(t, parse_json("2.1-contextual-keyword", "strict"), "2.1-contextual-keyword.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-contextual-keyword", "strict"),
+    "2.1-contextual-keyword.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-contextual-keyword editor" {
   let t = @test.Test("parse 2.1-contextual-keyword editor")
-  snapshot_test(t, parse_json("2.1-contextual-keyword", "editor"), "2.1-contextual-keyword.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-contextual-keyword", "editor"),
+    "2.1-contextual-keyword.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-invalid-encoding strict" {
   let t = @test.Test("parse 2.1-invalid-encoding strict")
-  snapshot_test(t, parse_json("2.1-invalid-encoding", "strict"), "2.1-invalid-encoding.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-invalid-encoding", "strict"),
+    "2.1-invalid-encoding.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-invalid-encoding editor" {
   let t = @test.Test("parse 2.1-invalid-encoding editor")
-  snapshot_test(t, parse_json("2.1-invalid-encoding", "editor"), "2.1-invalid-encoding.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-invalid-encoding", "editor"),
+    "2.1-invalid-encoding.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-industrial strict" {
   let t = @test.Test("parse 3.x-industrial strict")
-  snapshot_test(t, parse_json("3.x-industrial", "strict"), "3.x-industrial.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-industrial", "strict"),
+    "3.x-industrial.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-industrial editor" {
   let t = @test.Test("parse 3.x-industrial editor")
-  snapshot_test(t, parse_json("3.x-industrial", "editor"), "3.x-industrial.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-industrial", "editor"),
+    "3.x-industrial.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-boundary-set-one strict" {
   let t = @test.Test("parse 3.x-boundary-set-one strict")
-  snapshot_test(t, parse_json("3.x-boundary-set-one", "strict"), "3.x-boundary-set-one.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-boundary-set-one", "strict"),
+    "3.x-boundary-set-one.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-boundary-set-one editor" {
   let t = @test.Test("parse 3.x-boundary-set-one editor")
-  snapshot_test(t, parse_json("3.x-boundary-set-one", "editor"), "3.x-boundary-set-one.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-boundary-set-one", "editor"),
+    "3.x-boundary-set-one.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-boundary-set-many strict" {
   let t = @test.Test("parse 3.x-boundary-set-many strict")
-  snapshot_test(t, parse_json("3.x-boundary-set-many", "strict"), "3.x-boundary-set-many.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-boundary-set-many", "strict"),
+    "3.x-boundary-set-many.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-boundary-set-many editor" {
   let t = @test.Test("parse 3.x-boundary-set-many editor")
-  snapshot_test(t, parse_json("3.x-boundary-set-many", "editor"), "3.x-boundary-set-many.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-boundary-set-many", "editor"),
+    "3.x-boundary-set-many.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-recovery strict" {
   let t = @test.Test("parse 3.x-recovery strict")
-  snapshot_test(t, parse_json("3.x-recovery", "strict"), "3.x-recovery.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-recovery", "strict"),
+    "3.x-recovery.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-recovery editor" {
   let t = @test.Test("parse 3.x-recovery editor")
-  snapshot_test(t, parse_json("3.x-recovery", "editor"), "3.x-recovery.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-recovery", "editor"),
+    "3.x-recovery.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-unsupported-profile strict" {
   let t = @test.Test("parse 3.x-unsupported-profile strict")
-  snapshot_test(t, parse_json("3.x-unsupported-profile", "strict"), "3.x-unsupported-profile.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-unsupported-profile", "strict"),
+    "3.x-unsupported-profile.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-unsupported-profile editor" {
   let t = @test.Test("parse 3.x-unsupported-profile editor")
-  snapshot_test(t, parse_json("3.x-unsupported-profile", "editor"), "3.x-unsupported-profile.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-unsupported-profile", "editor"),
+    "3.x-unsupported-profile.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-industrial strict" {
   let t = @test.Test("parse 4.x-industrial strict")
-  snapshot_test(t, parse_json("4.x-industrial", "strict"), "4.x-industrial.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-industrial", "strict"),
+    "4.x-industrial.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-industrial editor" {
   let t = @test.Test("parse 4.x-industrial editor")
-  snapshot_test(t, parse_json("4.x-industrial", "editor"), "4.x-industrial.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-industrial", "editor"),
+    "4.x-industrial.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-boundary-set-two strict" {
   let t = @test.Test("parse 4.x-boundary-set-two strict")
-  snapshot_test(t, parse_json("4.x-boundary-set-two", "strict"), "4.x-boundary-set-two.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-boundary-set-two", "strict"),
+    "4.x-boundary-set-two.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-boundary-set-two editor" {
   let t = @test.Test("parse 4.x-boundary-set-two editor")
-  snapshot_test(t, parse_json("4.x-boundary-set-two", "editor"), "4.x-boundary-set-two.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-boundary-set-two", "editor"),
+    "4.x-boundary-set-two.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-recovery strict" {
   let t = @test.Test("parse 4.x-recovery strict")
-  snapshot_test(t, parse_json("4.x-recovery", "strict"), "4.x-recovery.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-recovery", "strict"),
+    "4.x-recovery.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-recovery editor" {
   let t = @test.Test("parse 4.x-recovery editor")
-  snapshot_test(t, parse_json("4.x-recovery", "editor"), "4.x-recovery.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-recovery", "editor"),
+    "4.x-recovery.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-invalid-encoding strict" {
   let t = @test.Test("parse 4.x-invalid-encoding strict")
-  snapshot_test(t, parse_json("4.x-invalid-encoding", "strict"), "4.x-invalid-encoding.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-invalid-encoding", "strict"),
+    "4.x-invalid-encoding.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-invalid-encoding editor" {
   let t = @test.Test("parse 4.x-invalid-encoding editor")
-  snapshot_test(t, parse_json("4.x-invalid-encoding", "editor"), "4.x-invalid-encoding.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-invalid-encoding", "editor"),
+    "4.x-invalid-encoding.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-insert-values strict" {
   let t = @test.Test("parse 2.1-insert-values strict")
-  snapshot_test(t, parse_json("2.1-insert-values", "strict"), "2.1-insert-values.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-insert-values", "strict"),
+    "2.1-insert-values.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-insert-values editor" {
   let t = @test.Test("parse 2.1-insert-values editor")
-  snapshot_test(t, parse_json("2.1-insert-values", "editor"), "2.1-insert-values.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-insert-values", "editor"),
+    "2.1-insert-values.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-insert-values strict" {
   let t = @test.Test("parse 3.x-insert-values strict")
-  snapshot_test(t, parse_json("3.x-insert-values", "strict"), "3.x-insert-values.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-insert-values", "strict"),
+    "3.x-insert-values.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-insert-values editor" {
   let t = @test.Test("parse 3.x-insert-values editor")
-  snapshot_test(t, parse_json("3.x-insert-values", "editor"), "3.x-insert-values.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-insert-values", "editor"),
+    "3.x-insert-values.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-insert-values strict" {
   let t = @test.Test("parse 4.x-insert-values strict")
-  snapshot_test(t, parse_json("4.x-insert-values", "strict"), "4.x-insert-values.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-insert-values", "strict"),
+    "4.x-insert-values.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-insert-values editor" {
   let t = @test.Test("parse 4.x-insert-values editor")
-  snapshot_test(t, parse_json("4.x-insert-values", "editor"), "4.x-insert-values.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-insert-values", "editor"),
+    "4.x-insert-values.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-insert-select strict" {
   let t = @test.Test("parse 2.1-insert-select strict")
-  snapshot_test(t, parse_json("2.1-insert-select", "strict"), "2.1-insert-select.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-insert-select", "strict"),
+    "2.1-insert-select.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-insert-select editor" {
   let t = @test.Test("parse 2.1-insert-select editor")
-  snapshot_test(t, parse_json("2.1-insert-select", "editor"), "2.1-insert-select.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-insert-select", "editor"),
+    "2.1-insert-select.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-insert-select strict" {
   let t = @test.Test("parse 3.x-insert-select strict")
-  snapshot_test(t, parse_json("3.x-insert-select", "strict"), "3.x-insert-select.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-insert-select", "strict"),
+    "3.x-insert-select.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-insert-select editor" {
   let t = @test.Test("parse 3.x-insert-select editor")
-  snapshot_test(t, parse_json("3.x-insert-select", "editor"), "3.x-insert-select.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-insert-select", "editor"),
+    "3.x-insert-select.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-insert-select strict" {
   let t = @test.Test("parse 4.x-insert-select strict")
-  snapshot_test(t, parse_json("4.x-insert-select", "strict"), "4.x-insert-select.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-insert-select", "strict"),
+    "4.x-insert-select.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-insert-select editor" {
   let t = @test.Test("parse 4.x-insert-select editor")
-  snapshot_test(t, parse_json("4.x-insert-select", "editor"), "4.x-insert-select.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-insert-select", "editor"),
+    "4.x-insert-select.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-update strict" {
   let t = @test.Test("parse 2.1-update strict")
-  snapshot_test(t, parse_json("2.1-update", "strict"), "2.1-update.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-update", "strict"),
+    "2.1-update.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-update editor" {
   let t = @test.Test("parse 2.1-update editor")
-  snapshot_test(t, parse_json("2.1-update", "editor"), "2.1-update.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-update", "editor"),
+    "2.1-update.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-update strict" {
   let t = @test.Test("parse 3.x-update strict")
-  snapshot_test(t, parse_json("3.x-update", "strict"), "3.x-update.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-update", "strict"),
+    "3.x-update.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-update editor" {
   let t = @test.Test("parse 3.x-update editor")
-  snapshot_test(t, parse_json("3.x-update", "editor"), "3.x-update.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-update", "editor"),
+    "3.x-update.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-update strict" {
   let t = @test.Test("parse 4.x-update strict")
-  snapshot_test(t, parse_json("4.x-update", "strict"), "4.x-update.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-update", "strict"),
+    "4.x-update.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-update editor" {
   let t = @test.Test("parse 4.x-update editor")
-  snapshot_test(t, parse_json("4.x-update", "editor"), "4.x-update.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-update", "editor"),
+    "4.x-update.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-delete strict" {
   let t = @test.Test("parse 2.1-delete strict")
-  snapshot_test(t, parse_json("2.1-delete", "strict"), "2.1-delete.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-delete", "strict"),
+    "2.1-delete.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-delete editor" {
   let t = @test.Test("parse 2.1-delete editor")
-  snapshot_test(t, parse_json("2.1-delete", "editor"), "2.1-delete.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-delete", "editor"),
+    "2.1-delete.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-delete strict" {
   let t = @test.Test("parse 3.x-delete strict")
-  snapshot_test(t, parse_json("3.x-delete", "strict"), "3.x-delete.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-delete", "strict"),
+    "3.x-delete.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-delete editor" {
   let t = @test.Test("parse 3.x-delete editor")
-  snapshot_test(t, parse_json("3.x-delete", "editor"), "3.x-delete.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-delete", "editor"),
+    "3.x-delete.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-delete strict" {
   let t = @test.Test("parse 4.x-delete strict")
-  snapshot_test(t, parse_json("4.x-delete", "strict"), "4.x-delete.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-delete", "strict"),
+    "4.x-delete.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-delete editor" {
   let t = @test.Test("parse 4.x-delete editor")
-  snapshot_test(t, parse_json("4.x-delete", "editor"), "4.x-delete.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-delete", "editor"),
+    "4.x-delete.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-create-table strict" {
   let t = @test.Test("parse 2.1-create-table strict")
-  snapshot_test(t, parse_json("2.1-create-table", "strict"), "2.1-create-table.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-create-table", "strict"),
+    "2.1-create-table.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-create-table editor" {
   let t = @test.Test("parse 2.1-create-table editor")
-  snapshot_test(t, parse_json("2.1-create-table", "editor"), "2.1-create-table.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-create-table", "editor"),
+    "2.1-create-table.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-create-table strict" {
   let t = @test.Test("parse 3.x-create-table strict")
-  snapshot_test(t, parse_json("3.x-create-table", "strict"), "3.x-create-table.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-create-table", "strict"),
+    "3.x-create-table.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-create-table editor" {
   let t = @test.Test("parse 3.x-create-table editor")
-  snapshot_test(t, parse_json("3.x-create-table", "editor"), "3.x-create-table.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-create-table", "editor"),
+    "3.x-create-table.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-create-table strict" {
   let t = @test.Test("parse 4.x-create-table strict")
-  snapshot_test(t, parse_json("4.x-create-table", "strict"), "4.x-create-table.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-table", "strict"),
+    "4.x-create-table.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-create-table editor" {
   let t = @test.Test("parse 4.x-create-table editor")
-  snapshot_test(t, parse_json("4.x-create-table", "editor"), "4.x-create-table.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-table", "editor"),
+    "4.x-create-table.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-create-view strict" {
   let t = @test.Test("parse 2.1-create-view strict")
-  snapshot_test(t, parse_json("2.1-create-view", "strict"), "2.1-create-view.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-create-view", "strict"),
+    "2.1-create-view.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-create-view editor" {
   let t = @test.Test("parse 2.1-create-view editor")
-  snapshot_test(t, parse_json("2.1-create-view", "editor"), "2.1-create-view.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-create-view", "editor"),
+    "2.1-create-view.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-create-view strict" {
   let t = @test.Test("parse 3.x-create-view strict")
-  snapshot_test(t, parse_json("3.x-create-view", "strict"), "3.x-create-view.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-create-view", "strict"),
+    "3.x-create-view.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-create-view editor" {
   let t = @test.Test("parse 3.x-create-view editor")
-  snapshot_test(t, parse_json("3.x-create-view", "editor"), "3.x-create-view.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-create-view", "editor"),
+    "3.x-create-view.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-create-view strict" {
   let t = @test.Test("parse 4.x-create-view strict")
-  snapshot_test(t, parse_json("4.x-create-view", "strict"), "4.x-create-view.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-view", "strict"),
+    "4.x-create-view.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-create-view editor" {
   let t = @test.Test("parse 4.x-create-view editor")
-  snapshot_test(t, parse_json("4.x-create-view", "editor"), "4.x-create-view.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-view", "editor"),
+    "4.x-create-view.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-create-index strict" {
   let t = @test.Test("parse 2.1-create-index strict")
-  snapshot_test(t, parse_json("2.1-create-index", "strict"), "2.1-create-index.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-create-index", "strict"),
+    "2.1-create-index.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-create-index editor" {
   let t = @test.Test("parse 2.1-create-index editor")
-  snapshot_test(t, parse_json("2.1-create-index", "editor"), "2.1-create-index.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-create-index", "editor"),
+    "2.1-create-index.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-create-index strict" {
   let t = @test.Test("parse 3.x-create-index strict")
-  snapshot_test(t, parse_json("3.x-create-index", "strict"), "3.x-create-index.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-create-index", "strict"),
+    "3.x-create-index.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-create-index editor" {
   let t = @test.Test("parse 3.x-create-index editor")
-  snapshot_test(t, parse_json("3.x-create-index", "editor"), "3.x-create-index.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-create-index", "editor"),
+    "3.x-create-index.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-create-index strict" {
   let t = @test.Test("parse 4.x-create-index strict")
-  snapshot_test(t, parse_json("4.x-create-index", "strict"), "4.x-create-index.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-index", "strict"),
+    "4.x-create-index.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-create-index editor" {
   let t = @test.Test("parse 4.x-create-index editor")
-  snapshot_test(t, parse_json("4.x-create-index", "editor"), "4.x-create-index.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-index", "editor"),
+    "4.x-create-index.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-insert-overwrite strict" {
   let t = @test.Test("parse 4.x-insert-overwrite strict")
-  snapshot_test(t, parse_json("4.x-insert-overwrite", "strict"), "4.x-insert-overwrite.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-insert-overwrite", "strict"),
+    "4.x-insert-overwrite.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-insert-overwrite editor" {
   let t = @test.Test("parse 4.x-insert-overwrite editor")
-  snapshot_test(t, parse_json("4.x-insert-overwrite", "editor"), "4.x-insert-overwrite.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-insert-overwrite", "editor"),
+    "4.x-insert-overwrite.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 2.1-merge strict" {
   let t = @test.Test("parse 2.1-merge strict")
-  snapshot_test(t, parse_json("2.1-merge", "strict"), "2.1-merge.2.1.strict.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-merge", "strict"),
+    "2.1-merge.2.1.strict.json",
+  )
 }
 
+///|
 test "parse 2.1-merge editor" {
   let t = @test.Test("parse 2.1-merge editor")
-  snapshot_test(t, parse_json("2.1-merge", "editor"), "2.1-merge.2.1.editor.json")
+  snapshot_test(
+    t,
+    parse_json("2.1-merge", "editor"),
+    "2.1-merge.2.1.editor.json",
+  )
 }
 
+///|
 test "parse 3.x-merge strict" {
   let t = @test.Test("parse 3.x-merge strict")
-  snapshot_test(t, parse_json("3.x-merge", "strict"), "3.x-merge.3.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-merge", "strict"),
+    "3.x-merge.3.x.strict.json",
+  )
 }
 
+///|
 test "parse 3.x-merge editor" {
   let t = @test.Test("parse 3.x-merge editor")
-  snapshot_test(t, parse_json("3.x-merge", "editor"), "3.x-merge.3.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("3.x-merge", "editor"),
+    "3.x-merge.3.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-merge strict" {
   let t = @test.Test("parse 4.x-merge strict")
-  snapshot_test(t, parse_json("4.x-merge", "strict"), "4.x-merge.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-merge", "strict"),
+    "4.x-merge.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-merge editor" {
   let t = @test.Test("parse 4.x-merge editor")
-  snapshot_test(t, parse_json("4.x-merge", "editor"), "4.x-merge.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-merge", "editor"),
+    "4.x-merge.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-create-table-ctas strict" {
   let t = @test.Test("parse 4.x-create-table-ctas strict")
-  snapshot_test(t, parse_json("4.x-create-table-ctas", "strict"), "4.x-create-table-ctas.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-table-ctas", "strict"),
+    "4.x-create-table-ctas.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-create-table-ctas editor" {
   let t = @test.Test("parse 4.x-create-table-ctas editor")
-  snapshot_test(t, parse_json("4.x-create-table-ctas", "editor"), "4.x-create-table-ctas.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-table-ctas", "editor"),
+    "4.x-create-table-ctas.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-create-table-like strict" {
   let t = @test.Test("parse 4.x-create-table-like strict")
-  snapshot_test(t, parse_json("4.x-create-table-like", "strict"), "4.x-create-table-like.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-table-like", "strict"),
+    "4.x-create-table-like.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-create-table-like editor" {
   let t = @test.Test("parse 4.x-create-table-like editor")
-  snapshot_test(t, parse_json("4.x-create-table-like", "editor"), "4.x-create-table-like.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-table-like", "editor"),
+    "4.x-create-table-like.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-create-materialized-view strict" {
   let t = @test.Test("parse 4.x-create-materialized-view strict")
-  snapshot_test(t, parse_json("4.x-create-materialized-view", "strict"), "4.x-create-materialized-view.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-materialized-view", "strict"),
+    "4.x-create-materialized-view.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-create-materialized-view editor" {
   let t = @test.Test("parse 4.x-create-materialized-view editor")
-  snapshot_test(t, parse_json("4.x-create-materialized-view", "editor"), "4.x-create-materialized-view.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-create-materialized-view", "editor"),
+    "4.x-create-materialized-view.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-script-multi-statement strict" {
   let t = @test.Test("parse 4.x-script-multi-statement strict")
-  snapshot_test(t, parse_json("4.x-script-multi-statement", "strict"), "4.x-script-multi-statement.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-script-multi-statement", "strict"),
+    "4.x-script-multi-statement.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-script-multi-statement editor" {
   let t = @test.Test("parse 4.x-script-multi-statement editor")
-  snapshot_test(t, parse_json("4.x-script-multi-statement", "editor"), "4.x-script-multi-statement.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-script-multi-statement", "editor"),
+    "4.x-script-multi-statement.4.x.editor.json",
+  )
 }
 
+///|
 test "parse 4.x-malformed-recovery strict" {
   let t = @test.Test("parse 4.x-malformed-recovery strict")
-  snapshot_test(t, parse_json("4.x-malformed-recovery", "strict"), "4.x-malformed-recovery.4.x.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-malformed-recovery", "strict"),
+    "4.x-malformed-recovery.4.x.strict.json",
+  )
 }
 
+///|
 test "parse 4.x-malformed-recovery editor" {
   let t = @test.Test("parse 4.x-malformed-recovery editor")
-  snapshot_test(t, parse_json("4.x-malformed-recovery", "editor"), "4.x-malformed-recovery.4.x.editor.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-malformed-recovery", "editor"),
+    "4.x-malformed-recovery.4.x.editor.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
 // Format snapshots: full expected-valid matrix (35 fixtures, default options).
 // ---------------------------------------------------------------------------
+
+///|
 test "format 2.1-industrial" {
   let t = @test.Test("format 2.1-industrial")
-  snapshot_test(t, format_json("2.1-industrial"), "2.1-industrial.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-industrial"),
+    "2.1-industrial.2.1.format.json",
+  )
 }
 
+///|
 test "format 2.1-boundary-single" {
   let t = @test.Test("format 2.1-boundary-single")
-  snapshot_test(t, format_json("2.1-boundary-single"), "2.1-boundary-single.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-boundary-single"),
+    "2.1-boundary-single.2.1.format.json",
+  )
 }
 
+///|
 test "format 2.1-contextual-keyword" {
   let t = @test.Test("format 2.1-contextual-keyword")
-  snapshot_test(t, format_json("2.1-contextual-keyword"), "2.1-contextual-keyword.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-contextual-keyword"),
+    "2.1-contextual-keyword.2.1.format.json",
+  )
 }
 
+///|
 test "format 3.x-industrial" {
   let t = @test.Test("format 3.x-industrial")
-  snapshot_test(t, format_json("3.x-industrial"), "3.x-industrial.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-industrial"),
+    "3.x-industrial.3.x.format.json",
+  )
 }
 
+///|
 test "format 3.x-boundary-set-one" {
   let t = @test.Test("format 3.x-boundary-set-one")
-  snapshot_test(t, format_json("3.x-boundary-set-one"), "3.x-boundary-set-one.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-boundary-set-one"),
+    "3.x-boundary-set-one.3.x.format.json",
+  )
 }
 
+///|
 test "format 3.x-boundary-set-many" {
   let t = @test.Test("format 3.x-boundary-set-many")
-  snapshot_test(t, format_json("3.x-boundary-set-many"), "3.x-boundary-set-many.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-boundary-set-many"),
+    "3.x-boundary-set-many.3.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-industrial" {
   let t = @test.Test("format 4.x-industrial")
-  snapshot_test(t, format_json("4.x-industrial"), "4.x-industrial.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-industrial"),
+    "4.x-industrial.4.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-boundary-set-two" {
   let t = @test.Test("format 4.x-boundary-set-two")
-  snapshot_test(t, format_json("4.x-boundary-set-two"), "4.x-boundary-set-two.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-boundary-set-two"),
+    "4.x-boundary-set-two.4.x.format.json",
+  )
 }
 
+///|
 test "format 2.1-insert-values" {
   let t = @test.Test("format 2.1-insert-values")
-  snapshot_test(t, format_json("2.1-insert-values"), "2.1-insert-values.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-insert-values"),
+    "2.1-insert-values.2.1.format.json",
+  )
 }
 
+///|
 test "format 3.x-insert-values" {
   let t = @test.Test("format 3.x-insert-values")
-  snapshot_test(t, format_json("3.x-insert-values"), "3.x-insert-values.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-insert-values"),
+    "3.x-insert-values.3.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-insert-values" {
   let t = @test.Test("format 4.x-insert-values")
-  snapshot_test(t, format_json("4.x-insert-values"), "4.x-insert-values.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-insert-values"),
+    "4.x-insert-values.4.x.format.json",
+  )
 }
 
+///|
 test "format 2.1-insert-select" {
   let t = @test.Test("format 2.1-insert-select")
-  snapshot_test(t, format_json("2.1-insert-select"), "2.1-insert-select.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-insert-select"),
+    "2.1-insert-select.2.1.format.json",
+  )
 }
 
+///|
 test "format 3.x-insert-select" {
   let t = @test.Test("format 3.x-insert-select")
-  snapshot_test(t, format_json("3.x-insert-select"), "3.x-insert-select.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-insert-select"),
+    "3.x-insert-select.3.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-insert-select" {
   let t = @test.Test("format 4.x-insert-select")
-  snapshot_test(t, format_json("4.x-insert-select"), "4.x-insert-select.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-insert-select"),
+    "4.x-insert-select.4.x.format.json",
+  )
 }
 
+///|
 test "format 2.1-update" {
   let t = @test.Test("format 2.1-update")
   snapshot_test(t, format_json("2.1-update"), "2.1-update.2.1.format.json")
 }
 
+///|
 test "format 3.x-update" {
   let t = @test.Test("format 3.x-update")
   snapshot_test(t, format_json("3.x-update"), "3.x-update.3.x.format.json")
 }
 
+///|
 test "format 4.x-update" {
   let t = @test.Test("format 4.x-update")
   snapshot_test(t, format_json("4.x-update"), "4.x-update.4.x.format.json")
 }
 
+///|
 test "format 2.1-delete" {
   let t = @test.Test("format 2.1-delete")
   snapshot_test(t, format_json("2.1-delete"), "2.1-delete.2.1.format.json")
 }
 
+///|
 test "format 3.x-delete" {
   let t = @test.Test("format 3.x-delete")
   snapshot_test(t, format_json("3.x-delete"), "3.x-delete.3.x.format.json")
 }
 
+///|
 test "format 4.x-delete" {
   let t = @test.Test("format 4.x-delete")
   snapshot_test(t, format_json("4.x-delete"), "4.x-delete.4.x.format.json")
 }
 
+///|
 test "format 2.1-create-table" {
   let t = @test.Test("format 2.1-create-table")
-  snapshot_test(t, format_json("2.1-create-table"), "2.1-create-table.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-create-table"),
+    "2.1-create-table.2.1.format.json",
+  )
 }
 
+///|
 test "format 3.x-create-table" {
   let t = @test.Test("format 3.x-create-table")
-  snapshot_test(t, format_json("3.x-create-table"), "3.x-create-table.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-create-table"),
+    "3.x-create-table.3.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-create-table" {
   let t = @test.Test("format 4.x-create-table")
-  snapshot_test(t, format_json("4.x-create-table"), "4.x-create-table.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-create-table"),
+    "4.x-create-table.4.x.format.json",
+  )
 }
 
+///|
 test "format 2.1-create-view" {
   let t = @test.Test("format 2.1-create-view")
-  snapshot_test(t, format_json("2.1-create-view"), "2.1-create-view.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-create-view"),
+    "2.1-create-view.2.1.format.json",
+  )
 }
 
+///|
 test "format 3.x-create-view" {
   let t = @test.Test("format 3.x-create-view")
-  snapshot_test(t, format_json("3.x-create-view"), "3.x-create-view.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-create-view"),
+    "3.x-create-view.3.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-create-view" {
   let t = @test.Test("format 4.x-create-view")
-  snapshot_test(t, format_json("4.x-create-view"), "4.x-create-view.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-create-view"),
+    "4.x-create-view.4.x.format.json",
+  )
 }
 
+///|
 test "format 2.1-create-index" {
   let t = @test.Test("format 2.1-create-index")
-  snapshot_test(t, format_json("2.1-create-index"), "2.1-create-index.2.1.format.json")
+  snapshot_test(
+    t,
+    format_json("2.1-create-index"),
+    "2.1-create-index.2.1.format.json",
+  )
 }
 
+///|
 test "format 3.x-create-index" {
   let t = @test.Test("format 3.x-create-index")
-  snapshot_test(t, format_json("3.x-create-index"), "3.x-create-index.3.x.format.json")
+  snapshot_test(
+    t,
+    format_json("3.x-create-index"),
+    "3.x-create-index.3.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-create-index" {
   let t = @test.Test("format 4.x-create-index")
-  snapshot_test(t, format_json("4.x-create-index"), "4.x-create-index.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-create-index"),
+    "4.x-create-index.4.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-insert-overwrite" {
   let t = @test.Test("format 4.x-insert-overwrite")
-  snapshot_test(t, format_json("4.x-insert-overwrite"), "4.x-insert-overwrite.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-insert-overwrite"),
+    "4.x-insert-overwrite.4.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-merge" {
   let t = @test.Test("format 4.x-merge")
   snapshot_test(t, format_json("4.x-merge"), "4.x-merge.4.x.format.json")
 }
 
+///|
 test "format 4.x-create-table-ctas" {
   let t = @test.Test("format 4.x-create-table-ctas")
-  snapshot_test(t, format_json("4.x-create-table-ctas"), "4.x-create-table-ctas.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-create-table-ctas"),
+    "4.x-create-table-ctas.4.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-create-table-like" {
   let t = @test.Test("format 4.x-create-table-like")
-  snapshot_test(t, format_json("4.x-create-table-like"), "4.x-create-table-like.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-create-table-like"),
+    "4.x-create-table-like.4.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-create-materialized-view" {
   let t = @test.Test("format 4.x-create-materialized-view")
-  snapshot_test(t, format_json("4.x-create-materialized-view"), "4.x-create-materialized-view.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-create-materialized-view"),
+    "4.x-create-materialized-view.4.x.format.json",
+  )
 }
 
+///|
 test "format 4.x-script-multi-statement" {
   let t = @test.Test("format 4.x-script-multi-statement")
-  snapshot_test(t, format_json("4.x-script-multi-statement"), "4.x-script-multi-statement.4.x.format.json")
+  snapshot_test(
+    t,
+    format_json("4.x-script-multi-statement"),
+    "4.x-script-multi-statement.4.x.format.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
 // CLI homomorph snapshots: full expected-valid matrix (exit-code/stdout surface).
 // ---------------------------------------------------------------------------
+
+///|
 test "cli 2.1-industrial" {
   let t = @test.Test("cli 2.1-industrial")
-  snapshot_test(t, cli_format_json("2.1-industrial"), "2.1-industrial.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-industrial"),
+    "2.1-industrial.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-boundary-single" {
   let t = @test.Test("cli 2.1-boundary-single")
-  snapshot_test(t, cli_format_json("2.1-boundary-single"), "2.1-boundary-single.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-boundary-single"),
+    "2.1-boundary-single.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-contextual-keyword" {
   let t = @test.Test("cli 2.1-contextual-keyword")
-  snapshot_test(t, cli_format_json("2.1-contextual-keyword"), "2.1-contextual-keyword.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-contextual-keyword"),
+    "2.1-contextual-keyword.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-industrial" {
   let t = @test.Test("cli 3.x-industrial")
-  snapshot_test(t, cli_format_json("3.x-industrial"), "3.x-industrial.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-industrial"),
+    "3.x-industrial.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-boundary-set-one" {
   let t = @test.Test("cli 3.x-boundary-set-one")
-  snapshot_test(t, cli_format_json("3.x-boundary-set-one"), "3.x-boundary-set-one.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-boundary-set-one"),
+    "3.x-boundary-set-one.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-boundary-set-many" {
   let t = @test.Test("cli 3.x-boundary-set-many")
-  snapshot_test(t, cli_format_json("3.x-boundary-set-many"), "3.x-boundary-set-many.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-boundary-set-many"),
+    "3.x-boundary-set-many.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-industrial" {
   let t = @test.Test("cli 4.x-industrial")
-  snapshot_test(t, cli_format_json("4.x-industrial"), "4.x-industrial.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-industrial"),
+    "4.x-industrial.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-boundary-set-two" {
   let t = @test.Test("cli 4.x-boundary-set-two")
-  snapshot_test(t, cli_format_json("4.x-boundary-set-two"), "4.x-boundary-set-two.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-boundary-set-two"),
+    "4.x-boundary-set-two.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-insert-values" {
   let t = @test.Test("cli 2.1-insert-values")
-  snapshot_test(t, cli_format_json("2.1-insert-values"), "2.1-insert-values.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-insert-values"),
+    "2.1-insert-values.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-insert-values" {
   let t = @test.Test("cli 3.x-insert-values")
-  snapshot_test(t, cli_format_json("3.x-insert-values"), "3.x-insert-values.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-insert-values"),
+    "3.x-insert-values.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-insert-values" {
   let t = @test.Test("cli 4.x-insert-values")
-  snapshot_test(t, cli_format_json("4.x-insert-values"), "4.x-insert-values.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-insert-values"),
+    "4.x-insert-values.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-insert-select" {
   let t = @test.Test("cli 2.1-insert-select")
-  snapshot_test(t, cli_format_json("2.1-insert-select"), "2.1-insert-select.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-insert-select"),
+    "2.1-insert-select.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-insert-select" {
   let t = @test.Test("cli 3.x-insert-select")
-  snapshot_test(t, cli_format_json("3.x-insert-select"), "3.x-insert-select.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-insert-select"),
+    "3.x-insert-select.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-insert-select" {
   let t = @test.Test("cli 4.x-insert-select")
-  snapshot_test(t, cli_format_json("4.x-insert-select"), "4.x-insert-select.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-insert-select"),
+    "4.x-insert-select.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-update" {
   let t = @test.Test("cli 2.1-update")
   snapshot_test(t, cli_format_json("2.1-update"), "2.1-update.2.1.cli.json")
 }
 
+///|
 test "cli 3.x-update" {
   let t = @test.Test("cli 3.x-update")
   snapshot_test(t, cli_format_json("3.x-update"), "3.x-update.3.x.cli.json")
 }
 
+///|
 test "cli 4.x-update" {
   let t = @test.Test("cli 4.x-update")
   snapshot_test(t, cli_format_json("4.x-update"), "4.x-update.4.x.cli.json")
 }
 
+///|
 test "cli 2.1-delete" {
   let t = @test.Test("cli 2.1-delete")
   snapshot_test(t, cli_format_json("2.1-delete"), "2.1-delete.2.1.cli.json")
 }
 
+///|
 test "cli 3.x-delete" {
   let t = @test.Test("cli 3.x-delete")
   snapshot_test(t, cli_format_json("3.x-delete"), "3.x-delete.3.x.cli.json")
 }
 
+///|
 test "cli 4.x-delete" {
   let t = @test.Test("cli 4.x-delete")
   snapshot_test(t, cli_format_json("4.x-delete"), "4.x-delete.4.x.cli.json")
 }
 
+///|
 test "cli 2.1-create-table" {
   let t = @test.Test("cli 2.1-create-table")
-  snapshot_test(t, cli_format_json("2.1-create-table"), "2.1-create-table.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-create-table"),
+    "2.1-create-table.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-create-table" {
   let t = @test.Test("cli 3.x-create-table")
-  snapshot_test(t, cli_format_json("3.x-create-table"), "3.x-create-table.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-create-table"),
+    "3.x-create-table.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-create-table" {
   let t = @test.Test("cli 4.x-create-table")
-  snapshot_test(t, cli_format_json("4.x-create-table"), "4.x-create-table.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-create-table"),
+    "4.x-create-table.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-create-view" {
   let t = @test.Test("cli 2.1-create-view")
-  snapshot_test(t, cli_format_json("2.1-create-view"), "2.1-create-view.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-create-view"),
+    "2.1-create-view.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-create-view" {
   let t = @test.Test("cli 3.x-create-view")
-  snapshot_test(t, cli_format_json("3.x-create-view"), "3.x-create-view.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-create-view"),
+    "3.x-create-view.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-create-view" {
   let t = @test.Test("cli 4.x-create-view")
-  snapshot_test(t, cli_format_json("4.x-create-view"), "4.x-create-view.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-create-view"),
+    "4.x-create-view.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 2.1-create-index" {
   let t = @test.Test("cli 2.1-create-index")
-  snapshot_test(t, cli_format_json("2.1-create-index"), "2.1-create-index.2.1.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("2.1-create-index"),
+    "2.1-create-index.2.1.cli.json",
+  )
 }
 
+///|
 test "cli 3.x-create-index" {
   let t = @test.Test("cli 3.x-create-index")
-  snapshot_test(t, cli_format_json("3.x-create-index"), "3.x-create-index.3.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("3.x-create-index"),
+    "3.x-create-index.3.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-create-index" {
   let t = @test.Test("cli 4.x-create-index")
-  snapshot_test(t, cli_format_json("4.x-create-index"), "4.x-create-index.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-create-index"),
+    "4.x-create-index.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-insert-overwrite" {
   let t = @test.Test("cli 4.x-insert-overwrite")
-  snapshot_test(t, cli_format_json("4.x-insert-overwrite"), "4.x-insert-overwrite.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-insert-overwrite"),
+    "4.x-insert-overwrite.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-merge" {
   let t = @test.Test("cli 4.x-merge")
   snapshot_test(t, cli_format_json("4.x-merge"), "4.x-merge.4.x.cli.json")
 }
 
+///|
 test "cli 4.x-create-table-ctas" {
   let t = @test.Test("cli 4.x-create-table-ctas")
-  snapshot_test(t, cli_format_json("4.x-create-table-ctas"), "4.x-create-table-ctas.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-create-table-ctas"),
+    "4.x-create-table-ctas.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-create-table-like" {
   let t = @test.Test("cli 4.x-create-table-like")
-  snapshot_test(t, cli_format_json("4.x-create-table-like"), "4.x-create-table-like.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-create-table-like"),
+    "4.x-create-table-like.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-create-materialized-view" {
   let t = @test.Test("cli 4.x-create-materialized-view")
-  snapshot_test(t, cli_format_json("4.x-create-materialized-view"), "4.x-create-materialized-view.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-create-materialized-view"),
+    "4.x-create-materialized-view.4.x.cli.json",
+  )
 }
 
+///|
 test "cli 4.x-script-multi-statement" {
   let t = @test.Test("cli 4.x-script-multi-statement")
-  snapshot_test(t, cli_format_json("4.x-script-multi-statement"), "4.x-script-multi-statement.4.x.cli.json")
+  snapshot_test(
+    t,
+    cli_format_json("4.x-script-multi-statement"),
+    "4.x-script-multi-statement.4.x.cli.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
 // Completion snapshots: representative subset (one fixture per profile per
 // statement class; enumerated in approved-changes.md item 6).
 // ---------------------------------------------------------------------------
+
+///|
 test "completion 2.1-industrial" {
   let t = @test.Test("completion 2.1-industrial")
-  snapshot_test(t, completion_json("2.1-industrial"), "2.1-industrial.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-industrial"),
+    "2.1-industrial.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 2.1-insert-values" {
   let t = @test.Test("completion 2.1-insert-values")
-  snapshot_test(t, completion_json("2.1-insert-values"), "2.1-insert-values.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-insert-values"),
+    "2.1-insert-values.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 2.1-update" {
   let t = @test.Test("completion 2.1-update")
-  snapshot_test(t, completion_json("2.1-update"), "2.1-update.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-update"),
+    "2.1-update.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 2.1-delete" {
   let t = @test.Test("completion 2.1-delete")
-  snapshot_test(t, completion_json("2.1-delete"), "2.1-delete.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-delete"),
+    "2.1-delete.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 2.1-create-table" {
   let t = @test.Test("completion 2.1-create-table")
-  snapshot_test(t, completion_json("2.1-create-table"), "2.1-create-table.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-create-table"),
+    "2.1-create-table.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 2.1-create-view" {
   let t = @test.Test("completion 2.1-create-view")
-  snapshot_test(t, completion_json("2.1-create-view"), "2.1-create-view.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-create-view"),
+    "2.1-create-view.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 2.1-create-index" {
   let t = @test.Test("completion 2.1-create-index")
-  snapshot_test(t, completion_json("2.1-create-index"), "2.1-create-index.2.1.completion.json")
+  snapshot_test(
+    t,
+    completion_json("2.1-create-index"),
+    "2.1-create-index.2.1.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-industrial" {
   let t = @test.Test("completion 3.x-industrial")
-  snapshot_test(t, completion_json("3.x-industrial"), "3.x-industrial.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-industrial"),
+    "3.x-industrial.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-insert-values" {
   let t = @test.Test("completion 3.x-insert-values")
-  snapshot_test(t, completion_json("3.x-insert-values"), "3.x-insert-values.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-insert-values"),
+    "3.x-insert-values.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-update" {
   let t = @test.Test("completion 3.x-update")
-  snapshot_test(t, completion_json("3.x-update"), "3.x-update.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-update"),
+    "3.x-update.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-delete" {
   let t = @test.Test("completion 3.x-delete")
-  snapshot_test(t, completion_json("3.x-delete"), "3.x-delete.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-delete"),
+    "3.x-delete.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-create-table" {
   let t = @test.Test("completion 3.x-create-table")
-  snapshot_test(t, completion_json("3.x-create-table"), "3.x-create-table.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-create-table"),
+    "3.x-create-table.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-create-view" {
   let t = @test.Test("completion 3.x-create-view")
-  snapshot_test(t, completion_json("3.x-create-view"), "3.x-create-view.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-create-view"),
+    "3.x-create-view.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 3.x-create-index" {
   let t = @test.Test("completion 3.x-create-index")
-  snapshot_test(t, completion_json("3.x-create-index"), "3.x-create-index.3.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("3.x-create-index"),
+    "3.x-create-index.3.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-industrial" {
   let t = @test.Test("completion 4.x-industrial")
-  snapshot_test(t, completion_json("4.x-industrial"), "4.x-industrial.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-industrial"),
+    "4.x-industrial.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-insert-values" {
   let t = @test.Test("completion 4.x-insert-values")
-  snapshot_test(t, completion_json("4.x-insert-values"), "4.x-insert-values.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-insert-values"),
+    "4.x-insert-values.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-update" {
   let t = @test.Test("completion 4.x-update")
-  snapshot_test(t, completion_json("4.x-update"), "4.x-update.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-update"),
+    "4.x-update.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-delete" {
   let t = @test.Test("completion 4.x-delete")
-  snapshot_test(t, completion_json("4.x-delete"), "4.x-delete.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-delete"),
+    "4.x-delete.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-merge" {
   let t = @test.Test("completion 4.x-merge")
-  snapshot_test(t, completion_json("4.x-merge"), "4.x-merge.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-merge"),
+    "4.x-merge.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-insert-overwrite" {
   let t = @test.Test("completion 4.x-insert-overwrite")
-  snapshot_test(t, completion_json("4.x-insert-overwrite"), "4.x-insert-overwrite.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-insert-overwrite"),
+    "4.x-insert-overwrite.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-create-table" {
   let t = @test.Test("completion 4.x-create-table")
-  snapshot_test(t, completion_json("4.x-create-table"), "4.x-create-table.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-create-table"),
+    "4.x-create-table.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-create-view" {
   let t = @test.Test("completion 4.x-create-view")
-  snapshot_test(t, completion_json("4.x-create-view"), "4.x-create-view.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-create-view"),
+    "4.x-create-view.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-create-index" {
   let t = @test.Test("completion 4.x-create-index")
-  snapshot_test(t, completion_json("4.x-create-index"), "4.x-create-index.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-create-index"),
+    "4.x-create-index.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-create-materialized-view" {
   let t = @test.Test("completion 4.x-create-materialized-view")
-  snapshot_test(t, completion_json("4.x-create-materialized-view"), "4.x-create-materialized-view.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-create-materialized-view"),
+    "4.x-create-materialized-view.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-create-table-ctas" {
   let t = @test.Test("completion 4.x-create-table-ctas")
-  snapshot_test(t, completion_json("4.x-create-table-ctas"), "4.x-create-table-ctas.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-create-table-ctas"),
+    "4.x-create-table-ctas.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-create-table-like" {
   let t = @test.Test("completion 4.x-create-table-like")
-  snapshot_test(t, completion_json("4.x-create-table-like"), "4.x-create-table-like.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-create-table-like"),
+    "4.x-create-table-like.4.x.completion.json",
+  )
 }
 
+///|
 test "completion 4.x-script-multi-statement" {
   let t = @test.Test("completion 4.x-script-multi-statement")
-  snapshot_test(t, completion_json("4.x-script-multi-statement"), "4.x-script-multi-statement.4.x.completion.json")
+  snapshot_test(
+    t,
+    completion_json("4.x-script-multi-statement"),
+    "4.x-script-multi-statement.4.x.completion.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
 // LSP homomorph snapshots: same representative subset (parse editor envelope
 // + format strict envelope per fixture; lsp-tracer.json pattern).
 // ---------------------------------------------------------------------------
+
+///|
 test "lsp 2.1-industrial" {
   let t = @test.Test("lsp 2.1-industrial")
   snapshot_test(t, lsp_json("2.1-industrial"), "2.1-industrial.2.1.lsp.json")
 }
 
+///|
 test "lsp 2.1-insert-values" {
   let t = @test.Test("lsp 2.1-insert-values")
-  snapshot_test(t, lsp_json("2.1-insert-values"), "2.1-insert-values.2.1.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("2.1-insert-values"),
+    "2.1-insert-values.2.1.lsp.json",
+  )
 }
 
+///|
 test "lsp 2.1-update" {
   let t = @test.Test("lsp 2.1-update")
   snapshot_test(t, lsp_json("2.1-update"), "2.1-update.2.1.lsp.json")
 }
 
+///|
 test "lsp 2.1-delete" {
   let t = @test.Test("lsp 2.1-delete")
   snapshot_test(t, lsp_json("2.1-delete"), "2.1-delete.2.1.lsp.json")
 }
 
+///|
 test "lsp 2.1-create-table" {
   let t = @test.Test("lsp 2.1-create-table")
-  snapshot_test(t, lsp_json("2.1-create-table"), "2.1-create-table.2.1.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("2.1-create-table"),
+    "2.1-create-table.2.1.lsp.json",
+  )
 }
 
+///|
 test "lsp 2.1-create-view" {
   let t = @test.Test("lsp 2.1-create-view")
   snapshot_test(t, lsp_json("2.1-create-view"), "2.1-create-view.2.1.lsp.json")
 }
 
+///|
 test "lsp 2.1-create-index" {
   let t = @test.Test("lsp 2.1-create-index")
-  snapshot_test(t, lsp_json("2.1-create-index"), "2.1-create-index.2.1.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("2.1-create-index"),
+    "2.1-create-index.2.1.lsp.json",
+  )
 }
 
+///|
 test "lsp 3.x-industrial" {
   let t = @test.Test("lsp 3.x-industrial")
   snapshot_test(t, lsp_json("3.x-industrial"), "3.x-industrial.3.x.lsp.json")
 }
 
+///|
 test "lsp 3.x-insert-values" {
   let t = @test.Test("lsp 3.x-insert-values")
-  snapshot_test(t, lsp_json("3.x-insert-values"), "3.x-insert-values.3.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("3.x-insert-values"),
+    "3.x-insert-values.3.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 3.x-update" {
   let t = @test.Test("lsp 3.x-update")
   snapshot_test(t, lsp_json("3.x-update"), "3.x-update.3.x.lsp.json")
 }
 
+///|
 test "lsp 3.x-delete" {
   let t = @test.Test("lsp 3.x-delete")
   snapshot_test(t, lsp_json("3.x-delete"), "3.x-delete.3.x.lsp.json")
 }
 
+///|
 test "lsp 3.x-create-table" {
   let t = @test.Test("lsp 3.x-create-table")
-  snapshot_test(t, lsp_json("3.x-create-table"), "3.x-create-table.3.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("3.x-create-table"),
+    "3.x-create-table.3.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 3.x-create-view" {
   let t = @test.Test("lsp 3.x-create-view")
   snapshot_test(t, lsp_json("3.x-create-view"), "3.x-create-view.3.x.lsp.json")
 }
 
+///|
 test "lsp 3.x-create-index" {
   let t = @test.Test("lsp 3.x-create-index")
-  snapshot_test(t, lsp_json("3.x-create-index"), "3.x-create-index.3.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("3.x-create-index"),
+    "3.x-create-index.3.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-industrial" {
   let t = @test.Test("lsp 4.x-industrial")
   snapshot_test(t, lsp_json("4.x-industrial"), "4.x-industrial.4.x.lsp.json")
 }
 
+///|
 test "lsp 4.x-insert-values" {
   let t = @test.Test("lsp 4.x-insert-values")
-  snapshot_test(t, lsp_json("4.x-insert-values"), "4.x-insert-values.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-insert-values"),
+    "4.x-insert-values.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-update" {
   let t = @test.Test("lsp 4.x-update")
   snapshot_test(t, lsp_json("4.x-update"), "4.x-update.4.x.lsp.json")
 }
 
+///|
 test "lsp 4.x-delete" {
   let t = @test.Test("lsp 4.x-delete")
   snapshot_test(t, lsp_json("4.x-delete"), "4.x-delete.4.x.lsp.json")
 }
 
+///|
 test "lsp 4.x-merge" {
   let t = @test.Test("lsp 4.x-merge")
   snapshot_test(t, lsp_json("4.x-merge"), "4.x-merge.4.x.lsp.json")
 }
 
+///|
 test "lsp 4.x-insert-overwrite" {
   let t = @test.Test("lsp 4.x-insert-overwrite")
-  snapshot_test(t, lsp_json("4.x-insert-overwrite"), "4.x-insert-overwrite.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-insert-overwrite"),
+    "4.x-insert-overwrite.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-create-table" {
   let t = @test.Test("lsp 4.x-create-table")
-  snapshot_test(t, lsp_json("4.x-create-table"), "4.x-create-table.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-create-table"),
+    "4.x-create-table.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-create-view" {
   let t = @test.Test("lsp 4.x-create-view")
   snapshot_test(t, lsp_json("4.x-create-view"), "4.x-create-view.4.x.lsp.json")
 }
 
+///|
 test "lsp 4.x-create-index" {
   let t = @test.Test("lsp 4.x-create-index")
-  snapshot_test(t, lsp_json("4.x-create-index"), "4.x-create-index.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-create-index"),
+    "4.x-create-index.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-create-materialized-view" {
   let t = @test.Test("lsp 4.x-create-materialized-view")
-  snapshot_test(t, lsp_json("4.x-create-materialized-view"), "4.x-create-materialized-view.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-create-materialized-view"),
+    "4.x-create-materialized-view.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-create-table-ctas" {
   let t = @test.Test("lsp 4.x-create-table-ctas")
-  snapshot_test(t, lsp_json("4.x-create-table-ctas"), "4.x-create-table-ctas.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-create-table-ctas"),
+    "4.x-create-table-ctas.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-create-table-like" {
   let t = @test.Test("lsp 4.x-create-table-like")
-  snapshot_test(t, lsp_json("4.x-create-table-like"), "4.x-create-table-like.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-create-table-like"),
+    "4.x-create-table-like.4.x.lsp.json",
+  )
 }
 
+///|
 test "lsp 4.x-script-multi-statement" {
   let t = @test.Test("lsp 4.x-script-multi-statement")
-  snapshot_test(t, lsp_json("4.x-script-multi-statement"), "4.x-script-multi-statement.4.x.lsp.json")
+  snapshot_test(
+    t,
+    lsp_json("4.x-script-multi-statement"),
+    "4.x-script-multi-statement.4.x.lsp.json",
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -1437,7 +2416,13 @@ test "lsp 4.x-script-multi-statement" {
 // fails on the diverging target. CI runs the parity suite on native and
 // linear-Wasm.
 // ---------------------------------------------------------------------------
+
+///|
 test "cross-target 4.x-industrial strict byte equality" {
   let t = @test.Test("cross-target 4.x-industrial strict byte equality")
-  snapshot_test(t, parse_json("4.x-industrial", "strict"), "cross-target.4.x-industrial.strict.json")
+  snapshot_test(
+    t,
+    parse_json("4.x-industrial", "strict"),
+    "cross-target.4.x-industrial.strict.json",
+  )
 }

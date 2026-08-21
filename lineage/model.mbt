@@ -10,6 +10,7 @@
 /// (LinkedHashMap determinism). `gaps` and `edges` are strictly separate
 /// lists (D-06): a gap is never a tagged edge.
 
+///|
 /// One source->target column lineage edge (D-01 expression passthrough).
 /// `source_name` is the source spelling of the referenced column;
 /// `source_resolved_to` is the canonical column name from the resolved
@@ -25,6 +26,7 @@ pub(all) struct LineageEdge {
   pub target_end_byte : Int
 } derive(Eq, @debug.Debug)
 
+///|
 /// One honest gap (D-06). `code` is one of `GAP_REQUIRES_CATALOG`,
 /// `GAP_UNRESOLVED_REFERENCE`, or `GAP_REQUIRES_COMPLETE_PARSE`.
 pub(all) struct LineageGap {
@@ -34,21 +36,25 @@ pub(all) struct LineageGap {
   pub end_byte : Int
 } derive(Eq, @debug.Debug)
 
+///|
 /// The result of one `derive_lineage` call: resolved edges plus honest gaps.
 pub(all) struct LineageResult {
   pub edges : Array[LineageEdge]
   pub gaps : Array[LineageGap]
 } derive(Eq, @debug.Debug)
 
+///|
 /// Gap code: a star/`table.*` projection could not be expanded because the
 /// catalog does not provide column metadata for its table(s), or an external
 /// view has no metadata (D-06 / SC2).
 pub const GAP_REQUIRES_CATALOG : String = "requires-catalog"
 
+///|
 /// Gap code: a name reference could not be resolved (unknown table/column/
 /// function, or an ambiguous reference — merged per Open Question 2).
 pub const GAP_UNRESOLVED_REFERENCE : String = "unresolved-reference"
 
+///|
 /// Gap code: the statement body carries error/missing material and lineage
 /// derivation refuses to analyze it (D-33 refusal philosophy).
 pub const GAP_REQUIRES_COMPLETE_PARSE : String = "requires-complete-parse"

@@ -1,3 +1,4 @@
+///|
 /// Standalone LSP server entrypoint: starts the shared stdio loop with no
 /// workspace defaults (the CLI `lsp` subcommand passes its parsed
 /// --dialect/--profile instead). One serve_stdio implementation is the only

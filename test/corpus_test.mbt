@@ -1,3 +1,4 @@
+///|
 /// Embedded replay oracle mirroring every DML/DDL fixture row in
 /// corpus/manifest.tsv (CORP-02, D-18, research Pattern 4): each entry runs
 /// parse_with_metadata -> print_result == raw, all_spans_in_bounds,
@@ -310,6 +311,7 @@ let dml_ddl_corpus_fixtures : Array[EmbeddedManifestFixture] = [
   },
 ]
 
+///|
 test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {
   assert_true(dml_ddl_corpus_fixtures.length() >= 30)
   for fixture in dml_ddl_corpus_fixtures {
@@ -318,6 +320,7 @@ test "dml_ddl_corpus_oracle_replays_every_manifest_fixture" {
   }
 }
 
+///|
 test "script_multi_statement_fixture_keeps_statement_ids" {
   // The corpus script fixture is an all-valid multi-statement document with
   // five statements; the DORIS-03 variant (an unsupported statement between
@@ -332,7 +335,9 @@ test "script_multi_statement_fixture_keeps_statement_ids" {
   assert_eq(@printer.print_result(result), valid)
   let mut statement_count = 0
   for child in result.root.children {
-    if child.kind == "statement" { statement_count = statement_count + 1 }
+    if child.kind == "statement" {
+      statement_count = statement_count + 1
+    }
   }
   assert_eq(statement_count, 5)
   assert_true(result.all_spans_in_bounds())
@@ -345,7 +350,9 @@ test "script_multi_statement_fixture_keeps_statement_ids" {
   assert_eq(@printer.print_result(bad), raw)
   let mut bad_statement_count = 0
   for child in bad.root.children {
-    if child.kind == "statement" { bad_statement_count = bad_statement_count + 1 }
+    if child.kind == "statement" {
+      bad_statement_count = bad_statement_count + 1
+    }
   }
   assert_eq(bad_statement_count, 3)
   assert_true(!bad.valid)

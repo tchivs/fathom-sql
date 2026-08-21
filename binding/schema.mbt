@@ -1,13 +1,26 @@
+///|
 /// Public wire-schema contract for parser and formatter results.
-
 pub const PARSE_SCHEMA_VERSION : String = "fathom.parse.v1"
+
+///|
 pub const FORMAT_SCHEMA_VERSION : String = "fathom.format.v1"
+
+///|
 pub const COMPLETE_SCHEMA_VERSION : String = "fathom.complete.v1"
+
+///|
 pub const LINT_SCHEMA_VERSION : String = "fathom.lint.v1"
+
+///|
 pub const FINGERPRINT_SCHEMA_VERSION : String = "fathom.fingerprint.v1"
+
+///|
 pub const LINEAGE_SCHEMA_VERSION : String = "fathom.lineage.v1"
+
+///|
 pub const SOURCE_TRANSPORT : String = "inline-root-v1"
 
+///|
 pub enum SchemaError {
   UnsupportedSchemaVersion(version~ : String)
   UnsupportedSourceTransport(transport~ : String)
@@ -16,6 +29,7 @@ pub enum SchemaError {
   UnsupportedMode(mode~ : String)
 } derive(Eq, @debug.Debug)
 
+///|
 /// Accepts the eight fathom.*.v1 result/error envelope namespaces
 /// (D-09, D-04, schema v2 bump 06-01): parse, format, complete, lint,
 /// fingerprint, error, capabilities, lineage. fathom.dialect.v1 is a
@@ -25,19 +39,22 @@ pub enum SchemaError {
 /// the 8th namespace (fathom.lineage.v1, 07-04) appends without touching them.
 pub fn validate_schema_version(version : String) -> Result[Unit, SchemaError] {
   match version {
-    PARSE_SCHEMA_VERSION |
-    FORMAT_SCHEMA_VERSION |
-    COMPLETE_SCHEMA_VERSION |
-    LINT_SCHEMA_VERSION |
-    FINGERPRINT_SCHEMA_VERSION |
-    LINEAGE_SCHEMA_VERSION |
-    "fathom.error.v1" |
-    "fathom.capabilities.v1" => Ok(())
+    PARSE_SCHEMA_VERSION
+    | FORMAT_SCHEMA_VERSION
+    | COMPLETE_SCHEMA_VERSION
+    | LINT_SCHEMA_VERSION
+    | FINGERPRINT_SCHEMA_VERSION
+    | LINEAGE_SCHEMA_VERSION
+    | "fathom.error.v1"
+    | "fathom.capabilities.v1" => Ok(())
     _ => Err(UnsupportedSchemaVersion(version~))
   }
 }
 
-pub fn validate_source_transport(transport : String) -> Result[Unit, SchemaError] {
+///|
+pub fn validate_source_transport(
+  transport : String,
+) -> Result[Unit, SchemaError] {
   if transport == SOURCE_TRANSPORT {
     Ok(())
   } else {
@@ -45,6 +62,7 @@ pub fn validate_source_transport(transport : String) -> Result[Unit, SchemaError
   }
 }
 
+///|
 /// Explicit dialect+profile selection validation (Pitfall 6, D-11): the
 /// dialect is validated FIRST (unknown -> UnknownDialect), then the profile is
 /// validated per dialect. flink accepts exactly the three pinned release
@@ -52,20 +70,26 @@ pub fn validate_source_transport(transport : String) -> Result[Unit, SchemaError
 /// flink profiles reject with UnsupportedProfile (FATHOM-SCHEMA-003), and
 /// unknown dialects return UnknownDialect (FATHOM-SCHEMA-007) (D-05 — no
 /// FATHOM-FLINK-* namespace, dialect rides in metadata fields).
-pub fn validate_dialect_profile(dialect : String, profile : String) -> Result[Unit, SchemaError] {
+pub fn validate_dialect_profile(
+  dialect : String,
+  profile : String,
+) -> Result[Unit, SchemaError] {
   match dialect {
-    "doris" => match profile {
-      "2.1" | "3.x" | "4.x" => Ok(())
-      _ => Err(UnsupportedProfile(profile~))
-    }
-    "flink" => match profile {
-      "flink-2.3.0" | "flink-2.1.3" | "flink-1.20.5" => Ok(())
-      _ => Err(UnsupportedProfile(profile~))
-    }
+    "doris" =>
+      match profile {
+        "2.1" | "3.x" | "4.x" => Ok(())
+        _ => Err(UnsupportedProfile(profile~))
+      }
+    "flink" =>
+      match profile {
+        "flink-2.3.0" | "flink-2.1.3" | "flink-1.20.5" => Ok(())
+        _ => Err(UnsupportedProfile(profile~))
+      }
     _ => Err(UnknownDialect(dialect~))
   }
 }
 
+///|
 pub fn validate_mode(mode : String) -> Result[Unit, SchemaError] {
   match mode {
     "strict" | "editor" => Ok(())
@@ -73,6 +97,7 @@ pub fn validate_mode(mode : String) -> Result[Unit, SchemaError] {
   }
 }
 
+///|
 pub fn schema_error_code(error : SchemaError) -> String {
   match error {
     UnsupportedSchemaVersion(_) => "FATHOM-SCHEMA-001"
@@ -83,16 +108,20 @@ pub fn schema_error_code(error : SchemaError) -> String {
   }
 }
 
+///|
 pub fn schema_error_message(error : SchemaError) -> String {
   match error {
-    UnsupportedSchemaVersion(version~) => "unsupported schema version: \{version}"
-    UnsupportedSourceTransport(transport~) => "unsupported source transport: \{transport}"
+    UnsupportedSchemaVersion(version~) =>
+      "unsupported schema version: \{version}"
+    UnsupportedSourceTransport(transport~) =>
+      "unsupported source transport: \{transport}"
     UnknownDialect(dialect~) => "unknown dialect: \{dialect}"
     UnsupportedProfile(profile~) => "unsupported profile: \{profile}"
     UnsupportedMode(mode~) => "unsupported parse mode: \{mode}"
   }
 }
 
+///|
 pub fn schema_error_json(error : SchemaError) -> String {
   stringify({
     "schema_version": Json::string("fathom.error.v1"),
@@ -101,6 +130,7 @@ pub fn schema_error_json(error : SchemaError) -> String {
   })
 }
 
+///|
 pub fn parse_result_json(result : @api.ParseResult) -> String {
   stringify({
     "schema_version": Json::string(PARSE_SCHEMA_VERSION),
@@ -119,6 +149,7 @@ pub fn parse_result_json(result : @api.ParseResult) -> String {
   })
 }
 
+///|
 /// Serialized format result envelope (DIALECT-04): carries the same
 /// dialect/profile/exact_release metadata as the parse envelope so consumers
 /// never guess which selection produced the formatted bytes (D-09).
@@ -144,6 +175,7 @@ pub fn format_result_json(
   })
 }
 
+///|
 /// Serialized fingerprint result envelope (FING-01, D-08): carries the same
 /// dialect/profile/exact_release selection metadata as the parse/format
 /// envelopes (D-09 — consumers must only compare fingerprints within the same
@@ -172,6 +204,7 @@ pub fn fingerprint_result_json(
   })
 }
 
+///|
 /// Serialized lint result envelope (LINT-01, D-05): carries the same
 /// dialect/profile/exact_release selection metadata as the parse/format/
 /// fingerprint envelopes (D-09 — consumers must only compare lint results
@@ -189,32 +222,37 @@ pub fn lint_result_json(
   let findings : Array[Json] = []
   for finding in result.findings {
     let fix_json = match finding.fix {
-      Some(edit) => Json::object({
-        "start_byte": Json::number(edit.start_byte.to_double()),
-        "end_byte": Json::number(edit.end_byte.to_double()),
-        "new_text": byte_array_json(edit.new_text),
-      })
+      Some(edit) =>
+        Json::object({
+          "start_byte": Json::number(edit.start_byte.to_double()),
+          "end_byte": Json::number(edit.end_byte.to_double()),
+          "new_text": byte_array_json(edit.new_text),
+        })
       None => Json::object({})
     }
-    findings.push(Json::object({
-      "code": Json::string(finding.code),
-      "severity": Json::string(finding.severity),
-      "message": Json::string(finding.message),
-      "start_byte": Json::number(finding.start_byte.to_double()),
-      "end_byte": Json::number(finding.end_byte.to_double()),
-      "statement_id": Json::number(finding.statement_id.to_double()),
-      "fix": fix_json,
-    }))
+    findings.push(
+      Json::object({
+        "code": Json::string(finding.code),
+        "severity": Json::string(finding.severity),
+        "message": Json::string(finding.message),
+        "start_byte": Json::number(finding.start_byte.to_double()),
+        "end_byte": Json::number(finding.end_byte.to_double()),
+        "statement_id": Json::number(finding.statement_id.to_double()),
+        "fix": fix_json,
+      }),
+    )
   }
   let diagnostics : Array[Json] = []
   for diag in result.diagnostics {
-    diagnostics.push(Json::object({
-      "code": Json::string(diag.code),
-      "message": Json::string(diag.message),
-      "start_byte": Json::number(diag.start_byte.to_double()),
-      "end_byte": Json::number(diag.end_byte.to_double()),
-      "statement_id": Json::number(diag.statement_id.to_double()),
-    }))
+    diagnostics.push(
+      Json::object({
+        "code": Json::string(diag.code),
+        "message": Json::string(diag.message),
+        "start_byte": Json::number(diag.start_byte.to_double()),
+        "end_byte": Json::number(diag.end_byte.to_double()),
+        "statement_id": Json::number(diag.statement_id.to_double()),
+      }),
+    )
   }
   stringify({
     "schema_version": Json::string("fathom.lint.v1"),
@@ -230,6 +268,8 @@ pub fn lint_result_json(
     "diagnostics": Json::array(diagnostics),
   })
 }
+
+///|
 pub fn error_json(code : String, message : String) -> String {
   stringify({
     "schema_version": Json::string("fathom.error.v1"),
@@ -238,6 +278,7 @@ pub fn error_json(code : String, message : String) -> String {
   })
 }
 
+///|
 pub fn parse_error_json(error : @api.ParseError) -> String {
   let code = match error {
     @api.ParseError::UnknownDialect(_) => "FATHOM-SCHEMA-007"
@@ -251,29 +292,49 @@ pub fn parse_error_json(error : @api.ParseError) -> String {
     @api.ParseError::InvalidSyntaxTree => "FATHOM-PARSE-003"
   }
   let message = match error {
-    @api.ParseError::UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id}"
-    @api.ParseError::UnknownProfile(profile_id~) => "unsupported profile: \{profile_id}"
-    @api.ParseError::UnknownMode(mode_id~) => "unsupported parse mode: \{mode_id}"
-    @api.ParseError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~) => {
+    @api.ParseError::UnknownDialect(dialect_id~) =>
+      "unknown dialect: \{dialect_id}"
+    @api.ParseError::UnknownProfile(profile_id~) =>
+      "unsupported profile: \{profile_id}"
+    @api.ParseError::UnknownMode(mode_id~) =>
+      "unsupported parse mode: \{mode_id}"
+    @api.ParseError::ProfileMetadataMismatch(
+      profile_id~,
+      expected_release~,
+      actual_release~,
+      expected_feature_introduction~,
+      actual_feature_introduction~
+    ) =>
       "profile metadata mismatch for \{profile_id}: expected release \{expected_release}/\{expected_feature_introduction}, got \{actual_release}/\{actual_feature_introduction}"
-    }
-    @api.ParseError::UnsupportedFeatureIntroduction(feature_introduction~) => "unsupported feature introduction: \{feature_introduction}"
-    @api.ParseError::ConflictingSelection(selection_a~, selection_b~) => "conflicting dialect/profile selections: \{selection_a} vs \{selection_b}"
-    @api.ParseError::InputTooLarge(requested_bytes~, max_bytes~) => "input too large: \{requested_bytes} bytes (limit \{max_bytes})"
-    @api.ParseError::InvalidLimit(limit_name~, value~) => "invalid parser limit \{limit_name}: \{value}"
-    @api.ParseError::InvalidSyntaxTree => "parser produced an invalid syntax tree"
+    @api.ParseError::UnsupportedFeatureIntroduction(feature_introduction~) =>
+      "unsupported feature introduction: \{feature_introduction}"
+    @api.ParseError::ConflictingSelection(selection_a~, selection_b~) =>
+      "conflicting dialect/profile selections: \{selection_a} vs \{selection_b}"
+    @api.ParseError::InputTooLarge(requested_bytes~, max_bytes~) =>
+      "input too large: \{requested_bytes} bytes (limit \{max_bytes})"
+    @api.ParseError::InvalidLimit(limit_name~, value~) =>
+      "invalid parser limit \{limit_name}: \{value}"
+    @api.ParseError::InvalidSyntaxTree =>
+      "parser produced an invalid syntax tree"
   }
   error_json(code, message)
 }
 
+///|
 pub fn format_error_json(error : @api.FormatError) -> String {
   let message = match error {
-    @api.FormatError::UnknownKeywordCase(keyword_case_id~) => "unsupported keyword case: " + keyword_case_id
-    @api.FormatError::UnknownCommaStyle(comma_style_id~) => "unsupported comma style: " + comma_style_id
-    @api.FormatError::UnknownNewlineStyle(newline_style_id~) => "unsupported newline style: " + newline_style_id
-    @api.FormatError::InvalidIndent(value~) => "invalid indent: " + value.to_string()
-    @api.FormatError::InvalidLineWidth(value~) => "invalid line width: " + value.to_string()
-    @api.FormatError::InvalidSyntaxTree => "formatter received an invalid syntax tree"
+    @api.FormatError::UnknownKeywordCase(keyword_case_id~) =>
+      "unsupported keyword case: " + keyword_case_id
+    @api.FormatError::UnknownCommaStyle(comma_style_id~) =>
+      "unsupported comma style: " + comma_style_id
+    @api.FormatError::UnknownNewlineStyle(newline_style_id~) =>
+      "unsupported newline style: " + newline_style_id
+    @api.FormatError::InvalidIndent(value~) =>
+      "invalid indent: " + value.to_string()
+    @api.FormatError::InvalidLineWidth(value~) =>
+      "invalid line width: " + value.to_string()
+    @api.FormatError::InvalidSyntaxTree =>
+      "formatter received an invalid syntax tree"
   }
   let code = match error {
     @api.FormatError::UnknownKeywordCase(_) => "FATHOM-FORMAT-002"
@@ -286,6 +347,7 @@ pub fn format_error_json(error : @api.FormatError) -> String {
   error_json(code, message)
 }
 
+///|
 /// Serialized completion result envelope (TOOL-05 D-04): the
 /// fathom.complete.v1 envelope carries the same dialect/profile selection
 /// metadata as the parse/format envelopes (D-09) plus the bounded completion
@@ -299,13 +361,15 @@ pub fn completion_result_json(
 ) -> String {
   let items : Array[Json] = []
   for item in result.items {
-    items.push(Json::object({
-      "label": Json::string(item.label),
-      "detail": Json::string(item.detail),
-      "start_byte": Json::number(item.start_byte.to_double()),
-      "end_byte": Json::number(item.end_byte.to_double()),
-      "new_text": Json::string(item.new_text),
-    }))
+    items.push(
+      Json::object({
+        "label": Json::string(item.label),
+        "detail": Json::string(item.detail),
+        "start_byte": Json::number(item.start_byte.to_double()),
+        "end_byte": Json::number(item.end_byte.to_double()),
+        "new_text": Json::string(item.new_text),
+      }),
+    )
   }
   stringify({
     "schema_version": Json::string(COMPLETE_SCHEMA_VERSION),
@@ -317,6 +381,7 @@ pub fn completion_result_json(
   })
 }
 
+///|
 /// Serialized completion error envelope (TOOL-05 D-04): dialect/profile
 /// errors reuse the parse/format FATHOM-SCHEMA codes (UnknownDialect ->
 /// FATHOM-SCHEMA-007, UnknownProfile -> FATHOM-SCHEMA-003); completion-local
@@ -332,15 +397,21 @@ pub fn completion_error_json(error : @completion.CompletionError) -> String {
     @completion.CompletionError::InputTooLarge => "FATHOM-COMPLETE-003"
   }
   let message = match error {
-    @completion.CompletionError::UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id}"
-    @completion.CompletionError::UnknownProfile(profile_id~) => "unsupported profile: \{profile_id}"
-    @completion.CompletionError::InvalidCursor(cursor~, source_length~) => "invalid cursor \{cursor}: source length is \{source_length}"
-    @completion.CompletionError::InvalidSource => "invalid source: input could not be parsed as SQL"
-    @completion.CompletionError::InputTooLarge => "input too large: exceeds the 8 MiB source limit"
+    @completion.CompletionError::UnknownDialect(dialect_id~) =>
+      "unknown dialect: \{dialect_id}"
+    @completion.CompletionError::UnknownProfile(profile_id~) =>
+      "unsupported profile: \{profile_id}"
+    @completion.CompletionError::InvalidCursor(cursor~, source_length~) =>
+      "invalid cursor \{cursor}: source length is \{source_length}"
+    @completion.CompletionError::InvalidSource =>
+      "invalid source: input could not be parsed as SQL"
+    @completion.CompletionError::InputTooLarge =>
+      "input too large: exceeds the 8 MiB source limit"
   }
   error_json(code, message)
 }
 
+///|
 /// Per-dialect profile availability under fathom.dialect.v1 (OQ4): the
 /// dialect's released profiles with exact_release/feature_introduction taken
 /// ONLY from dialect profile metadata (T-09-18 provenance discipline — nothing
@@ -354,16 +425,19 @@ pub fn dialect_json(dialect : String) -> String {
       let profiles = ["2.1", "3.x", "4.x"]
       let entries : Array[Json] = []
       for profile in profiles {
-        let selection = match @api.ParseOptions::new("doris", profile, "strict") {
+        let selection = match
+          @api.ParseOptions::new("doris", profile, "strict") {
           Ok(selection) => selection
           Err(error) => return parse_error_json(error)
         }
         let metadata = selection.profile_metadata()
-        entries.push(Json::object({
-          "id": Json::string(profile),
-          "exact_release": Json::string(metadata.exact_release),
-          "feature_introduction": Json::string(metadata.feature_introduction),
-        }))
+        entries.push(
+          Json::object({
+            "id": Json::string(profile),
+            "exact_release": Json::string(metadata.exact_release),
+            "feature_introduction": Json::string(metadata.feature_introduction),
+          }),
+        )
       }
       stringify({
         "schema_version": Json::string("fathom.dialect.v1"),
@@ -377,18 +451,21 @@ pub fn dialect_json(dialect : String) -> String {
       let profiles = ["flink-2.3.0", "flink-2.1.3", "flink-1.20.5"]
       let entries : Array[Json] = []
       for profile in profiles {
-        let selection = match @api.ParseOptions::new("flink", profile, "strict") {
+        let selection = match
+          @api.ParseOptions::new("flink", profile, "strict") {
           Ok(selection) => selection
           Err(error) => return parse_error_json(error)
         }
         let metadata = selection.flink_profile_metadata()
-        entries.push(Json::object({
-          "id": Json::string(profile),
-          "exact_release": Json::string(metadata.exact_release),
-          "calcite_version": Json::string(metadata.calcite_version),
-          "parser_config": Json::string(metadata.parser_config),
-          "feature_introduction": Json::string(metadata.feature_introduction),
-        }))
+        entries.push(
+          Json::object({
+            "id": Json::string(profile),
+            "exact_release": Json::string(metadata.exact_release),
+            "calcite_version": Json::string(metadata.calcite_version),
+            "parser_config": Json::string(metadata.parser_config),
+            "feature_introduction": Json::string(metadata.feature_introduction),
+          }),
+        )
       }
       stringify({
         "schema_version": Json::string("fathom.dialect.v1"),
@@ -398,10 +475,11 @@ pub fn dialect_json(dialect : String) -> String {
         "modes": Json::array([Json::string("strict"), Json::string("editor")]),
       })
     }
-    _ => schema_error_json(UnknownDialect(dialect= dialect))
+    _ => schema_error_json(UnknownDialect(dialect~))
   }
 }
 
+///|
 /// Global negotiation metadata under fathom.capabilities.v1 (OQ4): the
 /// dialect list with per-dialect profile availability, the supported schema
 /// namespaces, source transport, modes, and targets.

@@ -6,6 +6,7 @@
 // package cannot import the parser (D-21); the integration surface mirrors
 // analyzer_anal01_test.mbt.
 
+///|
 /// Parses `raw` as a Doris 4.x strict document and returns the root node.
 fn parse_root(raw : Bytes) -> @syntax.SyntaxNode {
   let source = match @source.SourceText::new_with_limit(raw, 8 * 1024 * 1024) {
@@ -24,31 +25,31 @@ fn parse_root(raw : Bytes) -> @syntax.SyntaxNode {
   parsed.root
 }
 
+///|
 /// Walks root -> Statement -> the first Select body node (mirrors the
 /// analyzer's own Document -> Statement -> body dispatch in resolve.mbt).
 fn first_select_body(root : @syntax.SyntaxNode) -> @syntax.SyntaxNode? {
   for element in root.children() {
     match element {
-      @syntax.SyntaxElement::ChildNode(statement_node) => {
+      @syntax.SyntaxElement::ChildNode(statement_node) =>
         if statement_node.kind() is @syntax.SyntaxKind::Statement {
           for inner in statement_node.children() {
             match inner {
-              @syntax.SyntaxElement::ChildNode(body) => {
+              @syntax.SyntaxElement::ChildNode(body) =>
                 if body.kind() is @syntax.SyntaxKind::Select {
                   return Some(body)
                 }
-              }
               @syntax.SyntaxElement::Leaf(_) => ()
             }
           }
         }
-      }
       @syntax.SyntaxElement::Leaf(_) => ()
     }
   }
   None
 }
 
+///|
 test "public-surface select-model end-to-end" {
   // Test 1: SELECT a + b AS x FROM t (doris 4.x strict) -> source_tokens ->
   // split_select_model yields one branch, one select item, two refs, alias x.
@@ -80,6 +81,7 @@ test "public-surface select-model end-to-end" {
   assert_eq(model.branches[0].select_list[0].alias, Some("x"))
 }
 
+///|
 test "public-surface empty token stream empty model" {
   // Test 2: an empty token stream re-parses to an empty SelectModel
   // (branches = []): total function, no panic, no fabricated content.
@@ -92,6 +94,7 @@ test "public-surface empty token stream empty model" {
   assert_eq(model.ctes.length(), 0)
 }
 
+///|
 test "public-surface has_error_missing positive negative" {
   // Test 3: has_error_missing is false for a clean SELECT body and true for a
   // statement carrying error/missing material (D-33 refusal scan).
@@ -103,7 +106,8 @@ test "public-surface has_error_missing positive negative" {
 
   // A malformed statement (missing select items) carries Missing material.
   let broken_raw = b"SELECT"
-  let broken_source = match @source.SourceText::new_with_limit(broken_raw, 8 * 1024 * 1024) {
+  let broken_source = match
+    @source.SourceText::new_with_limit(broken_raw, 8 * 1024 * 1024) {
     Ok(source) => source
     Err(_) => panic()
   }
@@ -122,6 +126,7 @@ test "public-surface has_error_missing positive negative" {
   assert_true(@analyzer.has_error_missing(broken_body))
 }
 
+///|
 test "public-surface except cols end-to-end" {
   // Task 2 integration: `SELECT * EXCEPT (b) FROM t` over a catalog whose
   // table t exposes a/b/c yields Column bindings for a and c only — the

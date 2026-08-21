@@ -8,6 +8,7 @@
 /// analyzer and never reaches the syntax-only valid/diagnostic channel
 /// (ANLY-01).
 
+///|
 /// One catalog function signature (D-05). `min_arity` supports arity checks:
 /// an argument count below `min_arity` or above `param_types.length()` is a
 /// mismatch. `param_types` and `return_type` are opaque type strings (D-04).
@@ -18,6 +19,7 @@ pub(all) struct FunctionInfo {
   min_arity : Int
 } derive(Eq, @debug.Debug)
 
+///|
 /// The kind of a resolved name binding (D-06).
 pub(all) enum BindingKind {
   Table
@@ -27,6 +29,7 @@ pub(all) enum BindingKind {
   Alias
 } derive(Eq, @debug.Debug)
 
+///|
 /// One resolved name binding. `name` preserves the source spelling (D-03);
 /// `resolved_to` is the author's display name from the catalog/scope;
 /// `data_type` carries the column/function type (D-04) and is empty for
@@ -40,6 +43,7 @@ pub(all) struct Binding {
   end_byte : Int
 } derive(Eq, @debug.Debug)
 
+///|
 /// A catalog/scope diagnostic on the analyzer's own channel (D-04): it never
 /// enters the syntax-only valid/diagnostic channel (ANLY-01). Codes are
 /// analyzer-internal stable strings ("unknown-table", "requires-complete-parse"),
@@ -51,6 +55,7 @@ pub(all) struct AnalysisDiagnostic {
   end_byte : Int
 } derive(Eq, @debug.Debug)
 
+///|
 /// The result of analyzing one parsed document: resolved bindings plus
 /// analyzer-channel diagnostics (D-06).
 pub(all) struct AnalysisResult {

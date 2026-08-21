@@ -1,12 +1,13 @@
 pkgtype(kind: "foreign_library")
+
 import {
-  "fathom/sql/api" @api,
-  "fathom/sql/source" @source,
-  "fathom/sql/completion" @completion,
-  "fathom/sql/analyzer" @analyzer,
-  "moonbitlang/core/debug" @debug,
-  "moonbitlang/core/json" @json,
-  "moonbitlang/core/encoding/utf8" @utf8,
+  "fathom/sql/api",
+  "fathom/sql/source",
+  "fathom/sql/completion",
+  "fathom/sql/analyzer",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+  "moonbitlang/core/encoding/utf8",
 }
 
 options(

@@ -1,3 +1,4 @@
+///|
 /// Native-only libc FFI for the fathom-sql CLI (D-37). This is the ONLY file in
 /// the module allowed to touch libc — formatter/ and api/ stay backend-neutral
 /// (Wasm/JS targets, CLAUDE.md single-core constraint).
@@ -10,33 +11,49 @@
 ///   error otherwise) and must precede the extern declaration.
 /// - There is no @ffi package and no core fs package on this toolchain; these
 ///   POSIX symbols are the only available IO surface.
-
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
 pub extern "c" fn read_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "read"
 
+///|
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
 pub extern "c" fn write_fd(fd : Int, ptr : Bytes, count : Int) -> Int = "write"
 
+///|
 #cfg(any(target="native", target="llvm"))
 pub extern "c" fn exit_process(code : Int) = "exit"
 
+///|
 #cfg(any(target="native", target="llvm"))
 #borrow(path, mode)
 pub extern "c" fn open_file(path : Bytes, mode : Bytes) -> Int64 = "fopen"
 
+///|
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
-pub extern "c" fn read_file_chunk(ptr : Bytes, size : Int, count : Int, handle : Int64) -> Int = "fread"
+pub extern "c" fn read_file_chunk(
+  ptr : Bytes,
+  size : Int,
+  count : Int,
+  handle : Int64,
+) -> Int = "fread"
 
+///|
 #cfg(any(target="native", target="llvm"))
 #borrow(ptr)
-pub extern "c" fn write_file_chunk(ptr : Bytes, size : Int, count : Int, handle : Int64) -> Int = "fwrite"
+pub extern "c" fn write_file_chunk(
+  ptr : Bytes,
+  size : Int,
+  count : Int,
+  handle : Int64,
+) -> Int = "fwrite"
 
+///|
 #cfg(any(target="native", target="llvm"))
 pub extern "c" fn close_file(handle : Int64) -> Int = "fclose"
 
+///|
 /// Read a whole file into bytes; None when fopen fails (missing/unreadable).
 /// Bounded chunked reads (4096 bytes), stops at EOF. fopen returns 0L on
 /// failure — that maps to None -> CLI exit 2 (T-03-19 mitigation).
@@ -49,7 +66,9 @@ pub extern "c" fn close_file(handle : Int64) -> Int = "fclose"
 pub fn read_file(path : String) -> Bytes? {
   let path_bytes = @utf8.encode(path) + b"\x00"
   let handle = open_file(path_bytes, b"rb")
-  if handle == 0L { return None }
+  if handle == 0L {
+    return None
+  }
   let out = @buffer.Buffer::Buffer(size_hint=4096)
   let chunk = Bytes::new(4096)
   let mut more = true
@@ -59,13 +78,16 @@ pub fn read_file(path : String) -> Bytes? {
       more = false
     } else {
       out.write_bytes(chunk[0:got])
-      if got < 4096 { more = false }
+      if got < 4096 {
+        more = false
+      }
     }
   }
   ignore(close_file(handle))
   Some(out.to_bytes())
 }
 
+///|
 /// Read all of stdin (fd 0) into bytes; bounded chunked reads, EOF stops.
 pub fn read_stdin() -> Bytes {
   let out = @buffer.Buffer::Buffer(size_hint=4096)
@@ -77,7 +99,9 @@ pub fn read_stdin() -> Bytes {
       more = false
     } else {
       out.write_bytes(chunk[0:got])
-      if got < 4096 { more = false }
+      if got < 4096 {
+        more = false
+      }
     }
   }
   out.to_bytes()

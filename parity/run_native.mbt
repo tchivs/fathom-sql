@@ -1,3 +1,4 @@
+///|
 fn main {
   let source = b"select /* native parity */ 1"
   let parsed = @binding.fathom_parse_v1(source, "doris", "4.x", "editor")

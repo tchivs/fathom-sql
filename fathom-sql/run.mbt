@@ -1,3 +1,4 @@
+///|
 /// Pure CLI logic home (D-37/D-38): maps a parsed Command plus stdin bytes to
 /// an exact CliOutcome { exit_code, stdout, stderr } (D-39). This is the ONLY
 /// logic in the CLI package — no format logic lives here; the single core call
@@ -7,16 +8,19 @@
 /// cannot corrupt each other. run_lsp delegates to the shared
 /// @lsp.serve_stdio loop (single server implementation, T-09-15) with the
 /// parsed dialect/profile as workspace defaults.
-
 pub(all) struct CliOutcome {
   exit_code : Int
   stdout : Bytes
   stderr : Bytes
 }
 
+///|
 const DEFAULT_INDENT : Int = 2
+
+///|
 const DEFAULT_LINE_WIDTH : Int = 100
 
+///|
 /// D-39 exit mapping:
 /// 0 = accepted — stdout carries the formatted SQL / serialized parse
 ///     envelope / (lsp) the server loop ran to completion, stderr empty;
@@ -34,26 +38,30 @@ pub fn run_version(name : String) -> CliOutcome {
   { exit_code: 0, stdout: bytes, stderr: b"" }
 }
 
+///|
 pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   let keyword_case = match command.keyword_case {
-    Some(id) => match @api.KeywordCase::from_id(id) {
-      Some(value) => value
-      None => return bad_value("--keyword-case", id)
-    }
+    Some(id) =>
+      match @api.KeywordCase::from_id(id) {
+        Some(value) => value
+        None => return bad_value("--keyword-case", id)
+      }
     None => @api.KeywordCase::Upper
   }
   let comma_style = match command.comma_style {
-    Some(id) => match @api.CommaStyle::from_id(id) {
-      Some(value) => value
-      None => return bad_value("--comma-style", id)
-    }
+    Some(id) =>
+      match @api.CommaStyle::from_id(id) {
+        Some(value) => value
+        None => return bad_value("--comma-style", id)
+      }
     None => @api.CommaStyle::Trailing
   }
   let newline_style = match command.newline_style {
-    Some(id) => match @api.NewlineStyle::from_id(id) {
-      Some(value) => value
-      None => return bad_value("--newline-style", id)
-    }
+    Some(id) =>
+      match @api.NewlineStyle::from_id(id) {
+        Some(value) => value
+        None => return bad_value("--newline-style", id)
+      }
     None => @api.NewlineStyle::FollowInput
   }
   let indent = match command.indent {
@@ -64,55 +72,71 @@ pub fn run_format(command : Command, stdin_bytes : Bytes) -> CliOutcome {
     Some(value) => value
     None => DEFAULT_LINE_WIDTH
   }
-  let format_options = match @api.FormatOptions::new(
-    keyword_case,
-    indent,
-    line_width,
-    comma_style,
-    newline_style,
-    command.trailing_newline,
-  ) {
+  let format_options = match
+    @api.FormatOptions::new(
+      keyword_case,
+      indent,
+      line_width,
+      comma_style,
+      newline_style,
+      command.trailing_newline,
+    ) {
     Ok(options) => options
-    Err(@api.FormatError::InvalidIndent(value~)) => {
+    Err(@api.FormatError::InvalidIndent(value~)) =>
       // Cap mirrors @formatter.MAX_INDENT (formatter/options.mbt) — WR-02.
       return usage_error("invalid --indent value: \{value} (expected 0..64)")
-    }
-    Err(@api.FormatError::InvalidLineWidth(value~)) => {
-      return usage_error("invalid --line-width value: \{value} (expected a positive integer)")
-    }
+    Err(@api.FormatError::InvalidLineWidth(value~)) =>
+      return usage_error(
+        "invalid --line-width value: \{value} (expected a positive integer)",
+      )
     Err(_) => return usage_error("internal format option error")
   }
   let input = match command.file {
-    Some(path) if path != "-" => match read_file(path) {
-      Some(bytes) => bytes
-      None => return usage_error("cannot read file: \{path}")
-    }
+    Some(path) if path != "-" =>
+      match read_file(path) {
+        Some(bytes) => bytes
+        None => return usage_error("cannot read file: \{path}")
+      }
     _ => stdin_bytes
   }
-  let result = match @api.format_with_ids(input, command.dialect, command.profile, "strict", format_options) {
+  let result = match
+    @api.format_with_ids(
+      input,
+      command.dialect,
+      command.profile,
+      "strict",
+      format_options,
+    ) {
     Ok(result) => result
     Err(error) => return parse_error_outcome(command.dialect, error)
   }
   if result.accepted {
     { exit_code: 0, stdout: result.output, stderr: b"" }
   } else {
-    { exit_code: 1, stdout: b"", stderr: render_diagnostics(result.diagnostics) }
+    {
+      exit_code: 1,
+      stdout: b"",
+      stderr: render_diagnostics(result.diagnostics),
+    }
   }
 }
 
+///|
 /// Serialized parse envelope (fathom.parse.v1, D-09) on stdout, exit 0.
 /// Parse failures exit 1 with the api core's structured diagnostics on
 /// stderr; selection errors exit 2 via parse_error_outcome (defense-in-depth
 /// — parse_args already validated dialect/profile).
 pub fn run_parse(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   let input = match command.file {
-    Some(path) if path != "-" => match read_file(path) {
-      Some(bytes) => bytes
-      None => return usage_error("cannot read file: \{path}")
-    }
+    Some(path) if path != "-" =>
+      match read_file(path) {
+        Some(bytes) => bytes
+        None => return usage_error("cannot read file: \{path}")
+      }
     _ => stdin_bytes
   }
-  let result = match @api.parse_with_ids(input, command.dialect, command.profile, "strict") {
+  let result = match
+    @api.parse_with_ids(input, command.dialect, command.profile, "strict") {
     Ok(result) => result
     Err(error) => return parse_error_outcome(command.dialect, error)
   }
@@ -123,6 +147,7 @@ pub fn run_parse(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   }
 }
 
+///|
 /// LSP subcommand: run the shared stdio server loop with the parsed
 /// --dialect/--profile as workspace defaults (D-01 seam). The loop returns
 /// only after the client's exit notification; exit 0.
@@ -131,6 +156,7 @@ pub fn run_lsp(command : Command) -> CliOutcome {
   { exit_code: 0, stdout: b"", stderr: b"" }
 }
 
+///|
 /// Shared ParseOptions construction for the analysis subcommands
 /// (lint/fingerprint): dialect-first validation (Pitfall 6, T-09-10). A
 /// selection error maps to the D-39 parse_error_outcome (exit 2 for unknown
@@ -142,6 +168,7 @@ fn parse_options(command : Command) -> Result[@api.ParseOptions, CliOutcome] {
   }
 }
 
+///|
 /// D-39 lint exit mapping:
 ///   0 = no findings (report mode) OR all fixes applied + reparse clean
 ///       (--fix mode, accepted=true);
@@ -158,37 +185,45 @@ pub fn run_lint(command : Command, stdin_bytes : Bytes) -> CliOutcome {
     Err(_) => return usage_error("unknown rule code in --rule")
   }
   let input = match command.file {
-    Some(path) if path != "-" => match read_file(path) {
-      Some(bytes) => bytes
-      None => return usage_error("cannot read file: \{path}")
-    }
+    Some(path) if path != "-" =>
+      match read_file(path) {
+        Some(bytes) => bytes
+        None => return usage_error("cannot read file: \{path}")
+      }
     _ => stdin_bytes
   }
   if command.fix {
     match @api.fix_text(input, selection, lint_options) {
-      Ok(result) => {
+      Ok(result) =>
         if result.accepted {
           { exit_code: 0, stdout: result.output, stderr: b"" }
         } else {
-          { exit_code: 1, stdout: b"", stderr: render_lint_diagnostics(result.diagnostics) }
+          {
+            exit_code: 1,
+            stdout: b"",
+            stderr: render_lint_diagnostics(result.diagnostics),
+          }
         }
-      }
       Err(error) => parse_error_outcome(command.dialect, error)
     }
   } else {
     match @api.lint_text(input, selection, lint_options) {
-      Ok(result) => {
+      Ok(result) =>
         if result.findings.length() == 0 {
           { exit_code: 0, stdout: b"", stderr: b"" }
         } else {
-          { exit_code: 1, stdout: b"", stderr: render_lint_findings(result.findings) }
+          {
+            exit_code: 1,
+            stdout: b"",
+            stderr: render_lint_findings(result.findings),
+          }
         }
-      }
       Err(error) => parse_error_outcome(command.dialect, error)
     }
   }
 }
 
+///|
 /// D-39 fingerprint exit mapping:
 ///   0 = success — stdout carries the UInt64 fingerprint as a DECIMAL STRING
 ///       (never a number form; 2^53 precision, Pitfall 3) plus, with
@@ -201,10 +236,11 @@ pub fn run_fingerprint(command : Command, stdin_bytes : Bytes) -> CliOutcome {
     Err(outcome) => return outcome
   }
   let input = match command.file {
-    Some(path) if path != "-" => match read_file(path) {
-      Some(bytes) => bytes
-      None => return usage_error("cannot read file: \{path}")
-    }
+    Some(path) if path != "-" =>
+      match read_file(path) {
+        Some(bytes) => bytes
+        None => return usage_error("cannot read file: \{path}")
+      }
     _ => stdin_bytes
   }
   match @api.fingerprint_text(input, selection) {
@@ -221,6 +257,7 @@ pub fn run_fingerprint(command : Command, stdin_bytes : Bytes) -> CliOutcome {
   }
 }
 
+///|
 /// D-39 lineage exit mapping (LINE-01, D-07/D-08):
 ///   0 = success — stdout carries the fathom.lineage.v1 envelope
 ///       (dialect/profile/exact_release metadata + edges + gaps);
@@ -249,20 +286,24 @@ pub fn run_lineage(command : Command, stdin_bytes : Bytes) -> CliOutcome {
       }
       match @binding.parse_catalog_json(bytes) {
         Ok(catalog) => catalog
-        Err(message) => return usage_error("invalid catalog JSON (FATHOM-SCHEMA-004): \{message}")
+        Err(message) =>
+          return usage_error(
+            "invalid catalog JSON (FATHOM-SCHEMA-004): \{message}",
+          )
       }
     }
     None => None
   }
   let input = match command.file {
-    Some(path) if path != "-" => match read_file(path) {
-      Some(bytes) => bytes
-      None => return usage_error("cannot read file: \{path}")
-    }
+    Some(path) if path != "-" =>
+      match read_file(path) {
+        Some(bytes) => bytes
+        None => return usage_error("cannot read file: \{path}")
+      }
     _ => stdin_bytes
   }
   match @api.lineage_text(input, selection, catalog) {
-    Ok(result) => {
+    Ok(result) =>
       {
         exit_code: 0,
         stdout: @utf8.encode(
@@ -272,15 +313,16 @@ pub fn run_lineage(command : Command, stdin_bytes : Bytes) -> CliOutcome {
             command.dialect,
             command.profile,
             selection.exact_release(),
-          ) + "\n",
+          ) +
+          "\n",
         ),
         stderr: b"",
       }
-    }
     Err(error) => parse_error_outcome(command.dialect, error)
   }
 }
 
+///|
 /// Render lint findings to stderr, one per line (report mode exit 1).
 fn render_lint_findings(findings : Array[@api.LintFinding]) -> Bytes {
   let out = @buffer.Buffer::Buffer(size_hint=256)
@@ -290,6 +332,7 @@ fn render_lint_findings(findings : Array[@api.LintFinding]) -> Bytes {
   out.to_bytes()
 }
 
+///|
 /// Render lint diagnostics to stderr, one per line (--fix refusal exit 1).
 fn render_lint_diagnostics(diagnostics : Array[@api.LintDiagnostic]) -> Bytes {
   let out = @buffer.Buffer::Buffer(size_hint=256)
@@ -299,18 +342,17 @@ fn render_lint_diagnostics(diagnostics : Array[@api.LintDiagnostic]) -> Bytes {
   out.to_bytes()
 }
 
+///|
 fn bad_value(flag : String, value : String) -> CliOutcome {
   usage_error("invalid value for \{flag}: \{value}")
 }
 
+///|
 fn usage_error(message : String) -> CliOutcome {
-  {
-    exit_code: 2,
-    stdout: b"",
-    stderr: @utf8.encode("\{message}\n"),
-  }
+  { exit_code: 2, stdout: b"", stderr: @utf8.encode("\{message}\n") }
 }
 
+///|
 /// Maps a ParseError from the api core. UnknownProfile/UnknownDialect are
 /// defense-in-depth (parse_args already validates both -> exit 2); everything
 /// else is an input/processing failure -> exit 1 (T-03-23: InputTooLarge exits
@@ -320,36 +362,33 @@ fn usage_error(message : String) -> CliOutcome {
 /// T-10-05).
 fn parse_error_outcome(dialect : String, error : @api.ParseError) -> CliOutcome {
   match error {
-    @api.ParseError::UnknownDialect(dialect_id~) => {
+    @api.ParseError::UnknownDialect(dialect_id~) =>
       usage_error("unknown dialect: \{dialect_id} (expected doris or flink)")
-    }
-    @api.ParseError::UnknownProfile(profile_id~) => {
+    @api.ParseError::UnknownProfile(profile_id~) =>
       if dialect == "flink" {
-        usage_error("unknown --profile value: \{profile_id} (expected flink-2.3.0, flink-2.1.3, or flink-1.20.5)")
+        usage_error(
+          "unknown --profile value: \{profile_id} (expected flink-2.3.0, flink-2.1.3, or flink-1.20.5)",
+        )
       } else {
-        usage_error("unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)")
+        usage_error(
+          "unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)",
+        )
       }
-    }
-    @api.ParseError::UnknownMode(mode_id~) => {
+    @api.ParseError::UnknownMode(mode_id~) =>
       usage_error("unknown mode: \{mode_id}")
-    }
-    @api.ParseError::InputTooLarge(requested_bytes~, max_bytes~) => {
+    @api.ParseError::InputTooLarge(requested_bytes~, max_bytes~) =>
       {
         exit_code: 1,
         stdout: b"",
-        stderr: @utf8.encode("input too large: \{requested_bytes} bytes (limit \{max_bytes})\n"),
+        stderr: @utf8.encode(
+          "input too large: \{requested_bytes} bytes (limit \{max_bytes})\n",
+        ),
       }
-    }
-    _ => {
-      {
-        exit_code: 1,
-        stdout: b"",
-        stderr: b"internal parse error\n",
-      }
-    }
+    _ => { exit_code: 1, stdout: b"", stderr: b"internal parse error\n" }
   }
 }
 
+///|
 /// Render all diagnostics to stderr bytes, one per line. On refusal the api
 /// core has already prepended the parse diagnostics, so the FATHOM-FORMAT-001
 /// refusal never masks them (T-03-20).
@@ -361,20 +400,26 @@ pub fn render_diagnostics(diagnostics : Array[@api.FormatDiagnostic]) -> Bytes {
   out.to_bytes()
 }
 
+///|
 /// --help text (printed to stdout, exit 0).
 pub fn usage_text() -> String {
   "usage: fathom-sql parse|format|lsp|lint|fingerprint|lineage --dialect <doris|flink> --profile <id> [--keyword-case upper|lower] [--indent N (0..64)] [--line-width N] [--comma-style trailing|leading] [--newline-style follow|lf|crlf] [--rule <CODE>=<error|warning|info|off>] [--fix] [--normalized] [--catalog <file>] [--no-trailing-newline] [--help] [file|-]\n"
 }
 
+///|
 /// Usage-error message for exit 2 (stderr only, no SQL output).
 pub fn usage_error_message(error : UsageError) -> String {
   match error {
-    MissingSubcommand => "missing subcommand (expected: parse, format, lsp, lint, fingerprint, or lineage)\n"
-    UnknownSubcommand(sub~) => "unknown subcommand: \{sub} (expected: parse, format, lsp, lint, fingerprint, or lineage)\n"
+    MissingSubcommand =>
+      "missing subcommand (expected: parse, format, lsp, lint, fingerprint, or lineage)\n"
+    UnknownSubcommand(sub~) =>
+      "unknown subcommand: \{sub} (expected: parse, format, lsp, lint, fingerprint, or lineage)\n"
     MissingDialect => "missing required flag: --dialect <doris|flink>\n"
-    UnknownDialect(dialect_id~) => "unknown dialect: \{dialect_id} (expected doris or flink)\n"
-    MissingProfile => "missing required flag: --profile <doris 2.1|3.x|4.x | flink flink-2.3.0|flink-2.1.3|flink-1.20.5>\n"
-    UnknownProfile(profile_id~, dialect_id~) => {
+    UnknownDialect(dialect_id~) =>
+      "unknown dialect: \{dialect_id} (expected doris or flink)\n"
+    MissingProfile =>
+      "missing required flag: --profile <doris 2.1|3.x|4.x | flink flink-2.3.0|flink-2.1.3|flink-1.20.5>\n"
+    UnknownProfile(profile_id~, dialect_id~) =>
       if dialect_id == "flink" {
         // flink accepts exactly the three pinned release profiles (Phase 10,
         // D-01) — the message must not imply that 2.1/3.x/4.x are usable
@@ -383,13 +428,13 @@ pub fn usage_error_message(error : UsageError) -> String {
       } else {
         "unknown --profile value: \{profile_id} (expected 2.1, 3.x, or 4.x)\n"
       }
-    }
     UnknownFlag(flag~) => "unknown flag: \{flag}\n"
     MissingValue(flag~) => "missing value for flag: \{flag}\n"
     UnknownValue(flag~, value~) => "invalid value for \{flag}: \{value}\n"
   }
 }
 
+///|
 test "run_format_stdin_happy_path" {
   let command : Command = {
     subcommand: "format",
@@ -413,6 +458,7 @@ test "run_format_stdin_happy_path" {
   assert_eq(outcome.stderr.length(), 0)
 }
 
+///|
 test "run_parse_stdin_happy_path" {
   let command : Command = {
     subcommand: "parse",

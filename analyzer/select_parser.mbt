@@ -12,21 +12,26 @@
 /// INTERSECT is not in the acceptance set and is never fabricated as a branch
 /// (Pitfall 2).
 
+///|
 /// Max paren depth before the re-parser bails to a requires-complete-parse
 /// diagnostic instead of recursing (T-05-03-01, mirroring parser
 /// max_recursion_depth).
 const MAX_PAREN_DEPTH : Int = 128
 
+///|
 /// Source-token leaf bytes of a node in source order with flattened spans
 /// (trivia, error, and skipped leaves are ignored — only SourceToken leaves
 /// carry grammar tokens). Twin of `source_token_texts` that carries spans
 /// (D-01); returns (token_bytes, start_byte, end_byte) triples to avoid naming
 /// @source.Span and importing source.
-pub fn source_tokens(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(Bytes, Int, Int)] {
+pub fn source_tokens(
+  node : @syntax.SyntaxNode,
+  source_bytes : Bytes,
+) -> Array[(Bytes, Int, Int)] {
   let tokens : Array[(Bytes, Int, Int)] = []
   for element in node.children() {
     match element {
-      @syntax.SyntaxElement::Leaf(leaf) => {
+      @syntax.SyntaxElement::Leaf(leaf) =>
         if leaf.kind is @syntax.LeafKind::SourceToken {
           let start = leaf.span.start_byte
           let end = leaf.span.end_byte
@@ -34,23 +39,27 @@ pub fn source_tokens(node : @syntax.SyntaxNode, source_bytes : Bytes) -> Array[(
             tokens.push((source_bytes[start:end].to_owned(), start, end))
           }
         }
-      }
       @syntax.SyntaxElement::ChildNode(_) => ()
     }
   }
   tokens
 }
 
+///|
 /// Words that are always top-level SELECT clause boundaries at paren depth 0
 /// (D-01). GROUP/ORDER are handled separately (they only break on a following
 /// BY — Pitfall 2).
 fn is_boundary_word(bytes : Bytes) -> Bool {
-  bytes_equal_ci(bytes, b"FROM") || bytes_equal_ci(bytes, b"WHERE") ||
-  bytes_equal_ci(bytes, b"HAVING") || bytes_equal_ci(bytes, b"QUALIFY") ||
-  bytes_equal_ci(bytes, b"LIMIT") || bytes_equal_ci(bytes, b"WINDOW") ||
+  bytes_equal_ci(bytes, b"FROM") ||
+  bytes_equal_ci(bytes, b"WHERE") ||
+  bytes_equal_ci(bytes, b"HAVING") ||
+  bytes_equal_ci(bytes, b"QUALIFY") ||
+  bytes_equal_ci(bytes, b"LIMIT") ||
+  bytes_equal_ci(bytes, b"WINDOW") ||
   bytes_equal_ci(bytes, b"UNION")
 }
 
+///|
 /// Reserved words that can never be unquoted identifiers in an expression.
 /// This is the analyzer's dialect-independent approximation of the parser's
 /// `is_reserved_word` (the analyzer cannot import dialect, D-21). GROUP/ORDER
@@ -59,27 +68,46 @@ fn is_boundary_word(bytes : Bytes) -> Bool {
 /// identifier-like and never keywords (D-03).
 fn is_reserved_word(bytes : Bytes) -> Bool {
   is_boundary_word(bytes) ||
-  bytes_equal_ci(bytes, b"AND") || bytes_equal_ci(bytes, b"OR") ||
-  bytes_equal_ci(bytes, b"NOT") || bytes_equal_ci(bytes, b"IN") ||
-  bytes_equal_ci(bytes, b"IS") || bytes_equal_ci(bytes, b"BETWEEN") ||
-  bytes_equal_ci(bytes, b"LIKE") || bytes_equal_ci(bytes, b"EXISTS") ||
-  bytes_equal_ci(bytes, b"ASC") || bytes_equal_ci(bytes, b"DESC") ||
-  bytes_equal_ci(bytes, b"NULL") || bytes_equal_ci(bytes, b"TRUE") ||
-  bytes_equal_ci(bytes, b"FALSE") || bytes_equal_ci(bytes, b"NULLS") ||
-  bytes_equal_ci(bytes, b"OVER") || bytes_equal_ci(bytes, b"AS") ||
-  bytes_equal_ci(bytes, b"BY") || bytes_equal_ci(bytes, b"ON") ||
-  bytes_equal_ci(bytes, b"USING") || bytes_equal_ci(bytes, b"CASE") ||
-  bytes_equal_ci(bytes, b"WHEN") || bytes_equal_ci(bytes, b"THEN") ||
-  bytes_equal_ci(bytes, b"ELSE") || bytes_equal_ci(bytes, b"END") ||
-  bytes_equal_ci(bytes, b"ALL") || bytes_equal_ci(bytes, b"DISTINCT") ||
-  bytes_equal_ci(bytes, b"SELECT") || bytes_equal_ci(bytes, b"WITH") ||
-  bytes_equal_ci(bytes, b"RECURSIVE") || bytes_equal_ci(bytes, b"LEFT") ||
-  bytes_equal_ci(bytes, b"RIGHT") || bytes_equal_ci(bytes, b"FULL") ||
-  bytes_equal_ci(bytes, b"INNER") || bytes_equal_ci(bytes, b"CROSS") ||
-  bytes_equal_ci(bytes, b"NATURAL") || bytes_equal_ci(bytes, b"OUTER") ||
+  bytes_equal_ci(bytes, b"AND") ||
+  bytes_equal_ci(bytes, b"OR") ||
+  bytes_equal_ci(bytes, b"NOT") ||
+  bytes_equal_ci(bytes, b"IN") ||
+  bytes_equal_ci(bytes, b"IS") ||
+  bytes_equal_ci(bytes, b"BETWEEN") ||
+  bytes_equal_ci(bytes, b"LIKE") ||
+  bytes_equal_ci(bytes, b"EXISTS") ||
+  bytes_equal_ci(bytes, b"ASC") ||
+  bytes_equal_ci(bytes, b"DESC") ||
+  bytes_equal_ci(bytes, b"NULL") ||
+  bytes_equal_ci(bytes, b"TRUE") ||
+  bytes_equal_ci(bytes, b"FALSE") ||
+  bytes_equal_ci(bytes, b"NULLS") ||
+  bytes_equal_ci(bytes, b"OVER") ||
+  bytes_equal_ci(bytes, b"AS") ||
+  bytes_equal_ci(bytes, b"BY") ||
+  bytes_equal_ci(bytes, b"ON") ||
+  bytes_equal_ci(bytes, b"USING") ||
+  bytes_equal_ci(bytes, b"CASE") ||
+  bytes_equal_ci(bytes, b"WHEN") ||
+  bytes_equal_ci(bytes, b"THEN") ||
+  bytes_equal_ci(bytes, b"ELSE") ||
+  bytes_equal_ci(bytes, b"END") ||
+  bytes_equal_ci(bytes, b"ALL") ||
+  bytes_equal_ci(bytes, b"DISTINCT") ||
+  bytes_equal_ci(bytes, b"SELECT") ||
+  bytes_equal_ci(bytes, b"WITH") ||
+  bytes_equal_ci(bytes, b"RECURSIVE") ||
+  bytes_equal_ci(bytes, b"LEFT") ||
+  bytes_equal_ci(bytes, b"RIGHT") ||
+  bytes_equal_ci(bytes, b"FULL") ||
+  bytes_equal_ci(bytes, b"INNER") ||
+  bytes_equal_ci(bytes, b"CROSS") ||
+  bytes_equal_ci(bytes, b"NATURAL") ||
+  bytes_equal_ci(bytes, b"OUTER") ||
   bytes_equal_ci(bytes, b"JOIN")
 }
 
+///|
 /// True when a whole token is identifier-like for name resolution: a quoted
 /// identifier (backtick/`"`), or an unquoted word that is not a reserved
 /// keyword, a string literal (`'`), `*`, a numeric literal, or punctuation/
@@ -90,10 +118,18 @@ fn is_identifier_token(bytes : Bytes) -> Bool {
     return false
   }
   let first = bytes[0].to_int()
-  if first == 96 || first == 34 { return true } // quoted identifier
-  if first == 39 { return false } // ' string literal
-  if first == 42 { return false } // * wildcard
-  if first >= 48 && first <= 57 { return false } // digit literal
+  if first == 96 || first == 34 {
+    return true
+  } // quoted identifier
+  if first == 39 {
+    return false
+  } // ' string literal
+  if first == 42 {
+    return false
+  } // * wildcard
+  if first >= 48 && first <= 57 {
+    return false
+  } // digit literal
   // ASCII operators/punctuation are never identifiers (`=`, `<`, `+`, ...).
   if first < 128 &&
     !(first >= 65 && first <= 90) && // A-Z
@@ -104,19 +140,27 @@ fn is_identifier_token(bytes : Bytes) -> Bool {
   !is_reserved_word(bytes)
 }
 
+///|
 /// Words that must not be taken as a bare table alias in a FROM item
 /// (JOIN structure, clause boundaries, table options).
 fn is_from_suffix_word(bytes : Bytes) -> Bool {
-  is_boundary_word(bytes) || is_reserved_word(bytes) ||
-  bytes_equal_ci(bytes, b"PARTITION") || bytes_equal_ci(bytes, b"SAMPLE") ||
-  bytes_equal_ci(bytes, b"TABLESAMPLE") || bytes_equal_ci(bytes, b"TABLET")
+  is_boundary_word(bytes) ||
+  is_reserved_word(bytes) ||
+  bytes_equal_ci(bytes, b"PARTITION") ||
+  bytes_equal_ci(bytes, b"SAMPLE") ||
+  bytes_equal_ci(bytes, b"TABLESAMPLE") ||
+  bytes_equal_ci(bytes, b"TABLET")
 }
 
+///|
 /// True when `tokens[index]` starts a FROM-suffix boundary that must not be
 /// consumed as a bare table/subquery alias: a boundary/suffix word, or
 /// GROUP/ORDER when followed by BY (Pitfall 2). `SELECT a FROM t ORDER BY a`
 /// must not bind `ORDER` as an alias of `t`.
-fn is_from_clause_boundary(tokens : Array[(Bytes, Int, Int)], index : Int) -> Bool {
+fn is_from_clause_boundary(
+  tokens : Array[(Bytes, Int, Int)],
+  index : Int,
+) -> Bool {
   if index >= tokens.length() {
     return true
   }
@@ -125,16 +169,22 @@ fn is_from_clause_boundary(tokens : Array[(Bytes, Int, Int)], index : Int) -> Bo
     return true
   }
   if (bytes_equal_ci(bytes, b"GROUP") || bytes_equal_ci(bytes, b"ORDER")) &&
-    index + 1 < tokens.length() && bytes_equal_ci(tokens[index + 1].0, b"BY") {
+    index + 1 < tokens.length() &&
+    bytes_equal_ci(tokens[index + 1].0, b"BY") {
     return true
   }
   false
 }
 
+///|
 /// Clause keyword at paren depth 0 with GROUP/ORDER two-word detection
 /// (Pitfall 2): GROUP/ORDER only break when the next significant token is BY.
 /// Strings and quoted identifiers can never match (whole-token byte compare).
-fn clause_kind_at(tokens : Array[(Bytes, Int, Int)], index : Int, depth : Int) -> ClauseKind? {
+fn clause_kind_at(
+  tokens : Array[(Bytes, Int, Int)],
+  index : Int,
+  depth : Int,
+) -> ClauseKind? {
   if depth != 0 {
     return None
   }
@@ -142,28 +192,43 @@ fn clause_kind_at(tokens : Array[(Bytes, Int, Int)], index : Int, depth : Int) -
     return None
   }
   let bytes = tokens[index].0
-  if bytes_equal_ci(bytes, b"FROM") { return Some(From) }
-  if bytes_equal_ci(bytes, b"WHERE") { return Some(Where) }
+  if bytes_equal_ci(bytes, b"FROM") {
+    return Some(From)
+  }
+  if bytes_equal_ci(bytes, b"WHERE") {
+    return Some(Where)
+  }
   if bytes_equal_ci(bytes, b"GROUP") {
     if index + 1 < tokens.length() && bytes_equal_ci(tokens[index + 1].0, b"BY") {
       return Some(GroupBy)
     }
     return None
   }
-  if bytes_equal_ci(bytes, b"HAVING") { return Some(Having) }
-  if bytes_equal_ci(bytes, b"QUALIFY") { return Some(Qualify) }
+  if bytes_equal_ci(bytes, b"HAVING") {
+    return Some(Having)
+  }
+  if bytes_equal_ci(bytes, b"QUALIFY") {
+    return Some(Qualify)
+  }
   if bytes_equal_ci(bytes, b"ORDER") {
     if index + 1 < tokens.length() && bytes_equal_ci(tokens[index + 1].0, b"BY") {
       return Some(OrderBy)
     }
     return None
   }
-  if bytes_equal_ci(bytes, b"LIMIT") { return Some(Limit) }
-  if bytes_equal_ci(bytes, b"WINDOW") { return Some(Window) }
-  if bytes_equal_ci(bytes, b"UNION") { return Some(SetOpUnion) }
+  if bytes_equal_ci(bytes, b"LIMIT") {
+    return Some(Limit)
+  }
+  if bytes_equal_ci(bytes, b"WINDOW") {
+    return Some(Window)
+  }
+  if bytes_equal_ci(bytes, b"UNION") {
+    return Some(SetOpUnion)
+  }
   None
 }
 
+///|
 /// Index of the `)` matching the `(` at `open`, or `length` when unbalanced.
 pub fn matching_paren(tokens : Array[(Bytes, Int, Int)], open : Int) -> Int {
   let mut depth = 0
@@ -182,6 +247,7 @@ pub fn matching_paren(tokens : Array[(Bytes, Int, Int)], open : Int) -> Int {
   tokens.length()
 }
 
+///|
 /// Index of the `)` matching the `(` at `open` in a TokenSlice list, or
 /// `length` when unbalanced (WR-03, window-spec skipping).
 fn matching_paren_slices(tokens : Array[TokenSlice], open : Int) -> Int {
@@ -201,6 +267,7 @@ fn matching_paren_slices(tokens : Array[TokenSlice], open : Int) -> Int {
   tokens.length()
 }
 
+///|
 /// Extracts dotted name references from a token slice list. A reference is a
 /// maximal run of identifier segments separated by `.`, optionally ending in
 /// `*` (then `star` is set) or followed by `(` (then `is_call` is set).
@@ -221,7 +288,7 @@ pub fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
     if bytes_equal_ci(bytes, b"OVER") {
       if i + 1 < length && tokens[i + 1].bytes == b"(" {
         let close = matching_paren_slices(tokens, i + 1)
-        i = (if close < length { close + 1 } else { length })
+        i = if close < length { close + 1 } else { length }
         continue
       } else if i + 1 < length && is_identifier_token(tokens[i + 1].bytes) {
         i = i + 2
@@ -278,20 +345,15 @@ pub fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
       } else {
         []
       }
-      refs.push({
-        parts: parts,
-        star: star,
-        is_call: is_call,
-        call_args: call_args,
-        start_byte: start_byte,
-        end_byte: end_byte,
-      })
+      refs.push({ parts, star, is_call, call_args, start_byte, end_byte })
       i = j
     } else if bytes == b"(" {
       // Subquery group: skip whole without collecting inner refs.
       if i + 1 < length &&
-        (bytes_equal_ci(tokens[i + 1].bytes, b"SELECT") ||
-        bytes_equal_ci(tokens[i + 1].bytes, b"WITH")) {
+        (
+          bytes_equal_ci(tokens[i + 1].bytes, b"SELECT") ||
+          bytes_equal_ci(tokens[i + 1].bytes, b"WITH")
+        ) {
         i = i + 1
         let mut group_depth = 1
         while i < length && group_depth > 0 {
@@ -312,18 +374,36 @@ pub fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
   refs
 }
 
+///|
 /// True when `bytes` is an infix operator token (arithmetic, comparison, or
 /// logical). Used to reject trailing bare aliases for binary expressions
 /// (CR-01): `SELECT price * qty` must not bind `qty` as an alias.
 fn is_infix_operator(bytes : Bytes) -> Bool {
-  bytes == b"+" || bytes == b"-" || bytes == b"*" || bytes == b"/" ||
-  bytes == b"%" || bytes == b"||" || bytes == b"=" || bytes == b"<" ||
-  bytes == b">" || bytes == b"<=" || bytes == b">=" || bytes == b"!=" ||
-  bytes == b"<>" || bytes == b"&" || bytes == b"|" || bytes == b"^" ||
-  bytes == b"AND" || bytes == b"OR" || bytes == b"LIKE" ||
-  bytes == b"IN" || bytes == b"IS" || bytes == b"BETWEEN"
+  bytes == b"+" ||
+  bytes == b"-" ||
+  bytes == b"*" ||
+  bytes == b"/" ||
+  bytes == b"%" ||
+  bytes == b"||" ||
+  bytes == b"=" ||
+  bytes == b"<" ||
+  bytes == b">" ||
+  bytes == b"<=" ||
+  bytes == b">=" ||
+  bytes == b"!=" ||
+  bytes == b"<>" ||
+  bytes == b"&" ||
+  bytes == b"|" ||
+  bytes == b"^" ||
+  bytes == b"AND" ||
+  bytes == b"OR" ||
+  bytes == b"LIKE" ||
+  bytes == b"IN" ||
+  bytes == b"IS" ||
+  bytes == b"BETWEEN"
 }
 
+///|
 /// True when a paren-depth-0 infix operator appears in `tokens`. Operators
 /// inside parenthesized subexpressions (e.g. the `*` in `count(*)` or `+` in
 /// `(a + b)`) are not at the top level and do not disqualify a trailing bare
@@ -345,6 +425,7 @@ fn has_top_level_operator(tokens : Array[TokenSlice]) -> Bool {
   false
 }
 
+///|
 /// Builds a SelectItem from one comma-delimited projection slice: splits the
 /// AS alias at the first top-level AS, detects a trailing bare alias, marks
 /// star projections (`*`, `t.*`, `db.t.*`, `* EXCEPT (cols)`), and extracts
@@ -393,7 +474,9 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
   if as_index < 0 && body_tokens.length() >= 2 {
     let last = body_tokens[body_tokens.length() - 1]
     let prev = body_tokens[body_tokens.length() - 2]
-    if is_identifier_token(last.bytes) && prev.bytes != b"." && last.bytes != b"*" {
+    if is_identifier_token(last.bytes) &&
+      prev.bytes != b"." &&
+      last.bytes != b"*" {
       let prefix : Array[TokenSlice] = []
       for j in 0..<(body_tokens.length() - 1) {
         prefix.push(body_tokens[j])
@@ -450,41 +533,48 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
       body_tokens = arr
     }
   }
-  let star = body_tokens.length() > 0 && body_tokens[body_tokens.length() - 1].bytes == b"*"
+  let star = body_tokens.length() > 0 &&
+    body_tokens[body_tokens.length() - 1].bytes == b"*"
   let star_qualifier : NameRef? = if star {
-    if body_tokens.length() >= 3 && body_tokens[body_tokens.length() - 2].bytes == b"." {
+    if body_tokens.length() >= 3 &&
+      body_tokens[body_tokens.length() - 2].bytes == b"." {
       let qual : Array[TokenSlice] = []
       for j in 0..<(body_tokens.length() - 2) {
         qual.push(body_tokens[j])
       }
       let refs = collect_refs(qual)
-      if refs.length() > 0 { Some(refs[0]) } else { None }
+      if refs.length() > 0 {
+        Some(refs[0])
+      } else {
+        None
+      }
     } else {
       None
     }
   } else {
     None
   }
-  let refs = if star {
-    []
-  } else {
-    collect_refs(body_tokens)
-  }
+  let refs = if star { [] } else { collect_refs(body_tokens) }
   {
     tokens: body_tokens,
-    alias: alias,
-    alias_slice: alias_slice,
-    star: star,
-    star_qualifier: star_qualifier,
-    refs: refs,
-    except_cols: except_cols,
+    alias,
+    alias_slice,
+    star,
+    star_qualifier,
+    refs,
+    except_cols,
   }
 }
 
+///|
 /// Collects name references from a clause's token slice list. Used for
 /// WHERE/GROUP BY/HAVING/QUALIFY/ORDER BY: accumulates all tokens up to the
 /// next depth-0 clause boundary (or the end of the range), then extracts refs.
-fn collect_clause_refs(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int) -> (Array[NameRef], Int)? {
+fn collect_clause_refs(
+  tokens : Array[(Bytes, Int, Int)],
+  start : Int,
+  end : Int,
+) -> (Array[NameRef], Int)? {
   let slices : Array[TokenSlice] = []
   let mut index = start
   let mut depth = 0
@@ -495,13 +585,15 @@ fn collect_clause_refs(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int
         let (bytes, s, e) = tokens[index]
         if bytes == b"(" {
           depth = depth + 1
-          if depth > MAX_PAREN_DEPTH { return None }
+          if depth > MAX_PAREN_DEPTH {
+            return None
+          }
         } else if bytes == b")" {
           if depth > 0 {
             depth = depth - 1
           }
         }
-        slices.push({ bytes: bytes, start_byte: s, end_byte: e })
+        slices.push({ bytes, start_byte: s, end_byte: e })
         index = index + 1
       }
     }
@@ -509,9 +601,14 @@ fn collect_clause_refs(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int
   Some((collect_refs(slices), index))
 }
 
+///|
 /// Collects raw token slices up to the next depth-0 clause boundary (for
 /// LIMIT / WINDOW, which are not name-resolved).
-fn collect_clause_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : Int) -> (Array[TokenSlice], Int)? {
+fn collect_clause_tokens(
+  tokens : Array[(Bytes, Int, Int)],
+  start : Int,
+  end : Int,
+) -> (Array[TokenSlice], Int)? {
   let slices : Array[TokenSlice] = []
   let mut index = start
   let mut depth = 0
@@ -522,13 +619,15 @@ fn collect_clause_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : I
         let (bytes, s, e) = tokens[index]
         if bytes == b"(" {
           depth = depth + 1
-          if depth > MAX_PAREN_DEPTH { return None }
+          if depth > MAX_PAREN_DEPTH {
+            return None
+          }
         } else if bytes == b")" {
           if depth > 0 {
             depth = depth - 1
           }
         }
-        slices.push({ bytes: bytes, start_byte: s, end_byte: e })
+        slices.push({ bytes, start_byte: s, end_byte: e })
         index = index + 1
       }
     }
@@ -536,6 +635,7 @@ fn collect_clause_tokens(tokens : Array[(Bytes, Int, Int)], start : Int, end : I
   Some((slices, index))
 }
 
+///|
 /// Rebuilds a core with a set-op attached (UNION chains, Pitfall 2).
 fn core_with_set_op(core : SelectCore, op : String) -> SelectCore {
   {
@@ -553,6 +653,7 @@ fn core_with_set_op(core : SelectCore, op : String) -> SelectCore {
   }
 }
 
+///|
 /// Parses one SELECT core starting at `start` within `[0, end)`. Returns the
 /// core and the index just past it (at the next boundary or `end`).
 fn parse_core(
@@ -562,13 +663,17 @@ fn parse_core(
   nest : Int,
 ) -> (SelectCore, Int)? {
   let mut index = start
-  if index >= end || !bytes_equal_ci(tokens[index].0, b"SELECT") { return None }
+  if index >= end || !bytes_equal_ci(tokens[index].0, b"SELECT") {
+    return None
+  }
   index = index + 1
   // SELECT [DISTINCT | DISTINCTROW | ALL].
   if index < end &&
-    (bytes_equal_ci(tokens[index].0, b"DISTINCT") ||
-    bytes_equal_ci(tokens[index].0, b"DISTINCTROW") ||
-    bytes_equal_ci(tokens[index].0, b"ALL")) {
+    (
+      bytes_equal_ci(tokens[index].0, b"DISTINCT") ||
+      bytes_equal_ci(tokens[index].0, b"DISTINCTROW") ||
+      bytes_equal_ci(tokens[index].0, b"ALL")
+    ) {
     index = index + 1
   }
   // EXCEPT projection modifier: `SELECT [ALL] EXCEPT (cols)`.
@@ -576,7 +681,9 @@ fn parse_core(
     index = index + 1
     if index < end && tokens[index].0 == b"(" {
       let close = matching_paren(tokens, index)
-      if close >= end { return None }
+      if close >= end {
+        return None
+      }
       index = close + 1
     }
   }
@@ -595,13 +702,15 @@ fn parse_core(
         } else {
           if bytes == b"(" {
             depth = depth + 1
-            if depth > MAX_PAREN_DEPTH { return None }
+            if depth > MAX_PAREN_DEPTH {
+              return None
+            }
           } else if bytes == b")" {
             if depth > 0 {
               depth = depth - 1
             }
           }
-          item_tokens.push({ bytes: bytes, start_byte: s, end_byte: e })
+          item_tokens.push({ bytes, start_byte: s, end_byte: e })
         }
         index = index + 1
       }
@@ -631,8 +740,12 @@ fn parse_core(
         index = index + 1
         match parse_from(tokens, index, end, nest) {
           Some((from, joins, next)) => {
-            for item in from { from_items.push(item) }
-            for item in joins { join_items.push(item) }
+            for item in from {
+              from_items.push(item)
+            }
+            for item in joins {
+              join_items.push(item)
+            }
             index = next
           }
           None => return None
@@ -712,44 +825,49 @@ fn parse_core(
         let mut op = "UNION"
         if index + 1 < end && bytes_equal_ci(tokens[index + 1].0, b"ALL") {
           op = "UNION ALL"
-        } else if index + 1 < end && bytes_equal_ci(tokens[index + 1].0, b"DISTINCT") {
+        } else if index + 1 < end &&
+          bytes_equal_ci(tokens[index + 1].0, b"DISTINCT") {
           op = "UNION DISTINCT"
         }
         set_op = Some(op)
         done = true
       }
-      None => {
+      None =>
         // Skip unexpected tokens at depth 0 (INTO OUTFILE, table options).
         if index >= end {
           done = true
         } else if tokens[index].0 == b"(" {
           let close = matching_paren(tokens, index)
-          if close >= end { return None }
+          if close >= end {
+            return None
+          }
           index = close + 1
         } else {
           index = index + 1
         }
-      }
     }
   }
-  Some((
-    {
-      select_list: select_items,
-      from: from_items,
-      joins: join_items,
-      where_refs: where_refs,
-      group_by: group_by,
-      having: having,
-      qualify: qualify,
-      order_by: order_by,
-      limit: limit_tokens,
-      window: window_tokens,
-      set_op: set_op,
-    },
-    index,
-  ))
+  Some(
+    (
+      {
+        select_list: select_items,
+        from: from_items,
+        joins: join_items,
+        where_refs,
+        group_by,
+        having,
+        qualify,
+        order_by,
+        limit: limit_tokens,
+        window: window_tokens,
+        set_op,
+      },
+      index,
+    ),
+  )
 }
 
+///|
 /// Join modifier when tokens[index] starts a JOIN clause (`JOIN` or a
 /// modifier [OUTER] JOIN), else None. Lookahead ensures a bare `LEFT`/`RIGHT`
 /// column name is not misread as a join start.
@@ -758,7 +876,9 @@ fn join_clause_at(tokens : Array[(Bytes, Int, Int)], index : Int) -> String? {
     return None
   }
   let bytes = tokens[index].0
-  if bytes_equal_ci(bytes, b"JOIN") { return Some("JOIN") }
+  if bytes_equal_ci(bytes, b"JOIN") {
+    return Some("JOIN")
+  }
   let modifier : String? = if bytes_equal_ci(bytes, b"INNER") {
     Some("INNER")
   } else if bytes_equal_ci(bytes, b"LEFT") {
@@ -790,6 +910,7 @@ fn join_clause_at(tokens : Array[(Bytes, Int, Int)], index : Int) -> String? {
   }
 }
 
+///|
 /// Parses one FROM item (table ref or subquery) at `index`. The returned
 /// `join` field is set from the pending join modifier (None for base refs).
 fn parse_from_item(
@@ -827,7 +948,8 @@ fn parse_from_item(
             })
             after = after + 1
           }
-        } else if after < end && is_identifier_token(tokens[after].0) &&
+        } else if after < end &&
+          is_identifier_token(tokens[after].0) &&
           !is_from_clause_boundary(tokens, after) {
           alias = Some(identifier_text(tokens[after].0))
           alias_slice = Some({
@@ -837,15 +959,20 @@ fn parse_from_item(
           })
           after = after + 1
         }
-        return Some(({
-          name: None,
-          alias: alias,
-          alias_slice: alias_slice,
-          is_subquery: true,
-          subquery: Some(model),
-          join: join,
-          depth: 0,
-        }, after))
+        return Some(
+          (
+            {
+              name: None,
+              alias,
+              alias_slice,
+              is_subquery: true,
+              subquery: Some(model),
+              join,
+              depth: 0,
+            },
+            after,
+          ),
+        )
       }
       None => return None
     }
@@ -873,7 +1000,7 @@ fn parse_from_item(
     return None
   }
   let name_ref = {
-    parts: parts,
+    parts,
     star: false,
     is_call: false,
     call_args: [],
@@ -894,7 +1021,8 @@ fn parse_from_item(
       })
       after = after + 1
     }
-  } else if after < end && is_identifier_token(tokens[after].0) &&
+  } else if after < end &&
+    is_identifier_token(tokens[after].0) &&
     !is_from_clause_boundary(tokens, after) {
     alias = Some(identifier_text(tokens[after].0))
     alias_slice = Some({
@@ -908,18 +1036,22 @@ fn parse_from_item(
   let mut option_done = false
   while !option_done && after < end {
     let bytes = tokens[after].0
-    if bytes_equal_ci(bytes, b"PARTITION") || bytes_equal_ci(bytes, b"SAMPLE") ||
-      bytes_equal_ci(bytes, b"TABLESAMPLE") || bytes_equal_ci(bytes, b"TABLET") {
+    if bytes_equal_ci(bytes, b"PARTITION") ||
+      bytes_equal_ci(bytes, b"SAMPLE") ||
+      bytes_equal_ci(bytes, b"TABLESAMPLE") ||
+      bytes_equal_ci(bytes, b"TABLET") {
       after = after + 1
       if after < end && tokens[after].0 == b"(" {
         let close = matching_paren(tokens, after)
-        if close >= end { return None }
+        if close >= end {
+          return None
+        }
         after = close + 1
       } else {
         while after < end &&
-          !(clause_kind_at(tokens, after, 0) is Some(_)) &&
-          tokens[after].0 != b"," &&
-          !(join_clause_at(tokens, after) is Some(_)) {
+              !(clause_kind_at(tokens, after, 0) is Some(_)) &&
+              tokens[after].0 != b"," &&
+              !(join_clause_at(tokens, after) is Some(_)) {
           after = after + 1
         }
       }
@@ -927,17 +1059,23 @@ fn parse_from_item(
       option_done = true
     }
   }
-  Some(({
-    name: Some(name_ref),
-    alias: alias,
-    alias_slice: alias_slice,
-    is_subquery: false,
-    subquery: None,
-    join: join,
-    depth: 0,
-  }, after))
+  Some(
+    (
+      {
+        name: Some(name_ref),
+        alias,
+        alias_slice,
+        is_subquery: false,
+        subquery: None,
+        join,
+        depth: 0,
+      },
+      after,
+    ),
+  )
 }
 
+///|
 /// Parses the FROM clause starting at `index` (just after FROM). Returns
 /// (base items, JOIN items, next index). Comma-separated refs land in `from`;
 /// JOIN-attached refs land in `joins` with their join modifier.
@@ -984,8 +1122,11 @@ fn parse_from(
         index = next
         pending_join = None
         // Consume ON / USING join conditions (not name-resolved in this plan).
-        if index < end && (bytes_equal_ci(tokens[index].0, b"ON") ||
-          bytes_equal_ci(tokens[index].0, b"USING")) {
+        if index < end &&
+          (
+            bytes_equal_ci(tokens[index].0, b"ON") ||
+            bytes_equal_ci(tokens[index].0, b"USING")
+          ) {
           index = index + 1
           let mut cond_depth = 0
           while index < end {
@@ -995,14 +1136,17 @@ fn parse_from(
                 let bytes = tokens[index].0
                 if bytes == b"(" {
                   cond_depth = cond_depth + 1
-                  if cond_depth > MAX_PAREN_DEPTH { return None }
+                  if cond_depth > MAX_PAREN_DEPTH {
+                    return None
+                  }
                 } else if bytes == b")" {
                   if cond_depth > 0 {
                     cond_depth = cond_depth - 1
                   }
                 } else if cond_depth == 0 && bytes == b"," {
                   break
-                } else if cond_depth == 0 && (join_clause_at(tokens, index) is Some(_)) {
+                } else if cond_depth == 0 &&
+                  join_clause_at(tokens, index) is Some(_) {
                   break
                 }
                 index = index + 1
@@ -1017,6 +1161,7 @@ fn parse_from(
   Some((from_items, join_items, index))
 }
 
+///|
 /// Parses a WITH CTE prefix starting at `index` (just after WITH). Returns
 /// the CTE definitions and the index just past the prefix.
 fn parse_cte_prefix(
@@ -1073,7 +1218,7 @@ fn parse_cte_prefix(
         if model.branches.length() == 0 {
           return None
         }
-        ctes.push({ name: name, alias: alias, body: model.branches[0] })
+        ctes.push({ name, alias, body: model.branches[0] })
         index = close + 1
       }
       None => return None
@@ -1087,6 +1232,7 @@ fn parse_cte_prefix(
   Some((ctes, index))
 }
 
+///|
 /// Joins an array of strings with a separator (avoids core `join` dependency).
 fn join_strings(parts : Array[String], sep : String) -> String {
   let mut out = ""
@@ -1102,6 +1248,7 @@ fn join_strings(parts : Array[String], sep : String) -> String {
   out
 }
 
+///|
 /// Parses a full query (WITH prefix + SELECT core + UNION chain) within
 /// `[start, end)`.
 fn parse_model(
@@ -1159,9 +1306,10 @@ fn parse_model(
       _ => break
     }
   }
-  Some({ ctes: ctes, branches: branches })
+  Some({ ctes, branches })
 }
 
+///|
 /// Splits a SELECT statement's token stream into a SelectModel. Returns None
 /// on paren-depth overflow (T-05-03-01). An empty token stream yields an
 /// empty model (`branches = []`) — no panic, no fabricated content (LINE-01

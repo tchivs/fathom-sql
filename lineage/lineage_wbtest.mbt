@@ -1,3 +1,4 @@
+///|
 /// White-box tests for lineage edge derivation (plan 07-02, Task 1 tracer).
 ///
 /// These construct `@analyzer.SelectModel`/`Binding` values directly and
@@ -10,16 +11,30 @@
 /// moon 0.1.20260724 are black-box (they cannot see package-private
 /// functions). Local type aliases avoid a parser quirk with `@pkg.Type]`
 /// inside generic type arguments in test files.
-
 type ABinding = @analyzer.Binding
+
+///|
 type ACteDef = @analyzer.CteDef
+
+///|
 type ADiagnostic = @analyzer.AnalysisDiagnostic
+
+///|
 type ANameRef = @analyzer.NameRef
+
+///|
 type ASelectItem = @analyzer.SelectItem
+
+///|
 type ASelectCore = @analyzer.SelectCore
+
+///|
 type ASelectModel = @analyzer.SelectModel
+
+///|
 type ATokenSlice = @analyzer.TokenSlice
 
+///|
 /// A single-part NameRef at `[start, end)`.
 fn t_ref(start : Int, end : Int) -> ANameRef {
   {
@@ -32,6 +47,7 @@ fn t_ref(start : Int, end : Int) -> ANameRef {
   }
 }
 
+///|
 /// A function-call NameRef at `[start, end)` with one captured arg token.
 fn t_call_ref(start : Int, end : Int) -> ANameRef {
   {
@@ -44,6 +60,7 @@ fn t_call_ref(start : Int, end : Int) -> ANameRef {
   }
 }
 
+///|
 /// A SelectItem with the given refs, alias, and alias slice span.
 fn t_item(
   refs : Array[ANameRef],
@@ -52,20 +69,22 @@ fn t_item(
   alias_end : Int,
 ) -> ASelectItem {
   let alias_slice : ATokenSlice? = match alias {
-    Some(_) => Some({ bytes: b"x", start_byte: alias_start, end_byte: alias_end })
+    Some(_) =>
+      Some({ bytes: b"x", start_byte: alias_start, end_byte: alias_end })
     None => None
   }
   {
     tokens: [],
-    alias: alias,
-    alias_slice: alias_slice,
+    alias,
+    alias_slice,
     star: false,
     star_qualifier: None,
-    refs: refs,
+    refs,
     except_cols: [],
   }
 }
 
+///|
 /// A star SelectItem whose star token is at `[start, end)`.
 fn t_star_item(start : Int, end : Int) -> ASelectItem {
   {
@@ -79,19 +98,40 @@ fn t_star_item(start : Int, end : Int) -> ASelectItem {
   }
 }
 
+///|
 /// A single-core SelectModel with one branch.
 fn t_model(select_list : Array[ASelectItem]) -> ASelectModel {
   {
     ctes: [],
-    branches: [{ select_list: select_list, from: [], joins: [], where_refs: [], group_by: [], having: [], qualify: [], order_by: [], limit: [], window: [], set_op: None }],
+    branches: [
+      {
+        select_list,
+        from: [],
+        joins: [],
+        where_refs: [],
+        group_by: [],
+        having: [],
+        qualify: [],
+        order_by: [],
+        limit: [],
+        window: [],
+        set_op: None,
+      },
+    ],
   }
 }
 
+///|
 /// A Column binding at `[start, end)`.
-fn t_col_binding(name : String, resolved : String, start : Int, end : Int) -> ABinding {
+fn t_col_binding(
+  name : String,
+  resolved : String,
+  start : Int,
+  end : Int,
+) -> ABinding {
   {
     kind: @analyzer.BindingKind::Column,
-    name: name,
+    name,
     resolved_to: resolved,
     data_type: "INT",
     start_byte: start,
@@ -99,11 +139,12 @@ fn t_col_binding(name : String, resolved : String, start : Int, end : Int) -> AB
   }
 }
 
+///|
 /// A Function binding at `[start, end)`.
 fn t_fn_binding(name : String, start : Int, end : Int) -> ABinding {
   {
     kind: @analyzer.BindingKind::Function,
-    name: name,
+    name,
     resolved_to: name,
     data_type: "INT",
     start_byte: start,
@@ -111,6 +152,7 @@ fn t_fn_binding(name : String, start : Int, end : Int) -> ABinding {
   }
 }
 
+///|
 /// Builds a (bytes, span) token array from bare word bytes with monotonically
 /// increasing synthetic byte offsets (mirror of the analyzer's wb_tokens).
 fn t_tokens(words : Array[Bytes]) -> Array[(Bytes, Int, Int)] {
@@ -123,6 +165,7 @@ fn t_tokens(words : Array[Bytes]) -> Array[(Bytes, Int, Int)] {
   out
 }
 
+///|
 /// Runs the SELECT-family body derivation, appending edges/gaps to the given
 /// output arrays (out-params instead of a tuple return to keep the test file
 /// clear of the moon 0.1.20260724 tuple-return parse quirk).
@@ -138,14 +181,7 @@ fn run_body(
   out_gaps : Array[LineageGap],
 ) -> Unit {
   let (e, g) = derive_select_body(
-    model,
-    has_error,
-    0,
-    100,
-    bindings,
-    diagnostics,
-    catalog_none,
-    body_has_table_binding,
+    model, has_error, 0, 100, bindings, diagnostics, catalog_none, body_has_table_binding,
     qualifier,
   )
   for edge in e {
@@ -156,6 +192,7 @@ fn run_body(
   }
 }
 
+///|
 test "lineage D-01 expression passthrough a + b as x" {
   // Test 1: `SELECT a + b AS x` over catalog t:[a,b] -> 2 edges: t.a->x and
   // t.b->x, target span = the alias slice span (D-01 expression passthrough).
@@ -183,6 +220,7 @@ test "lineage D-01 expression passthrough a + b as x" {
   assert_eq(edges[1].target_name, "x")
 }
 
+///|
 test "lineage D-01 single ref and function argument" {
   // Test 2a: `SELECT a AS x` -> 1 edge t.a->x.
   let item_a = t_item([t_ref(7, 8)], Some("x"), 15, 16)
@@ -190,7 +228,17 @@ test "lineage D-01 single ref and function argument" {
   let bindings_a : Array[ABinding] = [t_col_binding("a", "a", 7, 8)]
   let edges_a : Array[LineageEdge] = []
   let gaps_a : Array[LineageGap] = []
-  run_body(Some(model_a), false, bindings_a, [], false, true, None, edges_a, gaps_a)
+  run_body(
+    Some(model_a),
+    false,
+    bindings_a,
+    [],
+    false,
+    true,
+    None,
+    edges_a,
+    gaps_a,
+  )
   assert_eq(edges_a.length(), 1)
   assert_eq(edges_a[0].source_name, "a")
   assert_eq(edges_a[0].target_name, "x")
@@ -206,7 +254,17 @@ test "lineage D-01 single ref and function argument" {
   ]
   let edges_u : Array[LineageEdge] = []
   let gaps_u : Array[LineageGap] = []
-  run_body(Some(model_u), false, bindings_u, [], false, true, None, edges_u, gaps_u)
+  run_body(
+    Some(model_u),
+    false,
+    bindings_u,
+    [],
+    false,
+    true,
+    None,
+    edges_u,
+    gaps_u,
+  )
   assert_eq(edges_u.length(), 1)
   assert_eq(edges_u[0].source_name, "c")
   assert_eq(edges_u[0].source_resolved_to, "c")
@@ -215,6 +273,7 @@ test "lineage D-01 single ref and function argument" {
   assert_eq(edges_u[0].target_name, "u")
 }
 
+///|
 test "lineage CTE body qualified edge and UNION positional mapping" {
   // Test 3a: WITH c AS (SELECT a FROM t) SELECT a FROM c -> CTE body edge
   // t.a->c.a (CTE-qualified target) plus the outer ref edge a->a.
@@ -273,7 +332,17 @@ test "lineage CTE body qualified edge and UNION positional mapping" {
   ]
   let union_edges : Array[LineageEdge] = []
   let union_gaps : Array[LineageGap] = []
-  run_body(Some(union_model), false, union_bindings, [], false, true, None, union_edges, union_gaps)
+  run_body(
+    Some(union_model),
+    false,
+    union_bindings,
+    [],
+    false,
+    true,
+    None,
+    union_edges,
+    union_gaps,
+  )
   assert_eq(union_edges.length(), 2)
   assert_eq(union_edges[0].target_name, "a")
   assert_eq(union_edges[1].target_name, "a")
@@ -282,6 +351,7 @@ test "lineage CTE body qualified edge and UNION positional mapping" {
   assert_eq(union_edges[1].source_end_byte, 16)
 }
 
+///|
 test "lineage star no catalog zero edges with requires-catalog gap" {
   // Test 4: `SELECT * FROM t` with no catalog -> 0 edges and one
   // requires-catalog gap at the star span (SC2: never fabricate edges).
@@ -297,6 +367,7 @@ test "lineage star no catalog zero edges with requires-catalog gap" {
   assert_eq(gaps[0].end_byte, 8)
 }
 
+///|
 test "lineage star with catalog expands to real edges" {
   // Task 2 Test 2: `SELECT * FROM t` with catalog {t:[a,b]} -> the star span
   // carries two Column bindings -> 2 passthrough edges t.a->a, t.b->b, no gaps.
@@ -318,6 +389,7 @@ test "lineage star with catalog expands to real edges" {
   assert_eq(edges[1].target_name, "b")
 }
 
+///|
 test "lineage unresolved reference maps to gap" {
   // Task 2 Test 3: `SELECT nope FROM t` -> unknown-column diagnostic at the
   // ref span -> unresolved-reference gap, message preserved, no edge.
@@ -334,7 +406,17 @@ test "lineage unresolved reference maps to gap" {
   ]
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
-  run_body(Some(model), false, bindings, diagnostics, false, true, None, edges, gaps)
+  run_body(
+    Some(model),
+    false,
+    bindings,
+    diagnostics,
+    false,
+    true,
+    None,
+    edges,
+    gaps,
+  )
   assert_eq(edges.length(), 0)
   assert_eq(gaps.length(), 1)
   assert_eq(gaps[0].code, GAP_UNRESOLVED_REFERENCE)
@@ -343,6 +425,7 @@ test "lineage unresolved reference maps to gap" {
   assert_eq(gaps[0].end_byte, 11)
 }
 
+///|
 test "lineage unknown-table no catalog is requires-catalog" {
   // Task 2 Test 3: `SELECT a FROM missing_t` without a catalog -> the
   // unknown-table diagnostic maps to requires-catalog (can't distinguish a
@@ -360,12 +443,23 @@ test "lineage unknown-table no catalog is requires-catalog" {
   ]
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
-  run_body(Some(model), false, bindings, diagnostics, true, false, None, edges, gaps)
+  run_body(
+    Some(model),
+    false,
+    bindings,
+    diagnostics,
+    true,
+    false,
+    None,
+    edges,
+    gaps,
+  )
   assert_eq(gaps.length(), 1)
   assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
   assert_eq(gaps[0].message, "table not found in catalog: missing_t")
 }
 
+///|
 test "lineage ambiguous reference merges to unresolved-reference" {
   // Task 2 Test 5: ambiguous-reference diagnostic -> unresolved-reference gap
   // (Open Question 2 merge), message preserved.
@@ -382,13 +476,24 @@ test "lineage ambiguous reference merges to unresolved-reference" {
   ]
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
-  run_body(Some(model), false, bindings, diagnostics, false, true, None, edges, gaps)
+  run_body(
+    Some(model),
+    false,
+    bindings,
+    diagnostics,
+    false,
+    true,
+    None,
+    edges,
+    gaps,
+  )
   assert_eq(edges.length(), 0)
   assert_eq(gaps.length(), 1)
   assert_eq(gaps[0].code, GAP_UNRESOLVED_REFERENCE)
   assert_eq(gaps[0].message, "ambiguous reference: a")
 }
 
+///|
 test "lineage error body reports requires-complete-parse" {
   // Task 2 Test 4: a body carrying error/missing material -> a single
   // requires-complete-parse gap at the body span (D-33 refusal), no edges.
@@ -410,6 +515,7 @@ test "lineage error body reports requires-complete-parse" {
   assert_eq(gaps[0].end_byte, 100)
 }
 
+///|
 test "lineage view registry and ViewCatalog shadow" {
   // Task 3 Test 1 (registry + ViewCatalog): `CREATE VIEW v AS SELECT a FROM t`
   // yields v's output column a; ViewCatalog.table resolves the registry view
@@ -423,7 +529,10 @@ test "lineage view registry and ViewCatalog shadow" {
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
   ])
-  let vc = ViewCatalog::{ views: Map([("v", cols), ("t", cols)]), inner: catalog }
+  let vc = ViewCatalog::{
+    views: Map([("v", cols), ("t", cols)]),
+    inner: catalog,
+  }
   // Registry hit: FROM v resolves to the view's output columns.
   let tv = match @analyzer.Catalog::table(vc, "v") {
     Some(i) => i
@@ -457,6 +566,7 @@ test "lineage view registry and ViewCatalog shadow" {
   }
 }
 
+///|
 test "lineage view body edge to view output column" {
   // Task 3 Test 1 (view expansion edge): the CREATE VIEW body's select item
   // derives an edge t.a -> v.a (view-qualified target, D-03).
@@ -464,7 +574,17 @@ test "lineage view body edge to view output column" {
   let bindings : Array[ABinding] = [t_col_binding("a", "a", 7, 8)]
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
-  run_body(Some(model), false, bindings, [], false, true, Some("v"), edges, gaps)
+  run_body(
+    Some(model),
+    false,
+    bindings,
+    [],
+    false,
+    true,
+    Some("v"),
+    edges,
+    gaps,
+  )
   assert_eq(edges.length(), 1)
   assert_eq(gaps.length(), 0)
   assert_eq(edges[0].source_name, "a")
@@ -474,6 +594,7 @@ test "lineage view body edge to view output column" {
   assert_eq(edges[0].target_name, "v.a")
 }
 
+///|
 test "lineage external view star without metadata is requires-catalog" {
   // Task 3 Test 2: `SELECT * FROM v` where v is an external view with no
   // metadata (not in the document, not in the catalog) -> the unexpanded star
@@ -490,6 +611,7 @@ test "lineage external view star without metadata is requires-catalog" {
   assert_eq(gaps[0].end_byte, 8)
 }
 
+///|
 test "lineage star over resolved empty-columns table is requires-catalog" {
   // WR-04: `SELECT * FROM t` where catalog t resolves but carries NO column
   // metadata (empty columns array) -> the star expands to zero bindings; even
@@ -497,7 +619,14 @@ test "lineage star over resolved empty-columns table is requires-catalog" {
   // (no except list explains an all-excluded expansion).
   let model = t_model([t_star_item(7, 8)])
   let bindings : Array[ABinding] = [
-    { kind: @analyzer.BindingKind::Table, name: "t", resolved_to: "t", data_type: "", start_byte: 14, end_byte: 15 },
+    {
+      kind: @analyzer.BindingKind::Table,
+      name: "t",
+      resolved_to: "t",
+      data_type: "",
+      start_byte: 14,
+      end_byte: 15,
+    },
   ]
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
@@ -509,6 +638,7 @@ test "lineage star over resolved empty-columns table is requires-catalog" {
   assert_eq(gaps[0].end_byte, 8)
 }
 
+///|
 test "lineage star all-excluded except list is not a catalog gap" {
   // WR-04: `SELECT * EXCEPT (a,b) FROM t` where every column was excluded ->
   // zero Column bindings at the star span, but the except list explains the
@@ -527,7 +657,14 @@ test "lineage star all-excluded except list is not a catalog gap" {
   }
   let model = t_model([item])
   let bindings : Array[ABinding] = [
-    { kind: @analyzer.BindingKind::Table, name: "t", resolved_to: "t", data_type: "", start_byte: 14, end_byte: 15 },
+    {
+      kind: @analyzer.BindingKind::Table,
+      name: "t",
+      resolved_to: "t",
+      data_type: "",
+      start_byte: 14,
+      end_byte: 15,
+    },
   ]
   let edges : Array[LineageEdge] = []
   let gaps : Array[LineageGap] = []
@@ -536,11 +673,13 @@ test "lineage star all-excluded except list is not a catalog gap" {
   assert_eq(gaps.length(), 0)
 }
 
+///|
 test "lineage view column list extraction" {
   // WR-03: `CREATE VIEW v (x, y) AS SELECT a, b FROM t` -> view_column_list
   // returns the explicit output column names [x, y].
   let tokens = t_tokens([
-    b"CREATE", b"VIEW", b"v", b"(", b"x", b",", b"y", b")", b"AS", b"SELECT", b"a", b",", b"b", b"FROM", b"t",
+    b"CREATE", b"VIEW", b"v", b"(", b"x", b",", b"y", b")", b"AS", b"SELECT", b"a",
+    b",", b"b", b"FROM", b"t",
   ])
   let names = view_column_list(tokens)
   match names {
@@ -553,6 +692,7 @@ test "lineage view column list extraction" {
   }
 }
 
+///|
 test "lineage INSERT positional mapping with catalog" {
   // Task 3 Test 3: `INSERT INTO t(c1,c2) SELECT a,b FROM u` with a catalog
   // that resolves the source table `u` -> the trailing SELECT output columns
@@ -560,13 +700,28 @@ test "lineage INSERT positional mapping with catalog" {
   // (independent empty-scope re-parse, Open Question 4). Edges are only
   // emitted when the source table resolves (CR-01 / SC2).
   let tokens = t_tokens([
-    b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")",
-    b"SELECT", b"a", b",", b"b", b"FROM", b"u",
+    b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")", b"SELECT", b"a", b",",
+    b"b", b"FROM", b"u",
   ])
   let catalog = @analyzer.StaticCatalog::new([
-    { name: "u", columns: [{ name: "a", data_type: "INT" }, { name: "b", data_type: "INT" }] },
+    {
+      name: "u",
+      columns: [
+        { name: "a", data_type: "INT" },
+        { name: "b", data_type: "INT" },
+      ],
+    },
   ])
-  let (edges, gaps) = derive_insert_body(tokens, [], [], false, catalog, 0, 100, false)
+  let (edges, gaps) = derive_insert_body(
+    tokens,
+    [],
+    [],
+    false,
+    catalog,
+    0,
+    100,
+    false,
+  )
   assert_eq(edges.length(), 2)
   assert_eq(gaps.length(), 0)
   assert_eq(edges[0].source_name, "a")
@@ -576,29 +731,42 @@ test "lineage INSERT positional mapping with catalog" {
   assert_eq(edges[1].target_name, "t.c2")
 }
 
+///|
 test "lineage INSERT source unresolved no fabricated edges" {
   // CR-01 / SC2: `INSERT INTO t(c1,c2) SELECT a,b FROM u` with no catalog ->
   // the source table `u` is unresolved, so NO source edges are fabricated; one
   // honest requires-catalog gap is emitted at the source table-ref span.
   let tokens = t_tokens([
-    b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")",
-    b"SELECT", b"a", b",", b"b", b"FROM", b"u",
+    b"INSERT", b"INTO", b"t", b"(", b"c1", b",", b"c2", b")", b"SELECT", b"a", b",",
+    b"b", b"FROM", b"u",
   ])
   let catalog = @analyzer.StaticCatalog::new([])
-  let (edges, gaps) = derive_insert_body(tokens, [], [], true, catalog, 0, 100, false)
+  let (edges, gaps) = derive_insert_body(
+    tokens,
+    [],
+    [],
+    true,
+    catalog,
+    0,
+    100,
+    false,
+  )
   assert_eq(edges.length(), 0)
   assert_eq(gaps.length(), 1)
   assert_eq(gaps[0].code, GAP_REQUIRES_CATALOG)
   assert_eq(gaps[0].message, "source table not found in catalog: u")
 }
 
+///|
 test "lineage INSERT without column list no catalog honest gaps" {
   // Task 3 Test 4 + CR-01: `INSERT INTO t SELECT a FROM u` (no column list,
   // no catalog) -> requires-catalog gaps for BOTH the unresolved target table
   // `t` (no column order) and the unresolved source table `u`; the source
   // edge for `a` is suppressed (SC2: never fabricate an edge for unresolved
   // provenance).
-  let tokens = t_tokens([b"INSERT", b"INTO", b"t", b"SELECT", b"a", b"FROM", b"u"])
+  let tokens = t_tokens([
+    b"INSERT", b"INTO", b"t", b"SELECT", b"a", b"FROM", b"u",
+  ])
   let catalog = @analyzer.StaticCatalog::new([])
   let diagnostics : Array[ADiagnostic] = [
     {
@@ -608,7 +776,16 @@ test "lineage INSERT without column list no catalog honest gaps" {
       end_byte: 3,
     },
   ]
-  let (edges, gaps) = derive_insert_body(tokens, [], diagnostics, true, catalog, 0, 100, false)
+  let (edges, gaps) = derive_insert_body(
+    tokens,
+    [],
+    diagnostics,
+    true,
+    catalog,
+    0,
+    100,
+    false,
+  )
   assert_eq(edges.length(), 0)
   assert_eq(gaps.length(), 2)
   let mut found_target = false
@@ -626,11 +803,14 @@ test "lineage INSERT without column list no catalog honest gaps" {
   assert_true(found_source)
 }
 
+///|
 test "lineage INSERT VALUES produces no edges" {
   // Task 3 Test 5: `INSERT INTO t(c1) VALUES (1)` -> no edges, no gaps (row
   // literals carry no column references; the column list names targets even
   // without catalog metadata, so the unknown-table gap is suppressed).
-  let tokens = t_tokens([b"INSERT", b"INTO", b"t", b"(", b"c1", b")", b"VALUES", b"(", b"1", b")"])
+  let tokens = t_tokens([
+    b"INSERT", b"INTO", b"t", b"(", b"c1", b")", b"VALUES", b"(", b"1", b")",
+  ])
   let catalog = @analyzer.StaticCatalog::new([])
   let diagnostics : Array[ADiagnostic] = [
     {
@@ -640,7 +820,16 @@ test "lineage INSERT VALUES produces no edges" {
       end_byte: 13,
     },
   ]
-  let (edges, gaps) = derive_insert_body(tokens, [], diagnostics, true, catalog, 0, 100, false)
+  let (edges, gaps) = derive_insert_body(
+    tokens,
+    [],
+    diagnostics,
+    true,
+    catalog,
+    0,
+    100,
+    false,
+  )
   assert_eq(edges.length(), 0)
   assert_eq(gaps.length(), 0)
 }

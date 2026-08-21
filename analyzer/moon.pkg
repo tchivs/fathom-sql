@@ -1,4 +1,5 @@
 pkgtype(kind: "library")
+
 import {
-  "fathom/sql/syntax" @syntax,
+  "fathom/sql/syntax",
 }

@@ -1,9 +1,11 @@
+///|
 /// Versioned primitive parse boundary. Source bytes are owned once by ParseResult.
 pub(all) enum ParseMode {
   Strict
   Editor
 }
 
+///|
 pub struct ParseLimits {
   pub max_bytes : Int
   pub max_tokens : Int
@@ -12,6 +14,7 @@ pub struct ParseLimits {
   pub max_diagnostics : Int
 }
 
+///|
 pub fn ParseLimits::default() -> ParseLimits {
   let limits = @parser.ParserLimits::default()
   {
@@ -23,6 +26,7 @@ pub fn ParseLimits::default() -> ParseLimits {
   }
 }
 
+///|
 pub fn ParseLimits::new(
   max_bytes : Int,
   max_tokens : Int,
@@ -31,20 +35,22 @@ pub fn ParseLimits::new(
   max_diagnostics : Int,
 ) -> ParseLimits {
   {
-    max_bytes: max_bytes,
-    max_tokens: max_tokens,
-    max_recursion_depth: max_recursion_depth,
-    max_recovery_steps: max_recovery_steps,
-    max_diagnostics: max_diagnostics,
+    max_bytes,
+    max_tokens,
+    max_recursion_depth,
+    max_recovery_steps,
+    max_diagnostics,
   }
 }
 
+///|
 pub struct ParseOptions {
   dialect_context : @dialect.DialectContext
   mode : ParseMode
   limits : ParseLimits
 }
 
+///|
 pub enum ParseError {
   UnknownDialect(dialect_id~ : String)
   UnknownProfile(profile_id~ : String)
@@ -54,7 +60,7 @@ pub enum ParseError {
     expected_release~ : String,
     actual_release~ : String,
     expected_feature_introduction~ : String,
-    actual_feature_introduction~ : String,
+    actual_feature_introduction~ : String
   )
   UnsupportedFeatureIntroduction(feature_introduction~ : String)
   ConflictingSelection(selection_a~ : String, selection_b~ : String)
@@ -63,6 +69,7 @@ pub enum ParseError {
   InvalidSyntaxTree
 } derive(Eq, @debug.Debug)
 
+///|
 /// Validate the dialect FIRST, then the profile for that dialect (Pitfall 6,
 /// T-09-05): unknown dialects are rejected before any profile lookup, and
 /// flink is a legal dialect whose profiles are ALL rejected until Phase 10
@@ -76,7 +83,12 @@ fn dialect_from_id(dialect_id : String) -> Result[@dialect.Dialect, ParseError] 
   }
 }
 
-pub fn ParseOptions::new(dialect_id : String, profile_id : String, mode_id : String) -> Result[ParseOptions, ParseError] {
+///|
+pub fn ParseOptions::new(
+  dialect_id : String,
+  profile_id : String,
+  mode_id : String,
+) -> Result[ParseOptions, ParseError] {
   let dialect = match dialect_from_id(dialect_id) {
     Ok(dialect) => dialect
     Err(error) => return Err(error)
@@ -89,8 +101,8 @@ pub fn ParseOptions::new(dialect_id : String, profile_id : String, mode_id : Str
       }
       let metadata = profile.metadata()
       {
-        dialect: dialect,
-        profile_id: profile_id,
+        dialect,
+        profile_id,
         exact_release: metadata.exact_release,
         feature_introduction: metadata.feature_introduction,
       }
@@ -102,8 +114,8 @@ pub fn ParseOptions::new(dialect_id : String, profile_id : String, mode_id : Str
       }
       let metadata = profile.metadata()
       {
-        dialect: dialect,
-        profile_id: profile_id,
+        dialect,
+        profile_id,
         exact_release: metadata.exact_release,
         feature_introduction: metadata.feature_introduction,
       }
@@ -114,9 +126,10 @@ pub fn ParseOptions::new(dialect_id : String, profile_id : String, mode_id : Str
     "editor" => ParseMode::Editor
     _ => return Err(UnknownMode(mode_id~))
   }
-  Ok({ dialect_context: dialect_context, mode: mode, limits: ParseLimits::default() })
+  Ok({ dialect_context, mode, limits: ParseLimits::default() })
 }
 
+///|
 pub fn ParseOptions::for_profile_with_metadata(
   profile : @dialect.DorisProfile,
   metadata : @dialect.ProfileMetadata,
@@ -124,24 +137,46 @@ pub fn ParseOptions::for_profile_with_metadata(
 ) -> Result[ParseOptions, ParseError] {
   let context = match profile.validate_metadata(metadata) {
     Ok(context) => context
-    Err(@dialect.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
-      return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
-    }
-    Err(@dialect.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
-    Err(@dialect.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
+    Err(
+      @dialect.ProfileMetadataError::ProfileMetadataMismatch(
+        profile_id~,
+        expected_release~,
+        actual_release~,
+        expected_feature_introduction~,
+        actual_feature_introduction~
+      )
+    ) =>
+      return Err(
+        ProfileMetadataMismatch(
+          profile_id~,
+          expected_release~,
+          actual_release~,
+          expected_feature_introduction~,
+          actual_feature_introduction~,
+        ),
+      )
+    Err(
+      @dialect.ProfileMetadataError::UnsupportedFeatureIntroduction(
+        feature_introduction~
+      )
+    ) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+    Err(@dialect.ProfileMetadataError::UnknownProfile(profile_id~)) =>
+      return Err(UnknownProfile(profile_id~))
   }
   Ok({
-    dialect_context: ({
-      dialect: @dialect.Dialect::Doris,
-      profile_id: context.profile().id(),
-      exact_release: context.metadata().exact_release,
-      feature_introduction: context.metadata().feature_introduction,
-    } : @dialect.DialectContext),
-    mode: mode,
+    dialect_context: (
+      {
+        dialect: @dialect.Dialect::Doris,
+        profile_id: context.profile().id(),
+        exact_release: context.metadata().exact_release,
+        feature_introduction: context.metadata().feature_introduction,
+      } : @dialect.DialectContext),
+    mode,
     limits: ParseLimits::default(),
   })
 }
 
+///|
 pub fn ParseOptions::from_manifest(
   dialect_id : String,
   profile_id : String,
@@ -159,23 +194,44 @@ pub fn ParseOptions::from_manifest(
     _ => return Err(UnknownMode(mode_id~))
   }
   let dialect_context : @dialect.DialectContext = match dialect {
-    @dialect.Dialect::Doris => {
-      match @dialect.ProfileMetadata::for_manifest(profile_id, exact_release, feature_introduction) {
-        Ok(_) => {
-          { dialect: dialect, profile_id: profile_id, exact_release: exact_release, feature_introduction: feature_introduction }
-        }
-        Err(@dialect.ProfileMetadataError::UnknownProfile(profile_id~)) => return Err(UnknownProfile(profile_id~))
-        Err(@dialect.ProfileMetadataError::ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~)) => {
-          return Err(ProfileMetadataMismatch(profile_id~, expected_release~, actual_release~, expected_feature_introduction~, actual_feature_introduction~))
-        }
-        Err(@dialect.ProfileMetadataError::UnsupportedFeatureIntroduction(feature_introduction~)) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
+    @dialect.Dialect::Doris =>
+      match
+        @dialect.ProfileMetadata::for_manifest(
+          profile_id, exact_release, feature_introduction,
+        ) {
+        Ok(_) => { dialect, profile_id, exact_release, feature_introduction }
+        Err(@dialect.ProfileMetadataError::UnknownProfile(profile_id~)) =>
+          return Err(UnknownProfile(profile_id~))
+        Err(
+          @dialect.ProfileMetadataError::ProfileMetadataMismatch(
+            profile_id~,
+            expected_release~,
+            actual_release~,
+            expected_feature_introduction~,
+            actual_feature_introduction~
+          )
+        ) =>
+          return Err(
+            ProfileMetadataMismatch(
+              profile_id~,
+              expected_release~,
+              actual_release~,
+              expected_feature_introduction~,
+              actual_feature_introduction~,
+            ),
+          )
+        Err(
+          @dialect.ProfileMetadataError::UnsupportedFeatureIntroduction(
+            feature_introduction~
+          )
+        ) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
       }
-    }
     @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
   }
-  Ok({ dialect_context: dialect_context, mode: mode, limits: ParseLimits::default() })
+  Ok({ dialect_context, mode, limits: ParseLimits::default() })
 }
 
+///|
 pub fn ParseOptions::for_profile(
   profile : @dialect.DorisProfile,
   mode : ParseMode,
@@ -188,10 +244,12 @@ pub fn ParseOptions::for_profile(
       exact_release: metadata.exact_release,
       feature_introduction: metadata.feature_introduction,
     },
-    mode: mode,
+    mode,
     limits: ParseLimits::default(),
   }
 }
+
+///|
 pub fn ParseOptions::for_profile_with_limits(
   profile : @dialect.DorisProfile,
   mode : ParseMode,
@@ -205,11 +263,12 @@ pub fn ParseOptions::for_profile_with_limits(
       exact_release: metadata.exact_release,
       feature_introduction: metadata.feature_introduction,
     },
-    mode: mode,
-    limits: limits,
+    mode,
+    limits,
   }
 }
 
+///|
 /// The Doris profile this context resolves to, or None when the context is
 /// not a Doris context (flink) or its profile_id does not resolve — never a
 /// silently fabricated default (D-01, MI-01). All public constructors
@@ -219,38 +278,48 @@ pub fn ParseOptions::profile(self : ParseOptions) -> @dialect.DorisProfile? {
   @dialect.DorisProfile::from_id(self.dialect_context.profile_id)
 }
 
+///|
 /// Profile metadata for the Doris context. Panics on a context without a
 /// resolvable Doris profile — the explicit failure replaces the removed
 /// silent V4_X fabrication (MI-01); unreachable through public constructors.
-pub fn ParseOptions::profile_metadata(self : ParseOptions) -> @dialect.ProfileMetadata {
+pub fn ParseOptions::profile_metadata(
+  self : ParseOptions,
+) -> @dialect.ProfileMetadata {
   match self.profile() {
     Some(profile) => profile.metadata()
     None => panic()
   }
 }
 
+///|
 /// The Flink profile this context resolves to, or None when the context is
 /// not a Flink context (doris) or its profile_id does not resolve — never a
 /// silently fabricated default (D-01, T-10-01). All public constructors
 /// validate a Flink profile for Flink contexts, so None is reachable only
 /// through an externally-constructed pub(all) DialectContext.
-pub fn ParseOptions::flink_profile(self : ParseOptions) -> @dialect.FlinkProfile? {
+pub fn ParseOptions::flink_profile(
+  self : ParseOptions,
+) -> @dialect.FlinkProfile? {
   @dialect.FlinkProfile::from_id(self.dialect_context.profile_id)
 }
 
+///|
 /// FlinkProfileMetadata for the Flink context (D-01/D-02). Panics on a
 /// context without a resolvable Flink profile — the explicit failure mirrors
 /// profile_metadata; unreachable through public constructors. The wire
 /// (fathom.dialect.v1 / fathom.capabilities.v1) reads calcite_version and
 /// parser_config only through this accessor (T-09-18 provenance discipline —
 /// nothing fabricated).
-pub fn ParseOptions::flink_profile_metadata(self : ParseOptions) -> @dialect.FlinkProfileMetadata {
+pub fn ParseOptions::flink_profile_metadata(
+  self : ParseOptions,
+) -> @dialect.FlinkProfileMetadata {
   match self.flink_profile() {
     Some(profile) => profile.metadata()
     None => panic()
   }
 }
 
+///|
 /// The dialect selection's exact release string (DIALECT-04, D-09): taken
 /// from the validated DialectContext, dialect-agnostic — the same source the
 /// parse envelope's exact_release field uses. Replaces the Doris-only
@@ -260,6 +329,7 @@ pub fn ParseOptions::exact_release(self : ParseOptions) -> String {
   self.dialect_context.exact_release
 }
 
+///|
 /// The dialect selection's canonical id ("doris" | "flink") — the wire
 /// identity carried by ParseResult.dialect (DIALECT-04, D-09).
 pub fn ParseOptions::dialect_id(self : ParseOptions) -> String {
@@ -269,14 +339,17 @@ pub fn ParseOptions::dialect_id(self : ParseOptions) -> String {
   }
 }
 
+///|
 pub fn ParseOptions::mode(self : ParseOptions) -> ParseMode {
   self.mode
 }
 
+///|
 pub fn ParseOptions::limits(self : ParseOptions) -> ParseLimits {
   self.limits
 }
 
+///|
 fn validate_limits(limits : ParseLimits) -> Result[Unit, ParseError] {
   let parser_limits = @parser.ParserLimits::new(
     limits.max_bytes,
@@ -287,13 +360,20 @@ fn validate_limits(limits : ParseLimits) -> Result[Unit, ParseError] {
   )
   match parser_limits.validate() {
     Ok(_) => Ok(())
-    Err(@parser.ParserLimitError::MaxBytes(value)) => Err(InvalidLimit(limit_name="max_bytes", value=value))
-    Err(@parser.ParserLimitError::MaxTokens(value)) => Err(InvalidLimit(limit_name="max_tokens", value=value))
-    Err(@parser.ParserLimitError::MaxRecursionDepth(value)) => Err(InvalidLimit(limit_name="max_recursion_depth", value=value))
-    Err(@parser.ParserLimitError::MaxRecoverySteps(value)) => Err(InvalidLimit(limit_name="max_recovery_steps", value=value))
-    Err(@parser.ParserLimitError::MaxDiagnostics(value)) => Err(InvalidLimit(limit_name="max_diagnostics", value=value))
+    Err(@parser.ParserLimitError::MaxBytes(value)) =>
+      Err(InvalidLimit(limit_name="max_bytes", value~))
+    Err(@parser.ParserLimitError::MaxTokens(value)) =>
+      Err(InvalidLimit(limit_name="max_tokens", value~))
+    Err(@parser.ParserLimitError::MaxRecursionDepth(value)) =>
+      Err(InvalidLimit(limit_name="max_recursion_depth", value~))
+    Err(@parser.ParserLimitError::MaxRecoverySteps(value)) =>
+      Err(InvalidLimit(limit_name="max_recovery_steps", value~))
+    Err(@parser.ParserLimitError::MaxDiagnostics(value)) =>
+      Err(InvalidLimit(limit_name="max_diagnostics", value~))
   }
 }
+
+///|
 pub struct PrimitiveNode {
   pub kind : String
   pub start_byte : Int
@@ -302,6 +382,7 @@ pub struct PrimitiveNode {
   pub children : Array[PrimitiveNode]
 }
 
+///|
 pub struct PrimitiveDiagnostic {
   pub severity : String
   pub code : String
@@ -312,6 +393,7 @@ pub struct PrimitiveDiagnostic {
   pub statement_id : UInt
 }
 
+///|
 pub struct ParseResult {
   pub schema_version : String
   pub source_transport : String
@@ -328,6 +410,7 @@ pub struct ParseResult {
   pub diagnostics : Array[PrimitiveDiagnostic]
 }
 
+///|
 fn kind_id(kind : @syntax.SyntaxKind) -> String {
   match kind {
     @syntax.SyntaxKind::Document => "document"
@@ -378,11 +461,13 @@ fn kind_id(kind : @syntax.SyntaxKind) -> String {
   }
 }
 
+///|
 fn primitive_node(node : @syntax.SyntaxNode) -> PrimitiveNode {
   let children : Array[PrimitiveNode] = []
   for child in node.children() {
     match child {
-      @syntax.SyntaxElement::ChildNode(child_node) => children.push(primitive_node(child_node))
+      @syntax.SyntaxElement::ChildNode(child_node) =>
+        children.push(primitive_node(child_node))
       @syntax.SyntaxElement::Leaf(leaf) => {
         let kind = match leaf.kind {
           @syntax.LeafKind::SourceToken => "token"
@@ -391,7 +476,7 @@ fn primitive_node(node : @syntax.SyntaxNode) -> PrimitiveNode {
           @syntax.LeafKind::SourceSkipped => "skipped"
         }
         children.push({
-          kind: kind,
+          kind,
           start_byte: leaf.span.start_byte,
           end_byte: leaf.span.end_byte,
           text_len: leaf.text_len,
@@ -405,11 +490,14 @@ fn primitive_node(node : @syntax.SyntaxNode) -> PrimitiveNode {
     start_byte: node.span().start_byte,
     end_byte: node.span().end_byte,
     text_len: node.text_len(),
-    children: children,
+    children,
   }
 }
 
-fn primitive_diagnostic(diagnostic : @parser.ParserDiagnostic) -> PrimitiveDiagnostic {
+///|
+fn primitive_diagnostic(
+  diagnostic : @parser.ParserDiagnostic,
+) -> PrimitiveDiagnostic {
   {
     severity: diagnostic.severity,
     code: diagnostic.code,
@@ -421,6 +509,7 @@ fn primitive_diagnostic(diagnostic : @parser.ParserDiagnostic) -> PrimitiveDiagn
   }
 }
 
+///|
 fn mode_id(mode : ParseMode) -> String {
   match mode {
     ParseMode::Strict => "strict"
@@ -428,12 +517,20 @@ fn mode_id(mode : ParseMode) -> String {
   }
 }
 
-pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseError] {
+///|
+pub fn parse(
+  raw : Bytes,
+  options : ParseOptions,
+) -> Result[ParseResult, ParseError] {
   let limits = options.limits
-  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  match validate_limits(limits) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
   let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
     Ok(source) => source
-    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => return Err(InputTooLarge(requested_bytes~, max_bytes~))
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) =>
+      return Err(InputTooLarge(requested_bytes~, max_bytes~))
   }
   let parser_mode = match options.mode {
     ParseMode::Strict => @parser.ParseMode::Strict
@@ -446,8 +543,15 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     limits.max_recovery_steps,
     limits.max_diagnostics,
   )
-  let parsed = @parser.parse_with_limits_context(source, options.dialect_context, parser_mode, parser_limits)
-  if !parsed.root.is_valid(source.byte_length()) { return Err(InvalidSyntaxTree) }
+  let parsed = @parser.parse_with_limits_context(
+    source,
+    options.dialect_context,
+    parser_mode,
+    parser_limits,
+  )
+  if !parsed.root.is_valid(source.byte_length()) {
+    return Err(InvalidSyntaxTree)
+  }
   let diagnostics : Array[PrimitiveDiagnostic] = []
   for diagnostic in parsed.diagnostics {
     diagnostics.push(primitive_diagnostic(diagnostic))
@@ -465,10 +569,11 @@ pub fn parse(raw : Bytes, options : ParseOptions) -> Result[ParseResult, ParseEr
     source_bytes: source.bytes(),
     source_byte_length: source.byte_length(),
     root: primitive_node(parsed.root),
-    diagnostics: diagnostics,
+    diagnostics,
   })
 }
 
+///|
 pub fn parse_with_metadata(
   raw : Bytes,
   dialect_id : String,
@@ -477,13 +582,17 @@ pub fn parse_with_metadata(
   feature_introduction : String,
   mode_id_value : String,
 ) -> Result[ParseResult, ParseError] {
-  let options = match ParseOptions::from_manifest(dialect_id, profile_id, exact_release, feature_introduction, mode_id_value) {
+  let options = match
+    ParseOptions::from_manifest(
+      dialect_id, profile_id, exact_release, feature_introduction, mode_id_value,
+    ) {
     Ok(options) => options
     Err(error) => return Err(error)
   }
   parse(raw, options)
 }
 
+///|
 pub fn parse_with_ids(
   raw : Bytes,
   dialect_id : String,
@@ -497,6 +606,7 @@ pub fn parse_with_ids(
   parse(raw, options)
 }
 
+///|
 /// Flink-mode parse entry (DIALECT-03): a document whose dialect selection is
 /// validated as `flink` parses through the real Flink grammar —
 /// `parse_flink_segment` dispatches SELECT/WITH to `parse_flink_query` and
@@ -517,7 +627,7 @@ pub fn parse_flink(
   let mode = match mode_id_value {
     "strict" => ParseMode::Strict
     "editor" => ParseMode::Editor
-    _ => return Err(UnknownMode(mode_id= mode_id_value))
+    _ => return Err(UnknownMode(mode_id=mode_id_value))
   }
   let profile = match @dialect.FlinkProfile::from_id(profile_id) {
     Some(profile) => profile
@@ -526,34 +636,64 @@ pub fn parse_flink(
   let metadata = profile.metadata()
   let context : @dialect.DialectContext = {
     dialect: @dialect.Dialect::Flink,
-    profile_id: profile_id,
+    profile_id,
     exact_release: metadata.exact_release,
     feature_introduction: metadata.feature_introduction,
   }
-  parse(raw, { dialect_context: context, mode: mode, limits: ParseLimits::default() })
+  parse(raw, { dialect_context: context, mode, limits: ParseLimits::default() })
 }
 
 // Formatter type re-exports (D-38): api is the shared Phase 4 LSP core entry,
 // so @api.FormatOptions / @api.FormatResult etc. resolve through the facade.
 // Type aliases compile on moon 0.1.20260724 (probe-verified).
+
+///|
 pub type FormatOptions = @formatter.FormatOptions
+
+///|
 pub type FormatResult = @formatter.FormatResult
+
+///|
 pub type FormatDiagnostic = @formatter.FormatDiagnostic
+
+///|
 pub type FormatError = @formatter.FormatError
+
+///|
 pub type KeywordCase = @formatter.KeywordCase
+
+///|
 pub type CommaStyle = @formatter.CommaStyle
+
+///|
 pub type NewlineStyle = @formatter.NewlineStyle
 
 // Lint type re-exports (D-38, LINT-01): the api package is the shared core
 // entry for the lint surface too, so @api.LintOptions / @api.LintResult etc.
 // resolve through the facade (mirrors the formatter aliases above).
+
+///|
 pub type LintOptions = @lint.LintOptions
+
+///|
 pub type LintResult = @lint.LintResult
+
+///|
 pub type LintFinding = @lint.LintFinding
+
+///|
 pub type LintEdit = @lint.LintEdit
+
+///|
 pub type LintDiagnostic = @lint.LintDiagnostic
+
+///|
 pub type RuleOverride = @lint.RuleOverride
+
+///|
 pub type LintSeverity = @lint.LintSeverity
+
+///|
 pub type RuleSetting = @lint.RuleSetting
 
 // Lineage type re-exports (D-38, LINE-01): the api package is the shared core
@@ -561,11 +701,20 @@ pub type RuleSetting = @lint.RuleSetting
 // etc. resolve through the facade (mirrors the formatter/lint aliases above)
 // and binding (07-04) can construct its envelope from @api types without
 // importing lineage/ directly (D-38 discipline).
+
+///|
 pub type LineageResult = @lineage.LineageResult
+
+///|
 pub type LineageEdge = @lineage.LineageEdge
+
+///|
 pub type LineageGap = @lineage.LineageGap
+
+///|
 pub type StaticCatalog = @analyzer.StaticCatalog
 
+///|
 /// Primitive-shaped formatting diagnostic converted from a parser diagnostic
 /// (mirror of primitive_diagnostic above, same six fields).
 fn format_diagnostic(diagnostic : @parser.ParserDiagnostic) -> FormatDiagnostic {
@@ -580,6 +729,7 @@ fn format_diagnostic(diagnostic : @parser.ParserDiagnostic) -> FormatDiagnostic 
   }
 }
 
+///|
 /// Shared core format entry (D-38): one internal parse mirroring `parse`, then
 /// the formatter over the in-memory SyntaxNode. Parse diagnostics are converted
 /// to FormatDiagnostic shape and prepended so a refusal never masks parse
@@ -591,12 +741,14 @@ pub fn format_text(
   format_options : FormatOptions,
 ) -> Result[FormatResult, ParseError] {
   let limits = parse_options.limits
-  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  match validate_limits(limits) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
   let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
     Ok(source) => source
-    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) =>
       return Err(InputTooLarge(requested_bytes~, max_bytes~))
-    }
   }
   let parser_mode = match parse_options.mode {
     ParseMode::Strict => @parser.ParseMode::Strict
@@ -618,7 +770,12 @@ pub fn format_text(
   if !parsed.root.is_valid(source.byte_length()) {
     return Err(InvalidSyntaxTree)
   }
-  let formatted = @formatter.format(parsed.root, source, format_options, parse_options.dialect_context)
+  let formatted = @formatter.format(
+    parsed.root,
+    source,
+    format_options,
+    parse_options.dialect_context,
+  )
   let diagnostics : Array[FormatDiagnostic] = []
   for diagnostic in parsed.diagnostics {
     diagnostics.push(format_diagnostic(diagnostic))
@@ -629,11 +786,12 @@ pub fn format_text(
   Ok({
     accepted: formatted.accepted,
     output: formatted.output,
-    diagnostics: diagnostics,
+    diagnostics,
     statement_offsets: formatted.statement_offsets,
   })
 }
 
+///|
 pub fn format_with_ids(
   raw : Bytes,
   dialect_id : String,
@@ -648,6 +806,7 @@ pub fn format_with_ids(
   format_text(raw, options, format_options)
 }
 
+///|
 pub fn format_with_metadata(
   raw : Bytes,
   dialect_id : String,
@@ -657,19 +816,17 @@ pub fn format_with_metadata(
   mode_id_value : String,
   format_options : FormatOptions,
 ) -> Result[FormatResult, ParseError] {
-  let options = match ParseOptions::from_manifest(
-    dialect_id,
-    profile_id,
-    exact_release,
-    feature_introduction,
-    mode_id_value,
-  ) {
+  let options = match
+    ParseOptions::from_manifest(
+      dialect_id, profile_id, exact_release, feature_introduction, mode_id_value,
+    ) {
     Ok(options) => options
     Err(error) => return Err(error)
   }
   format_text(raw, options, format_options)
 }
 
+///|
 /// Result of fingerprinting one document (D-08): the UInt64 fingerprint plus
 /// the normalized canonical bytes it was computed from.
 pub(all) struct FingerprintResult {
@@ -677,6 +834,7 @@ pub(all) struct FingerprintResult {
   pub normalized : Bytes
 }
 
+///|
 /// Shared core fingerprint entry (FING-01, D-08): one internal parse mirroring
 /// `format_text`, then `@fingerprint.normalize` over the in-memory SyntaxNode
 /// and `@fingerprint.fnv1a64` over the canonical bytes. The fingerprint is a
@@ -689,12 +847,14 @@ pub fn fingerprint_text(
   parse_options : ParseOptions,
 ) -> Result[FingerprintResult, ParseError] {
   let limits = parse_options.limits
-  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  match validate_limits(limits) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
   let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
     Ok(source) => source
-    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) =>
       return Err(InputTooLarge(requested_bytes~, max_bytes~))
-    }
   }
   let parser_mode = match parse_options.mode {
     ParseMode::Strict => @parser.ParseMode::Strict
@@ -716,10 +876,15 @@ pub fn fingerprint_text(
   if !parsed.root.is_valid(source.byte_length()) {
     return Err(InvalidSyntaxTree)
   }
-  let canonical = @fingerprint.normalize(parsed.root, source, parse_options.dialect_context)
+  let canonical = @fingerprint.normalize(
+    parsed.root,
+    source,
+    parse_options.dialect_context,
+  )
   Ok({ fingerprint: @fingerprint.fnv1a64(canonical), normalized: canonical })
 }
 
+///|
 /// Shared internal parse for the analysis entry points (lint/fix). Mirrors the
 /// parse half of `format_text`/`fingerprint_text`: validate_limits ->
 /// SourceText::new_with_limit -> parse_with_limits_context -> is_valid gate.
@@ -729,12 +894,14 @@ fn parse_document(
   parse_options : ParseOptions,
 ) -> Result[(@parser.ParsedDocument, @source.SourceText), ParseError] {
   let limits = parse_options.limits
-  match validate_limits(limits) { Ok(_) => (); Err(error) => return Err(error) }
+  match validate_limits(limits) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
   let source = match @source.SourceText::new_with_limit(raw, limits.max_bytes) {
     Ok(source) => source
-    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) => {
+    Err(@source.SourceError::InputTooLarge(requested_bytes~, max_bytes~)) =>
       return Err(InputTooLarge(requested_bytes~, max_bytes~))
-    }
   }
   let parser_mode = match parse_options.mode {
     ParseMode::Strict => @parser.ParseMode::Strict
@@ -759,6 +926,7 @@ fn parse_document(
   Ok((parsed, source))
 }
 
+///|
 /// Shared core lint entry (LINT-01, D-04/D-06): one internal parse, then
 /// `@lint.run_rules` over the in-memory SyntaxNode. Report mode: findings list
 /// (sorted, stable). No catalog is injected here, so analyzer-backed rules
@@ -780,9 +948,10 @@ pub fn lint_text(
     None,
     lint_options,
   )
-  Ok({ accepted: true, findings: findings, output: b"", diagnostics: [] })
+  Ok({ accepted: true, findings, output: b"", diagnostics: [] })
 }
 
+///|
 /// Shared core autofix entry (LINT-01, D-03): one internal parse, then
 /// `@lint.apply_fixes` (minimal span edits + D-33 refusal gate). On success the
 /// fixed output is REPARSED as a round-trip defense (D-03); if the fixed output
@@ -817,14 +986,20 @@ pub fn fix_text(
   }
   let fixed = match parse_document(result.output, parse_options) {
     Ok((fixed_parsed, _)) => fixed_parsed
-    Err(_) => return Ok(refusal_result("autofix output did not reparse cleanly"))
+    Err(_) =>
+      return Ok(refusal_result("autofix output did not reparse cleanly"))
   }
   if @formatter.first_unsafe_element(fixed.root) is Some(_) {
-    return Ok(refusal_result("autofix output still contains error/missing/skipped material"))
+    return Ok(
+      refusal_result(
+        "autofix output still contains error/missing/skipped material",
+      ),
+    )
   }
   Ok(result)
 }
 
+///|
 /// Shared core lineage entry (LINE-01, D-07): one internal parse mirroring
 /// `lint_text` via `parse_document`, then `@lineage.derive_lineage` over the
 /// in-memory SyntaxNode. UnknownProfile / InputTooLarge / InvalidSyntaxTree
@@ -854,15 +1029,19 @@ pub fn lineage_text(
     Err(error) => return Err(error)
   }
   if parse_options.dialect_id() == "flink" {
-    return Err(UnknownProfile(profile_id = parse_options.dialect_context.profile_id))
+    return Err(
+      UnknownProfile(profile_id=parse_options.dialect_context.profile_id),
+    )
   }
   let result = match catalog {
-    Some(catalog) => @lineage.derive_lineage(parsed.root, source.bytes(), catalog)
+    Some(catalog) =>
+      @lineage.derive_lineage(parsed.root, source.bytes(), catalog)
     None => @lineage.derive_lineage_without_catalog(parsed.root, source.bytes())
   }
   Ok(result)
 }
 
+///|
 /// Engine-level refusal LintResult (D-33): accepted=false, empty output,
 /// exactly one FATHOM-LINT-000 diagnostic.
 fn refusal_result(message : String) -> LintResult {
@@ -870,26 +1049,33 @@ fn refusal_result(message : String) -> LintResult {
     accepted: false,
     findings: [],
     output: b"",
-    diagnostics: [{
-      code: "FATHOM-LINT-000",
-      message: message,
-      start_byte: 0,
-      end_byte: 0,
-      statement_id: 0U,
-    }],
+    diagnostics: [
+      {
+        code: "FATHOM-LINT-000",
+        message,
+        start_byte: 0,
+        end_byte: 0,
+        statement_id: 0U,
+      },
+    ],
   }
 }
 
+///|
 pub fn ParseResult::has_root_only_source(self : ParseResult) -> Bool {
   self.source_byte_length == self.source_bytes.length()
 }
 
+///|
 /// Statement-level entry (D-23): statement ids are assigned in source order to
 /// content segments, so the id-th Statement node in `root.children` is the
 /// requested statement. Children that are not Statement nodes (trivia-only
 /// segments between semicolons, skipped resource tails) never consume an id.
 /// Returns None when `statement_id` does not exist (including empty documents).
-pub fn ParseResult::statement(self : ParseResult, statement_id : UInt) -> PrimitiveNode? {
+pub fn ParseResult::statement(
+  self : ParseResult,
+  statement_id : UInt,
+) -> PrimitiveNode? {
   let mut seen : UInt = 0U
   for child in self.root.children {
     if child.kind == "statement" {
@@ -902,11 +1088,15 @@ pub fn ParseResult::statement(self : ParseResult, statement_id : UInt) -> Primit
   None
 }
 
+///|
 /// Statement-level diagnostics (D-23): the diagnostics of one statement,
 /// filtered by `statement_id` in source/emission order — the DORIS-03 path
 /// ("invalid statement does not discard later statements") is directly
 /// consumable per statement.
-pub fn ParseResult::statement_diagnostics(self : ParseResult, statement_id : UInt) -> Array[PrimitiveDiagnostic] {
+pub fn ParseResult::statement_diagnostics(
+  self : ParseResult,
+  statement_id : UInt,
+) -> Array[PrimitiveDiagnostic] {
   let out : Array[PrimitiveDiagnostic] = []
   for diagnostic in self.diagnostics {
     if diagnostic.statement_id == statement_id {
@@ -916,15 +1106,28 @@ pub fn ParseResult::statement_diagnostics(self : ParseResult, statement_id : UIn
   out
 }
 
+///|
 pub fn ParseResult::all_spans_in_bounds(self : ParseResult) -> Bool {
-  fn check(node : PrimitiveNode, length : Int, parent_start : Int, parent_end : Int) -> Bool {
-    if node.text_len < 0 || node.text_len != node.end_byte - node.start_byte || node.start_byte < 0 || node.start_byte > node.end_byte || node.end_byte > length || node.start_byte < parent_start || node.end_byte > parent_end {
+  fn check(
+    node : PrimitiveNode,
+    length : Int,
+    parent_start : Int,
+    parent_end : Int,
+  ) -> Bool {
+    if node.text_len < 0 ||
+      node.text_len != node.end_byte - node.start_byte ||
+      node.start_byte < 0 ||
+      node.start_byte > node.end_byte ||
+      node.end_byte > length ||
+      node.start_byte < parent_start ||
+      node.end_byte > parent_end {
       false
     } else {
       let mut valid = true
       let mut previous_end = node.start_byte
       for child in node.children {
-        if child.start_byte < previous_end || !check(child, length, node.start_byte, node.end_byte) {
+        if child.start_byte < previous_end ||
+          !check(child, length, node.start_byte, node.end_byte) {
           valid = false
         }
         previous_end = child.end_byte
@@ -935,15 +1138,21 @@ pub fn ParseResult::all_spans_in_bounds(self : ParseResult) -> Bool {
   check(self.root, self.source_byte_length, 0, self.source_byte_length)
 }
 
+///|
 test "api_requires_explicit_dialect_profile_and_mode" {
   // DIALECT-01 / Pitfall 6: dialect is validated FIRST, then profile.
-  assert_true(ParseOptions::new("mysql", "4.x", "strict") is Err(UnknownDialect(..)))
-  assert_true(ParseOptions::new("doris", "mysql", "strict") is Err(UnknownProfile(..)))
+  assert_true(
+    ParseOptions::new("mysql", "4.x", "strict") is Err(UnknownDialect(..)),
+  )
+  assert_true(
+    ParseOptions::new("doris", "mysql", "strict") is Err(UnknownProfile(..)),
+  )
   // flink is a legal dialect; Phase 10 accepts exactly the three pinned
   // release profiles (exact-match only — no prefix/suffix/version-compare,
   // no Doris profile borrowing, T-10-01). flink-2.3.0 resolves; the
   // Doris-shaped "2.1" and the adjacent "flink-2.3.0-rc1" are rejected.
-  let flink_options = match ParseOptions::new("flink", "flink-2.3.0", "strict") {
+  let flink_options = match
+    ParseOptions::new("flink", "flink-2.3.0", "strict") {
     Ok(options) => options
     Err(_) => panic()
   }
@@ -951,10 +1160,19 @@ test "api_requires_explicit_dialect_profile_and_mode" {
   assert_eq(flink_options.flink_profile(), Some(@dialect.FlinkProfile::V2_3_0))
   assert_eq(flink_options.flink_profile_metadata().calcite_version, "1.36.0")
   assert_eq(flink_options.exact_release(), "flink-2.3.0")
-  assert_true(ParseOptions::new("flink", "2.1", "strict") is Err(UnknownProfile(..)))
-  assert_true(ParseOptions::new("flink", "flink-2.3.0-rc1", "strict") is Err(UnknownProfile(..)))
-  assert_true(ParseOptions::new("flink", "flink-2.3", "strict") is Err(UnknownProfile(..)))
-  assert_true(ParseOptions::new("doris", "4.x", "unknown") is Err(UnknownMode(..)))
+  assert_true(
+    ParseOptions::new("flink", "2.1", "strict") is Err(UnknownProfile(..)),
+  )
+  assert_true(
+    ParseOptions::new("flink", "flink-2.3.0-rc1", "strict")
+    is Err(UnknownProfile(..)),
+  )
+  assert_true(
+    ParseOptions::new("flink", "flink-2.3", "strict") is Err(UnknownProfile(..)),
+  )
+  assert_true(
+    ParseOptions::new("doris", "4.x", "unknown") is Err(UnknownMode(..)),
+  )
   let options = match ParseOptions::new("doris", "2.1", "editor") {
     Ok(options) => options
     Err(_) => panic()
@@ -966,6 +1184,7 @@ test "api_requires_explicit_dialect_profile_and_mode" {
   assert_true(options.mode() is ParseMode::Editor)
 }
 
+///|
 test "api_parse_flink_gates_profiles_and_carries_metadata" {
   // MN-04 + D-06: the LSP document path's flink parse entry gates the profile
   // through FlinkProfile::from_id and populates exact_release/
@@ -984,11 +1203,21 @@ test "api_parse_flink_gates_profiles_and_carries_metadata" {
   assert_eq(ok.feature_introduction, "primary profile")
   assert_true(ok.valid)
   assert_eq(ok.diagnostics.length(), 0)
-  assert_true(parse_flink(b"SELECT 1", "4.x", "strict") is Err(UnknownProfile(profile_id="4.x")))
-  assert_true(parse_flink(b"SELECT 1", "flink-2.3", "strict") is Err(UnknownProfile(profile_id="flink-2.3")))
-  assert_true(parse_flink(b"SELECT 1", "flink-2.3.0", "turbo") is Err(UnknownMode(mode_id="turbo")))
+  assert_true(
+    parse_flink(b"SELECT 1", "4.x", "strict")
+    is Err(UnknownProfile(profile_id="4.x")),
+  )
+  assert_true(
+    parse_flink(b"SELECT 1", "flink-2.3", "strict")
+    is Err(UnknownProfile(profile_id="flink-2.3")),
+  )
+  assert_true(
+    parse_flink(b"SELECT 1", "flink-2.3.0", "turbo")
+    is Err(UnknownMode(mode_id="turbo")),
+  )
 }
 
+///|
 test "api_result_owns_source_once_and_has_bounded_descendant_spans" {
   let result = match parse_with_ids(b"SELECT x\r\n", "doris", "3.x", "strict") {
     Ok(result) => result
@@ -1000,6 +1229,7 @@ test "api_result_owns_source_once_and_has_bounded_descendant_spans" {
   assert_eq(result.diagnostics.length(), 0)
 }
 
+///|
 test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
   let first = match parse_with_ids(b"bad", "doris", "4.x", "strict") {
     Ok(result) => result
@@ -1014,6 +1244,7 @@ test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
   assert_eq(second.diagnostics[0].statement_id, 0U)
 }
 
+///|
 test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
   let empty = match parse_with_ids(b"", "doris", "2.1", "strict") {
     Ok(result) => result
@@ -1037,6 +1268,7 @@ test "api_empty_input_has_no_synthetic_diagnostic_and_modes_share_shape" {
   assert_true(editor.recovered)
 }
 
+///|
 test "api_diagnostic_statement_ids_are_monotonic_per_snapshot" {
   let result = match parse_with_ids(b"bad; bad", "doris", "4.x", "editor") {
     Ok(result) => result
@@ -1049,6 +1281,7 @@ test "api_diagnostic_statement_ids_are_monotonic_per_snapshot" {
   assert_true(result.diagnostics[1].code.has_prefix("FATHOM-PARSE-"))
 }
 
+///|
 test "api_lineage_text_doris_select_basic_ok" {
   // LINE-01 / D-07: a valid Doris 4.x SELECT with a catalog yields an Ok
   // LineageResult carrying the t.a -> a passthrough edge, no gaps.
@@ -1075,6 +1308,7 @@ test "api_lineage_text_doris_select_basic_ok" {
   assert_eq(edge.target_end_byte, 8)
 }
 
+///|
 test "api_lineage_text_flink_gate_structured_error" {
   // D-08: a flink selection is rejected with a structured UnknownProfile
   // ParseError (FATHOM-SCHEMA family) — NEVER a silent Ok(empty result).
@@ -1090,6 +1324,7 @@ test "api_lineage_text_flink_gate_structured_error" {
   }
 }
 
+///|
 test "api_lineage_text_star_no_catalog_requires_catalog_gap" {
   // SC2 / D-05: `SELECT * FROM t` with no catalog -> zero edges and one
   // requires-catalog gap at the star span; never a fabricated edge.
@@ -1108,6 +1343,7 @@ test "api_lineage_text_star_no_catalog_requires_catalog_gap" {
   assert_eq(result.gaps[0].end_byte, 8)
 }
 
+///|
 test "api_lineage_text_input_too_large_parse_error" {
   // T-07-03-03 / parse_document precedent: oversized input is rejected with a
   // structured InputTooLarge ParseError before any derivation runs (mirrors
@@ -1121,6 +1357,7 @@ test "api_lineage_text_input_too_large_parse_error" {
   assert_true(result is Err(InputTooLarge(requested_bytes=_, max_bytes=8)))
 }
 
+///|
 test "api_lineage_text_empty_document_ok_empty" {
   // FLAGGED ASSUMPTION (LINE-01 empty, RESOLVED): an empty document returns
   // Ok(LineageResult{edges:[], gaps:[]}) — accepted semantics, no synthetic gap.

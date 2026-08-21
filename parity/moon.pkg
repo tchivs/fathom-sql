@@ -1,25 +1,26 @@
 pkgtype(kind: "executable")
+
 import {
-  "fathom/sql/api" @api,
-  "fathom/sql/binding" @binding,
-  "fathom/sql/completion" @completion,
-  "fathom/sql/source" @source,
-  "fathom/sql/dialect" @dialect,
-  "fathom/sql/parser" @parser,
-  "fathom/sql/printer" @printer,
-  "fathom/sql/syntax" @syntax,
-  "fathom/sql/formatter" @formatter,
-  "moonbitlang/core/encoding/utf8" @utf8,
+  "fathom/sql/api",
+  "fathom/sql/binding",
+  "fathom/sql/completion",
+  "fathom/sql/source",
+  "fathom/sql/dialect",
+  "fathom/sql/parser",
+  "fathom/sql/printer",
+  "fathom/sql/syntax",
+  "fathom/sql/formatter",
+  "moonbitlang/core/encoding/utf8",
 }
 
 import {
-  "moonbitlang/core/test" @test,
+  "moonbitlang/core/test",
 } for "test"
 
 options(
   targets: {
-    "run_native.mbt": ["native"],
-    "run_js.mbt": ["js"],
-    "run_wasm.mbt": ["wasm"],
+    "run_native.mbt": [ "native" ],
+    "run_js.mbt": [ "js" ],
+    "run_wasm.mbt": [ "wasm" ],
   },
 )

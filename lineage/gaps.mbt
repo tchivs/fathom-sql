@@ -14,6 +14,7 @@
 /// `function-arity` and other analyzer codes are not lineage gaps and are
 /// ignored here (no gap contract).
 
+///|
 /// Maps analyzer diagnostics to lineage gaps (D-06 / Pattern 4).
 ///
 /// `suppress_requires_catalog_tables` drops the unknown-table -> requires-
@@ -54,7 +55,8 @@ fn map_diagnostic_gaps(
           end_byte: diag.end_byte,
         })
       }
-    } else if diag.code == "unknown-column" || diag.code == "unknown-function" ||
+    } else if diag.code == "unknown-column" ||
+      diag.code == "unknown-function" ||
       diag.code == "ambiguous-reference" {
       gaps.push({
         code: GAP_UNRESOLVED_REFERENCE,

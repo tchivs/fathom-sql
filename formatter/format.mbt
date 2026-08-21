@@ -1,3 +1,4 @@
+///|
 /// Refusal-first format entry (D-33, research Pattern 5): a tree containing
 /// error/missing/skipped material returns accepted=false with empty output and
 /// exactly one FATHOM-FORMAT-001 diagnostic — never partial bytes. The
@@ -28,7 +29,8 @@ pub fn format(
   let mut statement_id : UInt = 0U
   for child in root.children() {
     match child {
-      @syntax.SyntaxElement::ChildNode(node) if node.kind() is @syntax.SyntaxKind::Statement => {
+      @syntax.SyntaxElement::ChildNode(node) if node.kind()
+        is @syntax.SyntaxKind::Statement => {
         // Record the output byte offset where this statement's layout begins.
         // Trailing-newline normalization only touches the tail, so offsets
         // stay valid in the final output. NOTE: the inter-statement separator
@@ -77,40 +79,47 @@ pub fn format(
   }
   {
     accepted: true,
-    output: finalize_output(out.buf.to_bytes(), newline, options.trailing_newline()),
+    output: finalize_output(
+      out.buf.to_bytes(),
+      newline,
+      options.trailing_newline(),
+    ),
     diagnostics: [],
-    statement_offsets: statement_offsets,
+    statement_offsets,
   }
 }
 
+///|
 /// First unsafe element together with the id of the Statement node containing
 /// it (0U when it sits outside any statement — e.g. a resource-skipped tail).
-fn find_first_unsafe(root : @syntax.SyntaxNode) -> (@syntax.SyntaxElement, UInt)? {
+fn find_first_unsafe(
+  root : @syntax.SyntaxNode,
+) -> (@syntax.SyntaxElement, UInt)? {
   let mut statement_id : UInt = 0U
   for child in root.children() {
     match child {
-      @syntax.SyntaxElement::ChildNode(node) if node.kind() is @syntax.SyntaxKind::Statement => {
+      @syntax.SyntaxElement::ChildNode(node) if node.kind()
+        is @syntax.SyntaxKind::Statement =>
         match first_unsafe_element(node) {
           Some(element) => return Some((element, statement_id))
           None => statement_id = statement_id + 1U
         }
-      }
-      @syntax.SyntaxElement::ChildNode(node) => {
+      @syntax.SyntaxElement::ChildNode(node) =>
         match first_unsafe_element(node) {
           Some(element) => return Some((element, 0U))
           None => ()
         }
-      }
-      @syntax.SyntaxElement::Leaf(leaf) => {
-        if leaf.kind is @syntax.LeafKind::SourceError || leaf.kind is @syntax.LeafKind::SourceSkipped {
+      @syntax.SyntaxElement::Leaf(leaf) =>
+        if leaf.kind is @syntax.LeafKind::SourceError ||
+          leaf.kind is @syntax.LeafKind::SourceSkipped {
           return Some((child, 0U))
         }
-      }
     }
   }
   None
 }
 
+///|
 /// Document-level trivia segments between statements (research Pattern 3):
 /// comments go on their own line verbatim; whitespace-only segments collapse
 /// away (statements own their line separation); stray token leaves (e.g. a
@@ -142,7 +151,11 @@ fn layout_document_trivia(
   }
 }
 
-fn refusal_diagnostic(span : @source.Span, statement_id : UInt) -> FormatDiagnostic {
+///|
+fn refusal_diagnostic(
+  span : @source.Span,
+  statement_id : UInt,
+) -> FormatDiagnostic {
   {
     severity: "error",
     code: "FATHOM-FORMAT-001",
@@ -150,6 +163,6 @@ fn refusal_diagnostic(span : @source.Span, statement_id : UInt) -> FormatDiagnos
     expected_class: "format",
     start_byte: span.start_byte,
     end_byte: span.end_byte,
-    statement_id: statement_id,
+    statement_id,
   }
 }

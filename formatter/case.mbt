@@ -1,3 +1,4 @@
+///|
 /// Token-level keyword rewrite (D-28): the classification table is the single
 /// keyword authority (D-13/D-14, token.mbt:450-460) — the formatter keeps no
 /// second keyword list. Every row's canonical word is UPPERCASE by
@@ -10,6 +11,7 @@ pub fn rewrite_keyword(context : @dialect.DialectContext, raw : Bytes) -> Bytes 
   }
 }
 
+///|
 /// Case-selected keyword rewrite (D-26 keyword_case dimension): Upper renders
 /// the canonical classification word (D-29), Lower renders its ASCII case-fold
 /// (SQL keywords are ASCII; every classification word is uppercase by
@@ -18,18 +20,22 @@ pub fn rewrite_keyword(context : @dialect.DialectContext, raw : Bytes) -> Bytes 
 /// comments, and hints are never rewritten: classification_of only matches a
 /// bare unquoted word, so any token whose raw bytes are not a plain word
 /// (quoted `SELECT`, string literals, punctuation) passes through unchanged.
-pub fn rewrite_keyword_case(context : @dialect.DialectContext, raw : Bytes, case : KeywordCase) -> Bytes {
+pub fn rewrite_keyword_case(
+  context : @dialect.DialectContext,
+  raw : Bytes,
+  case : KeywordCase,
+) -> Bytes {
   match case {
     KeywordCase::Upper => rewrite_keyword(context, raw)
-    KeywordCase::Lower => {
+    KeywordCase::Lower =>
       match @dialect.classification_of(context, raw) {
         Some(entry) => ascii_case_fold(entry.word)
         None => raw
       }
-    }
   }
 }
 
+///|
 /// ASCII A-Z -> a-z byte-wise fold (the same helper shape as
 /// keyword_test.mbt:38-47). Classification words are ASCII by construction.
 fn ascii_case_fold(raw : Bytes) -> Bytes {

@@ -1,3 +1,4 @@
+///|
 /// Caller-owned catalog JSON → StaticCatalog (D-05, T-02-42, LINE-01).
 ///
 /// The catalog document is an untrusted host input. Parsing mirrors
@@ -24,14 +25,10 @@ pub fn parse_catalog_json(bytes : Bytes) -> Result[@api.StaticCatalog?, String] 
   if bytes.length() == 0 {
     return Ok(None)
   }
-  let text = try {
-    @utf8.decode(bytes)
-  } catch {
+  let text = @utf8.decode(bytes) catch {
     _ => return Err("invalid UTF-8 in catalog JSON")
   }
-  let value = try {
-    @json.parse(text)
-  } catch {
+  let value = @json.parse(text) catch {
     _ => return Err("malformed JSON in catalog JSON")
   }
   match value {
@@ -43,41 +40,40 @@ pub fn parse_catalog_json(bytes : Bytes) -> Result[@api.StaticCatalog?, String] 
       // tables
       let tables : Array[@analyzer.TableInfo] = []
       match obj.get("tables") {
-        Some(Json::Array(items)) => {
+        Some(Json::Array(items)) =>
           for item in items {
             match parse_table_info(item) {
               Ok(table) => tables.push(table)
               Err(message) => return Err(message)
             }
           }
-        }
         Some(_) => return Err("catalog JSON 'tables' must be an array")
         None => ()
       }
       let mut catalog = @analyzer.StaticCatalog::new(tables)
       // db_tables
       match obj.get("db_tables") {
-        Some(Json::Array(items)) => {
+        Some(Json::Array(items)) =>
           for item in items {
             match parse_db_table(item) {
-              Ok((db, name, table)) => catalog = catalog.with_db(db, name, table)
+              Ok((db, name, table)) =>
+                catalog = catalog.with_db(db, name, table)
               Err(message) => return Err(message)
             }
           }
-        }
         Some(_) => return Err("catalog JSON 'db_tables' must be an array")
         None => ()
       }
       // functions
       match obj.get("functions") {
-        Some(Json::Array(items)) => {
+        Some(Json::Array(items)) =>
           for item in items {
             match parse_function(item) {
-              Ok(function) => catalog = catalog.with_function(function.name, function)
+              Ok(function) =>
+                catalog = catalog.with_function(function.name, function)
               Err(message) => return Err(message)
             }
           }
-        }
         Some(_) => return Err("catalog JSON 'functions' must be an array")
         None => ()
       }
@@ -87,6 +83,7 @@ pub fn parse_catalog_json(bytes : Bytes) -> Result[@api.StaticCatalog?, String] 
   }
 }
 
+///|
 fn parse_table_info(item : Json) -> Result[@analyzer.TableInfo, String] {
   match item {
     Json::Object(obj) => {
@@ -96,23 +93,23 @@ fn parse_table_info(item : Json) -> Result[@analyzer.TableInfo, String] {
       }
       let columns : Array[@analyzer.ColumnInfo] = []
       match obj.get("columns") {
-        Some(Json::Array(items)) => {
+        Some(Json::Array(items)) =>
           for column in items {
             match parse_column_info(column) {
               Ok(column_info) => columns.push(column_info)
               Err(message) => return Err(message)
             }
           }
-        }
         Some(_) => return Err("catalog table 'columns' must be an array")
         None => return Err("catalog table missing columns array")
       }
-      Ok({ name: name, columns: columns })
+      Ok({ name, columns })
     }
     _ => Err("catalog table must be an object")
   }
 }
 
+///|
 fn parse_column_info(item : Json) -> Result[@analyzer.ColumnInfo, String] {
   match item {
     Json::Object(obj) => {
@@ -124,13 +121,16 @@ fn parse_column_info(item : Json) -> Result[@analyzer.ColumnInfo, String] {
         Some(Json::String(s)) => s
         _ => return Err("catalog column missing string data_type")
       }
-      Ok({ name: name, data_type: data_type })
+      Ok({ name, data_type })
     }
     _ => Err("catalog column must be an object")
   }
 }
 
-fn parse_db_table(item : Json) -> Result[(String, String, @analyzer.TableInfo), String] {
+///|
+fn parse_db_table(
+  item : Json,
+) -> Result[(String, String, @analyzer.TableInfo), String] {
   match item {
     Json::Object(obj) => {
       let db = match obj.get("db") {
@@ -142,12 +142,11 @@ fn parse_db_table(item : Json) -> Result[(String, String, @analyzer.TableInfo), 
         _ => return Err("catalog db_table missing string name")
       }
       let table = match obj.get("table") {
-        Some(value) => {
+        Some(value) =>
           match parse_table_info(value) {
             Ok(table) => table
             Err(message) => return Err(message)
           }
-        }
         None => return Err("catalog db_table missing table object")
       }
       Ok((db, name, table))
@@ -156,6 +155,7 @@ fn parse_db_table(item : Json) -> Result[(String, String, @analyzer.TableInfo), 
   }
 }
 
+///|
 fn parse_function(item : Json) -> Result[@analyzer.FunctionInfo, String] {
   match item {
     Json::Object(obj) => {
@@ -165,14 +165,13 @@ fn parse_function(item : Json) -> Result[@analyzer.FunctionInfo, String] {
       }
       let param_types : Array[String] = []
       match obj.get("param_types") {
-        Some(Json::Array(items)) => {
+        Some(Json::Array(items)) =>
           for param in items {
             match param {
               Json::String(s) => param_types.push(s)
               _ => return Err("catalog function param_types must be strings")
             }
           }
-        }
         Some(_) => return Err("catalog function 'param_types' must be an array")
         None => return Err("catalog function missing param_types array")
       }
@@ -184,12 +183,7 @@ fn parse_function(item : Json) -> Result[@analyzer.FunctionInfo, String] {
         Some(Json::Number(n, ..)) => n.to_int()
         _ => return Err("catalog function missing number min_arity")
       }
-      Ok({
-        name: name,
-        param_types: param_types,
-        return_type: return_type,
-        min_arity: min_arity,
-      })
+      Ok({ name, param_types, return_type, min_arity })
     }
     _ => Err("catalog function must be an object")
   }

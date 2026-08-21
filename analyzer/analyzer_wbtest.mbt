@@ -7,6 +7,7 @@
 // convention). No parser import: everything lives inside the analyzer package
 // (D-21).
 
+///|
 /// Builds a (bytes, span) token array from bare word bytes, assigning
 /// monotonically increasing dummy byte offsets (spans are not asserted here).
 fn wb_tokens(words : Array[Bytes]) -> Array[(Bytes, Int, Int)] {
@@ -19,11 +20,12 @@ fn wb_tokens(words : Array[Bytes]) -> Array[(Bytes, Int, Int)] {
   out
 }
 
+///|
 test "wb clause_break full boundaries" {
   let toks = wb_tokens([
-    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"b", b"GROUP", b"BY", b"a",
-    b"HAVING", b"c", b"QUALIFY", b"d", b"ORDER", b"BY", b"e", b"LIMIT", b"5",
-    b"WINDOW", b"w", b"AS", b"(", b")", b"UNION", b"SELECT", b"b", b"FROM", b"u",
+    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"b", b"GROUP", b"BY", b"a", b"HAVING",
+    b"c", b"QUALIFY", b"d", b"ORDER", b"BY", b"e", b"LIMIT", b"5", b"WINDOW", b"w",
+    b"AS", b"(", b")", b"UNION", b"SELECT", b"b", b"FROM", b"u",
   ])
   assert_eq(clause_kind_at(toks, 2, 0), Some(From))
   assert_eq(clause_kind_at(toks, 4, 0), Some(Where))
@@ -39,6 +41,7 @@ test "wb clause_break full boundaries" {
   assert_eq(clause_kind_at(toks, 4, 3), None)
 }
 
+///|
 test "wb clause_break group order two word" {
   // `order` as a column name: not followed by BY -> no boundary.
   let toks = wb_tokens([b"SELECT", b"order", b"FROM", b"t"])
@@ -54,6 +57,7 @@ test "wb clause_break group order two word" {
   assert_eq(clause_kind_at(toks4, 1, 0), None)
 }
 
+///|
 test "wb paren depth immune to strings" {
   // A `'('` string token is not a paren: depth never changes for it.
   let toks = wb_tokens([b"WHERE", b"a", b"=", b"'('", b"FROM", b"t"])
@@ -73,11 +77,14 @@ test "wb paren depth immune to strings" {
   }
 }
 
+///|
 test "wb paren depth string literal not counted" {
   // `WHERE a = '(' GROUP BY a`: the `'('` string must not unbalance depth, so
   // GROUP BY is still recognized as the next clause boundary.
-  let toks = wb_tokens([b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"a", b"=",
-    b"'('", b"GROUP", b"BY", b"a"])
+  let toks = wb_tokens([
+    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"a", b"=", b"'('", b"GROUP", b"BY",
+    b"a",
+  ])
   match split_select_model(toks) {
     Some(model) => {
       let core = model.branches[0]
@@ -88,6 +95,7 @@ test "wb paren depth string literal not counted" {
   }
 }
 
+///|
 test "wb qualified name split 1 2 3 parts" {
   let one = collect_refs([{ bytes: b"a", start_byte: 0, end_byte: 1 }])
   assert_eq(one.length(), 1)
@@ -127,6 +135,7 @@ test "wb qualified name split 1 2 3 parts" {
   assert_true(call[0].is_call)
 }
 
+///|
 test "wb quoted identification and case fold" {
   assert_true(is_quoted(b"`T`"))
   assert_true(is_quoted(b"\"T\""))
@@ -150,11 +159,12 @@ test "wb quoted identification and case fold" {
   assert_true(!bytes_equal_ci(b"FOO", b"bar"))
 }
 
+///|
 test "wb split full select model all clauses" {
   let toks = wb_tokens([
-    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"b", b"=", b"1",
-    b"GROUP", b"BY", b"a", b"HAVING", b"count", b"(", b"*", b")", b">", b"1",
-    b"QUALIFY", b"a", b">", b"0", b"ORDER", b"BY", b"a", b"LIMIT", b"5",
+    b"SELECT", b"a", b"FROM", b"t", b"WHERE", b"b", b"=", b"1", b"GROUP", b"BY",
+    b"a", b"HAVING", b"count", b"(", b"*", b")", b">", b"1", b"QUALIFY", b"a", b">",
+    b"0", b"ORDER", b"BY", b"a", b"LIMIT", b"5",
   ])
   match split_select_model(toks) {
     Some(model) => {
@@ -173,6 +183,7 @@ test "wb split full select model all clauses" {
   }
 }
 
+///|
 test "wb split union chain model" {
   let toks = wb_tokens([
     b"SELECT", b"a", b"FROM", b"t", b"UNION", b"ALL", b"SELECT", b"b", b"FROM", b"u",
@@ -187,6 +198,7 @@ test "wb split union chain model" {
   }
 }
 
+///|
 test "wb paren depth limit returns none" {
   let words : Array[Bytes] = [b"SELECT", b"a"]
   let mut i = 0
@@ -205,6 +217,7 @@ test "wb paren depth limit returns none" {
   assert_true(split_select_model(toks) is None)
 }
 
+///|
 test "wb build_select_item binary expr no bare alias" {
   // CR-01: `price * qty` must not bind the right operand as an alias.
   let item = build_select_item([
@@ -235,6 +248,7 @@ test "wb build_select_item binary expr no bare alias" {
   assert_eq(item3.refs.length(), 2)
 }
 
+///|
 test "wb build_select_item bare alias still works" {
   // `a b` is an implicit alias.
   let item = build_select_item([
@@ -268,6 +282,7 @@ test "wb build_select_item bare alias still works" {
   assert_true(item3.refs[0].is_call)
 }
 
+///|
 test "wb from order by not table alias" {
   // `SELECT a FROM t ORDER BY a` — ORDER BY must not be consumed as a bare
   // table alias of t (Pitfall 2 clause boundary): t is the only FROM item
@@ -305,6 +320,7 @@ test "wb from order by not table alias" {
   }
 }
 
+///|
 test "wb collect_refs over window skip" {
   // WR-03: `SUM(x) OVER (PARTITION BY y ORDER BY z)` must not collect the
   // window spec tokens (PARTITION/BY/y/ORDER/z) as column references.
@@ -340,6 +356,7 @@ test "wb collect_refs over window skip" {
   assert_eq(refs2[1].parts[0].bytes, b"x")
 }
 
+///|
 test "wb build_select_item except cols captured" {
   // Task 2 (Pitfall 3 option a): `* EXCEPT (b)` captures the excluded column
   // token slices instead of discarding them (D-03), while the star projection
@@ -391,6 +408,7 @@ test "wb build_select_item except cols captured" {
   assert_eq(item4.except_cols.length(), 0)
 }
 
+///|
 test "wb expand_star except exclusion" {
   // Task 2 Behavior Test 2: `* EXCEPT (b)` over a scope exposing a/b/c yields
   // Column bindings for a and c only (no b); a plain `*` still yields a/b/c.
@@ -432,6 +450,7 @@ test "wb expand_star except exclusion" {
   assert_eq(b2.length(), 3)
 }
 
+///|
 test "wb expand_star except quote byte recheck" {
   // Task 2 Behavior Test 3 (D-03): quoted EXCEPT slices match byte-exact;
   // unquoted slices fold ASCII case — mirroring find_column_in so exclusion

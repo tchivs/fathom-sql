@@ -2,12 +2,13 @@
 // shared by the fathom-sql CLI `lsp` subcommand and the standalone fathom-lsp
 // executable (D-01 seam). No executable main remains here.
 pkgtype(kind: "library")
+
 import {
-  "fathom/sql/api" @api,
-  "fathom/sql/binding" @binding,
-  "fathom/sql/completion" @completion,
-  "fathom/sql/source" @source,
-  "moonbitlang/core/debug" @debug,
-  "moonbitlang/core/encoding/utf8" @utf8,
-  "moonbitlang/core/json" @json,
+  "fathom/sql/api",
+  "fathom/sql/binding",
+  "fathom/sql/completion",
+  "fathom/sql/source",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
 }

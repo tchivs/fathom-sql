@@ -7,6 +7,7 @@
 /// SyntaxKind is added and syntax/syntax.mbt is untouched (D-01, Phase 12
 /// frozen parser hard gate).
 
+///|
 /// Top-level SELECT clause kinds recognized by the re-parser (D-01).
 pub(all) enum ClauseKind {
   SelectList
@@ -21,6 +22,7 @@ pub(all) enum ClauseKind {
   SetOpUnion
 } derive(Eq, @debug.Debug)
 
+///|
 /// A token slice: token bytes plus a flattened byte span (D-01/D-06).
 pub(all) struct TokenSlice {
   bytes : Bytes
@@ -28,6 +30,7 @@ pub(all) struct TokenSlice {
   end_byte : Int
 }
 
+///|
 /// One dotted name reference inside an expression (D-01): the maximal
 /// dot-separated identifier run, e.g. `a`, `t.a`, `db.t.col`, `t.*`, `*`.
 /// `parts` holds one slice per identifier segment in source order; `star` is
@@ -45,6 +48,7 @@ pub(all) struct NameRef {
   end_byte : Int
 }
 
+///|
 /// One SELECT-list item: the expression token slices, the optional AS/bare
 /// alias, and whether the item is a star projection (`*`, `t.*`, `db.t.*`).
 /// `star_qualifier` holds the dotted name before `.*` (None for a bare `*`);
@@ -61,6 +65,7 @@ pub(all) struct SelectItem {
   except_cols : Array[TokenSlice]
 }
 
+///|
 /// One FROM item: a table reference with its alias and optional subquery
 /// body. `name` is None for a bare subquery; `is_subquery` distinguishes it.
 /// `join` records how the item attaches to the previous one ("INNER"/"LEFT"/
@@ -76,6 +81,7 @@ pub(all) struct FromItem {
   depth : Int
 }
 
+///|
 /// A CTE definition: name, optional column-name alias list text (`WITH c(x)
 /// AS ...`), and the parsed body core (D-02 scope, Pitfall 4).
 pub(all) struct CteDef {
@@ -84,6 +90,7 @@ pub(all) struct CteDef {
   body : SelectCore
 }
 
+///|
 /// One SELECT core: per-clause material produced by the re-parser. Expression
 /// clauses carry pre-extracted `NameRef`s; `limit`/`window` keep raw token
 /// slices (not name-resolved). `set_op` records the set operation that
@@ -102,6 +109,7 @@ pub(all) struct SelectCore {
   set_op : String?
 }
 
+///|
 /// The model of a full SELECT statement: CTEs plus set-op branches. The first
 /// branch's output columns are the statement's output columns (UNION column
 /// names come from the first SELECT).
