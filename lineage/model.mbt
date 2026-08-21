@@ -17,30 +17,30 @@
 /// binding; the target is the output column of the SELECT-list item that
 /// contains the reference (alias, single-ref name, or star-expanded column).
 pub(all) struct LineageEdge {
-  pub source_name : String
-  pub source_resolved_to : String
-  pub source_start_byte : Int
-  pub source_end_byte : Int
-  pub target_name : String
-  pub target_start_byte : Int
-  pub target_end_byte : Int
+  source_name : String
+  source_resolved_to : String
+  source_start_byte : Int
+  source_end_byte : Int
+  target_name : String
+  target_start_byte : Int
+  target_end_byte : Int
 } derive(Eq, @debug.Debug)
 
 ///|
 /// One honest gap (D-06). `code` is one of `GAP_REQUIRES_CATALOG`,
 /// `GAP_UNRESOLVED_REFERENCE`, or `GAP_REQUIRES_COMPLETE_PARSE`.
 pub(all) struct LineageGap {
-  pub code : String
-  pub message : String
-  pub start_byte : Int
-  pub end_byte : Int
+  code : String
+  message : String
+  start_byte : Int
+  end_byte : Int
 } derive(Eq, @debug.Debug)
 
 ///|
 /// The result of one `derive_lineage` call: resolved edges plus honest gaps.
 pub(all) struct LineageResult {
-  pub edges : Array[LineageEdge]
-  pub gaps : Array[LineageGap]
+  edges : Array[LineageEdge]
+  gaps : Array[LineageGap]
 } derive(Eq, @debug.Debug)
 
 ///|

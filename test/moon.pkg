@@ -1,4 +1,8 @@
 import {
+  "moonbitlang/core/encoding/utf8",
+}
+
+import {
   "fathom/sql/analyzer",
   "fathom/sql/api",
   "fathom/sql/binding",
@@ -6,13 +10,8 @@ import {
   "fathom/sql/printer",
   "fathom/sql/source",
   "fathom/sql/syntax",
-  "fathom/sql/token",
   "fathom/sql/formatter",
   "fathom/sql/dialect",
   "fathom/sql/lineage",
-  "moonbitlang/core/encoding/utf8",
-}
-
-import {
   "moonbitlang/core/test" @mtest,
 } for "test"

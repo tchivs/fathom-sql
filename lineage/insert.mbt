@@ -6,7 +6,7 @@
 /// empty scope (Open Question 4) — the analyzer's `analyze_dml_body` does not
 /// analyze the trailing SELECT, so the source column names come from the
 /// re-parsed model refs (source spelling) when no analyzer binding is
-/// available at the ref span.
+/// available at the name_ref span.
 ///
 /// VALUES rows produce no edges (row literals carry no column references); an
 /// INSERT without a column list whose target table has no catalog columns
@@ -75,9 +75,9 @@ fn col_list_targets(
   let out : Array[(String, Int, Int)] = []
   let slices = @analyzer.slice_tokens(tokens, start, end)
   let refs = @analyzer.collect_refs(slices)
-  for ref in refs {
-    if ref.parts.length() > 0 {
-      let p = ref.parts[0]
+  for name_ref in refs {
+    if name_ref.parts.length() > 0 {
+      let p = name_ref.parts[0]
       out.push(
         (
           target_table + "." + identifier_text(p.bytes),
@@ -105,15 +105,15 @@ fn is_quoted(bytes : Bytes) -> Bool {
 /// resolves case-insensitively to a catalog table named `t`.
 fn[T : @analyzer.Catalog] resolve_insert_target_columns(
   catalog : T,
-  ref : @analyzer.NameRef,
+  name_ref : @analyzer.NameRef,
 ) -> Array[@analyzer.ColumnInfo]? {
-  let n = ref.parts.length()
+  let n = name_ref.parts.length()
   if n == 0 {
     return None
   }
   if n == 1 {
-    let name = identifier_text(ref.parts[0].bytes)
-    let quoted = is_quoted(ref.parts[0].bytes)
+    let name = identifier_text(name_ref.parts[0].bytes)
+    let quoted = is_quoted(name_ref.parts[0].bytes)
     match @analyzer.Catalog::table(catalog, name) {
       Some(info) =>
         if quoted && info.name != name {
@@ -124,9 +124,9 @@ fn[T : @analyzer.Catalog] resolve_insert_target_columns(
       None => None
     }
   } else {
-    let db = identifier_text(ref.parts[n - 2].bytes)
-    let t = identifier_text(ref.parts[n - 1].bytes)
-    let table_quoted = is_quoted(ref.parts[n - 1].bytes)
+    let db = identifier_text(name_ref.parts[n - 2].bytes)
+    let t = identifier_text(name_ref.parts[n - 1].bytes)
+    let table_quoted = is_quoted(name_ref.parts[n - 1].bytes)
     match @analyzer.Catalog::table_in_db(catalog, db, t) {
       Some(info) =>
         if table_quoted && info.name != t {
@@ -153,7 +153,7 @@ fn source_resolved(resolved : Array[String], name : String) -> Bool {
 ///|
 /// Resolves one FROM/JOIN table reference of the trailing INSERT source
 /// against the catalog. A resolved table is recorded by its last identifier
-/// segment; an unresolved table emits exactly one honest gap at the table-ref
+/// segment; an unresolved table emits exactly one honest gap at the table-name_ref
 /// span (requires-catalog when no catalog was injected, unresolved-reference
 /// otherwise) so lineage never fabricates a source edge for it (CR-01 / SC2).
 fn[T : @analyzer.Catalog] resolve_from_source(
@@ -167,7 +167,7 @@ fn[T : @analyzer.Catalog] resolve_from_source(
     return
   }
   let name_ref = match item.name {
-    Some(ref) => ref
+    Some(name_ref) => name_ref
     None => return
   }
   let n = name_ref.parts.length()
@@ -270,12 +270,12 @@ fn branch_has_resolved_from(
 /// resolved FROM/JOIN table in the branch.
 fn source_ref_resolved(
   branch : @analyzer.SelectCore,
-  ref : @analyzer.NameRef,
+  name_ref : @analyzer.NameRef,
   resolved : Array[String],
 ) -> Bool {
-  let n = ref.parts.length()
+  let n = name_ref.parts.length()
   if n >= 2 {
-    source_resolved(resolved, identifier_text(ref.parts[n - 2].bytes))
+    source_resolved(resolved, identifier_text(name_ref.parts[n - 2].bytes))
   } else {
     branch_has_resolved_from(branch, resolved)
   }
@@ -325,22 +325,22 @@ fn[T : @analyzer.Catalog] derive_insert_source_edges(
           star_seen = true
         }
       } else {
-        for ref in item.refs {
-          if !source_ref_resolved(branch, ref, resolved) {
+        for name_ref in item.refs {
+          if !source_ref_resolved(branch, name_ref, resolved) {
             continue
           }
           let binding = column_binding_at(
             bindings,
-            ref.start_byte,
-            ref.end_byte,
+            name_ref.start_byte,
+            name_ref.end_byte,
           )
           let source_name = match binding {
             Some(b) => b.name
-            None => ref_last_part(ref)
+            None => ref_last_part(name_ref)
           }
           let source_resolved = match binding {
             Some(b) => b.resolved_to
-            None => ref_last_part(ref)
+            None => ref_last_part(name_ref)
           }
           let target = if pos < target_cols.length() {
             target_cols[pos]
@@ -350,8 +350,8 @@ fn[T : @analyzer.Catalog] derive_insert_source_edges(
           edges.push({
             source_name,
             source_resolved_to: source_resolved,
-            source_start_byte: ref.start_byte,
-            source_end_byte: ref.end_byte,
+            source_start_byte: name_ref.start_byte,
+            source_end_byte: name_ref.end_byte,
             target_name: target.0,
             target_start_byte: target.1,
             target_end_byte: target.2,
@@ -397,7 +397,7 @@ fn[T : @analyzer.Catalog] derive_insert_body(
     return (edges, gaps)
   }
   let target_ref = match @analyzer.qualified_ref_at(tokens, prefix) {
-    Some((ref, _)) => ref
+    Some((name_ref, _)) => name_ref
     None => return (edges, gaps)
   }
   let target_table = dotted_name(target_ref)

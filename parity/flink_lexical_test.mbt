@@ -28,10 +28,10 @@
 /// when the Flink grammar lands (Phase 11): decide then whether `N..N` should
 /// be split per Calcite or remain a number error.
 pub(all) struct FlinkLexicalFixture {
-  pub fixture_id : String
-  pub dialect : String
-  pub profile : String
-  pub raw : Bytes
+  fixture_id : String
+  dialect : String
+  profile : String
+  raw : Bytes
 }
 
 ///|

@@ -50,14 +50,14 @@ pub(all) struct NameRef {
 
 ///|
 /// One SELECT-list item: the expression token slices, the optional AS/bare
-/// alias, and whether the item is a star projection (`*`, `t.*`, `db.t.*`).
+/// alias_name, and whether the item is a star projection (`*`, `t.*`, `db.t.*`).
 /// `star_qualifier` holds the dotted name before `.*` (None for a bare `*`);
 /// `except_cols` holds the `EXCEPT (cols)` exclusion list token slices (empty
 /// when the item has no EXCEPT modifier — D-03: unquoted ASCII case-fold,
 /// quoted byte-exact, matching find_column_in).
 pub(all) struct SelectItem {
   tokens : Array[TokenSlice]
-  alias : String?
+  alias_name : String?
   alias_slice : TokenSlice?
   star : Bool
   star_qualifier : NameRef?
@@ -66,14 +66,14 @@ pub(all) struct SelectItem {
 }
 
 ///|
-/// One FROM item: a table reference with its alias and optional subquery
+/// One FROM item: a table reference with its alias_name and optional subquery
 /// body. `name` is None for a bare subquery; `is_subquery` distinguishes it.
 /// `join` records how the item attaches to the previous one ("INNER"/"LEFT"/
 /// ... or None for a base/comma-separated ref). `depth` marks the paren depth
 /// at which the item was parsed (0 at the top level; subqueries recurse).
 pub(all) struct FromItem {
   name : NameRef?
-  alias : String?
+  alias_name : String?
   alias_slice : TokenSlice?
   is_subquery : Bool
   subquery : SelectModel?
@@ -82,11 +82,11 @@ pub(all) struct FromItem {
 }
 
 ///|
-/// A CTE definition: name, optional column-name alias list text (`WITH c(x)
+/// A CTE definition: name, optional column-name alias_name list text (`WITH c(x)
 /// AS ...`), and the parsed body core (D-02 scope, Pitfall 4).
 pub(all) struct CteDef {
   name : String
-  alias : String?
+  alias_name : String?
   body : SelectCore
 }
 

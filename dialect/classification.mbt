@@ -24,10 +24,10 @@ pub enum ClassificationKind {
 /// from token/token.mbt renamed to the dialect-neutral KeywordEntry (D-05
 /// keeps the kind name; the row type is shared by both dialects).
 pub struct KeywordEntry {
-  pub word : Bytes
-  pub classification : ClassificationKind
-  pub introduced_profile : String
-  pub source : String
+  word : Bytes
+  classification : ClassificationKind
+  introduced_profile : String
+  source : String
 } derive(Eq, @debug.Debug)
 
 ///|

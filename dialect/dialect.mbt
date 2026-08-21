@@ -24,8 +24,8 @@ pub(all) enum Dialect {
 /// tests, hosts) — cross-package record construction requires pub(all) on the
 /// struct (moon 0.1.20260724).
 pub(all) struct DialectContext {
-  pub dialect : Dialect
-  pub profile_id : String
-  pub exact_release : String
-  pub feature_introduction : String
+  dialect : Dialect
+  profile_id : String
+  exact_release : String
+  feature_introduction : String
 } derive(Eq, @debug.Debug)

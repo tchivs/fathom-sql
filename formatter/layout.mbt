@@ -540,7 +540,7 @@ fn is_identifier_like(raw : Bytes) -> Bool {
 /// sequence — invariant to input whitespace, hence idempotent across passes.
 struct CommaListScan {
   end_index : Int
-  flat_length : Int
+  _flat_length : Int
   break_mode : Bool
   item_starts : Array[Int]
   item_ends : Array[Int]
@@ -664,7 +664,7 @@ fn scan_comma_list(
   }
   {
     end_index: index,
-    flat_length: len,
+    _flat_length: len,
     break_mode: len > options.line_width(),
     item_starts,
     item_ends,

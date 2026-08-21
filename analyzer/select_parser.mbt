@@ -141,7 +141,7 @@ fn is_identifier_token(bytes : Bytes) -> Bool {
 }
 
 ///|
-/// Words that must not be taken as a bare table alias in a FROM item
+/// Words that must not be taken as a bare table alias_name in a FROM item
 /// (JOIN structure, clause boundaries, table options).
 fn is_from_suffix_word(bytes : Bytes) -> Bool {
   is_boundary_word(bytes) ||
@@ -154,9 +154,9 @@ fn is_from_suffix_word(bytes : Bytes) -> Bool {
 
 ///|
 /// True when `tokens[index]` starts a FROM-suffix boundary that must not be
-/// consumed as a bare table/subquery alias: a boundary/suffix word, or
+/// consumed as a bare table/subquery alias_name: a boundary/suffix word, or
 /// GROUP/ORDER when followed by BY (Pitfall 2). `SELECT a FROM t ORDER BY a`
-/// must not bind `ORDER` as an alias of `t`.
+/// must not bind `ORDER` as an alias_name of `t`.
 fn is_from_clause_boundary(
   tokens : Array[(Bytes, Int, Int)],
   index : Int,
@@ -377,7 +377,7 @@ pub fn collect_refs(tokens : Array[TokenSlice]) -> Array[NameRef] {
 ///|
 /// True when `bytes` is an infix operator token (arithmetic, comparison, or
 /// logical). Used to reject trailing bare aliases for binary expressions
-/// (CR-01): `SELECT price * qty` must not bind `qty` as an alias.
+/// (CR-01): `SELECT price * qty` must not bind `qty` as an alias_name.
 fn is_infix_operator(bytes : Bytes) -> Bool {
   bytes == b"+" ||
   bytes == b"-" ||
@@ -407,7 +407,7 @@ fn is_infix_operator(bytes : Bytes) -> Bool {
 /// True when a paren-depth-0 infix operator appears in `tokens`. Operators
 /// inside parenthesized subexpressions (e.g. the `*` in `count(*)` or `+` in
 /// `(a + b)`) are not at the top level and do not disqualify a trailing bare
-/// alias (CR-01).
+/// alias_name (CR-01).
 fn has_top_level_operator(tokens : Array[TokenSlice]) -> Bool {
   let mut depth = 0
   for t in tokens {
@@ -427,7 +427,7 @@ fn has_top_level_operator(tokens : Array[TokenSlice]) -> Bool {
 
 ///|
 /// Builds a SelectItem from one comma-delimited projection slice: splits the
-/// AS alias at the first top-level AS, detects a trailing bare alias, marks
+/// AS alias_name at the first top-level AS, detects a trailing bare alias_name, marks
 /// star projections (`*`, `t.*`, `db.t.*`, `* EXCEPT (cols)`), and extracts
 /// the expression's name references.
 fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
@@ -450,7 +450,7 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
     i = i + 1
   }
   let mut body_tokens : Array[TokenSlice] = []
-  let mut alias : String? = None
+  let mut alias_name : String? = None
   let mut alias_slice : TokenSlice? = None
   if as_index >= 0 {
     for j in 0..<as_index {
@@ -458,19 +458,19 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
     }
     if as_index + 1 < tokens.length() {
       let a = tokens[as_index + 1]
-      alias = Some(identifier_text(a.bytes))
+      alias_name = Some(identifier_text(a.bytes))
       alias_slice = Some(a)
     }
   } else {
     body_tokens = tokens
   }
-  // Trailing bare alias (only when the expression has at least one token
+  // Trailing bare alias_name (only when the expression has at least one token
   // before it, the last token is identifier-like and not preceded by `.`,
   // and no paren-depth-0 infix operator precedes it). CR-01: `SELECT price *
-  // qty` / `a + b` / `a >= b` must NOT bind the right operand as an alias —
+  // qty` / `a + b` / `a >= b` must NOT bind the right operand as an alias_name —
   // a top-level infix operator means the trailing identifier is the right
-  // operand of a binary expression, not an implicit alias. `count(*) x` and
-  // `(a + b) c` still alias (their operators sit inside parens).
+  // operand of a binary expression, not an implicit alias_name. `count(*) x` and
+  // `(a + b) c` still alias_name (their operators sit inside parens).
   if as_index < 0 && body_tokens.length() >= 2 {
     let last = body_tokens[body_tokens.length() - 1]
     let prev = body_tokens[body_tokens.length() - 2]
@@ -482,7 +482,7 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
         prefix.push(body_tokens[j])
       }
       if !has_top_level_operator(prefix) {
-        alias = Some(identifier_text(last.bytes))
+        alias_name = Some(identifier_text(last.bytes))
         alias_slice = Some(last)
         body_tokens = prefix
       }
@@ -557,7 +557,7 @@ fn build_select_item(tokens : Array[TokenSlice]) -> SelectItem {
   let refs = if star { [] } else { collect_refs(body_tokens) }
   {
     tokens: body_tokens,
-    alias,
+    alias_name,
     alias_slice,
     star,
     star_qualifier,
@@ -923,7 +923,7 @@ fn parse_from_item(
   if index >= end {
     return None
   }
-  // Subquery: `( query )` with an optional alias.
+  // Subquery: `( query )` with an optional alias_name.
   if tokens[index].0 == b"(" {
     let close = matching_paren(tokens, index)
     if close >= end {
@@ -935,12 +935,12 @@ fn parse_from_item(
     match parse_model(tokens, index + 1, close, nest + 1) {
       Some(model) => {
         let mut after = close + 1
-        let mut alias : String? = None
+        let mut alias_name : String? = None
         let mut alias_slice : TokenSlice? = None
         if after < end && bytes_equal_ci(tokens[after].0, b"AS") {
           after = after + 1
           if after < end && is_identifier_token(tokens[after].0) {
-            alias = Some(identifier_text(tokens[after].0))
+            alias_name = Some(identifier_text(tokens[after].0))
             alias_slice = Some({
               bytes: tokens[after].0,
               start_byte: tokens[after].1,
@@ -951,7 +951,7 @@ fn parse_from_item(
         } else if after < end &&
           is_identifier_token(tokens[after].0) &&
           !is_from_clause_boundary(tokens, after) {
-          alias = Some(identifier_text(tokens[after].0))
+          alias_name = Some(identifier_text(tokens[after].0))
           alias_slice = Some({
             bytes: tokens[after].0,
             start_byte: tokens[after].1,
@@ -963,7 +963,7 @@ fn parse_from_item(
           (
             {
               name: None,
-              alias,
+              alias_name,
               alias_slice,
               is_subquery: true,
               subquery: Some(model),
@@ -1008,12 +1008,12 @@ fn parse_from_item(
     end_byte: parts[parts.length() - 1].end_byte,
   }
   // Alias.
-  let mut alias : String? = None
+  let mut alias_name : String? = None
   let mut alias_slice : TokenSlice? = None
   if after < end && bytes_equal_ci(tokens[after].0, b"AS") {
     after = after + 1
     if after < end && is_identifier_token(tokens[after].0) {
-      alias = Some(identifier_text(tokens[after].0))
+      alias_name = Some(identifier_text(tokens[after].0))
       alias_slice = Some({
         bytes: tokens[after].0,
         start_byte: tokens[after].1,
@@ -1024,7 +1024,7 @@ fn parse_from_item(
   } else if after < end &&
     is_identifier_token(tokens[after].0) &&
     !is_from_clause_boundary(tokens, after) {
-    alias = Some(identifier_text(tokens[after].0))
+    alias_name = Some(identifier_text(tokens[after].0))
     alias_slice = Some({
       bytes: tokens[after].0,
       start_byte: tokens[after].1,
@@ -1063,7 +1063,7 @@ fn parse_from_item(
     (
       {
         name: Some(name_ref),
-        alias,
+        alias_name,
         alias_slice,
         is_subquery: false,
         subquery: None,
@@ -1183,7 +1183,7 @@ fn parse_cte_prefix(
     let name = identifier_text(tokens[index].0)
     index = index + 1
     // Optional column-name list `(c1, c2)`.
-    let mut alias : String? = None
+    let mut alias_name : String? = None
     if index < end && tokens[index].0 == b"(" {
       let close = matching_paren(tokens, index)
       if close >= end {
@@ -1195,7 +1195,7 @@ fn parse_cte_prefix(
           parts.push(identifier_text(tokens[j].0))
         }
       }
-      alias = Some(join_strings(parts, ","))
+      alias_name = Some(join_strings(parts, ","))
       index = close + 1
     }
     if index >= end || !bytes_equal_ci(tokens[index].0, b"AS") {
@@ -1218,7 +1218,7 @@ fn parse_cte_prefix(
         if model.branches.length() == 0 {
           return None
         }
-        ctes.push({ name, alias, body: model.branches[0] })
+        ctes.push({ name, alias_name, body: model.branches[0] })
         index = close + 1
       }
       None => return None

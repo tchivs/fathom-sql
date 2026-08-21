@@ -10,9 +10,9 @@ pub enum RpcId {
 
 ///|
 pub(all) struct RpcMessage {
-  pub id : RpcId?
-  pub method : String
-  pub params : Json?
+  id : RpcId?
+  method_name : String
+  params : Json?
 }
 
 ///|
@@ -25,7 +25,7 @@ fn field(value : Json, key : String) -> Json? {
 
 ///|
 pub fn has_field(value : Json, key : String) -> Bool {
-  field(value, key).is_some()
+  field(value, key) is Some(_)
 }
 
 ///|
@@ -90,22 +90,22 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
   if version != "2.0" {
     return Err("unsupported JSON-RPC version")
   }
-  let method = match object.get("method") {
-    Some(String(method)) => method
+  let method_name = match object.get("method") {
+    Some(String(method_name)) => method_name
     _ => return Err("JSON-RPC message is missing method")
   }
   let id = match object.get("id") {
     Some(value) => decode_id(value)
     None => None
   }
-  if object.get("id").is_some() && id.is_none() {
+  if object.get("id") is Some(_) && id.is_none() {
     return Err("invalid JSON-RPC id")
   }
   let params = match object.get("params") {
     Some(Null) | None => None
     Some(value) => Some(value)
   }
-  Ok({ id, method, params })
+  Ok({ id, method_name, params })
 }
 
 ///|
@@ -141,10 +141,10 @@ pub fn error_response(id : RpcId, code : Int, message : String) -> Bytes {
 }
 
 ///|
-pub fn notification(method : String, params : Json) -> Bytes {
+pub fn notification(method_name : String, params : Json) -> Bytes {
   let value : Json = {
     "jsonrpc": Json::string("2.0"),
-    "method": Json::string(method),
+    "method": Json::string(method_name),
     "params": params,
   }
   @utf8.encode(value.stringify())

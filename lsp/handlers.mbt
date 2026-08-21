@@ -16,8 +16,8 @@
 /// for doris; flink-2.3.0/2.1.3/1.20.5 for flink, Phase 10 D-01 — the parse is
 /// the explicit not-implemented route).
 pub struct DialectSelection {
-  pub dialect : String
-  pub profile : String
+  dialect : String
+  profile : String
 } derive(Eq, @debug.Debug)
 
 ///|
@@ -33,25 +33,25 @@ pub enum SelectionError {
 
 ///|
 pub(all) struct ServerState {
-  pub mut docs : DocumentStore
+  mut docs : DocumentStore
   // Workspace/session explicit defaults (D-01 seam): set by serve_stdio from
   // the CLI's --dialect/--profile, or by initialize's initializationOptions.
-  pub mut default_dialect : String?
-  pub mut default_profile : String?
+  mut default_dialect : String?
+  mut default_profile : String?
   // User-configured languageId -> selection table (D-02): participates ONLY
   // when a client supplies it via the fathom settings section
   // (workspace/didChangeConfiguration or workspace/configuration).
-  pub mut language_mapping : Map[String, DialectSelection]?
+  mut language_mapping : Map[String, DialectSelection]?
   // Optional workspace/configuration pull correlation: the pending
   // server-to-client request id awaiting the settings response.
-  pub mut pending_config_request : RpcId?
+  mut pending_config_request : RpcId?
   // Monotonically increasing id source for server-initiated requests
   // (IN-04a): every server->client request gets a session-unique id so a
   // future second server request cannot collide with the configuration pull.
-  pub mut next_server_request_id : Int
-  pub mut initialized : Bool
-  pub mut shutdown : Bool
-  pub mut exited : Bool
+  mut next_server_request_id : Int
+  mut initialized : Bool
+  mut shutdown : Bool
+  mut exited : Bool
 }
 
 ///|
@@ -938,7 +938,7 @@ pub fn handle_message(
   state : ServerState,
   message : RpcMessage,
 ) -> Array[Bytes] {
-  match message.method {
+  match message.method_name {
     "initialize" => {
       let id = match message.id {
         Some(id) => id

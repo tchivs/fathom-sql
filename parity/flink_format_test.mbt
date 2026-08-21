@@ -20,10 +20,10 @@
 /// T-03-01). The covered-set completeness probe machine-checks
 /// formatter.flink_statement_covered against the Flink parser's emit set.
 pub(all) struct FlinkFormatFixture {
-  pub fixture_id : String
-  pub profile : String
-  pub raw : Bytes
-  pub expected_refused : Bool
+  fixture_id : String
+  profile : String
+  raw : Bytes
+  expected_refused : Bool
 }
 
 ///|

@@ -78,7 +78,7 @@ test "public-surface select-model end-to-end" {
   assert_eq(model.branches.length(), 1)
   assert_eq(model.branches[0].select_list.length(), 1)
   assert_eq(model.branches[0].select_list[0].refs.length(), 2)
-  assert_eq(model.branches[0].select_list[0].alias, Some("x"))
+  assert_eq(model.branches[0].select_list[0].alias_name, Some("x"))
 }
 
 ///|

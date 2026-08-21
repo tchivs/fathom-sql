@@ -20,10 +20,10 @@ pub(all) enum TokenKind {
 
 ///|
 pub(all) struct Token {
-  pub kind : TokenKind
-  pub span : @source.Span
-  pub context : @dialect.DialectContext
-  pub diagnostic_code : String?
+  kind : TokenKind
+  span : @source.Span
+  context : @dialect.DialectContext
+  diagnostic_code : String?
 }
 
 ///|
@@ -46,10 +46,10 @@ pub fn Token::is_error(self : Token) -> Bool {
 
 ///|
 pub(all) struct TokenStream {
-  pub source : @source.SourceText
-  pub context : @dialect.DialectContext
-  pub tokens : Array[Token]
-  pub truncated_at : Int?
+  source : @source.SourceText
+  context : @dialect.DialectContext
+  tokens : Array[Token]
+  truncated_at : Int?
 }
 
 ///|

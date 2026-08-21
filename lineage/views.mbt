@@ -8,7 +8,7 @@
 ///
 /// Registry build: each CREATE VIEW body is located via the analyzer's public
 /// `view_body_location`, re-parsed with `split_select_model`, and its first
-/// branch's output columns are computed (alias -> single-ref column name ->
+/// branch's output columns are computed (alias -> single-name_ref column name ->
 /// star-expanded bindings from a pass-1 analysis). View chains whose bodies
 /// reference earlier views resolve through the accumulating registry at
 /// analysis time; a star-over-view in a registry build (pass 1 uses only the
@@ -47,7 +47,7 @@ fn view_prefix_end(tokens : Array[(Bytes, Int, Int)]) -> Int {
 fn view_name(tokens : Array[(Bytes, Int, Int)]) -> String? {
   let prefix = view_prefix_end(tokens)
   match @analyzer.qualified_ref_at(tokens, prefix) {
-    Some((ref, _)) => Some(dotted_name(ref))
+    Some((name_ref, _)) => Some(dotted_name(name_ref))
     None => None
   }
 }
@@ -70,9 +70,9 @@ fn view_column_list(tokens : Array[(Bytes, Int, Int)]) -> Array[String]? {
         let slices = @analyzer.slice_tokens(tokens, after_name + 1, close)
         let refs = @analyzer.collect_refs(slices)
         let out : Array[String] = []
-        for ref in refs {
-          if ref.parts.length() > 0 {
-            out.push(identifier_text(ref.parts[0].bytes))
+        for name_ref in refs {
+          if name_ref.parts.length() > 0 {
+            out.push(identifier_text(name_ref.parts[0].bytes))
           }
         }
         Some(out)
@@ -85,7 +85,7 @@ fn view_column_list(tokens : Array[(Bytes, Int, Int)]) -> Array[String]? {
 
 ///|
 /// Output columns of a view body's first branch (D-03): explicit column-name
-/// list first (WR-03), else alias, else the single-ref column name, else
+/// list first (WR-03), else alias, else the single-name_ref column name, else
 /// star-expanded Column bindings (from the pass-1 analysis). `data_type` is
 /// "" where unknown.
 fn view_output_columns(
@@ -196,8 +196,8 @@ fn view_lookup(
 /// parsing-time ASCII case-fold with the resolve layer's quoted byte-recheck
 /// against the returned `TableInfo.name`.
 pub struct ViewCatalog[T] {
-  pub views : Map[String, Array[@analyzer.ColumnInfo]]
-  pub inner : T
+  views : Map[String, Array[@analyzer.ColumnInfo]]
+  inner : T
 }
 
 ///|

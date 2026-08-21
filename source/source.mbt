@@ -4,8 +4,8 @@ pub const DEFAULT_MAX_BYTES : Int = 8 * 1024 * 1024
 
 ///|
 pub struct Span {
-  pub start_byte : Int
-  pub end_byte : Int
+  start_byte : Int
+  end_byte : Int
 }
 
 ///|

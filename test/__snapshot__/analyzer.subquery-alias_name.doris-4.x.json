@@ -1,0 +1,10 @@
+{
+  "bindings": [
+    {"kind":"table","name":"t","resolved_to":"t","data_type":"","start_byte":31,"end_byte":32},
+    {"kind":"column","name":"a","resolved_to":"a","data_type":"INT","start_byte":24,"end_byte":25},
+    {"kind":"alias","name":"x","resolved_to":"x","data_type":"","start_byte":34,"end_byte":35},
+    {"kind":"column","name":"a","resolved_to":"a","data_type":"INT","start_byte":7,"end_byte":10}
+  ],
+  "diagnostics": [
+  ]
+}

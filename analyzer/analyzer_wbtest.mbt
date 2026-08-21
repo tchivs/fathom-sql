@@ -225,7 +225,7 @@ test "wb build_select_item binary expr no bare alias" {
     { bytes: b"*", start_byte: 6, end_byte: 7 },
     { bytes: b"qty", start_byte: 8, end_byte: 11 },
   ])
-  assert_eq(item.alias, None)
+  assert_eq(item.alias_name, None)
   assert_eq(item.refs.length(), 2)
   assert_eq(item.refs[0].parts[0].bytes, b"price")
   assert_eq(item.refs[1].parts[0].bytes, b"qty")
@@ -236,7 +236,7 @@ test "wb build_select_item binary expr no bare alias" {
     { bytes: b"+", start_byte: 2, end_byte: 3 },
     { bytes: b"b", start_byte: 4, end_byte: 5 },
   ])
-  assert_eq(item2.alias, None)
+  assert_eq(item2.alias_name, None)
   assert_eq(item2.refs.length(), 2)
   // `a >= b` comparison too.
   let item3 = build_select_item([
@@ -244,7 +244,7 @@ test "wb build_select_item binary expr no bare alias" {
     { bytes: b">=", start_byte: 2, end_byte: 4 },
     { bytes: b"b", start_byte: 5, end_byte: 6 },
   ])
-  assert_eq(item3.alias, None)
+  assert_eq(item3.alias_name, None)
   assert_eq(item3.refs.length(), 2)
 }
 
@@ -255,7 +255,7 @@ test "wb build_select_item bare alias still works" {
     { bytes: b"a", start_byte: 0, end_byte: 1 },
     { bytes: b"b", start_byte: 2, end_byte: 3 },
   ])
-  assert_eq(item.alias, Some("b"))
+  assert_eq(item.alias_name, Some("b"))
   assert_eq(item.refs.length(), 1)
   assert_eq(item.refs[0].parts[0].bytes, b"a")
   // `t.a b` — qualified ref + implicit alias.
@@ -265,7 +265,7 @@ test "wb build_select_item bare alias still works" {
     { bytes: b"a", start_byte: 2, end_byte: 3 },
     { bytes: b"b", start_byte: 4, end_byte: 5 },
   ])
-  assert_eq(item2.alias, Some("b"))
+  assert_eq(item2.alias_name, Some("b"))
   assert_eq(item2.refs.length(), 1)
   assert_eq(item2.refs[0].parts.length(), 2)
   // `count(*) x` — the `*` sits inside the call parens, so x is still an
@@ -277,7 +277,7 @@ test "wb build_select_item bare alias still works" {
     { bytes: b")", start_byte: 7, end_byte: 8 },
     { bytes: b"x", start_byte: 9, end_byte: 10 },
   ])
-  assert_eq(item3.alias, Some("x"))
+  assert_eq(item3.alias_name, Some("x"))
   assert_eq(item3.refs.length(), 1)
   assert_true(item3.refs[0].is_call)
 }
@@ -292,7 +292,7 @@ test "wb from order by not table alias" {
     Some(model) => {
       let core = model.branches[0]
       assert_eq(core.from.length(), 1)
-      assert_eq(core.from[0].alias, None)
+      assert_eq(core.from[0].alias_name, None)
       assert_eq(core.order_by.length(), 1)
     }
     None => panic()
@@ -303,7 +303,7 @@ test "wb from order by not table alias" {
     Some(model) => {
       let core = model.branches[0]
       assert_eq(core.from.length(), 1)
-      assert_eq(core.from[0].alias, None)
+      assert_eq(core.from[0].alias_name, None)
       assert_eq(core.group_by.length(), 1)
     }
     None => panic()
@@ -314,7 +314,7 @@ test "wb from order by not table alias" {
     Some(model) => {
       let core = model.branches[0]
       assert_eq(core.from.length(), 1)
-      assert_eq(core.from[0].alias, Some("order"))
+      assert_eq(core.from[0].alias_name, Some("order"))
     }
     None => panic()
   }

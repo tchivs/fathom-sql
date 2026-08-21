@@ -1,8 +1,12 @@
 pkgtype(kind: "executable")
 
 import {
-  "fathom/sql/api",
   "fathom/sql/binding",
+  "moonbitlang/core/encoding/utf8",
+}
+
+import {
+  "fathom/sql/api",
   "fathom/sql/completion",
   "fathom/sql/source",
   "fathom/sql/dialect",
@@ -10,10 +14,6 @@ import {
   "fathom/sql/printer",
   "fathom/sql/syntax",
   "fathom/sql/formatter",
-  "moonbitlang/core/encoding/utf8",
-}
-
-import {
   "moonbitlang/core/test",
 } for "test"
 

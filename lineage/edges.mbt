@@ -22,17 +22,17 @@ fn utf8_to_string(bytes : Bytes) -> String {
   while i < len {
     let first = bytes[i].to_int()
     if first < 0x80 {
-      chars.push(Char::from_int(first))
+      chars.push(Int::unsafe_to_char(first))
       i = i + 1
     } else if first >= 0xC2 && first < 0xE0 && i + 1 < len {
       let second = bytes[i + 1].to_int()
-      chars.push(Char::from_int(((first & 0x1F) << 6) | (second & 0x3F)))
+      chars.push(Int::unsafe_to_char(((first & 0x1F) << 6) | (second & 0x3F)))
       i = i + 2
     } else if first >= 0xE0 && first < 0xF0 && i + 2 < len {
       let second = bytes[i + 1].to_int()
       let third = bytes[i + 2].to_int()
       chars.push(
-        Char::from_int(
+        Int::unsafe_to_char(
           ((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F),
         ),
       )
@@ -42,7 +42,7 @@ fn utf8_to_string(bytes : Bytes) -> String {
       let third = bytes[i + 2].to_int()
       let fourth = bytes[i + 3].to_int()
       chars.push(
-        Char::from_int(
+        Int::unsafe_to_char(
           ((first & 0x07) << 18) |
           ((second & 0x3F) << 12) |
           ((third & 0x3F) << 6) |
@@ -51,7 +51,7 @@ fn utf8_to_string(bytes : Bytes) -> String {
       )
       i = i + 4
     } else {
-      chars.push(Char::from_int(0xFFFD))
+      chars.push(Int::unsafe_to_char(0xFFFD))
       i = i + 1
     }
   }
@@ -116,9 +116,9 @@ fn join_strings(parts : Array[String], sep : String) -> String {
 
 ///|
 /// Dotted display name of a NameRef (identifier segments joined by `.`).
-fn dotted_name(ref : @analyzer.NameRef) -> String {
+fn dotted_name(name_ref : @analyzer.NameRef) -> String {
   let parts : Array[String] = []
-  for p in ref.parts {
+  for p in name_ref.parts {
     parts.push(identifier_text(p.bytes))
   }
   join_strings(parts, ".")
@@ -126,12 +126,12 @@ fn dotted_name(ref : @analyzer.NameRef) -> String {
 
 ///|
 /// Last identifier segment of a NameRef (the column name for `t.c`).
-fn ref_last_part(ref : @analyzer.NameRef) -> String {
-  let n = ref.parts.length()
+fn ref_last_part(name_ref : @analyzer.NameRef) -> String {
+  let n = name_ref.parts.length()
   if n == 0 {
     ""
   } else {
-    identifier_text(ref.parts[n - 1].bytes)
+    identifier_text(name_ref.parts[n - 1].bytes)
   }
 }
 
@@ -243,10 +243,12 @@ fn first_resolved_column(
   item : @analyzer.SelectItem,
   bindings : Array[@analyzer.Binding],
 ) -> (String, Int, Int)? {
-  for ref in item.refs {
-    match column_binding_at(bindings, ref.start_byte, ref.end_byte) {
+  for name_ref in item.refs {
+    match column_binding_at(bindings, name_ref.start_byte, name_ref.end_byte) {
       Some(binding) =>
-        return Some((binding.resolved_to, ref.start_byte, ref.end_byte))
+        return Some(
+          (binding.resolved_to, name_ref.start_byte, name_ref.end_byte),
+        )
       None => ()
     }
   }
@@ -255,19 +257,19 @@ fn first_resolved_column(
 
 ///|
 /// The output column (name, start, end) of one non-star SelectItem, matching
-/// the analyzer's own output-column derivation (Pattern 1 / A4): alias ->
-/// alias slice; single ref -> resolved column (ref span); multi-ref -> first
-/// resolved ref with the item expression span; no resolved column -> first
-/// ref's last part (source spelling).
+/// the analyzer's own output-column derivation (Pattern 1 / A4): alias_name ->
+/// alias_name slice; single name_ref -> resolved column (name_ref span); multi-name_ref -> first
+/// resolved name_ref with the item expression span; no resolved column -> first
+/// name_ref's last part (source spelling).
 fn item_target(
   item : @analyzer.SelectItem,
   bindings : Array[@analyzer.Binding],
 ) -> (String, Int, Int) {
-  match item.alias {
-    Some(alias) =>
+  match item.alias_name {
+    Some(alias_name) =>
       match item.alias_slice {
-        Some(slice) => (alias, slice.start_byte, slice.end_byte)
-        None => (alias, 0, 0)
+        Some(slice) => (alias_name, slice.start_byte, slice.end_byte)
+        None => (alias_name, 0, 0)
       }
     None =>
       if item.star {
@@ -293,8 +295,8 @@ fn item_target(
             }
           None =>
             if item.refs.length() > 0 {
-              let ref = item.refs[0]
-              (ref_last_part(ref), ref.start_byte, ref.end_byte)
+              let name_ref = item.refs[0]
+              (ref_last_part(name_ref), name_ref.start_byte, name_ref.end_byte)
             } else {
               ("", 0, 0)
             }
@@ -342,7 +344,7 @@ fn output_names(
 
 ///|
 /// Qualifies an output column name with a nested-body qualifier (CTE name,
-/// view name, or subquery alias): `c.a` / `v.a` / `s.a`. None returns the
+/// view name, or subquery alias_name): `c.a` / `v.a` / `s.a`. None returns the
 /// plain name.
 fn qualify(name : String, qualifier : String?) -> String {
   match qualifier {
@@ -417,8 +419,9 @@ fn derive_item(
     let final_name = qualify(target_name, qualifier)
     // D-01 expression passthrough: every resolved column reference in the
     // output-column expression contributes one edge to that output column.
-    for ref in item.refs {
-      match column_binding_at(bindings, ref.start_byte, ref.end_byte) {
+    for name_ref in item.refs {
+      match
+        column_binding_at(bindings, name_ref.start_byte, name_ref.end_byte) {
         Some(binding) =>
           out_edges.push({
             source_name: binding.name,
@@ -458,7 +461,7 @@ fn derive_core(
               model,
               bindings,
               catalog_none,
-              item.alias,
+              item.alias_name,
               body_has_table_binding,
               out_edges,
               out_gaps,
@@ -477,7 +480,7 @@ fn derive_core(
               model,
               bindings,
               catalog_none,
-              item.alias,
+              item.alias_name,
               body_has_table_binding,
               out_edges,
               out_gaps,

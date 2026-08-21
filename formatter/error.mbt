@@ -16,13 +16,13 @@ pub enum FormatError {
 /// shape, api.mbt:149-157). `pub(all)` so the api facade can construct it
 /// cross-package (moon 0.1.20260724: literal construction requires all-public).
 pub(all) struct FormatDiagnostic {
-  pub severity : String
-  pub code : String
-  pub message : String
-  pub expected_class : String
-  pub start_byte : Int
-  pub end_byte : Int
-  pub statement_id : UInt
+  severity : String
+  code : String
+  message : String
+  expected_class : String
+  start_byte : Int
+  end_byte : Int
+  statement_id : UInt
 }
 
 ///|
@@ -31,8 +31,8 @@ pub(all) struct FormatDiagnostic {
 /// statement_offsets carries the per-statement output byte offset (research
 /// Open Question 5, Phase 4 ECO-02 range edits).
 pub(all) struct FormatResult {
-  pub accepted : Bool
-  pub output : Bytes
-  pub diagnostics : Array[FormatDiagnostic]
-  pub statement_offsets : Array[Int]
+  accepted : Bool
+  output : Bytes
+  diagnostics : Array[FormatDiagnostic]
+  statement_offsets : Array[Int]
 }

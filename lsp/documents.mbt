@@ -4,22 +4,22 @@
 /// parse/format/completion call uses the document's context, never a global
 /// ServerState selection.
 pub(all) struct Document {
-  pub uri : String
-  pub version : Int
-  pub text : Bytes
-  pub dialect : String
-  pub profile : String
+  uri : String
+  version : Int
+  text : Bytes
+  dialect : String
+  profile : String
   // Which D-01 priority source produced the resolved selection:
   // "document" (didOpen/didChange extension fields), "workspace"
   // (initializationOptions/serve_stdio default), or "language"
   // (user-configured languageId mapping). A workspace-default change only
   // re-resolves documents whose context did NOT come from document-level
   // explicit config.
-  pub selection_source : String
+  selection_source : String
   // The languageId the client declared at didOpen (LSP standard field), used
   // to re-resolve through the user-configured language mapping when settings
   // change (D-01 level 3, D-03).
-  pub language_id : String?
+  language_id : String?
 }
 
 ///|

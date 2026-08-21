@@ -2,14 +2,14 @@
 ///
 /// `analyze` walks a parsed document's Statement children, re-parses each
 /// SELECT body via select_parser.mbt into a `SelectModel`, and resolves
-/// table/column/CTE/alias/function references against the injected catalog
+/// table/column/CTE/alias_name/function references against the injected catalog
 /// with a scope stack (D-02/D-04/D-05):
 /// - Entering a CTE body or subquery pushes a fresh scope frame; leaving pops
 ///   it (Pitfall 4). CTE names are visible and take precedence over catalog
 ///   tables; same-name entries resolve inner-first.
 /// - Table aliases take precedence over catalog table names; qualified names
-///   resolve their first segment as alias → table (default db) → db
-///   (Pitfall 3), so `db.table.col` (3 parts), `alias.col`/`db.table`
+///   resolve their first segment as alias_name → table (default db) → db
+///   (Pitfall 3), so `db.table.col` (3 parts), `alias_name.col`/`db.table`
 ///   (2 parts) and `col`/`table` (1 part) all resolve.
 /// - `*`/`table.*` star expansion happens only over already-resolved
 ///   tables/aliases (D-05); unresolved tables emit unknown-table diagnostics.
@@ -32,13 +32,13 @@ enum ScopeKind {
 } derive(Eq)
 
 ///|
-/// One visible name in the current scope: the lookup key (alias if present,
+/// One visible name in the current scope: the lookup key (alias_name if present,
 /// else the table/CTE name as spelled), the effective columns, and display
 /// metadata for bindings. `block` is the query-block sequence number (the
 /// scope length when the owning core began resolving) used to keep correlated
 /// subquery scoping correct (WR-04): unqualified columns resolve against the
 /// current block first and only fall back to outer blocks.
-struct ScopeEntry {
+priv struct ScopeEntry {
   key : String
   kind : ScopeKind
   columns : Array[ColumnInfo]
@@ -191,10 +191,10 @@ fn[T : Catalog] resolve_table_with_quoted(
 /// was quoted. 2+ parts use `table_in_db` (D-05); the trailing table part is
 /// byte-re-checked when quoted (D-03).
 fn[T : Catalog] resolve_table_name_ref(
-  ref : NameRef,
+  name_ref : NameRef,
   catalog : T,
 ) -> (TableInfo, Bool)? {
-  let parts = ref.parts
+  let parts = name_ref.parts
   let n = parts.length()
   if n == 0 {
     return None
@@ -228,7 +228,7 @@ fn[T : Catalog] resolve_table_name_ref(
 }
 
 ///|
-/// Resolves a scope entry from a FROM item: catalog tables (with alias
+/// Resolves a scope entry from a FROM item: catalog tables (with alias_name
 /// precedence), CTE references, and subquery aliases. Appends bindings and
 /// scope entries; emits unknown-table diagnostics for unresolved names.
 /// `block` is this query core's block number (WR-04): every entry pushed by
@@ -247,8 +247,8 @@ fn[T : Catalog] resolve_from_item(
       None => return
     }
     let columns = resolve_model(model, catalog, scope, bindings, diagnostics)
-    match item.alias {
-      Some(alias) => {
+    match item.alias_name {
+      Some(alias_name) => {
         let start = match item.alias_slice {
           Some(s) => s.start_byte
           None => 0
@@ -259,17 +259,17 @@ fn[T : Catalog] resolve_from_item(
         }
         bindings.push({
           kind: BindingKind::Alias,
-          name: alias,
-          resolved_to: alias,
+          name: alias_name,
+          resolved_to: alias_name,
           data_type: "",
           start_byte: start,
           end_byte: end,
         })
         scope.push({
-          key: alias,
+          key: alias_name,
           kind: ScopeKind::Subquery,
           columns,
-          display: alias,
+          display: alias_name,
           is_quoted: false,
           block,
         })
@@ -330,8 +330,8 @@ fn[T : Catalog] resolve_from_item(
         start_byte: name_ref.start_byte,
         end_byte: name_ref.end_byte,
       })
-      match item.alias {
-        Some(alias) => {
+      match item.alias_name {
+        Some(alias_name) => {
           let start = match item.alias_slice {
             Some(s) => s.start_byte
             None => name_ref.end_byte
@@ -342,14 +342,14 @@ fn[T : Catalog] resolve_from_item(
           }
           bindings.push({
             kind: BindingKind::Alias,
-            name: alias,
+            name: alias_name,
             resolved_to: display,
             data_type: "",
             start_byte: start,
             end_byte: end,
           })
           scope.push({
-            key: alias,
+            key: alias_name,
             kind: ScopeKind::Table,
             columns: info.columns,
             display,
@@ -434,7 +434,7 @@ fn emit_star_columns(
 ///|
 /// Expands a star projection (D-05): bare `*` expands every scope entry's
 /// columns; `t.*`/`db.t.*` expand the named table's columns. `star_start`/
-/// `star_end` carry the span of the `*` (or its qualified ref) for bindings.
+/// `star_end` carry the span of the `*` (or its qualified name_ref) for bindings.
 /// `except_cols` carries the `* EXCEPT (cols)` exclusion list (D-03): excluded
 /// columns produce no binding — the analyzer never fabricates an edge for a
 /// column the projection explicitly removes.
@@ -454,16 +454,16 @@ fn[T : Catalog] expand_star(
       for entry in scope {
         // WR-05: anonymous subqueries (key == "") participate in bare `*`
         // expansion — `SELECT * FROM (SELECT a FROM t)` must emit the
-        // subquery's columns. Only qualified/alias lookups skip empty keys.
+        // subquery's columns. Only qualified/alias_name lookups skip empty keys.
         emit_star_columns(
           entry, star_start, star_end, bindings, out, except_cols,
         )
       }
-    Some(ref) => {
-      let n = ref.parts.length()
+    Some(name_ref) => {
+      let n = name_ref.parts.length()
       if n == 1 {
-        let name_text = identifier_text(ref.parts[0].bytes)
-        let quoted = is_quoted(ref.parts[0].bytes)
+        let name_text = identifier_text(name_ref.parts[0].bytes)
+        let quoted = is_quoted(name_ref.parts[0].bytes)
         match find_scope_entry(scope, name_text, quoted) {
           Some(entry) =>
             emit_star_columns(
@@ -491,15 +491,15 @@ fn[T : Catalog] expand_star(
                 diagnostics.push({
                   code: "unknown-table",
                   message: "table not found in catalog: \{name_text}",
-                  start_byte: ref.start_byte,
-                  end_byte: ref.end_byte,
+                  start_byte: name_ref.start_byte,
+                  end_byte: name_ref.end_byte,
                 })
             }
         }
       } else if n >= 2 {
-        let db_text = identifier_text(ref.parts[0].bytes)
-        let table_text = identifier_text(ref.parts[1].bytes)
-        let table_quoted = is_quoted(ref.parts[1].bytes)
+        let db_text = identifier_text(name_ref.parts[0].bytes)
+        let table_text = identifier_text(name_ref.parts[1].bytes)
+        let table_quoted = is_quoted(name_ref.parts[1].bytes)
         match Catalog::table_in_db(catalog, db_text, table_text) {
           Some(info) =>
             // WR-01: D-03 quoted byte re-check on the trailing table segment,
@@ -509,8 +509,8 @@ fn[T : Catalog] expand_star(
               diagnostics.push({
                 code: "unknown-table",
                 message: "table not found in catalog: \{db_text}.\{table_text}",
-                start_byte: ref.start_byte,
-                end_byte: ref.end_byte,
+                start_byte: name_ref.start_byte,
+                end_byte: name_ref.end_byte,
               })
             } else {
               emit_star_columns(
@@ -533,8 +533,8 @@ fn[T : Catalog] expand_star(
             diagnostics.push({
               code: "unknown-table",
               message: "table not found in catalog: \{db_text}.\{table_text}",
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
         }
       }
@@ -586,35 +586,35 @@ fn scope_has_visible_columns(scope : Array[ScopeEntry]) -> Bool {
 ///|
 /// Resolves one name reference against the scope and catalog (D-03/D-04):
 /// function calls, star expansion, unqualified columns, and qualified
-/// `alias.col`/`table.col` (2 parts) or `db.table.col` (3+ parts). Returns the
-/// resolved ColumnInfo for a plain column ref, None otherwise. `current_block`
+/// `alias_name.col`/`table.col` (2 parts) or `db.table.col` (3+ parts). Returns the
+/// resolved ColumnInfo for a plain column name_ref, None otherwise. `current_block`
 /// is the caller's query-block number (WR-04): unqualified columns resolve
 /// against the current block's entries first, then fall back to outer blocks.
 fn[T : Catalog] resolve_ref(
-  ref : NameRef,
+  name_ref : NameRef,
   scope : Array[ScopeEntry],
   catalog : T,
   current_block : Int,
   bindings : Array[Binding],
   diagnostics : Array[AnalysisDiagnostic],
 ) -> ColumnInfo? {
-  if ref.is_call {
-    if ref.parts.length() == 1 {
-      let name_text = identifier_text(ref.parts[0].bytes)
+  if name_ref.is_call {
+    if name_ref.parts.length() == 1 {
+      let name_text = identifier_text(name_ref.parts[0].bytes)
       match Catalog::function(catalog, name_text) {
         Some(fn_info) => {
           // D-04: arity check — an argument count below min_arity or above
           // param_types.length() is a function-arity diagnostic. The Function
           // binding is still emitted (the name resolved); no expression-level
           // type unification or literal propagation (ANAL-02 out of scope).
-          let arg_count = count_call_args(ref.call_args)
+          let arg_count = count_call_args(name_ref.call_args)
           if arg_count < fn_info.min_arity ||
             arg_count > fn_info.param_types.length() {
             diagnostics.push({
               code: "function-arity",
               message: "function \{name_text} expects between \{fn_info.min_arity} and \{fn_info.param_types.length()} arguments, got \{arg_count}",
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
           }
           bindings.push({
@@ -622,8 +622,8 @@ fn[T : Catalog] resolve_ref(
             name: name_text,
             resolved_to: fn_info.name,
             data_type: fn_info.return_type,
-            start_byte: ref.start_byte,
-            end_byte: ref.end_byte,
+            start_byte: name_ref.start_byte,
+            end_byte: name_ref.end_byte,
           })
           return None
         }
@@ -631,8 +631,8 @@ fn[T : Catalog] resolve_ref(
           diagnostics.push({
             code: "unknown-function",
             message: "function not found in catalog: \{name_text}",
-            start_byte: ref.start_byte,
-            end_byte: ref.end_byte,
+            start_byte: name_ref.start_byte,
+            end_byte: name_ref.end_byte,
           })
           return None
         }
@@ -640,12 +640,12 @@ fn[T : Catalog] resolve_ref(
     }
     return None
   }
-  if ref.star {
+  if name_ref.star {
     ignore(
       expand_star(
-        Some(ref),
-        ref.start_byte,
-        ref.end_byte,
+        Some(name_ref),
+        name_ref.start_byte,
+        name_ref.end_byte,
         scope,
         catalog,
         bindings,
@@ -655,14 +655,14 @@ fn[T : Catalog] resolve_ref(
     )
     return None
   }
-  let parts = ref.parts
+  let parts = name_ref.parts
   let n = parts.length()
   if n == 1 {
     let name_text = identifier_text(parts[0].bytes)
     let quoted = is_quoted(parts[0].bytes)
     // WR-06: projection aliases take precedence over table columns —
-    // `SELECT a AS x FROM t ORDER BY x` must resolve x to the output alias.
-    // Innermost alias wins; a projection alias shadows same-named columns.
+    // `SELECT a AS x FROM t ORDER BY x` must resolve x to the output alias_name.
+    // Innermost alias_name wins; a projection alias_name shadows same-named columns.
     let mut a = scope.length()
     while a > 0 {
       let entry = scope[a - 1]
@@ -674,8 +674,8 @@ fn[T : Catalog] resolve_ref(
               name: name_text,
               resolved_to: col.name,
               data_type: col.data_type,
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
             return Some(col)
           }
@@ -707,16 +707,16 @@ fn[T : Catalog] resolve_ref(
         name: name_text,
         resolved_to: col.name,
         data_type: col.data_type,
-        start_byte: ref.start_byte,
-        end_byte: ref.end_byte,
+        start_byte: name_ref.start_byte,
+        end_byte: name_ref.end_byte,
       })
       return Some(col)
     } else if found_current.length() > 1 {
       diagnostics.push({
         code: "ambiguous-reference",
         message: "ambiguous reference: \{name_text}",
-        start_byte: ref.start_byte,
-        end_byte: ref.end_byte,
+        start_byte: name_ref.start_byte,
+        end_byte: name_ref.end_byte,
       })
       return None
     }
@@ -746,16 +746,16 @@ fn[T : Catalog] resolve_ref(
           name: name_text,
           resolved_to: col.name,
           data_type: col.data_type,
-          start_byte: ref.start_byte,
-          end_byte: ref.end_byte,
+          start_byte: name_ref.start_byte,
+          end_byte: name_ref.end_byte,
         })
         return Some(col)
       } else if found_outer.length() > 1 {
         diagnostics.push({
           code: "ambiguous-reference",
           message: "ambiguous reference: \{name_text}",
-          start_byte: ref.start_byte,
-          end_byte: ref.end_byte,
+          start_byte: name_ref.start_byte,
+          end_byte: name_ref.end_byte,
         })
         return None
       }
@@ -767,13 +767,13 @@ fn[T : Catalog] resolve_ref(
       diagnostics.push({
         code: "unknown-column",
         message: "column not found in any visible table: \{name_text}",
-        start_byte: ref.start_byte,
-        end_byte: ref.end_byte,
+        start_byte: name_ref.start_byte,
+        end_byte: name_ref.end_byte,
       })
     }
     return None
   } else if n == 2 {
-    // alias.col or table.col: first segment resolves in scope, then column.
+    // alias_name.col or table.col: first segment resolves in scope, then column.
     let first_text = identifier_text(parts[0].bytes)
     let first_quoted = is_quoted(parts[0].bytes)
     let second_text = identifier_text(parts[1].bytes)
@@ -787,8 +787,8 @@ fn[T : Catalog] resolve_ref(
               name: second_text,
               resolved_to: col.name,
               data_type: col.data_type,
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
             return Some(col)
           }
@@ -796,8 +796,8 @@ fn[T : Catalog] resolve_ref(
             diagnostics.push({
               code: "unknown-column",
               message: "column not found in \{first_text}.\{second_text}",
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
             return None
           }
@@ -813,8 +813,8 @@ fn[T : Catalog] resolve_ref(
                   name: second_text,
                   resolved_to: col.name,
                   data_type: col.data_type,
-                  start_byte: ref.start_byte,
-                  end_byte: ref.end_byte,
+                  start_byte: name_ref.start_byte,
+                  end_byte: name_ref.end_byte,
                 })
                 return Some(col)
               }
@@ -822,8 +822,8 @@ fn[T : Catalog] resolve_ref(
                 diagnostics.push({
                   code: "unknown-column",
                   message: "column not found in \{first_text}.\{second_text}",
-                  start_byte: ref.start_byte,
-                  end_byte: ref.end_byte,
+                  start_byte: name_ref.start_byte,
+                  end_byte: name_ref.end_byte,
                 })
                 return None
               }
@@ -850,8 +850,8 @@ fn[T : Catalog] resolve_ref(
               name: col_text,
               resolved_to: col.name,
               data_type: col.data_type,
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
             return Some(col)
           }
@@ -859,8 +859,8 @@ fn[T : Catalog] resolve_ref(
             diagnostics.push({
               code: "unknown-column",
               message: "column not found in \{db_text}.\{table_text}.\{col_text}",
-              start_byte: ref.start_byte,
-              end_byte: ref.end_byte,
+              start_byte: name_ref.start_byte,
+              end_byte: name_ref.end_byte,
             })
             return None
           }
@@ -873,8 +873,8 @@ fn[T : Catalog] resolve_ref(
 
 ///|
 /// Resolves one SELECT-list item: star expansion or expression refs, plus the
-/// projection alias binding and the item's output column (for CTE/subquery
-/// column derivation). `alias_entries` collects projection-alias scope entries
+/// projection alias_name binding and the item's output column (for CTE/subquery
+/// column derivation). `alias_entries` collects projection-alias_name scope entries
 /// (WR-06) so the caller can expose them to later clauses after the whole
 /// select list has been resolved.
 fn[T : Catalog] resolve_select_item(
@@ -914,15 +914,17 @@ fn[T : Catalog] resolve_select_item(
     return
   }
   let resolved_refs : Array[ColumnInfo] = []
-  for ref in item.refs {
+  for name_ref in item.refs {
     match
-      resolve_ref(ref, scope, catalog, current_block, bindings, diagnostics) {
+      resolve_ref(
+        name_ref, scope, catalog, current_block, bindings, diagnostics,
+      ) {
       Some(col) => resolved_refs.push(col)
       None => ()
     }
   }
-  match item.alias {
-    Some(alias) => {
+  match item.alias_name {
+    Some(alias_name) => {
       let start = match item.alias_slice {
         Some(s) => s.start_byte
         None => 0
@@ -934,11 +936,11 @@ fn[T : Catalog] resolve_select_item(
       let resolved_to = if resolved_refs.length() > 0 {
         resolved_refs[0].name
       } else {
-        alias
+        alias_name
       }
       bindings.push({
         kind: BindingKind::Alias,
-        name: alias,
+        name: alias_name,
         resolved_to,
         data_type: "",
         start_byte: start,
@@ -949,14 +951,14 @@ fn[T : Catalog] resolve_select_item(
       } else {
         ""
       }
-      output.push({ name: alias, data_type })
-      // WR-06: expose the projection alias to later clauses (ORDER BY /
+      output.push({ name: alias_name, data_type })
+      // WR-06: expose the projection alias_name to later clauses (ORDER BY /
       // HAVING / QUALIFY / GROUP BY) as an Alias-kind scope entry.
       alias_entries.push({
-        key: alias,
+        key: alias_name,
         kind: ScopeKind::Alias,
-        columns: [{ name: alias, data_type }],
-        display: alias,
+        columns: [{ name: alias_name, data_type }],
+        display: alias_name,
         is_quoted: false,
         block: current_block,
       })
@@ -969,13 +971,13 @@ fn[T : Catalog] resolve_select_item(
 }
 
 ///|
-/// Applies a CTE column-name alias list (`WITH c(x,y) AS ...`) over the body's
+/// Applies a CTE column-name alias_name list (`WITH c(x,y) AS ...`) over the body's
 /// output columns by position.
 fn apply_cte_aliases(
   cte : CteDef,
   columns : Array[ColumnInfo],
 ) -> Array[ColumnInfo] {
-  match cte.alias {
+  match cte.alias_name {
     None => columns
     Some(list) => {
       let names = split_comma(list)
@@ -1044,20 +1046,20 @@ fn[T : Catalog] resolve_core(
   for entry in alias_entries {
     scope.push(entry)
   }
-  for ref in core.where_refs {
-    ignore(resolve_ref(ref, scope, catalog, block, bindings, diagnostics))
+  for name_ref in core.where_refs {
+    ignore(resolve_ref(name_ref, scope, catalog, block, bindings, diagnostics))
   }
-  for ref in core.group_by {
-    ignore(resolve_ref(ref, scope, catalog, block, bindings, diagnostics))
+  for name_ref in core.group_by {
+    ignore(resolve_ref(name_ref, scope, catalog, block, bindings, diagnostics))
   }
-  for ref in core.having {
-    ignore(resolve_ref(ref, scope, catalog, block, bindings, diagnostics))
+  for name_ref in core.having {
+    ignore(resolve_ref(name_ref, scope, catalog, block, bindings, diagnostics))
   }
-  for ref in core.qualify {
-    ignore(resolve_ref(ref, scope, catalog, block, bindings, diagnostics))
+  for name_ref in core.qualify {
+    ignore(resolve_ref(name_ref, scope, catalog, block, bindings, diagnostics))
   }
-  for ref in core.order_by {
-    ignore(resolve_ref(ref, scope, catalog, block, bindings, diagnostics))
+  for name_ref in core.order_by {
+    ignore(resolve_ref(name_ref, scope, catalog, block, bindings, diagnostics))
   }
   output
 }
@@ -1398,9 +1400,11 @@ fn[T : Catalog] resolve_token_refs(
   diagnostics : Array[AnalysisDiagnostic],
 ) -> Unit {
   let refs = collect_refs(slices)
-  for ref in refs {
+  for name_ref in refs {
     ignore(
-      resolve_ref(ref, scope, catalog, current_block, bindings, diagnostics),
+      resolve_ref(
+        name_ref, scope, catalog, current_block, bindings, diagnostics,
+      ),
     )
   }
 }

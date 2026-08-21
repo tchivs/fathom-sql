@@ -61,21 +61,21 @@ fn t_call_ref(start : Int, end : Int) -> ANameRef {
 }
 
 ///|
-/// A SelectItem with the given refs, alias, and alias slice span.
+/// A SelectItem with the given refs, alias_name, and alias_name slice span.
 fn t_item(
   refs : Array[ANameRef],
-  alias : String?,
+  alias_name : String?,
   alias_start : Int,
   alias_end : Int,
 ) -> ASelectItem {
-  let alias_slice : ATokenSlice? = match alias {
+  let alias_slice : ATokenSlice? = match alias_name {
     Some(_) =>
       Some({ bytes: b"x", start_byte: alias_start, end_byte: alias_end })
     None => None
   }
   {
     tokens: [],
-    alias,
+    alias_name,
     alias_slice,
     star: false,
     star_qualifier: None,
@@ -89,7 +89,7 @@ fn t_item(
 fn t_star_item(start : Int, end : Int) -> ASelectItem {
   {
     tokens: [{ bytes: b"*", start_byte: start, end_byte: end }],
-    alias: None,
+    alias_name: None,
     alias_slice: None,
     star: true,
     star_qualifier: None,
@@ -195,7 +195,7 @@ fn run_body(
 ///|
 test "lineage D-01 expression passthrough a + b as x" {
   // Test 1: `SELECT a + b AS x` over catalog t:[a,b] -> 2 edges: t.a->x and
-  // t.b->x, target span = the alias slice span (D-01 expression passthrough).
+  // t.b->x, target span = the alias_name slice span (D-01 expression passthrough).
   let item = t_item([t_ref(7, 8), t_ref(10, 11)], Some("x"), 15, 16)
   let model = t_model([item])
   let bindings : Array[ABinding] = [
@@ -278,7 +278,11 @@ test "lineage CTE body qualified edge and UNION positional mapping" {
   // Test 3a: WITH c AS (SELECT a FROM t) SELECT a FROM c -> CTE body edge
   // t.a->c.a (CTE-qualified target) plus the outer ref edge a->a.
   let cte_body = t_model([t_item([t_ref(7, 8)], None, 0, 0)])
-  let cte : ACteDef = { name: "c", alias: None, body: cte_body.branches[0] }
+  let cte : ACteDef = {
+    name: "c",
+    alias_name: None,
+    body: cte_body.branches[0],
+  }
   let outer_core : ASelectCore = {
     select_list: [t_item([t_ref(25, 26)], None, 0, 0)],
     from: [],
@@ -645,7 +649,7 @@ test "lineage star all-excluded except list is not a catalog gap" {
   // all-excluded expansion -> NO requires-catalog gap.
   let item : ASelectItem = {
     tokens: [{ bytes: b"*", start_byte: 7, end_byte: 8 }],
-    alias: None,
+    alias_name: None,
     alias_slice: None,
     star: true,
     star_qualifier: None,

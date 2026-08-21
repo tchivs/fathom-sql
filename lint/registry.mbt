@@ -10,8 +10,8 @@
 ///|
 /// One per-rule configuration override (D-04).
 pub(all) struct RuleOverride {
-  pub code : String
-  pub setting : RuleSetting
+  code : String
+  setting : RuleSetting
 } derive(Eq, @debug.Debug)
 
 ///|

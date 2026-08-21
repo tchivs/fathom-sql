@@ -214,7 +214,7 @@ fn header_end_in(head : Bytes, chunk : Bytes) -> Int? {
 /// `read_frame` calls exactly as the original byte-at-a-time reader left
 /// them in the pipe.
 pub struct FrameSource {
-  pub mut pending : Bytes
+  mut pending : Bytes
 }
 
 ///|

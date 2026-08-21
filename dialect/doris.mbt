@@ -15,12 +15,12 @@ pub(all) enum DorisProfile {
 
 ///|
 pub struct ProfileMetadata {
-  pub id : String
-  pub release_family : String
-  pub exact_release : String
-  pub feature_introduction : String
+  id : String
+  release_family : String
+  exact_release : String
+  feature_introduction : String
   // Kept as the compact, parser-facing label for existing consumers.
-  pub introduced_features : String
+  introduced_features : String
 }
 
 ///|
@@ -184,12 +184,12 @@ pub(all) enum DorisFeature {
 
 ///|
 pub struct FeatureMetadata {
-  pub name : String
-  pub keyword : Bytes
-  pub introduced_profile : String
-  pub diagnostic_code : String
-  pub recovery_kind : String
-  pub diagnostic_message : String
+  name : String
+  keyword : Bytes
+  introduced_profile : String
+  diagnostic_code : String
+  recovery_kind : String
+  diagnostic_message : String
 }
 
 ///|

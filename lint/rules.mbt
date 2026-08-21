@@ -37,33 +37,33 @@ pub(all) enum RuleSetting {
 /// One registry row (D-02): stable code, name, category, default severity,
 /// fixable flag, profile applicability, enabled-by-default.
 pub(all) struct LintRule {
-  pub code : String
-  pub name : String
-  pub category : String
-  pub default_severity : LintSeverity
-  pub fixable : Bool
-  pub applies_to : String
-  pub enabled : Bool
+  code : String
+  name : String
+  category : String
+  default_severity : LintSeverity
+  fixable : Bool
+  applies_to : String
+  enabled : Bool
 } derive(Eq, @debug.Debug)
 
 ///|
 /// A minimal span edit produced by a fixable rule (D-03). Only ever replaces a
 /// `SourceToken` leaf span; trivia are separate leaves and never touched.
 pub(all) struct LintEdit {
-  pub start_byte : Int
-  pub end_byte : Int
-  pub new_text : Bytes
+  start_byte : Int
+  end_byte : Int
+  new_text : Bytes
 } derive(Eq, @debug.Debug)
 
 ///|
 /// One lint finding. `severity` is the serialized string ("error"/"warning"/
 /// "info"); `fix` is the candidate edit for fixable rules, None otherwise.
 pub(all) struct LintFinding {
-  pub code : String
-  pub severity : String
-  pub message : String
-  pub start_byte : Int
-  pub end_byte : Int
-  pub statement_id : UInt
-  pub fix : LintEdit?
+  code : String
+  severity : String
+  message : String
+  start_byte : Int
+  end_byte : Int
+  statement_id : UInt
+  fix : LintEdit?
 } derive(Eq, @debug.Debug)

@@ -245,14 +245,17 @@ test "cli_d11_exit_2_matrix_through_usage_error_message" {
   assert_true(!flink_message.contains("2.1, 3.x, or 4.x"))
   // flink-2.3.0 is accepted in Phase 10; the adjacency probes reject.
   assert_true(
-    parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3.0"]).is_ok(),
+    parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3.0"])
+    is Ok(_),
   )
   assert_true(
-    parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3"]).is_ok() ==
+    (parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3"])
+    is Ok(_)) ==
     false,
   )
   assert_true(
-    parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3.0-rc1"]).is_ok() ==
+    (parse_args(["parse", "--dialect", "flink", "--profile", "flink-2.3.0-rc1"])
+    is Ok(_)) ==
     false,
   )
   // doris keeps the released-value hint (MI-02).
@@ -282,7 +285,7 @@ test "cli_d11_exit_2_matrix_through_usage_error_message" {
   // No invocation defaults a dialect: every valid invocation must carry both.
   assert_true(parse_args(["format", "--profile", "4.x"]) is Err(MissingDialect))
   assert_true(
-    parse_args(["lsp", "--dialect", "doris", "--profile", "2.1"]).is_ok(),
+    parse_args(["lsp", "--dialect", "doris", "--profile", "2.1"]) is Ok(_),
   )
 }
 

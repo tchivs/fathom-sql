@@ -39,11 +39,11 @@ fn nonnegative_limit(value : Int) -> Int {
 
 ///|
 pub struct ParserLimits {
-  pub max_bytes : Int
-  pub max_tokens : Int
-  pub max_recursion_depth : Int
-  pub max_recovery_steps : Int
-  pub max_diagnostics : Int
+  max_bytes : Int
+  max_tokens : Int
+  max_recursion_depth : Int
+  max_recovery_steps : Int
+  max_diagnostics : Int
 }
 
 ///|
@@ -106,26 +106,26 @@ pub fn ParserLimits::normalized(self : ParserLimits) -> ParserLimits {
 
 ///|
 pub struct ParserDiagnostic {
-  pub severity : String
-  pub code : String
-  pub message : String
-  pub expected_class : String
-  pub span : @source.Span
-  pub statement_id : UInt
+  severity : String
+  code : String
+  message : String
+  expected_class : String
+  span : @source.Span
+  statement_id : UInt
 }
 
 ///|
 pub struct ParsedDocument {
-  pub source : @source.SourceText
-  pub mode : ParseMode
-  pub root : @syntax.SyntaxNode
-  pub diagnostics : Array[ParserDiagnostic]
-  pub valid : Bool
-  pub recovered : Bool
+  source : @source.SourceText
+  mode : ParseMode
+  root : @syntax.SyntaxNode
+  diagnostics : Array[ParserDiagnostic]
+  valid : Bool
+  recovered : Bool
 }
 
 ///|
-struct Cursor {
+priv struct Cursor {
   stream : @token.TokenStream
   indices : Array[Int]
   mut position : Int
@@ -136,7 +136,7 @@ struct Cursor {
 }
 
 ///|
-struct RecoveryState {
+priv struct RecoveryState {
   diagnostics : Array[ParserDiagnostic]
   limits : ParserLimits
   context : @dialect.DialectContext

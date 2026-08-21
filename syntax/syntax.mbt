@@ -63,9 +63,9 @@ pub(all) enum LeafKind {
 
 ///|
 pub struct SyntaxLeaf {
-  pub kind : LeafKind
-  pub span : @source.Span
-  pub text_len : Int
+  kind : LeafKind
+  span : @source.Span
+  text_len : Int
 }
 
 ///|

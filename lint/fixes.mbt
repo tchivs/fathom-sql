@@ -18,11 +18,11 @@
 ///|
 /// One lint-channel diagnostic (engine-level, D-33 refusal).
 pub(all) struct LintDiagnostic {
-  pub code : String
-  pub message : String
-  pub start_byte : Int
-  pub end_byte : Int
-  pub statement_id : UInt
+  code : String
+  message : String
+  start_byte : Int
+  end_byte : Int
+  statement_id : UInt
 } derive(Eq, @debug.Debug)
 
 ///|
@@ -31,10 +31,10 @@ pub(all) struct LintDiagnostic {
 /// (empty on refusal); `findings` is the finding list; `diagnostics` carries
 /// the FATHOM-LINT-000 refusal (empty otherwise).
 pub(all) struct LintResult {
-  pub accepted : Bool
-  pub findings : Array[LintFinding]
-  pub output : Bytes
-  pub diagnostics : Array[LintDiagnostic]
+  accepted : Bool
+  findings : Array[LintFinding]
+  output : Bytes
+  diagnostics : Array[LintDiagnostic]
 } derive(Eq, @debug.Debug)
 
 ///|

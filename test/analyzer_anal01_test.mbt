@@ -289,13 +289,13 @@ test "analyzer-anal01 cte-scope doris-4.x" {
 }
 
 ///|
-test "analyzer-anal01 subquery-alias doris-4.x" {
-  // D-02 / Pitfall 4: SELECT x.a FROM (SELECT a FROM t) x — the subquery alias
+test "analyzer-anal01 subquery-alias_name doris-4.x" {
+  // D-02 / Pitfall 4: SELECT x.a FROM (SELECT a FROM t) x — the subquery alias_name
   // x shadows any outer table; the inner a resolves inside the subquery and
   // x.a resolves against the subquery's output column. Byte offsets:
   // SELECT[0,6) x[7,8) .[8] a[9,10) FROM[11,15) ([16,32) SELECT[17,23)
   // a[24,25) FROM[26,30) t[31,32) )[32,33) x[34,35)
-  let t = @mtest.Test("analyzer-anal01 subquery-alias doris-4.x")
+  let t = @mtest.Test("analyzer-anal01 subquery-alias_name doris-4.x")
   let raw = b"SELECT x.a FROM (SELECT a FROM t) x"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
@@ -313,12 +313,12 @@ test "analyzer-anal01 subquery-alias doris-4.x" {
   assert_eq(inner_col.data_type, "INT")
   assert_eq(inner_col.start_byte, 24)
   assert_eq(inner_col.end_byte, 25)
-  let alias = result.bindings[2]
-  assert_eq(alias.kind, @analyzer.BindingKind::Alias)
-  assert_eq(alias.name, "x")
-  assert_eq(alias.resolved_to, "x")
-  assert_eq(alias.start_byte, 34)
-  assert_eq(alias.end_byte, 35)
+  let alias_name = result.bindings[2]
+  assert_eq(alias_name.kind, @analyzer.BindingKind::Alias)
+  assert_eq(alias_name.name, "x")
+  assert_eq(alias_name.resolved_to, "x")
+  assert_eq(alias_name.start_byte, 34)
+  assert_eq(alias_name.end_byte, 35)
   let outer_col = result.bindings[3]
   assert_eq(outer_col.kind, @analyzer.BindingKind::Column)
   assert_eq(outer_col.name, "a")
@@ -330,7 +330,7 @@ test "analyzer-anal01 subquery-alias doris-4.x" {
   analyzer_snapshot_test(
     t,
     analysis_result_to_json(result),
-    "analyzer.subquery-alias.doris-4.x.json",
+    "analyzer.subquery-alias_name.doris-4.x.json",
   )
 }
 
@@ -378,10 +378,10 @@ test "analyzer-anal01 union-chain doris-4.x" {
 }
 
 ///|
-test "analyzer-anal01 as-alias doris-4.x" {
+test "analyzer-anal01 as-alias_name doris-4.x" {
   // D-02: AS aliases on both a projection and a table ref. SELECT[0,6)
   // a[7,8) AS[9,11) x[12,13) FROM[14,18) t[19,20) AS[21,23) y[24,25)
-  let t = @mtest.Test("analyzer-anal01 as-alias doris-4.x")
+  let t = @mtest.Test("analyzer-anal01 as-alias_name doris-4.x")
   let raw = b"SELECT a AS x FROM t AS y"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
@@ -417,14 +417,14 @@ test "analyzer-anal01 as-alias doris-4.x" {
   analyzer_snapshot_test(
     t,
     analysis_result_to_json(result),
-    "analyzer.as-alias.doris-4.x.json",
+    "analyzer.as-alias_name.doris-4.x.json",
   )
 }
 
 ///|
 test "analyzer-anal01 qualified-name doris-4.x" {
   // D-05 / Pitfall 3: db.table.col (3 parts) resolves via table_in_db while
-  // alias.col (2 parts) resolves through the scope. SELECT[0,6) t[7,8) .[8]
+  // alias_name.col (2 parts) resolves through the scope. SELECT[0,6) t[7,8) .[8]
   // a[9,10) ,[10] db[12,14) .[14] t[15,16) .[16] b[17,18) FROM[19,23)
   // db[24,26) .[26] t[27,28)
   let t = @mtest.Test("analyzer-anal01 qualified-name doris-4.x")
@@ -777,13 +777,13 @@ test "analyzer-anal01 ambiguous reference doris-4.x" {
 // ---------------------------------------------------------------------------
 
 ///|
-test "analyzer-anal01 binary expr no fabricated alias doris-4.x" {
-  // CR-01 (BLOCKER): SELECT price * qty FROM orders — the trailing bare-alias
-  // heuristic must NOT bind `qty` as an alias. Both operands resolve as Column
+test "analyzer-anal01 binary expr no fabricated alias_name doris-4.x" {
+  // CR-01 (BLOCKER): SELECT price * qty FROM orders — the trailing bare-alias_name
+  // heuristic must NOT bind `qty` as an alias_name. Both operands resolve as Column
   // bindings and no Alias binding is fabricated.
   // SELECT[0,6) price[7,12) *[13,14) qty[15,18) FROM[19,23) orders[24,30)
   let t = @mtest.Test(
-    "analyzer-anal01 binary expr no fabricated alias doris-4.x",
+    "analyzer-anal01 binary expr no fabricated alias_name doris-4.x",
   )
   let raw = b"SELECT price * qty FROM orders"
   let catalog = @analyzer.StaticCatalog::new([
@@ -821,7 +821,7 @@ test "analyzer-anal01 binary expr no fabricated alias doris-4.x" {
   analyzer_snapshot_test(
     t,
     analysis_result_to_json(result),
-    "analyzer.binary-expr-no-alias.doris-4.x.json",
+    "analyzer.binary-expr-no-alias_name.doris-4.x.json",
   )
 }
 
@@ -942,12 +942,14 @@ test "analyzer-anal01 anonymous subquery star expansion doris-4.x" {
 }
 
 ///|
-test "analyzer-anal01 order-by projection alias doris-4.x" {
-  // WR-06: SELECT a AS x FROM t ORDER BY x — the ORDER BY projection-alias
+test "analyzer-anal01 order-by projection alias_name doris-4.x" {
+  // WR-06: SELECT a AS x FROM t ORDER BY x — the ORDER BY projection-alias_name
   // reference must resolve (no unknown-column) and binds before table columns.
   // SELECT[0,6) a[7,8) AS[9,11) x[12,13) FROM[14,18) t[19,20)
   // ORDER[21,26) BY[27,29) x[30,31)
-  let t = @mtest.Test("analyzer-anal01 order-by projection alias doris-4.x")
+  let t = @mtest.Test(
+    "analyzer-anal01 order-by projection alias_name doris-4.x",
+  )
   let raw = b"SELECT a AS x FROM t ORDER BY x"
   let catalog = @analyzer.StaticCatalog::new([
     { name: "t", columns: [{ name: "a", data_type: "INT" }] },
@@ -977,7 +979,7 @@ test "analyzer-anal01 order-by projection alias doris-4.x" {
   analyzer_snapshot_test(
     t,
     analysis_result_to_json(result),
-    "analyzer.order-by-proj-alias.doris-4.x.json",
+    "analyzer.order-by-proj-alias_name.doris-4.x.json",
   )
 }
 

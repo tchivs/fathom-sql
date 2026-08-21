@@ -232,17 +232,17 @@ fn utf8_to_string(bytes : Bytes) -> String {
   while i < len {
     let first = bytes[i].to_int()
     if first < 0x80 {
-      chars.push(Char::from_int(first))
+      chars.push(Int::unsafe_to_char(first))
       i = i + 1
     } else if first >= 0xC2 && first < 0xE0 && i + 1 < len {
       let second = bytes[i + 1].to_int()
-      chars.push(Char::from_int(((first & 0x1F) << 6) | (second & 0x3F)))
+      chars.push(Int::unsafe_to_char(((first & 0x1F) << 6) | (second & 0x3F)))
       i = i + 2
     } else if first >= 0xE0 && first < 0xF0 && i + 2 < len {
       let second = bytes[i + 1].to_int()
       let third = bytes[i + 2].to_int()
       chars.push(
-        Char::from_int(
+        Int::unsafe_to_char(
           ((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F),
         ),
       )
@@ -252,7 +252,7 @@ fn utf8_to_string(bytes : Bytes) -> String {
       let third = bytes[i + 2].to_int()
       let fourth = bytes[i + 3].to_int()
       chars.push(
-        Char::from_int(
+        Int::unsafe_to_char(
           ((first & 0x07) << 18) |
           ((second & 0x3F) << 12) |
           ((third & 0x3F) << 6) |
@@ -261,7 +261,7 @@ fn utf8_to_string(bytes : Bytes) -> String {
       )
       i = i + 4
     } else {
-      chars.push(Char::from_int(0xFFFD))
+      chars.push(Int::unsafe_to_char(0xFFFD))
       i = i + 1
     }
   }

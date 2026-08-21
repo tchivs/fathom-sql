@@ -21,10 +21,10 @@
 /// extract_flink_grammar.py validates the line references against the pinned
 /// Parser-calcite files.
 pub(all) struct FlinkGrammarFixture {
-  pub fixture_id : String
-  pub profile : String
-  pub category : String
-  pub raw : Bytes
+  fixture_id : String
+  profile : String
+  category : String
+  raw : Bytes
 }
 
 ///|
@@ -4486,7 +4486,7 @@ test "flink_grammar_match_recognize_recovery_lossless" {
 // ---------------------------------------------------------------------------
 
 ///|
-test "flink_grammar_tvf_is_dialect_gated" {
+test "flink_grammar_tvf_is_dialect_gated_dup" {
   assert_true(
     flink_grammar_bidirectional(
       b"SELECT * FROM TUMBLE(TABLE T1, DESCRIPTOR(rowtime), INTERVAL '1' DAY)", "\"valid\":true",

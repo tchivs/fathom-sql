@@ -27,10 +27,18 @@ jobs:
       - name: moon check (native)
         run: moon check --target native
 
-      - name: moon check (js + linear wasm)
+      - name: moon check (js + linear wasm, cross-platform packages only)
+        # lsp/ and fathom-sql/ contain native-only C FFI (read_fd) and cannot
+        # compile on js/wasm targets. Check the cross-platform core only.
         run: |
-          moon check --target js
-          moon check --target wasm
+          for pkg in api source token lexer parser syntax printer formatter \
+                     analyzer completion fingerprint lint binding parity dialect version; do
+            moon check --target js "$pkg"
+          done
+          for pkg in api source token lexer parser syntax printer formatter \
+                     analyzer completion fingerprint lint binding parity dialect version; do
+            moon check --target wasm "$pkg"
+          done
 
   test:
     name: moon test (native)

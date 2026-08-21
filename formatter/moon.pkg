@@ -2,7 +2,6 @@ pkgtype(kind: "library")
 
 import {
   "fathom/sql/source",
-  "fathom/sql/token",
   "fathom/sql/syntax",
   "fathom/sql/dialect",
   "moonbitlang/core/buffer",

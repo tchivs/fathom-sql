@@ -22,12 +22,12 @@ pub(all) enum FlinkProfile {
 
 ///|
 pub struct FlinkProfileMetadata {
-  pub id : String
-  pub release_family : String
-  pub exact_release : String
-  pub calcite_version : String
-  pub parser_config : String
-  pub feature_introduction : String
+  id : String
+  release_family : String
+  exact_release : String
+  calcite_version : String
+  parser_config : String
+  feature_introduction : String
 }
 
 ///|

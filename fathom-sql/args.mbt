@@ -32,9 +32,9 @@ pub enum UsageError {
 /// 0.1.20260724 rejects pub-struct literals cross-package without it — 03-01
 /// lesson).
 pub(all) struct Command {
-  pub subcommand : String
-  pub dialect : String
-  pub profile : String
+  subcommand : String
+  dialect : String
+  profile : String
   keyword_case : String?
   indent : Int?
   line_width : Int?

@@ -4,14 +4,14 @@
 /// line break. Invalid UTF-8 is counted conservatively one unit per byte; the
 /// Native JSON boundary rejects invalid UTF-8 before this adapter is called.
 pub(all) struct Position {
-  pub line : Int
-  pub character : Int
+  line : Int
+  character : Int
 }
 
 ///|
 pub(all) struct Range {
-  pub start : Position
-  pub end : Position
+  start : Position
+  end : Position
 }
 
 ///|

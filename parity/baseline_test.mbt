@@ -23,9 +23,9 @@
 /// linear-Wasm (and the suite is runnable on js) so a target-specific
 /// serialization regression is caught by the same byte-level gate.
 pub(all) struct BaselineFixture {
-  pub fixture_id : String
-  pub profile : String
-  pub raw : Bytes
+  fixture_id : String
+  profile : String
+  raw : Bytes
 }
 
 ///|

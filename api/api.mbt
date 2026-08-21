@@ -7,11 +7,11 @@ pub(all) enum ParseMode {
 
 ///|
 pub struct ParseLimits {
-  pub max_bytes : Int
-  pub max_tokens : Int
-  pub max_recursion_depth : Int
-  pub max_recovery_steps : Int
-  pub max_diagnostics : Int
+  max_bytes : Int
+  max_tokens : Int
+  max_recursion_depth : Int
+  max_recovery_steps : Int
+  max_diagnostics : Int
 }
 
 ///|
@@ -375,39 +375,39 @@ fn validate_limits(limits : ParseLimits) -> Result[Unit, ParseError] {
 
 ///|
 pub struct PrimitiveNode {
-  pub kind : String
-  pub start_byte : Int
-  pub end_byte : Int
-  pub text_len : Int
-  pub children : Array[PrimitiveNode]
+  kind : String
+  start_byte : Int
+  end_byte : Int
+  text_len : Int
+  children : Array[PrimitiveNode]
 }
 
 ///|
 pub struct PrimitiveDiagnostic {
-  pub severity : String
-  pub code : String
-  pub message : String
-  pub expected_class : String
-  pub start_byte : Int
-  pub end_byte : Int
-  pub statement_id : UInt
+  severity : String
+  code : String
+  message : String
+  expected_class : String
+  start_byte : Int
+  end_byte : Int
+  statement_id : UInt
 }
 
 ///|
 pub struct ParseResult {
-  pub schema_version : String
-  pub source_transport : String
-  pub dialect : String
-  pub profile : String
-  pub exact_release : String
-  pub feature_introduction : String
-  pub mode : String
-  pub valid : Bool
-  pub recovered : Bool
-  pub source_bytes : Bytes
-  pub source_byte_length : Int
-  pub root : PrimitiveNode
-  pub diagnostics : Array[PrimitiveDiagnostic]
+  schema_version : String
+  source_transport : String
+  dialect : String
+  profile : String
+  exact_release : String
+  feature_introduction : String
+  mode : String
+  valid : Bool
+  recovered : Bool
+  source_bytes : Bytes
+  source_byte_length : Int
+  root : PrimitiveNode
+  diagnostics : Array[PrimitiveDiagnostic]
 }
 
 ///|
@@ -830,8 +830,8 @@ pub fn format_with_metadata(
 /// Result of fingerprinting one document (D-08): the UInt64 fingerprint plus
 /// the normalized canonical bytes it was computed from.
 pub(all) struct FingerprintResult {
-  pub fingerprint : UInt64
-  pub normalized : Bytes
+  fingerprint : UInt64
+  normalized : Bytes
 }
 
 ///|
@@ -1239,7 +1239,7 @@ test "api_diagnostics_have_stable_namespace_and_snapshot_local_ids" {
     Ok(result) => result
     Err(_) => panic()
   }
-  assert_true(first.diagnostics[0].code.starts_with("FATHOM-PARSE-"))
+  assert_true(first.diagnostics[0].code.has_prefix("FATHOM-PARSE-"))
   assert_eq(first.diagnostics[0].statement_id, 0U)
   assert_eq(second.diagnostics[0].statement_id, 0U)
 }

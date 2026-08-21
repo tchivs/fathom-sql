@@ -2,17 +2,17 @@
 /// Backend-neutral, syntax-only completion over the parser's token and profile
 /// tables. No catalog, analyzer, filesystem, or host runtime is consulted.
 pub(all) struct CompletionItem {
-  pub label : String
-  pub detail : String
-  pub start_byte : Int
-  pub end_byte : Int
-  pub new_text : String
+  label : String
+  detail : String
+  start_byte : Int
+  end_byte : Int
+  new_text : String
 }
 
 ///|
 pub(all) struct CompletionList {
-  pub is_incomplete : Bool
-  pub items : Array[CompletionItem]
+  is_incomplete : Bool
+  items : Array[CompletionItem]
 }
 
 ///|
