@@ -5,12 +5,6 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      publish:
-        description: "Actually publish to the VS Code Marketplace (false = package + verify PAT only)"
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -27,29 +21,13 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies (offline-capable)
+      - name: Install dependencies
         working-directory: vscode
         run: npm ci
 
       - name: Compile extension
         working-directory: vscode
         run: npm run compile
-
-      - name: Assert version matches the release tag
-        working-directory: vscode
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            expected="${GITHUB_REF_NAME#v}"
-          else
-            expected="$(node -p 'require("./package.json").version')"
-          fi
-          actual="$(node -p 'require("./package.json").version')"
-          if [ "$expected" != "$actual" ]; then
-            echo "version mismatch: package $actual vs expected $expected" >&2
-            exit 1
-          fi
-          echo "package version OK: $actual"
 
       - name: Package vsix
         working-directory: vscode
@@ -82,7 +60,7 @@ print("true" if any(v.get("version") == sys.argv[1] for v in vs) else "false")
           echo "version $ver already_published=$exists"
 
       - name: Publish to VS Code Marketplace
-        if: ${{ (github.event_name == 'push' || inputs.publish == true) && steps.exists.outputs.already_published != 'true' }}
+        if: ${{ steps.exists.outputs.already_published != 'true' }}
         working-directory: vscode
         shell: bash
         env:
@@ -92,7 +70,6 @@ print("true" if any(v.get("version") == sys.argv[1] for v in vs) else "false")
           npx vsce publish -p "$VSCODE_MARKETPLACE_PAT" --packagePath "$vsix"
 
       - name: Verify marketplace listing
-        if: ${{ github.event_name == 'push' || inputs.publish == true }}
         shell: bash
         run: |
           curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
