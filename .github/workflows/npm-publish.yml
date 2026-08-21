@@ -44,13 +44,19 @@ jobs:
       - name: Assert package version matches the release tag
         shell: bash
         run: |
-          expected="${GITHUB_REF_NAME#v}"
           actual="$(node -p 'require("./npm/package.json").version')"
-          if [ "$expected" != "$actual" ]; then
-            echo "version mismatch: package $actual vs tag $expected" >&2
-            exit 1
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Tag push: the tag (minus leading "v") must equal the package version.
+            expected="${GITHUB_REF_NAME#v}"
+            if [ "$expected" != "$actual" ]; then
+              echo "version mismatch: package $actual vs tag $expected" >&2
+              exit 1
+            fi
+            echo "package version OK (tag push): $actual"
+          else
+            # Manual dispatch: no tag to compare against; trust the manifest version.
+            echo "package version OK (dispatch, manifest-trusted): $actual"
           fi
-          echo "package version OK: $actual"
 
       - name: Publish to npm
         shell: bash
