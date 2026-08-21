@@ -66,7 +66,7 @@ export function complete(raw, dialect, profile, cursorByte) {
  * Lint SQL and return the fathom.lint.v1 envelope.
  */
 export function lint(raw, dialect, profile, mode = 'strict') {
-  return call(binding.fathom_lint_v1, bytes(raw), dialect, profile, mode);
+  return call(binding.fathom_lint_v1, bytes(raw), dialect, profile, mode, new Uint8Array(), false);
 }
 
 /**

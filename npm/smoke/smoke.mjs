@@ -1,7 +1,7 @@
 // Consumer smoke test (NPM-02): installs @fathom-sql/sql from the packed tarball
-// and exercises parse/format/fingerprint/capabilities/lineColumn end to end.
+// and exercises parse/format/fingerprint/lint/capabilities/lineColumn end to end.
 import assert from 'node:assert/strict';
-import { parse, format, fingerprint, capabilities, byteOffsetToLineColumn, lineColumnToByteOffset, withLineColumns } from '@fathom-sql/sql';
+import { parse, format, fingerprint, lint, capabilities, byteOffsetToLineColumn, lineColumnToByteOffset, withLineColumns } from '@fathom-sql/sql';
 
 // parse: valid statement, no diagnostics
 const parsed = parse('SELECT 1', 'doris', '4.x', 'strict');
@@ -47,4 +47,19 @@ const positioned = withLineColumns('SELECT FROM', [...errResult.diagnostics]);
 assert.ok(positioned[0].start_line !== undefined, 'start_line should be set');
 assert.ok(positioned[0].start_column !== undefined, 'start_column should be set');
 
-console.log('SMOKE PASS: parse/format/fingerprint/capabilities/lineColumn verified');
+// lint: regression for issue #1 — lint() must not crash on any dialect/mode.
+// fathom_lint_v1 expects (raw, dialect, profile, mode, overrides, fix); the
+// wrapper must supply empty overrides + fix=false, not pass undefined.
+for (const [d, p, m] of [
+  ['flink', 'flink-1.20.5', 'editor'],
+  ['flink', 'flink-1.20.5', 'strict'],
+  ['doris', '4.x', 'editor'],
+  ['doris', '4.x', 'strict'],
+]) {
+  const r = lint('SELECT 1', d, p, m);
+  assert.equal(r.schema_version, 'fathom.lint.v1', `lint ${d}/${p}/${m} schema`);
+  assert.equal(r.accepted, true, `lint ${d}/${p}/${m} accepted`);
+  assert.ok(Array.isArray(r.findings), `lint ${d}/${p}/${m} findings array`);
+}
+
+console.log('SMOKE PASS: parse/format/fingerprint/lint/capabilities/lineColumn verified');

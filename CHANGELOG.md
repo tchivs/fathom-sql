@@ -24,6 +24,14 @@ in this file. The prior public baseline is the `v0.1.0` release.
   version against `master` instead of trusting the manifest).
 - npm README completely rewritten with features, Node/browser examples, API
   table, TypeScript types, and GitHub links.
+- **`lint()` crash (issue #1)**: the npm wrapper called
+  `fathom_lint_v1` with only 4 of its 6 arguments, leaving `overrides`
+  `undefined`; the binding then threw
+  `TypeError: Cannot read properties of undefined (reading 'length')` on
+  every call, for every dialect/profile/mode. The wrapper now passes empty
+  overrides (`new Uint8Array()`) and `fix=false`, matching the documented
+  `lint(raw, dialect, profile, mode?)` public signature. Smoke test gained
+  a regression case covering flink/doris × strict/editor.
 
 ## [1.0.0] - 2026-08-17
 
