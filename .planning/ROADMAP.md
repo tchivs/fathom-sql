@@ -182,7 +182,7 @@ Plans:
 
 - [x] 18-01-PLAN.md
 
-- [x] 18-01: JS SDK npm publication — @fathom/sql 1.0.0 ESM 包（binding.js/wasm + d.ts + capabilities.json）构建/打包/消费者冒烟通过；真实 publish 认证门（NPM_TOKEN）
+- [x] 18-01: JS SDK npm publication — @fathom-sql/sql 1.0.0 ESM 包（binding.js/wasm + d.ts + capabilities.json）构建/打包/消费者冒烟通过；npm registry 发布成功（run 32438913994），注册表冒烟 PASS
 
 ### Phase 19: Editor Extension Publication
 

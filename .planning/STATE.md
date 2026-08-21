@@ -5,10 +5,10 @@ milestone_name: Release Readiness
 current_phase: 20
 current_phase_name: Formal 1.0.0 Release & Verification
 status: completed
-stopped_at: Milestone v4.0 complete — v1.0.0 released; npm pending token bypass-2FA
-last_updated: "2026-08-20T07:50:00Z"
-last_activity: 2026-08-20
-last_activity_desc: Phase 20 complete — v1.0.0 GitHub Release + smoke PASS; npm E403 token action
+stopped_at: Milestone v4.0 complete — v1.0.0 fully released (GitHub Release + npm @fathom-sql/sql + VS Code Marketplace)
+last_updated: "2026-08-21T02:15:00Z"
+last_activity: 2026-08-21
+last_activity_desc: Phase 20 complete — v1.0.0 fully released across all three channels; npm @fathom-sql/sql@1.0.0 registry smoke PASS
 progress:
   total_phases: 7
   completed_phases: 7
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-08-06)
 ## Current Position
 
 Phase: 20 (Formal 1.0.0 Release & Verification) — COMPLETE (1/1 plans) — MILESTONE v4.0 COMPLETE (7/7)
-Plan: 20-01 done — v1.0.0 GitHub Release（三平台资产 + 双 manifest + 披露 notes）; 冒烟 PASS（SHA-256 + fathom-lsp --version 1.0.0）; 工具链再冻结 0.1.20260819
-Status: Release 与 VS Code 扩展已上线；npm 待 token bypass-2FA 后自动发布；Open VSX 待 OVSX_TOKEN
-Last activity: 2026-08-20 — Phase 20 complete; milestone v4.0 Release Readiness complete
+Plan: 20-01 done — v1.0.0 三渠道全部上线：GitHub Release（三平台资产 + 双 manifest + 披露 notes + SHA-256 冒烟 PASS）; npm @fathom-sql/sql@1.0.0（注册表冒烟 PASS）; VS Code fathom-sql.sql 1.0.0
+Status: 三渠道全部 live；Open VSX 待 OVSX_TOKEN（可选）
+Last activity: 2026-08-21 — Phase 20 complete; v1.0.0 fully released (GitHub + npm + Marketplace)
 
 ## Performance Metrics
 
