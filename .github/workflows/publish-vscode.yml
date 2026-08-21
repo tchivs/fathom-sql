@@ -1,0 +1,58 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: vscode
+        run: npm ci
+      - name: Compile extension
+        working-directory: vscode
+        run: npm run compile
+      - name: Package vsix
+        working-directory: vscode
+        run: npx vsce package
+      - name: Verify publisher PAT
+        working-directory: vscode
+        shell: bash
+        env:
+          PAT: ${{ secrets.VSCODE_MARKETPLACE_PAT }}
+        run: npx vsce verify-pat fathom-sql -p "$PAT"
+      - name: Check if already published
+        id: exists
+        working-directory: vscode
+        shell: bash
+        run: |
+          ver="$(node -p 'require("./package.json").version')"
+          body=$(curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" -H "Content-Type: application/json" -H "Accept: application/json;api-version=7.1-preview.1" -d '{"filters":[{"criteria":[{"filterType":7,"value":"fathom-sql.sql"}]}],"flags":950}')
+          exists=$(printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); ext=d.get("results",[{}])[0].get("extensions",[]); vs=ext[0].get("versions",[]) if ext else []; print("true" if any(v.get("version")==sys.argv[1] for v in vs) else "false")' "$ver" 2>/dev/null || echo "false")
+          echo "already_published=$exists" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        if: ${{ steps.exists.outputs.already_published != 'true' }}
+        working-directory: vscode
+        shell: bash
+        env:
+          PAT: ${{ secrets.VSCODE_MARKETPLACE_PAT }}
+        run: |
+          vsix="$(ls sql-*.vsix | head -1)"
+          npx vsce publish -p "$PAT" --packagePath "$vsix"
+      - name: Verify listing
+        shell: bash
+        run: |
+          curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" -H "Content-Type: application/json" -H "Accept: application/json;api-version=7.1-preview.1" -d '{"filters":[{"criteria":[{"filterType":7,"value":"fathom-sql.sql"}]}],"flags":914}' | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d.get("results",[{}])[0].get("extensions",[]); assert len(r)>=1; print("MARKETPLACE OK:", r[0]["extensionName"], r[0]["publisher"]["publisherName"])'
