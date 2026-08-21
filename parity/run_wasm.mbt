@@ -1,4 +1,5 @@
 // No println/env/host IO: linear-Wasm remains portable and primitive-only.
+
 ///|
 fn main {
   let source = b"select /* wasm parity */ 1"

@@ -1,4 +1,5 @@
 // Deterministic schema contract fixtures for Phase 4 adapters.
+
 ///|
 fn schema_fixture_has_frozen_fields() -> Unit raise {
   let fields = [
