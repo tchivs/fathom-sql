@@ -29,32 +29,77 @@ Fathom is a MoonBit parser SDK for Apache Doris and Flink SQL, providing source-
 - **SQL fingerprinting**: Deterministic content-normalized fingerprints for query caching and deduplication.
 - **Column-level lineage**: Trace input/output columns from DML/DDL through a caller-injected `Catalog` (Doris only).
 - **Optional name resolution**: The `analyzer` package resolves DML/DDL target tables through a caller-injected `Catalog`, keeping metadata dependencies out of syntax parsing.
-- **Three distribution channels**: npm package `@fathom-sql/sql` for Node/browser, prebuilt `fathom-lsp` binaries from GitHub Releases, and MoonBit library import — all from one MoonBit core.
+- **Five distribution channels**: npm SDK for Node/browser, VS Code extension, JetBrains plugin (coming soon), prebuilt `fathom-lsp` binaries, and MoonBit library import — all from one MoonBit core.
 
 ## Installation
 
-Fathom is available as three independent artifacts:
+Fathom is available through five channels. Pick the one that matches your use case:
 
-1. **npm package** (`@fathom-sql/sql`) — for Node.js and browser consumers:
+| Channel | Artifact | Audience | Link |
+|---|---|---|---|
+| **npm SDK** | `@fathom-sql/sql` | Node.js / browser / bundler | [![npm](https://img.shields.io/npm/v/@fathom-sql/sql?label=%20)](https://www.npmjs.com/package/@fathom-sql/sql) [npm/README.md](npm/README.md) |
+| **VS Code Extension** | `fathom-sql.sql` | VS Code / Cursor / Windsurf users | [![Marketplace](https://img.shields.io/badge/install-fathom--sql.sql-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql) [vscode/README.md](vscode/README.md) |
+| **JetBrains Plugin** | `fathom-sql-intellij` | IntelliJ IDEA / PyCharm / DataGrip | [jetbrains/README.md](jetbrains/README.md) (Marketplace pending) |
+| **LSP Binary** | `fathom-lsp` | Any LSP-capable editor / CLI / CI | [![GitHub Release](https://img.shields.io/github/v/release/tchivs/fathom-sql?label=%20)](https://github.com/tchivs/fathom-sql/releases) [↓ see below](#install-fathom-lsp-from-github-release) |
+| **MoonBit Library** | `fathom/sql/*` | MoonBit package consumers | [↑ from source](#moonbit-library) |
 
-   ```bash
-   npm install @fathom-sql/sql
-   ```
+### npm SDK (Node.js / browser)
 
-   See [npm/README.md](npm/README.md) for the JS API and usage examples.
+```bash
+npm install @fathom-sql/sql
+```
 
-2. **Prebuilt `fathom-lsp` binary** — from [GitHub Releases](https://github.com/tchivs/fathom-sql/releases); see [Install fathom-lsp](#install-fathom-lsp-from-github-release) below.
+Full JS API reference and usage examples: [npm/README.md](npm/README.md)
 
-3. **MoonBit library** — clone this repository and build from source with the MoonBit toolchain (`moon 0.1.20260819`, content-locked via `.github/moonbit-toolchain.json`):
+```js
+import { parse, format, fingerprint, withLineColumns } from '@fathom-sql/sql';
 
-   ```bash
-   git clone https://github.com/tchivs/fathom-sql.git
-   cd fathom-sql
-   moon version   # confirm: moon 0.1.20260819 (fc2a4ee 2026-08-19)
-   moon check
-   ```
+const result = parse('SELECT 1', 'doris', '4.x', 'strict');
+console.log(result.valid);          // true
 
-   Import `fathom/sql/api` into your own MoonBit package to call `parse_with_ids` or `format_with_ids` (see [Usage Examples](#usage-examples) below).
+const fmt = format('select 1', 'doris', '4.x', 'strict', { keyword_case: 'upper' });
+console.log(new TextDecoder().decode(new Uint8Array(fmt.formatted)));  // "SELECT 1\n"
+```
+
+### VS Code Extension
+
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql) (search "Fathom SQL Language Client"), then:
+
+1. Download `fathom-lsp` from [GitHub Releases](https://github.com/tchivs/fathom-sql/releases) (see [below](#install-fathom-lsp-from-github-release))
+2. Set `fathom.serverPath` to the binary path
+3. Set `fathom.dialect` (`doris` or `flink`) and `fathom.profile` (e.g. `4.x`)
+
+Details: [vscode/README.md](vscode/README.md)
+
+### JetBrains Plugin (IntelliJ IDEA / PyCharm / DataGrip)
+
+Build from source or wait for Marketplace publication:
+
+```bash
+cd jetbrains
+./gradlew buildPlugin   # → build/distributions/fathom-sql-intellij-*.zip
+```
+
+Install via **Settings → Plugins → ⚙ → Install Plugin from Disk**. Requires [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) 0.20.1+.
+
+Details: [jetbrains/README.md](jetbrains/README.md)
+
+### LSP Binary (any editor / CLI / CI)
+
+Prebuilt `fathom-lsp` binaries for three platforms, with SHA-256 verification. See [↓ Install fathom-lsp](#install-fathom-lsp-from-github-release) below.
+
+### MoonBit Library
+
+Clone and build from source with the MoonBit toolchain (`moon 0.1.20260819`, content-locked):
+
+```bash
+git clone https://github.com/tchivs/fathom-sql.git
+cd fathom-sql
+moon version   # confirm: moon 0.1.20260819 (fc2a4ee 2026-08-19)
+moon check
+```
+
+Import `fathom/sql/api` into your own MoonBit package to call `parse_with_ids` or `format_with_ids` (see [Usage Examples](#usage-examples) below).
 
 ## Quick Start (MoonBit library)
 

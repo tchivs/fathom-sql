@@ -29,32 +29,77 @@ Fathom 是面向 Apache Doris 和 Flink SQL 的 MoonBit 解析器 SDK，为编�
 - **SQL 指纹**：确定性的内容归一化指纹，用于查询缓存与去重。
 - **列级血缘**：通过调用方注入的 `Catalog` 追踪 DML/DDL 的输入/输出列（仅 Doris）。
 - **可选名字解析**：`analyzer` 包通过调用方注入的 `Catalog` 解析 DML/DDL 目标表，不把元数据依赖带入语法解析。
-- **三渠道分发**：npm 包 `@fathom-sql/sql` 供 Node/浏览器使用、GitHub Releases 预编译 `fathom-lsp` 二进制、MoonBit 库直接导入——均源自同一 MoonBit 核心。
+- **五渠道分发**：npm SDK 供 Node/浏览器、VS Code 扩展、JetBrains 插件（即将上线）、GitHub Releases 预编译 `fathom-lsp` 二进制、MoonBit 库直接导入——均源自同一 MoonBit 核心。
 
 ## 安装
 
-Fathom 提供三种独立的安装方式：
+Fathom 提供五种安装渠道，按你的使用场景选择：
 
-1. **npm 包**（`@fathom-sql/sql`）—— Node.js 和浏览器消费者：
+| 渠道 | 产物 | 目标用户 | 链接 |
+|---|---|---|---|
+| **npm SDK** | `@fathom-sql/sql` | Node.js / 浏览器 / Bundler | [![npm](https://img.shields.io/npm/v/@fathom-sql/sql?label=%20)](https://www.npmjs.com/package/@fathom-sql/sql) [npm/README.md](npm/README.md) |
+| **VS Code 扩展** | `fathom-sql.sql` | VS Code / Cursor / Windsurf | [![Marketplace](https://img.shields.io/badge/install-fathom--sql.sql-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql) [vscode/README.md](vscode/README.md) |
+| **JetBrains 插件** | `fathom-sql-intellij` | IntelliJ IDEA / PyCharm / DataGrip | [jetbrains/README.md](jetbrains/README.md)（Marketplace 待发布） |
+| **LSP 二进制** | `fathom-lsp` | 任何支持 LSP 的编辑器 / CLI / CI | [![GitHub Release](https://img.shields.io/github/v/release/tchivs/fathom-sql?label=%20)](https://github.com/tchivs/fathom-sql/releases) [↓ 见下文](#从-github-release-安装-fathom-lsp) |
+| **MoonBit 库** | `fathom/sql/*` | MoonBit 包消费者 | [↑ 从源码构建](#moonbit-库) |
 
-   ```bash
-   npm install @fathom-sql/sql
-   ```
+### npm SDK（Node.js / 浏览器）
 
-   JS API 与使用示例见 [npm/README.md](npm/README.md)。
+```bash
+npm install @fathom-sql/sql
+```
 
-2. **预编译 `fathom-lsp` 二进制** —— 从 [GitHub Releases](https://github.com/tchivs/fathom-sql/releases) 下载；安装步骤见下文 [从 GitHub Release 安装 `fathom-lsp`](#从-github-release-安装-fathom-lsp)。
+完整 JS API 参考和使用示例：[npm/README.md](npm/README.md)
 
-3. **MoonBit 库** —— 克隆本仓库并用 MoonBit 工具链（`moon 0.1.20260819`，通过 `.github/moonbit-toolchain.json` 内容锁定）从源码构建：
+```js
+import { parse, format, fingerprint, withLineColumns } from '@fathom-sql/sql';
 
-   ```bash
-   git clone https://github.com/tchivs/fathom-sql.git
-   cd fathom-sql
-   moon version   # 确认：moon 0.1.20260819 (fc2a4ee 2026-08-19)
-   moon check
-   ```
+const result = parse('SELECT 1', 'doris', '4.x', 'strict');
+console.log(result.valid);          // true
 
-   在自己的 MoonBit package 中导入 `fathom/sql/api`，即可调用 `parse_with_ids` 或 `format_with_ids`（示例见下文 [使用示例](#使用示例)）。
+const fmt = format('select 1', 'doris', '4.x', 'strict', { keyword_case: 'upper' });
+console.log(new TextDecoder().decode(new Uint8Array(fmt.formatted)));  // "SELECT 1\n"
+```
+
+### VS Code 扩展
+
+从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql) 安装（搜索 "Fathom SQL Language Client"），然后：
+
+1. 从 [GitHub Releases](https://github.com/tchivs/fathom-sql/releases) 下载 `fathom-lsp`（见[下文](#从-github-release-安装-fathom-lsp)）
+2. 设置 `fathom.serverPath` 指向二进制路径
+3. 设置 `fathom.dialect`（`doris` 或 `flink`）和 `fathom.profile`（如 `4.x`）
+
+详情：[vscode/README.md](vscode/README.md)
+
+### JetBrains 插件（IntelliJ IDEA / PyCharm / DataGrip）
+
+从源码构建或等待 Marketplace 发布：
+
+```bash
+cd jetbrains
+./gradlew buildPlugin   # → build/distributions/fathom-sql-intellij-*.zip
+```
+
+通过 **Settings → Plugins → ⚙ → Install Plugin from Disk** 安装。需要 [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) 0.20.1+。
+
+详情：[jetbrains/README.md](jetbrains/README.md)
+
+### LSP 二进制（任意编辑器 / CLI / CI）
+
+三平台预编译 `fathom-lsp` 二进制，带 SHA-256 校验。见[↓ 从 GitHub Release 安装](#从-github-release-安装-fathom-lsp)。
+
+### MoonBit 库
+
+克隆仓库并用 MoonBit 工具链（`moon 0.1.20260819`，内容锁定）从源码构建：
+
+```bash
+git clone https://github.com/tchivs/fathom-sql.git
+cd fathom-sql
+moon version   # 确认：moon 0.1.20260819 (fc2a4ee 2026-08-19)
+moon check
+```
+
+在自己的 MoonBit package 中导入 `fathom/sql/api`，即可调用 `parse_with_ids` 或 `format_with_ids`（示例见下文 [使用示例](#使用示例)）。
 
 ## 快速开始（MoonBit 库）
 
