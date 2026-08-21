@@ -1,7 +1,7 @@
 // Consumer smoke test (NPM-02): installs @fathom-sql/sql from the packed tarball
-// and exercises parse/format/fingerprint/capabilities end to end.
+// and exercises parse/format/fingerprint/capabilities/lineColumn end to end.
 import assert from 'node:assert/strict';
-import { parse, format, fingerprint, capabilities } from '@fathom-sql/sql';
+import { parse, format, fingerprint, capabilities, byteOffsetToLineColumn, lineColumnToByteOffset, withLineColumns } from '@fathom-sql/sql';
 
 // parse: valid statement, no diagnostics
 const parsed = parse('SELECT 1', 'doris', '4.x', 'strict');
@@ -31,4 +31,20 @@ const fProfiles = (flinkInfo?.profiles ?? []).map((p) => p.id ?? p);
 for (const p of ['2.1', '3.x', '4.x']) assert.ok(dProfiles.includes(p), `doris profile ${p}`);
 for (const p of ['flink-2.3.0', 'flink-2.1.3', 'flink-1.20.5']) assert.ok(fProfiles.includes(p), `flink profile ${p}`);
 
-console.log('SMOKE PASS: parse/format/fingerprint/capabilities verified');
+// byteOffsetToLineColumn: convert byte offset to 0-based line/column
+const pos = byteOffsetToLineColumn('SELECT 1\nFROM t', 9); // offset 9 = start of "FROM"
+assert.equal(pos.line, 1, 'line 1 for offset 9');
+assert.equal(pos.column, 0, 'column 0 for offset 9');
+
+// lineColumnToByteOffset: round-trip back
+const offset = lineColumnToByteOffset('SELECT 1\nFROM t', 1, 0);
+assert.equal(offset, 9, 'offset 9 for line 1 col 0');
+
+// withLineColumns: attach positions to diagnostics
+const errResult = parse('SELECT FROM', 'doris', '4.x', 'strict');
+assert.ok(errResult.diagnostics.length > 0, 'should have diagnostics');
+const positioned = withLineColumns('SELECT FROM', [...errResult.diagnostics]);
+assert.ok(positioned[0].start_line !== undefined, 'start_line should be set');
+assert.ok(positioned[0].start_column !== undefined, 'start_column should be set');
+
+console.log('SMOKE PASS: parse/format/fingerprint/capabilities/lineColumn verified');

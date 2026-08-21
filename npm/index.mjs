@@ -97,3 +97,82 @@ export function capabilities() {
 export function dialect(d) {
   return call(binding.fathom_dialect_v1, d);
 }
+
+/**
+ * Convert a UTF-8 byte offset in source text to a 0-based { line, column } position.
+ * Line and column counts Unicode code points (useful for editor display).
+ * @param {string|Uint8Array} raw - the original source text
+ * @param {number} byteOffset - UTF-8 byte offset
+ * @returns {{line: number, column: number}}
+ */
+export function byteOffsetToLineColumn(raw, byteOffset) {
+  const text = typeof raw === 'string' ? raw : dec.decode(bytes(raw));
+  let line = 0;
+  let col = 0;
+  // Walk byte-by-byte through the UTF-8 encoded text to find the position.
+  const encoded = enc.encode(text);
+  const clamped = Math.min(byteOffset, encoded.length);
+  for (let i = 0; i < clamped; i++) {
+    // Decode the byte to determine if it's a newline or part of a multi-byte char.
+    const byte = encoded[i];
+    if (byte === 0x0a) { // \n
+      line++;
+      col = 0;
+    } else if ((byte & 0xc0) !== 0x80) {
+      // Start of a UTF-8 code point (not a continuation byte)
+      col++;
+    }
+  }
+  return { line, column: col };
+}
+
+/**
+ * Convert a 0-based { line, column } position to a UTF-8 byte offset.
+ * @param {string|Uint8Array} raw - the original source text
+ * @param {number} line - 0-based line number
+ * @param {number} column - 0-based column (code points)
+ * @returns {number} byte offset
+ */
+export function lineColumnToByteOffset(raw, line, column) {
+  const text = typeof raw === 'string' ? raw : dec.decode(bytes(raw));
+  const encoded = enc.encode(text);
+  let currentLine = 0;
+  let currentCol = 0;
+  for (let i = 0; i < encoded.length; i++) {
+    if (currentLine === line && currentCol === column) {
+      return i;
+    }
+    const byte = encoded[i];
+    if (byte === 0x0a) {
+      currentLine++;
+      currentCol = 0;
+    } else if ((byte & 0xc0) !== 0x80) {
+      currentCol++;
+    }
+  }
+  // If pointing past end, return the encoded length
+  if (currentLine === line && currentCol === column) {
+    return encoded.length;
+  }
+  return encoded.length;
+}
+
+/**
+ * Attach 0-based { line, column } positions to each diagnostic by converting
+ * the start_byte/end_byte fields. Returns the same diagnostics array with
+ * added start_line, start_column, end_line, end_column fields.
+ * @param {string|Uint8Array} raw - the original source text
+ * @param {Array} diagnostics - diagnostics array from parse/lint
+ * @returns {Array} the same array with position fields added in-place
+ */
+export function withLineColumns(raw, diagnostics) {
+  for (const d of diagnostics) {
+    const start = byteOffsetToLineColumn(raw, d.start_byte ?? 0);
+    const end = byteOffsetToLineColumn(raw, d.end_byte ?? d.start_byte ?? 0);
+    d.start_line = start.line;
+    d.start_column = start.column;
+    d.end_line = end.line;
+    d.end_column = end.column;
+  }
+  return diagnostics;
+}

@@ -56,6 +56,15 @@ console.log(fp.fingerprint);        // non-empty deterministic string
 // Capabilities — discover supported dialects and profiles
 console.log(capabilities());
 // { dialects: [ { dialect: 'doris', profiles: [...] }, { dialect: 'flink', profiles: [...] } ] }
+
+// Diagnostics carry byte offsets — convert to line/column for editor display
+import { byteOffsetToLineColumn, withLineColumns } from '@fathom-sql/sql';
+
+const result2 = parse('SELECT FROM', 'doris', '4.x', 'strict');
+const pos = byteOffsetToLineColumn('SELECT FROM', result2.diagnostics[0].start_byte);
+// { line: 0, column: 7 }
+
+withLineColumns('SELECT FROM', result2.diagnostics); // adds start_line/column in-place
 ```
 
 ## Browser usage
@@ -85,9 +94,11 @@ full TypeScript signatures.
 | `complete(raw, dialect, profile, cursorByte)` | `fathom.complete.v1` | Syntax-aware completion at cursor position |
 | `lint(raw, dialect, profile, mode?)` | `fathom.lint.v1` | Lint SQL; returns diagnostics with lint-specific codes |
 | `fingerprint(raw, dialect, profile, mode?)` | `fathom.fingerprint.v1` | Deterministic content-normalized fingerprint |
-| `lineage(raw, dialect, profile, mode?)` | `fathom.lineage.v1` | Column-level lineage (Doris only) |
 | `capabilities()` | `fathom.capabilities.v1` | Supported dialects and profiles metadata |
 | `dialect(d)` | `fathom.dialect.v1` | Per-dialect profile and feature metadata |
+| `byteOffsetToLineColumn(raw, byteOffset)` | — (JS helper) | Convert UTF-8 byte offset to 0-based `{ line, column }` |
+| `lineColumnToByteOffset(raw, line, column)` | — (JS helper) | Convert 0-based `{ line, column }` to UTF-8 byte offset |
+| `withLineColumns(raw, diagnostics)` | — (JS helper) | Attach `start_line`/`start_column`/`end_line`/`end_column` to diagnostics in-place |
 
 ### Types
 
