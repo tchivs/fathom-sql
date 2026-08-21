@@ -1,5 +1,14 @@
 # Fathom SQL Language Client
 
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.0-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
+[![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](https://github.com/tchivs/fathom-sql/blob/master/LICENSE)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
+[![Doris](https://img.shields.io/badge/Doris-2.1%20%7C%203.x%20%7C%204.x-blue)](https://doris.apache.org/)
+[![Flink](https://img.shields.io/badge/Flink-1.20.5%20%7C%202.1.3%20%7C%202.3.0-blue)](https://flink.apache.org/)
+
+> Part of [Fathom SQL Parser SDK](https://github.com/tchivs/fathom-sql) — see the [root README](https://github.com/tchivs/fathom-sql#readme) for the full feature list and architecture.
+
 This extension is a thin standard `vscode-languageclient` host for the local Native
 `fathom-lsp` executable. It does not start a service, connect to a database, or
 provide a remote fallback.

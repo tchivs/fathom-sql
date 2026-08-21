@@ -1,5 +1,14 @@
 # Fathom SQL IntelliJ Plugin
 
+[![JetBrains Plugin](https://img.shields.io/badge/JetBrains-IntelliJ%20Plugin-orange?logo=intellijidea&logoColor=white)](https://github.com/tchivs/fathom-sql)
+[![CI](https://github.com/tchivs/fathom-sql/actions/workflows/jetbrains-plugin.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/jetbrains-plugin.yml)
+[![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](https://github.com/tchivs/fathom-sql/blob/master/LICENSE)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
+[![Doris](https://img.shields.io/badge/Doris-2.1%20%7C%203.x%20%7C%204.x-blue)](https://doris.apache.org/)
+[![Flink](https://img.shields.io/badge/Flink-1.20.5%20%7C%202.1.3%20%7C%202.3.0-blue)](https://flink.apache.org/)
+
+> Part of [Fathom SQL Parser SDK](https://github.com/tchivs/fathom-sql) — see the [root README](https://github.com/tchivs/fathom-sql#readme) for the full feature list and architecture.
+
 This directory contains a Kotlin/Gradle IntelliJ Platform plugin that connects the Fathom SQL language server through [LSP4IJ](https://github.com/redhat-developer/lsp4ij). It does not contain a parser or a second LSP transport.
 
 ## Installation and settings

@@ -1,7 +1,14 @@
 # @fathom-sql/sql
 
-[![npm version](https://img.shields.io/npm/v/@fathom-sql/sql)](https://www.npmjs.com/package/@fathom-sql/sql)
+[![npm version](https://img.shields.io/npm/v/@fathom-sql/sql?label=npm)](https://www.npmjs.com/package/@fathom-sql/sql)
+[![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
 [![License](https://img.shields.io/npm/l/@fathom-sql/sql)](https://github.com/tchivs/fathom-sql/blob/master/LICENSE)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
+[![Targets](https://img.shields.io/badge/targets-js%20%7C%20wasm-555555)](moon.mod)
+[![Doris](https://img.shields.io/badge/Doris-2.1%20%7C%203.x%20%7C%204.x-blue)](https://doris.apache.org/)
+[![Flink](https://img.shields.io/badge/Flink-1.20.5%20%7C%202.1.3%20%7C%202.3.0-blue)](https://flink.apache.org/)
+
+> Part of [Fathom SQL Parser SDK](https://github.com/tchivs/fathom-sql) — see the [root README](https://github.com/tchivs/fathom-sql#readme) for the full feature list, architecture, and release notes.
 
 A MoonBit-built parser and toolchain for **Apache Doris** and **Apache Flink**
 SQL, exposed as a self-contained ES module. The package ships the built
