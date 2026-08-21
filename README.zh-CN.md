@@ -11,13 +11,15 @@ Fathom 是面向 Apache Doris 和 Flink SQL 的 MoonBit 解析器 SDK，为编�
 
 ## 特性
 
-- **版本感知解析**：支持 `2.1`、`3.x`、`4.x` 三个 Doris profile，并通过 profile 元数据校验版本与特性引入信息。
+- **双方言解析**：Doris profile `2.1`、`3.x`、`4.x` 及 Flink profile `flink-2.3.0`、`flink-2.1.3`、`flink-1.20.5`——按方言做版本感知的关键字分类与特性引入门控。
 - **两种解析模式**：`strict` 用于严格校验，`editor` 用于半成品 SQL 的错误恢复。
 - **无损语法树**：解析结果保留 token、trivia、错误和跳过内容的字节范围；源代码中的注释、空白、换行、BOM、Unicode 以及非法字节都可通过打印器重放。
 - **结构化诊断**：诊断包含稳定的 `FATHOM-PARSE-*` code、消息、严重级别、字节范围和 statement id。
 - **CST 格式化**：格式化器支持关键字大小写、缩进、行宽、逗号风格、换行风格和尾部换行策略；遇到错误树时拒绝输出部分结果。
+- **SQL 指纹**：确定性的内容归一化指纹，用于查询缓存与去重。
+- **列级血缘**：通过调用方注入的 `Catalog` 追踪 DML/DDL 的输入/输出列（仅 Doris）。
 - **可选名字解析**：`analyzer` 包通过调用方注入的 `Catalog` 解析 DML/DDL 目标表，不把元数据依赖带入语法解析。
-- **库与 CLI**：核心解析能力以 MoonBit library packages 提供，`fathom-sql/` 包含 native CLI 适配器；仓库没有部署服务。
+- **三渠道分发**：npm 包 `@fathom-sql/sql` 供 Node/浏览器使用、GitHub Releases 预编译 `fathom-lsp` 二进制、MoonBit 库直接导入——均源自同一 MoonBit 核心。
 
 ## 安装
 
@@ -135,9 +137,8 @@ match formatted {
 
 ```text
 api/        面向调用方的 parse/format facade、选项、结果和诊断类型
-source/     源码快照、字节 Span 与行索引
+token/      token 类型、关键字分类和方言 profile 元数据
 lexer/      Dialect 感知的词法分析
-token/      token 类型、关键字分类和 Doris profile 元数据
 parser/     手写递归下降文档解析器与 Pratt 表达式解析路径
 syntax/     无损 CST 节点、叶子和错误/缺失结构
 printer/    从 CST 或 ParseResult 精确重放源字节

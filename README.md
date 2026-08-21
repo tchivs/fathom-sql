@@ -10,13 +10,15 @@ Fathom is a MoonBit parser SDK for Apache Doris and Flink SQL, providing source-
 
 ## Features
 
-- **Version-aware parsing**: Supports the `2.1`, `3.x`, and `4.x` Doris profiles, and validates version and feature-introduction information through profile metadata.
+- **Dual-dialect parsing**: Doris profiles `2.1`, `3.x`, `4.x` and Flink profiles `flink-2.3.0`, `flink-2.1.3`, `flink-1.20.5` — version-aware keyword classification and feature-introduction gating per dialect.
 - **Two parsing modes**: `strict` performs strict validation, while `editor` provides error recovery for incomplete SQL.
 - **Lossless syntax tree**: Parse results preserve byte ranges for tokens, trivia, errors, and skipped content; comments, whitespace, newlines, BOM, Unicode, and invalid bytes in the source can all be replayed by the printer.
 - **Structured diagnostics**: Diagnostics include stable `FATHOM-PARSE-*` codes, messages, severity levels, byte ranges, and statement IDs.
 - **CST formatting**: The formatter supports keyword case, indentation, line width, comma style, newline style, and trailing-newline policy; when it encounters an error tree, it refuses to emit a partial result.
+- **SQL fingerprinting**: Deterministic content-normalized fingerprints for query caching and deduplication.
+- **Column-level lineage**: Trace input/output columns from DML/DDL through a caller-injected `Catalog` (Doris only).
 - **Optional name resolution**: The `analyzer` package resolves DML/DDL target tables through a caller-injected `Catalog`, keeping metadata dependencies out of syntax parsing.
-- **Library and CLI**: Core parsing capabilities are provided as MoonBit library packages, while `fathom-sql/` contains the native CLI adapter; the repository has no deployment service.
+- **Three distribution channels**: npm package `@fathom-sql/sql` for Node/browser, prebuilt `fathom-lsp` binaries from GitHub Releases, and MoonBit library import — all from one MoonBit core.
 
 ## Installation
 
@@ -136,7 +138,7 @@ The formatting result contains `accepted`, output bytes, formatting/parsing diag
 api/        Caller-facing parse/format facade, options, result, and diagnostic types
 source/     Source snapshots, byte Spans, and line indexes
 lexer/      Dialect-aware lexical analysis
-token/      Token types, keyword classifications, and Doris profile metadata
+token/      Token types, keyword classifications, and dialect profile metadata
 parser/     Handwritten recursive-descent document parser and Pratt expression parsing path
 syntax/     Lossless CST nodes, leaves, and error/missing structures
 printer/    Precise replay of source bytes from a CST or ParseResult
@@ -146,7 +148,6 @@ test/       MoonBit behavior tests, formatting tests, and corpus tests
 corpus/     SQL fixtures, manifests, and coverage reports organized by Doris version
 ```
 
-Public callers typically start with `api`; use the corresponding package when direct access to the CST, source snapshots, or analyzer is needed. `analyzer` does not participate in parser syntax validity or diagnostic results.
 
 ## Verification and Testing
 
