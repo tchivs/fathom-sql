@@ -1,8 +1,29 @@
 # Changelog
 
 All notable user-visible changes to the Fathom SQL Parser SDK are documented
-in this file. The prior public baseline is the `v0.1.0` release; this
-changelog covers the changes shipped in `1.0.0`.
+in this file. The prior public baseline is the `v0.1.0` release.
+
+## [1.0.1] - 2026-08-21
+
+### Added
+
+- **Position helper functions**: `byteOffsetToLineColumn(raw, byteOffset)`,
+  `lineColumnToByteOffset(raw, line, column)`, and
+  `withLineColumns(raw, diagnostics)` — pure-JS utilities that convert
+  between UTF-8 byte offsets (returned by diagnostics) and 0-based
+  `{ line, column }` positions for editor highlighting. Column counts
+  Unicode code points, not UTF-16 units.
+- **npm package renamed**: `@fathom/sql` → `@fathom-sql/sql` (org
+  `fathom-sql`); npm-publish workflow's version assertion now trusts the
+  manifest on `workflow_dispatch` (previously compared against
+  `GITHUB_REF_NAME=master` and failed).
+
+### Fixed
+
+- npm version-assertion bug on `workflow_dispatch` (compared tag-derived
+  version against `master` instead of trusting the manifest).
+- npm README completely rewritten with features, Node/browser examples, API
+  table, TypeScript types, and GitHub links.
 
 ## [1.0.0] - 2026-08-17
 
