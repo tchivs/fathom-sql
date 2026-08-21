@@ -1,4 +1,4 @@
-name: Publish VS Code extension to Marketplace
+name: Publish VS Code Extension
 
 on:
   push:
