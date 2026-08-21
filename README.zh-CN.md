@@ -1,8 +1,18 @@
 <!-- GSD:generated -->
 English: [README.md](README.md) | 简体中文
+
+[![GitHub Release](https://img.shields.io/github/v/release/tchivs/fathom-sql?include_prereleases&label=Release)](https://github.com/tchivs/fathom-sql/releases)
+[![npm version](https://img.shields.io/npm/v/@fathom-sql/sql?label=npm)](https://www.npmjs.com/package/@fathom-sql/sql)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.0-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
+[![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](LICENSE)
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
-[![Target](https://img.shields.io/badge/target-native%20%7C%20js%20%7C%20wasm-555555)](moon.mod)
-[![Docs](https://img.shields.io/badge/docs-English%20%7C%20zh--CN-007ec6)](docs/zh-CN/ARCHITECTURE.md)
+[![Targets](https://img.shields.io/badge/targets-native%20%7C%20js%20%7C%20wasm-555555)](moon.mod)
+[![Doris](https://img.shields.io/badge/Doris-2.1%20%7C%203.x%20%7C%204.x-blue)](https://doris.apache.org/)
+[![Flink](https://img.shields.io/badge/Flink-1.20.5%20%7C%202.1.3%20%7C%202.3.0-blue)](https://flink.apache.org/)
+[![Last Commit](https://img.shields.io/github/last-commit/tchivs/fathom-sql)](https://github.com/tchivs/fathom-sql/commits)
+[![Repo Size](https://img.shields.io/github/repo-size/tchivs/fathom-sql)](https://github.com/tchivs/fathom-sql)
+[![Stars](https://img.shields.io/github/stars/tchivs/fathom-sql?style=social)](https://github.com/tchivs/fathom-sql/stargazers)
 
 # Fathom SQL Parser SDK
 
