@@ -139,7 +139,7 @@ pub fn classification_entries(context : DialectContext) -> Array[KeywordEntry] {
 
 ///|
 /// Released-profile clause boundaries shared by parser contexts.
-pub fn is_clause_keyword(context : DialectContext, raw : Bytes) -> Bool {
+pub fn is_clause_keyword(_context : DialectContext, raw : Bytes) -> Bool {
   token_bytes_equal_ci(raw, b"SELECT") ||
   token_bytes_equal_ci(raw, b"WITH") ||
   token_bytes_equal_ci(raw, b"FROM") ||

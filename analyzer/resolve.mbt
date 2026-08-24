@@ -43,7 +43,6 @@ priv struct ScopeEntry {
   kind : ScopeKind
   columns : Array[ColumnInfo]
   display : String
-  is_quoted : Bool
   block : Int
 }
 
@@ -270,7 +269,6 @@ fn[T : Catalog] resolve_from_item(
           kind: ScopeKind::Subquery,
           columns,
           display: alias_name,
-          is_quoted: false,
           block,
         })
       }
@@ -281,7 +279,6 @@ fn[T : Catalog] resolve_from_item(
           kind: ScopeKind::Subquery,
           columns,
           display: "",
-          is_quoted: false,
           block,
         })
     }
@@ -320,7 +317,7 @@ fn[T : Catalog] resolve_from_item(
     }
   }
   match resolve_table_name_ref(name_ref, catalog) {
-    Some((info, quoted)) => {
+    Some((info, _quoted)) => {
       let display = info.name
       bindings.push({
         kind: BindingKind::Table,
@@ -353,7 +350,6 @@ fn[T : Catalog] resolve_from_item(
             kind: ScopeKind::Table,
             columns: info.columns,
             display,
-            is_quoted: quoted,
             block,
           })
         }
@@ -369,7 +365,6 @@ fn[T : Catalog] resolve_from_item(
             kind: ScopeKind::Table,
             columns: info.columns,
             display,
-            is_quoted: quoted,
             block,
           })
         }
@@ -478,7 +473,6 @@ fn[T : Catalog] expand_star(
                     kind: ScopeKind::Table,
                     columns: info.columns,
                     display: info.name,
-                    is_quoted: quoted,
                     block: 0,
                   },
                   star_start,
@@ -519,7 +513,6 @@ fn[T : Catalog] expand_star(
                   kind: ScopeKind::Table,
                   columns: info.columns,
                   display: info.name,
-                  is_quoted: table_quoted,
                   block: 0,
                 },
                 star_start,
@@ -959,7 +952,6 @@ fn[T : Catalog] resolve_select_item(
         kind: ScopeKind::Alias,
         columns: [{ name: alias_name, data_type }],
         display: alias_name,
-        is_quoted: false,
         block: current_block,
       })
     }
@@ -1087,7 +1079,6 @@ fn[T : Catalog] resolve_model(
       kind: ScopeKind::Cte,
       columns,
       display: cte.name,
-      is_quoted: false,
       block,
     })
   }
@@ -1427,7 +1418,7 @@ fn[T : Catalog] resolve_dml_target(
   }
   let name_text = join_strings(texts, ".")
   match resolve_table_name_ref(table_ref, catalog) {
-    Some((info, quoted)) => {
+    Some((info, _quoted)) => {
       bindings.push({
         kind: BindingKind::Table,
         name: name_text,
@@ -1446,7 +1437,6 @@ fn[T : Catalog] resolve_dml_target(
         kind: ScopeKind::Table,
         columns: info.columns,
         display: info.name,
-        is_quoted: quoted,
         block: 0,
       })
     }

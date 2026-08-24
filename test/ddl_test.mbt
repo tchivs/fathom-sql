@@ -344,9 +344,9 @@ test "create_table_property_flood_parses_losslessly" {
     }
     props = props +
       b"\"k" +
-      index.to_string().to_bytes() +
+      @utf8.encode(index.to_string()) +
       b"\" = \"v" +
-      index.to_string().to_bytes() +
+      @utf8.encode(index.to_string()) +
       b"\""
     index = index + 1
   }

@@ -161,7 +161,7 @@ fn format_diagnostics_json(
 fn publish_diagnostics(
   uri : String,
   version : Int,
-  raw : Bytes,
+  _raw : Bytes,
   diagnostics : Json,
 ) -> Bytes {
   notification("textDocument/publishDiagnostics", {
@@ -329,7 +329,7 @@ fn changed_document(params : Json) -> (String, Int, Bytes)? {
 /// present; DocPartial = exactly one present — a partial assertion MUST be
 /// surfaced as a structured config error, never silently resolved to the
 /// workspace default (WR-04).
-enum DocSelection {
+priv enum DocSelection {
   DocAbsent
   DocSelected(selection~ : DialectSelection)
   DocPartial(missing~ : String)
@@ -451,18 +451,6 @@ fn resolve_selection_with_source(
     None => ()
   }
   Err(MissingSelection)
-}
-
-///|
-fn resolve_selection(
-  state : ServerState,
-  params : Json,
-  language_id : String?,
-) -> Result[DialectSelection, SelectionError] {
-  match resolve_selection_with_source(state, params, language_id) {
-    Ok((selection, _source)) => Ok(selection)
-    Err(error) => Err(error)
-  }
 }
 
 ///|
@@ -959,7 +947,7 @@ pub fn handle_message(
       // Optional workspace/configuration pull (A2): the server may request
       // the fathom settings section once; the correlated response updates
       // the workspace default + language mapping like didChangeConfiguration.
-      if state.pending_config_request.is_none() {
+      if state.pending_config_request is None {
         let id = state.next_server_request_id
         state.next_server_request_id = id + 1
         state.pending_config_request = Some(RpcId::IntId(value=id))

@@ -27,7 +27,7 @@ pub fn normalize(
 }
 
 ///|
-struct Normalizer {
+priv struct Normalizer {
   buf : @buffer.Buffer
   mut pending_space : Bool
 }

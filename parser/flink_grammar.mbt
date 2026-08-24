@@ -1210,38 +1210,6 @@ fn parse_flink_string_literal(
 }
 
 ///|
-/// `WITH ( 'key' = 'value', ... )` — Flink connector options / catalog and
-/// database properties (Properties(), parserImpls.ftl:1506-1556). The `WITH`
-/// keyword is consumed here and the parenthesized pair list delegates to the
-/// shared parse_properties_clause (identical pair shape; the PropertyList CST
-/// is carried by the raw token children of the statement node).
-fn parse_flink_with_properties(
-  cursor : Cursor,
-  state : RecoveryState,
-  source : @source.SourceText,
-  statement_id : UInt,
-  what : String,
-) -> Bool {
-  let mut valid = expect_word(
-    cursor,
-    b"WITH",
-    state,
-    source,
-    statement_id,
-    "expected WITH before " + what + " properties",
-  )
-  valid = parse_properties_clause(
-      cursor,
-      state,
-      source,
-      statement_id,
-      what + " WITH options",
-    ) &&
-    valid
-  valid
-}
-
-///|
 /// `( 'key', ... )` — the ALTER ... RESET key list (string literals or
 /// identifiers, SqlAlterCatalog/SqlAlterDatabase RESET branch).
 fn parse_flink_reset_key_list(

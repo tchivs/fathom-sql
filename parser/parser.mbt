@@ -150,7 +150,7 @@ fn token_at(cursor : Cursor) -> @token.Token? {
   cursor.indices
   .get(cursor.position)
   .map(index => cursor.stream.at(index))
-  .flatten()
+  .bind(x => x)
 }
 
 ///|
@@ -158,7 +158,7 @@ fn raw_at(cursor : Cursor) -> Bytes? {
   cursor.indices
   .get(cursor.position)
   .map(index => cursor.stream.raw(index))
-  .flatten()
+  .bind(x => x)
 }
 
 ///|
@@ -302,7 +302,7 @@ fn peek_raw(cursor : Cursor, offset : Int) -> Bytes? {
   cursor.indices
   .get(cursor.position + offset)
   .map(index => cursor.stream.raw(index))
-  .flatten()
+  .bind(x => x)
 }
 
 ///|
@@ -860,7 +860,7 @@ fn previous_raw(cursor : Cursor) -> Bytes? {
     cursor.indices
     .get(cursor.position - 1)
     .map(index => cursor.stream.raw(index))
-    .flatten()
+    .bind(x => x)
   } else {
     None
   }
@@ -1537,7 +1537,7 @@ fn parse_expression_context(
   let mut wildcard_prefix = false
   let mut function_star_allowed = false
   match token_at(cursor) {
-    Some(token) if is_flink_interval_literal(cursor) =>
+    Some(_token) if is_flink_interval_literal(cursor) =>
       // Flink INTERVAL literal `INTERVAL '5' SECOND` (IntervalLiteral,
       // Parser-calcite-1.36.0.jj:4943-4990). Gated to Flink so the Doris
       // expression-prefix path stays byte-identical (Pitfall 7, A4).
@@ -1610,7 +1610,7 @@ fn parse_expression_context(
         ExpressionContext::Ordinary,
       )
     }
-    Some(token) if is_flink_expression_prefix(cursor) => {
+    Some(_token) if is_flink_expression_prefix(cursor) => {
       // Flink-only reserved-word expression starts: CAST/ROW constructors
       // (RESEARCH §7.3). Gated to Flink; Doris prefix behavior unchanged.
       advance(cursor)
@@ -2989,7 +2989,7 @@ fn with_prefix_verb(
     // was evaluated before the guard — and is removed (IN-03); the bound is
     // enforced by the check above and the guarded `.get(i)` read.
     let has_column_list = match
-      indices.get(i).map(index => stream.raw(index)).flatten() {
+      indices.get(i).bind(index => stream.raw(index)) {
       Some(raw) => raw == b"("
       None => false
     }
@@ -6373,7 +6373,7 @@ fn parse_doris_segment(
   end_index : Int,
   statement_id : UInt,
   state : RecoveryState,
-  context : @dialect.DialectContext,
+  _context : @dialect.DialectContext,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
   let indices = significant_indices(stream, start_index, end_index)
@@ -6661,7 +6661,7 @@ fn parse_flink_segment(
   end_index : Int,
   statement_id : UInt,
   state : RecoveryState,
-  context : @dialect.DialectContext,
+  _context : @dialect.DialectContext,
 ) -> @syntax.SyntaxNode {
   let span = segment_span(stream, start_index, end_index)
   let indices = significant_indices(stream, start_index, end_index)

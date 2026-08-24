@@ -10,7 +10,7 @@
 
 ///|
 /// A token leaf's text + flattened span, pre-extracted from the CST.
-struct LintToken {
+priv struct LintToken {
   text : Bytes
   start : Int
   end : Int

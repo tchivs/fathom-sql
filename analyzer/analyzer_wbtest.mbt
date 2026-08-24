@@ -422,7 +422,6 @@ test "wb expand_star except exclusion" {
         { name: "c", data_type: "INT" },
       ],
       display: "t",
-      is_quoted: false,
       block: 0,
     },
   ]
@@ -464,7 +463,6 @@ test "wb expand_star except quote byte recheck" {
         { name: "b", data_type: "INT" },
       ],
       display: "t",
-      is_quoted: false,
       block: 0,
     },
   ]

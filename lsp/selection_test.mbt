@@ -137,7 +137,7 @@ test "did_open_without_any_selection_publishes_config_error" {
   assert_true(body.contains("\"source\":\"fathom\""))
   assert_true(body.contains("missing dialect selection"))
   assert_true(!body.contains("FATHOM-PARSE-"))
-  assert_true(state.docs.get("file:///nonselect.sql").is_none())
+  assert_true(state.docs.get("file:///nonselect.sql") is None)
 }
 
 ///|
@@ -166,7 +166,7 @@ test "did_open_with_partial_document_selection_publishes_config_error_not_worksp
   assert_true(body.contains("FATHOM-SCHEMA-007"))
   assert_true(body.contains("missing profile"))
   assert_true(!body.contains("FATHOM-PARSE-"))
-  assert_true(state.docs.get("file:///partial.sql").is_none())
+  assert_true(state.docs.get("file:///partial.sql") is None)
 }
 
 ///|
@@ -237,7 +237,7 @@ test "did_open_with_unknown_document_dialect_publishes_config_error" {
   let body = @utf8.decode_lossy(responses[0])
   assert_true(body.contains("FATHOM-SCHEMA-007"))
   assert_true(body.contains("unknown dialect: mysql"))
-  assert_true(state.docs.get("file:///unknown.sql").is_none())
+  assert_true(state.docs.get("file:///unknown.sql") is None)
 }
 
 ///|

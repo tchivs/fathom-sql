@@ -220,8 +220,8 @@ fn parse_rule_flag(value : String) -> Result[@api.RuleOverride, UsageError] {
   let split = value.split_once("=")
   match split {
     Some((code_view, setting_view)) => {
-      let code = code_view.to_string()
-      let setting = setting_view.to_string()
+      let code = code_view.to_owned()
+      let setting = setting_view.to_owned()
       if code.length() == 0 {
         return Err(UnknownValue(flag="--rule", value~))
       }

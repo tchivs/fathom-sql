@@ -98,7 +98,7 @@ pub fn parse_message(body : Bytes) -> Result[RpcMessage, String] {
     Some(value) => decode_id(value)
     None => None
   }
-  if object.get("id") is Some(_) && id.is_none() {
+  if object.get("id") is Some(_) && id is None {
     return Err("invalid JSON-RPC id")
   }
   let params = match object.get("params") {

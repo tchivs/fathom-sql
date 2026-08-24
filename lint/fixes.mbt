@@ -43,9 +43,9 @@ pub(all) struct LintResult {
 pub fn apply_fixes(
   root : @syntax.SyntaxNode,
   source : @source.SourceText,
-  context : @dialect.DialectContext,
+  _context : @dialect.DialectContext,
   findings : Array[LintFinding],
-  options : LintOptions,
+  _options : LintOptions,
 ) -> LintResult {
   // D-33 absolute refusal gate (reuse formatter/refuse.mbt — never rewrite the
   // unsafe scan).
