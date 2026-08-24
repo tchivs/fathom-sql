@@ -7,10 +7,10 @@
 /// `product_version()` and following docs/VERSIONING.md (tag + CHANGELOG).
 
 ///|
-/// Product semver, no `v` prefix (the release tag is `v1.0.2`; the binary
-/// reports `1.0.2`).
+/// Product semver, no `v` prefix (the release tag is `v1.0.3`; the binary
+/// reports `1.0.3`).
 pub fn product_version() -> String {
-  "1.0.2"
+  "1.0.3"
 }
 
 ///|
@@ -42,11 +42,11 @@ extern "c" fn exit_process(code : Int) = "exit"
 
 ///|
 test "product_version_is_1_0_2" {
-  assert_eq(product_version(), "1.0.2")
+  assert_eq(product_version(), "1.0.3")
 }
 
 ///|
 test "version_line_format" {
-  assert_eq(version_line("fathom-sql"), "fathom-sql 1.0.2\n")
-  assert_eq(version_line("fathom-lsp"), "fathom-lsp 1.0.2\n")
+  assert_eq(version_line("fathom-sql"), "fathom-sql 1.0.3\n")
+  assert_eq(version_line("fathom-lsp"), "fathom-lsp 1.0.3\n")
 }

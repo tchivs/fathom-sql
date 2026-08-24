@@ -20,7 +20,6 @@ pub enum CompletionError {
   UnknownDialect(dialect_id~ : String)
   UnknownProfile(profile_id~ : String)
   InvalidCursor(cursor~ : Int, source_length~ : Int)
-  InvalidSource
   InputTooLarge
 } derive(Eq, @debug.Debug)
 

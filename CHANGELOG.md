@@ -3,6 +3,36 @@
 All notable user-visible changes to the Fathom SQL Parser SDK are documented
 in this file. The prior public baseline is the `v0.1.0` release.
 
+## [1.0.3] - 2026-08-24
+
+### Changed
+
+- **AI context docs**: root `CLAUDE.md` (project overview + Mermaid architecture
+  diagram + 28-module index) and 27 module-level `CLAUDE.md` files.
+- **Sub-channel README unification**: npm, VS Code, JetBrains, and web READMEs
+  carry consistent badge headers and back-links to the root README.
+  New `web/README.md` created.
+- **CONTRIBUTING.md**: commit message conventions and GitHub auto-close-issue
+  keyword rules.
+- **Package restructuring**: `bench/` → `benchmarks/` (eliminates alias
+  collision); `parity/` split into executable entry + `parity-tests/` library
+  package; `fathom-sql/cli_test.mbt` → `cli_wbtest.mbt`.
+
+### Fixed
+
+- **`lint()` crash (issue #1)**: npm wrapper passed 4 of 6 arguments to
+  `fathom_lint_v1`; `overrides` was undefined, causing `TypeError` on every
+  call. Now passes empty overrides + `fix=false`.
+- **JetBrains source-smoke**: `CLAUDE.md` excluded from forbidden-URL scan
+  (shields.io badge URLs falsely flagged as "remote fallback").
+- **Version consistency**: all READMEs, VERSIONING.md, and badges aligned to
+  current product version.
+- **35 MoonBit compiler warnings eliminated** (43→0): deprecated API
+  replacements (`.flatten()`→`.bind()`, `.is_none()`→`is None`,
+  `.to_string()`→`.to_owned()`), `priv` modifiers, unused variable/function
+  removal, unused constructor elimination via legitimate construction or
+  removal of dead-code variants.
+
 ## [1.0.2] - 2026-08-21
 
 ### Changed

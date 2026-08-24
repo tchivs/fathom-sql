@@ -226,7 +226,13 @@ pub fn ParseOptions::from_manifest(
           )
         ) => return Err(UnsupportedFeatureIntroduction(feature_introduction~))
       }
-    @dialect.Dialect::Flink => return Err(UnknownProfile(profile_id~))
+    @dialect.Dialect::Flink =>
+      return Err(
+        ConflictingSelection(
+          selection_a="doris manifest",
+          selection_b="flink dialect",
+        ),
+      )
   }
   Ok({ dialect_context, mode, limits: ParseLimits::default() })
 }

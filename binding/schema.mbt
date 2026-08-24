@@ -393,7 +393,6 @@ pub fn completion_error_json(error : @completion.CompletionError) -> String {
     @completion.CompletionError::UnknownDialect(_) => "FATHOM-SCHEMA-007"
     @completion.CompletionError::UnknownProfile(_) => "FATHOM-SCHEMA-003"
     @completion.CompletionError::InvalidCursor(..) => "FATHOM-COMPLETE-001"
-    @completion.CompletionError::InvalidSource => "FATHOM-COMPLETE-002"
     @completion.CompletionError::InputTooLarge => "FATHOM-COMPLETE-003"
   }
   let message = match error {
@@ -403,8 +402,6 @@ pub fn completion_error_json(error : @completion.CompletionError) -> String {
       "unsupported profile: \{profile_id}"
     @completion.CompletionError::InvalidCursor(cursor~, source_length~) =>
       "invalid cursor \{cursor}: source length is \{source_length}"
-    @completion.CompletionError::InvalidSource =>
-      "invalid source: input could not be parsed as SQL"
     @completion.CompletionError::InputTooLarge =>
       "input too large: exceeds the 8 MiB source limit"
   }

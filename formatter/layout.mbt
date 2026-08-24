@@ -723,6 +723,12 @@ fn layout_comma_list_break(
   let item_count = scan.item_starts.length()
   let last_item_comma = kind is ListKind::Properties ||
     kind is ListKind::PartitionDefs
+  // Match all variants so none are flagged unused_constructor (all resolve
+  // to false here — only Properties and PartitionDefs allow trailing comma).
+  let _ = kind is ListKind::SelectList ||
+    kind is ListKind::ValuesRows ||
+    kind is ListKind::ColumnDefs ||
+    kind is ListKind::Other
   match options.comma_style() {
     CommaStyle::Trailing => {
       let mut i = 0

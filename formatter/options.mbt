@@ -140,3 +140,39 @@ pub fn NewlineStyle::from_id(id : String) -> NewlineStyle? {
     _ => None
   }
 }
+
+///|
+/// Validate a keyword case string id, returning a FormatError on unknown
+/// values (FATHOM-FORMAT-002). Used by the CLI and binding layers.
+pub fn KeywordCase::from_id_checked(
+  id : String,
+) -> Result[KeywordCase, FormatError] {
+  match KeywordCase::from_id(id) {
+    Some(value) => Ok(value)
+    None => Err(UnknownKeywordCase(keyword_case_id=id))
+  }
+}
+
+///|
+/// Validate a comma style string id, returning a FormatError on unknown
+/// values (FATHOM-FORMAT-003).
+pub fn CommaStyle::from_id_checked(
+  id : String,
+) -> Result[CommaStyle, FormatError] {
+  match CommaStyle::from_id(id) {
+    Some(value) => Ok(value)
+    None => Err(UnknownCommaStyle(comma_style_id=id))
+  }
+}
+
+///|
+/// Validate a newline style string id, returning a FormatError on unknown
+/// values (FATHOM-FORMAT-004).
+pub fn NewlineStyle::from_id_checked(
+  id : String,
+) -> Result[NewlineStyle, FormatError] {
+  match NewlineStyle::from_id(id) {
+    Some(value) => Ok(value)
+    None => Err(UnknownNewlineStyle(newline_style_id=id))
+  }
+}

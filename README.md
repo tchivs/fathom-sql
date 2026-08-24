@@ -3,7 +3,7 @@ English | [简体中文](README.zh-CN.md)
 
 [![GitHub Release](https://img.shields.io/github/v/release/tchivs/fathom-sql?include_prereleases&label=Release)](https://github.com/tchivs/fathom-sql/releases)
 [![npm version](https://img.shields.io/npm/v/@fathom-sql/sql?label=npm)](https://www.npmjs.com/package/@fathom-sql/sql)
-[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.2-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.3-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
 [![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](LICENSE)
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
@@ -217,8 +217,8 @@ Doris SQL support is defined by the fixtures and expected errors marked by profi
 
 Prebuilt `fathom-lsp` binaries are published with each GitHub Release
 (<https://github.com/tchivs/fathom-sql/releases>). Pick the release tag that
-matches the version you want (for example `v1.0.2`; the binary reports
-`fathom-lsp 1.0.2` via `--version`).
+matches the version you want (for example `v1.0.3`; the binary reports
+`fathom-lsp 1.0.3` via `--version`).
 
 ### Per-platform assets
 
@@ -235,8 +235,8 @@ digest of your asset against its `assets` entry (per-platform `sha256`):
 
 ```bash
 # Linux/macOS
-curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.2/fathom-lsp-linux-x86_64
-curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.2/fathom-lsp-manifest.json
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.3/fathom-lsp-linux-x86_64
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.3/fathom-lsp-manifest.json
 python3 - <<'PY'
 import hashlib, json
 m = json.load(open("fathom-lsp-manifest.json"))
@@ -262,7 +262,7 @@ add it to `PATH` (PowerShell: `Move-Item`).
 ### Verify the installation
 
 ```bash
-fathom-lsp --version   # prints: fathom-lsp 1.0.2
+fathom-lsp --version   # prints: fathom-lsp 1.0.3
 ```
 
 ## License

@@ -79,7 +79,10 @@ fn content_length(header : Bytes) -> Result[Int, FrameError] {
         index = index + 1
       }
       if same {
-        found = decimal(header, line_start + prefix.length(), line_end)
+        match decimal(header, line_start + prefix.length(), line_end) {
+          Some(length) => found = Some(length)
+          None => return Err(InvalidContentLength)
+        }
       }
     }
     if line_end + 1 >= length {

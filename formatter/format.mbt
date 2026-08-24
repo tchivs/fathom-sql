@@ -90,6 +90,22 @@ pub fn format(
 }
 
 ///|
+/// Checked format entry: validates the tree before formatting. Returns
+/// `Err(InvalidSyntaxTree)` when the CST has invalid spans (defensive gate
+/// for callers that prefer Result over FormatResult refusal).
+pub fn format_checked(
+  root : @syntax.SyntaxNode,
+  source : @source.SourceText,
+  options : FormatOptions,
+  context : @dialect.DialectContext,
+) -> Result[FormatResult, FormatError] {
+  if !root.is_valid(source.byte_length()) {
+    return Err(InvalidSyntaxTree)
+  }
+  Ok(format(root, source, options, context))
+}
+
+///|
 /// First unsafe element together with the id of the Statement node containing
 /// it (0U when it sits outside any statement — e.g. a resource-skipped tail).
 fn find_first_unsafe(
