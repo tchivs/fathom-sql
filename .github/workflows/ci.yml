@@ -102,7 +102,7 @@ jobs:
       # only `moon check` in CI (Research §4.5 gap). Running the parity suite on
       # js closes the gap so a js-only byte regression cannot silently diverge —
       # the MoonBit snapshot mechanism compares this target against the SAME
-      # committed parity/__snapshot__ files as wasm and native (byte identity of
+      # committed parity-tests/__snapshot__ files as wasm and native (byte identity of
       # serialized results, diagnostics, spans, and lossless replay).
       - name: Execute parity suite on JavaScript target
         run: moon test --target js --package parity-tests
@@ -111,7 +111,7 @@ jobs:
       # deterministic sha256 tree digest over the committed snapshot tree (wasm
       # cannot stdout-dump, A8), names any failing fixture, and fails closed on a
       # skipped/failed target, an empty tree, or a digest divergence (Pitfall 8).
-      # Read-only: never writes parity/__snapshot__ (no --update anywhere in CI).
+      # Read-only: never writes parity-tests/__snapshot__ (no --update anywhere in CI).
       - name: Cross-backend byte-parity aggregate (compare_backends)
         run: python3 scripts/compare_backends.py
 
@@ -142,7 +142,7 @@ jobs:
       # Self-diff must report zero unexpected: the committed snapshot tree is
       # the frozen baseline, so left == right is the steady state (D-08).
       - name: Baseline diff self-check (approved vs unexpected)
-        run: python3 scripts/baseline_diff.py --left parity/__snapshot__ --right parity/__snapshot__ --approve .planning/milestones/v2.0-phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
+        run: python3 scripts/baseline_diff.py --left parity-tests/__snapshot__ --right parity-tests/__snapshot__ --approve .planning/milestones/v2.0-phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
 
       # T-09-03 provenance pin (MI-04): baseline-hashes.txt fixes the corpus
       # files' SHA-256. Any corpus drift — even one that keeps manifest and

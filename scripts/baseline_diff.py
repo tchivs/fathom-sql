@@ -2,8 +2,8 @@
 """D-08 baseline snapshot shape-diff reporter (Python stdlib only).
 
 Usage:
-  python3 scripts/baseline_diff.py --left parity/__snapshot__ \\
-      --right parity/__snapshot__ \\
+  python3 scripts/baseline_diff.py --left parity-tests/__snapshot__ \\
+      --right parity-tests/__snapshot__ \\
       --approve .planning/phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
 
   --frozen and --current are self-documenting aliases for --left and --right

@@ -30,7 +30,7 @@ following hold:
         is reported as archive-not-present (research fixture) and is NOT a
         failure — no hash is ever fabricated (Pitfall 3).
   6. Snapshot completeness: every row has both strict and editor snapshots in
-     parity/__snapshot__ with the dialect-correct segment (flink rows
+     parity-tests/__snapshot__ with the dialect-correct segment (flink rows
      {fixture_id}.{profile}.{mode}.json; doris rows
      {fixture_id}.doris-{profile}.{mode}.json; unknown-profile slot
      {fixture_id}.flink-4x.{mode}.json).
@@ -53,7 +53,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "parity" / "fixtures" / "flink" / "manifest.tsv"
 FLINK_FIXTURES = ROOT / "parity" / "fixtures" / "flink"
-SNAPSHOT_DIR = ROOT / "parity" / "__snapshot__"
+SNAPSHOT_DIR = ROOT / "parity-tests" / "__snapshot__"
 FLINK_COVERAGE = ROOT / "corpus" / "flink-coverage.tsv"
 
 # Research-time release archive cache (never shipped / never a CI dependency).

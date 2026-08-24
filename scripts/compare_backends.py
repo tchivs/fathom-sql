@@ -6,14 +6,14 @@ cross-target byte identity with two channels:
 
   1. per-target `moon test --target {t} --package parity` exit code — the
      MoonBit @test.T::snapshot mechanism compares each target against the SAME
-     committed parity/__snapshot__ files, so any serialized-result /
+     committed parity-tests/__snapshot__ files, so any serialized-result /
      diagnostic / span / lossless-replay byte divergence fails that target;
   2. a deterministic sha256 tree digest over the committed snapshot tree — the
      cross-target comparison object (linear-wasm cannot stdout-dump,
      parity/run_wasm.mbt "No println/env/host IO"), so rc + digest is the
      byte-parity proof (RESEARCH §7.2, A8; D-05, Pitfall 4).
 
-The script is read-only: it never writes parity/__snapshot__ and verifies the
+The script is read-only: it never writes parity-tests/__snapshot__ and verifies the
 tree digest is unchanged before/after the run (a target that wrote snapshots is
 a read-only violation and fails the run). Failing fixtures are NAMED by
 matching the snapshot-diff expected bytes (the '-' side of each moon Diff
@@ -203,7 +203,7 @@ def main(argv):
     parser.add_argument(
         "--snapshot-dir",
         default=None,
-        help="override the committed snapshot tree (default: parity/__snapshot__); "
+        help="override the committed snapshot tree (default: parity-tests/__snapshot__); "
         "used to prove the empty/missing-tree non-empty guard.",
     )
     args = parser.parse_args(argv)
