@@ -508,7 +508,10 @@ fn initialize_selection(
           default_profile != profile =>
           return Err(
             selection_error_message(
-              ConflictingSelection(source_a="workspace", source_b="initializationOptions"),
+              ConflictingSelection(
+                source_a="workspace",
+                source_b="initializationOptions",
+              ),
             ),
           )
         _ => ()
