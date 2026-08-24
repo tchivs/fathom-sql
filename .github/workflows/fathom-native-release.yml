@@ -116,16 +116,16 @@ jobs:
       - name: Build linear-Wasm facade + parity runner
         run: |
           moon build --target wasm binding
-          moon build --target wasm parity
+          moon build --target wasm parity-tests
 
       - name: Native parity
-        run: moon test --target native --package parity
+        run: moon test --target native --package parity-tests
 
       - name: JavaScript parity
-        run: moon test --target js --package parity
+        run: moon test --target js --package parity-tests
 
       - name: linear-Wasm parity
-        run: moon test --target wasm --package parity
+        run: moon test --target wasm --package parity-tests
 
       - name: compare_backends
         run: python3 scripts/compare_backends.py

@@ -3,13 +3,13 @@
 
 Usage:
   python3 scripts/diff_parity.py --frozen-only
-  python3 scripts/diff_parity.py --approve <register> [--package parity]
+  python3 scripts/diff_parity.py --approve <register> [--package parity-tests]
   python3 scripts/diff_parity.py --frozen-only --left <frozen> --right <current>
   python3 scripts/diff_parity.py --approve <register> --left <frozen> --right <current>
 
-The committed snapshot tree at parity/__snapshot__ is the frozen baseline.
+The committed snapshot tree at parity-tests/__snapshot__ is the frozen baseline.
 "Current" output is REGENERATED in a temp directory by running
-`moon test --update --package parity` with the working snapshot tree moved
+`moon test --update --package parity-tests` with the working snapshot tree moved
 aside and restored afterwards (zero working-tree residue), so the proof of
 frozenness is a REGENERATED comparison — not the vacuous left==right
 self-check that a committed-tree invocation of scripts/baseline_diff.py
@@ -55,7 +55,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import baseline_diff  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SNAPSHOT_DIR = ROOT / "parity" / "__snapshot__"
+SNAPSHOT_DIR = ROOT / "parity-tests" / "__snapshot__"
 
 
 # ---------------------------------------------------------------------------
@@ -75,10 +75,10 @@ def _sigterm_handler(signum, frame):
 
 
 def _snapshot_tree_is_dirty(repo_root):
-    """True when parity/__snapshot__ has uncommitted changes; None if unknown."""
+    """True when parity-tests/__snapshot__ has uncommitted changes; None if unknown."""
     try:
         proc = subprocess.run(
-            ["git", "status", "--porcelain", "--", "parity/__snapshot__"],
+            ["git", "status", "--porcelain", "--", "parity-tests/__snapshot__"],
             cwd=str(repo_root),
             capture_output=True,
             text=True,
@@ -92,7 +92,7 @@ def _snapshot_tree_is_dirty(repo_root):
 
 
 def _restore_committed(snap, hold):
-    """Return the committed snapshot tree to parity/__snapshot__."""
+    """Return the committed snapshot tree to parity-tests/__snapshot__."""
     if snap.exists():
         shutil.rmtree(snap)
     shutil.move(str(hold), str(snap))
@@ -102,11 +102,11 @@ def regenerate_current(package, repo_root):
     """Regenerate the current snapshot tree in a temp directory.
 
     Returns (frozen_dir, current_dir, tmp_root, exit_code). On any lifecycle
-    failure or interruption the committed parity/__snapshot__ tree is restored
+    failure or interruption the committed parity-tests/__snapshot__ tree is restored
     before returning (the restore-on-failure path, RESEARCH §6.2 / A9), and
     exit_code is 2.
     """
-    snap = repo_root / "parity" / "__snapshot__"
+    snap = repo_root / "parity-tests" / "__snapshot__"
     if not snap.is_dir():
         print("error: frozen snapshot tree not found: %s" % snap, file=sys.stderr)
         return None, None, None, 2
@@ -114,7 +114,7 @@ def regenerate_current(package, repo_root):
     dirty = _snapshot_tree_is_dirty(repo_root)
     if dirty:
         print(
-            "warning: parity/__snapshot__ has uncommitted changes — the frozen "
+            "warning: parity-tests/__snapshot__ has uncommitted changes — the frozen "
             "baseline below is the working tree, not HEAD",
             file=sys.stderr,
         )
@@ -128,7 +128,7 @@ def regenerate_current(package, repo_root):
     restored = False
     try:
         # Move the working tree aside so the regenerated tree lands at the
-        # canonical parity/__snapshot__ path; the committed bytes are never
+        # canonical parity-tests/__snapshot__ path; the committed bytes are never
         # written in place (zero working-tree residue).
         shutil.move(str(snap), str(hold))  # working tree -> temp hold dir
         cmd = ["moon", "test", "--update", "--package", package]
@@ -145,7 +145,7 @@ def regenerate_current(package, repo_root):
             return frozen, current, tmp_root, 2
         if not snap.is_dir():
             print(
-                "error: %s produced no parity/__snapshot__; committed tree restored"
+                "error: %s produced no parity-tests/__snapshot__; committed tree restored"
                 % " ".join(cmd),
                 file=sys.stderr,
             )

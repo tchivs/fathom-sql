@@ -60,7 +60,7 @@ graph TD
     subgraph "质量保证"
         TEST[test<br/>黑盒集成测试]
         PARITY[parity<br/>跨后端一致性]
-        BENCH[bench<br/>性能基准]
+        BENCH[benchmarks<br/>性能基准]
         CORPUS[corpus<br/>Doris/Flink 语料库]
     end
 
@@ -131,8 +131,8 @@ graph TD
 | 模块 | 职责 | 源行数 | 关键文件 |
 |---|---|---|---|
 | [test](./test/CLAUDE.md) | 黑盒集成测试（15 个测试文件） | — | `*_test.mbt` |
-| [parity](./parity/CLAUDE.md) | 跨后端一致性验证 | 85 | `run_native.mbt` `run_js.mbt` `run_wasm.mbt` |
-| [bench](./bench/CLAUDE.md) | 性能基准 | 236 | `bench.mbt` |
+| [parity-tests](./parity-tests/CLAUDE.md) | 跨后端一致性验证 | — | `*_test.mbt` |
+| [benchmarks](./benchmarks/CLAUDE.md) | 性能基准 | 236 | `bench.mbt` |
 | [corpus](./corpus/CLAUDE.md) | Doris/Flink 语料库与覆盖报告 | — | `doris-*/` `requirements.txt` |
 
 ### 生态层

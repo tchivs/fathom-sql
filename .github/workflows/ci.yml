@@ -58,7 +58,7 @@ jobs:
         # full behavioral surface instead.
         run: |
           moon test --target native \
-            --package test --package parity --package lsp --package api \
+            --package test --package parity-tests --package lsp --package api \
             --package source --package token --package lexer --package parser \
             --package printer --package syntax --package completion --package analyzer \
             --package fingerprint --package lint --package fathom-sql
@@ -88,15 +88,15 @@ jobs:
       - name: Build linear-Wasm facade + parity runner
         run: |
           moon build --target wasm binding
-          moon build --target wasm parity
+          moon build --target wasm parity-tests
 
       - name: Execute parity suite on linear-Wasm target
-        run: moon test --target wasm --package parity
+        run: moon test --target wasm --package parity-tests
 
       # Byte-parity cross-check: run the identical suite on native so a wasm-only
       # regression cannot silently diverge from the reference target.
       - name: Execute parity suite on native target
-        run: moon test --target native --package parity
+        run: moon test --target native --package parity-tests
 
       # Three-target matrix completion (D-05 / PARITY-02): the JS backend had
       # only `moon check` in CI (Research §4.5 gap). Running the parity suite on
@@ -105,7 +105,7 @@ jobs:
       # committed parity/__snapshot__ files as wasm and native (byte identity of
       # serialized results, diagnostics, spans, and lossless replay).
       - name: Execute parity suite on JavaScript target
-        run: moon test --target js --package parity
+        run: moon test --target js --package parity-tests
 
       # Cross-backend aggregate report: proves the three-target byte parity via a
       # deterministic sha256 tree digest over the committed snapshot tree (wasm
@@ -137,7 +137,7 @@ jobs:
       # change is already pre-declared in approved-changes.md (single-use
       # approval path, research §9.3).
       - name: Baseline snapshot gate (byte-level)
-        run: moon test --package parity
+        run: moon test --package parity-tests
 
       # Self-diff must report zero unexpected: the committed snapshot tree is
       # the frozen baseline, so left == right is the steady state (D-08).

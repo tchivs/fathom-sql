@@ -41,13 +41,13 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKAGE = "parity"
+PACKAGE = "parity-tests"
 DEFAULT_TARGETS = ("native", "js", "wasm")
 VALID_TARGETS = set(DEFAULT_TARGETS)
-DEFAULT_SNAPSHOT_DIR = ROOT / "parity" / "__snapshot__"
+DEFAULT_SNAPSHOT_DIR = ROOT / "parity-tests" / "__snapshot__"
 
 # moon prints failed-test lines of the form:
-#   [fathom/sql] test parity/baseline_test.mbt:1440 ("<label>") failed
+#   [fathom/sql] test parity-tests/baseline_test.mbt:1440 ("<label>") failed
 _FAILED_TEST_RE = re.compile(r'\]\s*test\s+\S+\s+\(["\']([^"\']+)["\']\)\s+failed')
 # moon prints a final stats line:
 #   Total tests: 570, passed: 569, failed: 1.
