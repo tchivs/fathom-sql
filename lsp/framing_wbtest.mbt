@@ -67,10 +67,11 @@ test "content_length_is_overflow_safe_at_the_frame_limit" {
     decode_frame(b"Content-Length: 8388609\r\n\r\n") is Err(FrameTooLarge(_)),
   )
   // Values that would overflow the bounded decimal parser are rejected
-  // (mapped to MissingContentLength by the existing content_length logic).
+  // as InvalidContentLength (the Content-Length header was found but its
+  // value is not a valid bounded decimal).
   assert_eq(
     content_length(@utf8.encode("Content-Length: 999999999\r\n")),
-    Err(MissingContentLength),
+    Err(InvalidContentLength),
   )
   assert_true(decode_frame(b"Content-Length: 999999999\r\n\r\n") is Err(_))
   assert_eq(

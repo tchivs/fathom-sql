@@ -420,28 +420,7 @@ fn resolve_selection_with_source(
       }
       return Ok((validated, "document"))
     }
-    DocPartial(missing~) => {
-      // D-03: if a workspace default exists and the document's partial
-      // selection conflicts with it, surface a structured conflict error.
-      let document = match object_field(params, "textDocument") {
-        Some(d) => d
-        None => return Err(MissingDocumentField(missing~))
-      }
-      let doc_dialect = string_field(document, "dialect")
-      let doc_profile = string_field(document, "profile")
-      match
-        (state.default_dialect, state.default_profile, doc_dialect, doc_profile) {
-        (Some(wd), _, Some(dd), _) if dd != wd =>
-          return Err(
-            ConflictingSelection(source_a="document", source_b="workspace"),
-          )
-        (_, Some(wp), _, Some(dp)) if dp != wp =>
-          return Err(
-            ConflictingSelection(source_a="document", source_b="workspace"),
-          )
-        _ => return Err(MissingDocumentField(missing~))
-      }
-    }
+    DocPartial(missing~) => return Err(MissingDocumentField(missing~))
     DocAbsent => ()
   }
   // (2) workspace/session explicit default
@@ -528,7 +507,9 @@ fn initialize_selection(
           dialect ||
           default_profile != profile =>
           return Err(
-            "conflicting dialect/profile selections: \{default_dialect}/\{default_profile} vs \{dialect}/\{profile}",
+            selection_error_message(
+              ConflictingSelection(source_a="workspace", source_b="initializationOptions"),
+            ),
           )
         _ => ()
       }
