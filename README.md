@@ -218,7 +218,7 @@ Doris SQL support is defined by the fixtures and expected errors marked by profi
 Prebuilt `fathom-lsp` binaries are published with each GitHub Release
 (<https://github.com/tchivs/fathom-sql/releases>). Pick the release tag that
 matches the version you want (for example `v1.0.2`; the binary reports
-`fathom-lsp 1.0.0` via `--version`).
+`fathom-lsp 1.0.2` via `--version`).
 
 ### Per-platform assets
 
@@ -262,7 +262,7 @@ add it to `PATH` (PowerShell: `Move-Item`).
 ### Verify the installation
 
 ```bash
-fathom-lsp --version   # prints: fathom-lsp 1.0.0
+fathom-lsp --version   # prints: fathom-lsp 1.0.2
 ```
 
 ## License

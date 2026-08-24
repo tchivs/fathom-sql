@@ -17,14 +17,26 @@ in this file. The prior public baseline is the `v0.1.0` release.
   `approved-changes.md` path in `ci.yml`; added `--offline` flag to web smoke;
   `moon check --target js/wasm` now scoped to cross-platform packages (excludes
   native-only C FFI in `lsp/` and `fathom-sql/`).
-
-### Fixed
-
+- **Sub-channel README unification**: npm, VS Code, JetBrains, and web READMEs
+  now carry consistent badge headers (channel-relevant badges + Doris/Flink/
+  MoonBit) and `> Part of Fathom SQL Parser SDK` back-links to the root README.
+  New `web/README.md` created.
 - **453 MoonBit compiler warnings eliminated** (496→43): reserved-keyword
   renames (`ref`→`name_ref`, `alias`→`alias_name`, `method`→`method_name`;
   171 warnings; JSON-RPC wire keys preserved), missing `debug`/`buffer` imports
   in 5 `moon.pkg` files (48 warnings), test-target import separation (20
   warnings), `priv` on internal types, duplicate test name, redundant modifier.
+- **AI context docs**: root `CLAUDE.md` (project overview + Mermaid architecture
+  diagram + 28-module index) and 27 module-level `CLAUDE.md` files (breadcrumb
+  navigation, responsibilities, public APIs, dependencies, tests, design
+  constraints). GSD `Conventions`/`Architecture` placeholders populated.
+
+### Fixed
+
+- JetBrains `source-smoke.py` excluded `CLAUDE.md` from its forbidden-URL scan
+  (shields.io badge URLs were falsely flagged as "remote fallback").
+
+## [1.0.1] - 2026-08-21
 
 ### Added
 
@@ -38,6 +50,8 @@ in this file. The prior public baseline is the `v0.1.0` release.
   `fathom-sql`); npm-publish workflow's version assertion now trusts the
   manifest on `workflow_dispatch` (previously compared against
   `GITHUB_REF_NAME=master` and failed).
+- **CONTRIBUTING.md**: commit message conventions (Conventional Commits) and
+  GitHub auto-close-issue keyword rules (`Fixes #N`).
 
 ### Fixed
 

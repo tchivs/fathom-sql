@@ -216,7 +216,7 @@ Doris SQL 的支持范围以 `corpus/manifest.tsv`、`corpus/coverage.tsv` 和 `
 ## 从 GitHub Release 安装 `fathom-lsp`
 
 预编译的 `fathom-lsp` 二进制随每个 GitHub Release 发布
-（<https://github.com/tchivs/fathom-sql/releases>）。选择与所需版本匹配的 release tag（例如 `v1.0.2`；二进制通过 `--version` 报告 `fathom-lsp 1.0.0`）。
+（<https://github.com/tchivs/fathom-sql/releases>）。选择与所需版本匹配的 release tag（例如 `v1.0.2`；二进制通过 `--version` 报告 `fathom-lsp 1.0.2`）。
 
 ### 各平台资产
 
@@ -258,7 +258,7 @@ Windows 上将 `fathom-lsp-windows-x86_64.exe` 移入所选目录并加入 `PATH
 ### 验证安装
 
 ```bash
-fathom-lsp --version   # 输出：fathom-lsp 1.0.0
+fathom-lsp --version   # 输出：fathom-lsp 1.0.2
 ```
 
 ## 许可证

@@ -10,8 +10,8 @@ report their version (`VER-02`).
   format `MAJOR.MINOR.PATCH` (e.g. `1.0.0`).
 - The first public version is **1.0.0**, published as the `v1.0.0` tag.
 - Release binaries report the version string without the leading `v`:
-  `fathom-sql --version` prints `fathom-sql 1.0.0`, and
-  `fathom-lsp --version` prints `fathom-lsp 1.0.0`, both with exit code 0.
+  `fathom-sql --version` prints `fathom-sql 1.0.2`, and
+  `fathom-lsp --version` prints `fathom-lsp 1.0.2`, both with exit code 0.
 - The single source of the version is `version/version.mbt`
   (`product_version()`). Binaries never carry a second constant.
 
