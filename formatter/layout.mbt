@@ -456,10 +456,18 @@ fn collect_leaves(
 /// list determines (a) whether it splits on commas and (b) whether the
 /// empirical reparse probe accepted a last-item trailing comma.
 priv enum ListKind {
+  /// SELECT column list (keyword list, split on depth-0 commas)
+  SelectList
+  /// VALUES rows (keyword list, split on depth-0 commas; one row per item)
+  ValuesRows
   /// PROPERTIES ( ... ) — probe-accepted last-item trailing comma
   Properties
   /// Partition-definition group ( ... ) following a `)` — probe-accepted
   PartitionDefs
+  /// CREATE/INSERT column definitions: ( ... ) following a table name
+  ColumnDefs
+  /// Other opener-keyword groups (IN, KEY, PARTITION, ...): no last comma
+  Other
 }
 
 ///|
@@ -477,7 +485,7 @@ fn list_context_kind(prev : Bytes?, family : @syntax.SyntaxKind) -> ListKind? {
         return Some(ListKind::Properties)
       }
       if is_list_opener(raw) {
-        return None
+        return Some(ListKind::Other)
       }
       if raw == b")" {
         return Some(ListKind::PartitionDefs)
@@ -490,7 +498,7 @@ fn list_context_kind(prev : Bytes?, family : @syntax.SyntaxKind) -> ListKind? {
       if column_def_family &&
         !is_clause_keyword(family, raw) &&
         is_identifier_like(raw) {
-        return None
+        return Some(ListKind::ColumnDefs)
       }
       None
     }
@@ -916,13 +924,13 @@ fn layout_sequence(
           if family is @syntax.SyntaxKind::Select &&
             bytes_equal_ci(raw, b"SELECT") &&
             ((statement_mode && !emitted_any) || out.paren_depth > 0) {
-            keyword_list = None
+            keyword_list = Some(ListKind::SelectList)
           } else if (
               family is @syntax.SyntaxKind::Insert ||
               family is @syntax.SyntaxKind::Merge
             ) &&
             bytes_equal_ci(raw, b"VALUES") {
-            keyword_list = None
+            keyword_list = Some(ListKind::ValuesRows)
           }
           let paren_kind : ListKind? = if raw == b"(" {
             list_context_kind(prev, family)
