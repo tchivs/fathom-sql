@@ -66,6 +66,9 @@ TABLET	contextual	3.x	https://doris.apache.org/docs/4.x/sql-manual/sql-statement
 INSERT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 UPDATE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 DELETE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+ALTER	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+DROP	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+TRUNCATE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 OVERWRITE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 VALUES	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
 SET	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/

@@ -51,6 +51,8 @@ pub(all) enum SyntaxKind {
   MatchRecognize
   SetOption
   UseStatement
+  TruncateTable
+  DropIndex
 } derive(Eq, @debug.Debug)
 
 ///|

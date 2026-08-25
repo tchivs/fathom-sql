@@ -464,6 +464,8 @@ fn kind_id(kind : @syntax.SyntaxKind) -> String {
     @syntax.SyntaxKind::MatchRecognize => "match_recognize"
     @syntax.SyntaxKind::SetOption => "set_option"
     @syntax.SyntaxKind::UseStatement => "use_statement"
+    @syntax.SyntaxKind::TruncateTable => "truncate_table"
+    @syntax.SyntaxKind::DropIndex => "drop_index"
   }
 }
 

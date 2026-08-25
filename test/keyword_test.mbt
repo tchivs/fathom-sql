@@ -260,6 +260,15 @@ fn tsv_rows() -> Array[(Bytes, String, String, String)] {
       b"DELETE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/",
     ),
     (
+      b"ALTER", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/",
+    ),
+    (
+      b"DROP", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/",
+    ),
+    (
+      b"TRUNCATE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/",
+    ),
+    (
       b"OVERWRITE", "reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/",
     ),
     (

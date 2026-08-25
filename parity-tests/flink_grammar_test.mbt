@@ -2565,10 +2565,11 @@ test "flink_grammar_drop_function_lossless" {
 // DROP has no Doris dispatch arm → whole-statement FATHOM-PARSE-007.
 
 ///|
-test "flink_grammar_drop_view_is_unsupported_under_doris" {
+test "flink_grammar_drop_view_is_supported_under_doris" {
+  // Doris now supports DROP VIEW; Flink also accepts it (bidirectional valid).
   assert_true(
     flink_grammar_bidirectional(
-      b"DROP VIEW IF EXISTS v", "\"valid\":true", "FATHOM-PARSE-007",
+      b"DROP VIEW IF EXISTS v", "\"valid\":true", "\"valid\":true",
     ),
   )
 }
@@ -2677,10 +2678,12 @@ test "flink_grammar_alter_function_lossless" {
 // ALTER has no Doris dispatch arm → whole-statement FATHOM-PARSE-007.
 
 ///|
-test "flink_grammar_alter_is_unsupported_under_doris" {
+test "flink_grammar_alter_view_is_rejected_under_doris" {
+  // Doris supports ALTER TABLE but not ALTER VIEW — the TABLE keyword check
+  // emits FATHOM-PARSE-002 (expected TABLE), not 007 (unsupported statement).
   assert_true(
     flink_grammar_bidirectional(
-      b"ALTER VIEW v AS SELECT 1", "\"valid\":true", "FATHOM-PARSE-007",
+      b"ALTER VIEW v AS SELECT 1", "\"valid\":true", "FATHOM-PARSE-002",
     ),
   )
 }

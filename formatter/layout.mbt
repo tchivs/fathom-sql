@@ -289,6 +289,10 @@ fn clause_breaks(kind : @syntax.SyntaxKind) -> Array[Bytes] {
     @syntax.SyntaxKind::SetOption => [b"SET", b"RESET"]
     // Flink USE [CATALOG] name (parse_flink_use :543-557).
     @syntax.SyntaxKind::UseStatement => [b"USE", b"CATALOG"]
+    // Doris DROP INDEX (parser.mbt doris_drop_form_kind).
+    @syntax.SyntaxKind::DropIndex => [b"INDEX"]
+    // Doris TRUNCATE TABLE (parser.mbt parse_doris_truncate).
+    @syntax.SyntaxKind::TruncateTable => [b"TABLE"]
     _ => []
   }
 }
@@ -421,7 +425,9 @@ pub fn flink_statement_covered(family : @syntax.SyntaxKind) -> Bool {
     | @syntax.SyntaxKind::DropFunction
     | @syntax.SyntaxKind::AlterTable
     | @syntax.SyntaxKind::SetOption
-    | @syntax.SyntaxKind::UseStatement => true
+    | @syntax.SyntaxKind::UseStatement
+    | @syntax.SyntaxKind::DropIndex
+    | @syntax.SyntaxKind::TruncateTable => true
     _ => false
   }
 }

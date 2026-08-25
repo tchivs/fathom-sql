@@ -125,13 +125,13 @@ test "formatter_tracer_fixtures_hit_goldens_and_oracles" {
     },
     // Error tree (unsupported statement): absolute refusal, empty output.
     {
-      fixture_id: "4.x-error-tree-refusal",
+      fixture_id: "4.x-drop-table-formatted",
       profile: "4.x",
       mode: "strict",
       raw: b"drop table x",
-      expected_valid: false,
+      expected_valid: true,
       options: None,
-      expected_golden: b"",
+      expected_golden: b"DROP\nTABLE x\n",
     },
     // Version-invalid 2.1 MERGE (SourceError leaf): refusal with FATHOM-FORMAT-001.
     {

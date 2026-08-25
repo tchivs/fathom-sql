@@ -6364,6 +6364,188 @@ fn parse_segment(
 
 ///|
 /// Doris statement grammar: the v1 parse_segment body verbatim (keyword-first
+
+///|
+/// Doris DROP second-word dispatch: TABLE, VIEW, INDEX. Falls back to
+/// DropTable for unknown forms (D-02 coarse per-family kind).
+fn doris_drop_form_kind(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> @syntax.SyntaxKind {
+  match indices.get(start_index + 1) {
+    Some(i) =>
+      match stream.raw(i) {
+        Some(raw) if bytes_equal_ci(raw, b"TABLE") =>
+          @syntax.SyntaxKind::DropTable
+        Some(raw) if bytes_equal_ci(raw, b"VIEW") =>
+          @syntax.SyntaxKind::DropView
+        Some(raw) if bytes_equal_ci(raw, b"INDEX") =>
+          @syntax.SyntaxKind::DropIndex
+        _ => @syntax.SyntaxKind::DropTable
+      }
+    None => @syntax.SyntaxKind::DropTable
+  }
+}
+
+///|
+/// Doris ALTER TABLE: consume ALTER TABLE [IF EXISTS] <name> and then one or
+/// more comma-separated alter actions (ADD COLUMN, DROP COLUMN, RENAME,
+/// MODIFY COLUMN, ADD INDEX, etc.). Each action is consumed token-by-token
+/// through the end of the statement; the CST preserves the raw children for
+/// round-trip. The parser validates only the structural prefix (ALTER TABLE
+/// <identifier>); the action body is accepted as-is under editor recovery.
+fn parse_doris_alter(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  // ALTER TABLE [IF EXISTS] <name> <body...>
+  valid = expect_word(
+      cursor, b"ALTER", state, source, statement_id, "expected ALTER",
+    ) &&
+    valid
+  valid = expect_word(
+      cursor, b"TABLE", state, source, statement_id, "expected TABLE after ALTER",
+    ) &&
+    valid
+  // optional IF EXISTS
+  if consume_word(cursor, b"IF") {
+    ignore(consume_word(cursor, b"EXISTS"))
+  }
+  // table name — consume identifier (or qualified db.table) and remaining
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+    // consume qualified name: db.table
+    if consume_symbol(cursor, b".") {
+      ignore(consume_word(cursor, b"table"))
+      if is_identifier_candidate(cursor) {
+        advance(cursor)
+      }
+    }
+  } else {
+    let at = match token_at(cursor) {
+      Some(token) => token.span.start_byte
+      None => source.byte_length()
+    }
+    add_diagnostic(
+      state,
+      "FATHOM-PARSE-002",
+      "expected table name",
+      "identifier",
+      make_span(source, at, at),
+      statement_id,
+    )
+    valid = false
+  }
+  // Consume remaining tokens (ADD COLUMN, DROP COLUMN, RENAME, MODIFY, ...)
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
+/// Doris DROP TABLE/VIEW/INDEX [IF EXISTS] <name> [,<name>...]
+fn parse_doris_drop(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  valid = expect_word(
+      cursor, b"DROP", state, source, statement_id, "expected DROP",
+    ) &&
+    valid
+  // TABLE | VIEW | INDEX
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") ||
+      bytes_equal_ci(raw, b"VIEW") ||
+      bytes_equal_ci(raw, b"INDEX") => advance(cursor)
+    _ => {
+      let at = match token_at(cursor) {
+        Some(token) => token.span.start_byte
+        None => source.byte_length()
+      }
+      add_diagnostic(
+        state,
+        "FATHOM-PARSE-002",
+        "expected TABLE, VIEW, or INDEX after DROP",
+        "drop",
+        make_span(source, at, at),
+        statement_id,
+      )
+      valid = false
+    }
+  }
+  // optional IF EXISTS
+  if consume_word(cursor, b"IF") {
+    ignore(consume_word(cursor, b"EXISTS"))
+  }
+  // object name(s) — comma-separated
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+    if consume_symbol(cursor, b".") && is_identifier_candidate(cursor) {
+      advance(cursor)
+    }
+  } else {
+    valid = false
+  }
+  while consume_symbol(cursor, b",") {
+    if is_identifier_candidate(cursor) {
+      advance(cursor)
+      if consume_symbol(cursor, b".") && is_identifier_candidate(cursor) {
+        advance(cursor)
+      }
+    } else {
+      valid = false
+    }
+  }
+  // Consume any remaining tokens
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
+/// Doris TRUNCATE [TABLE] [IF EXISTS] <name>
+fn parse_doris_truncate(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  valid = expect_word(
+      cursor, b"TRUNCATE", state, source, statement_id, "expected TRUNCATE",
+    ) &&
+    valid
+  // optional TABLE keyword
+  ignore(consume_word(cursor, b"TABLE"))
+  // optional IF EXISTS
+  if consume_word(cursor, b"IF") {
+    ignore(consume_word(cursor, b"EXISTS"))
+  }
+  // table name
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+    if consume_symbol(cursor, b".") && is_identifier_candidate(cursor) {
+      advance(cursor)
+    }
+  } else {
+    valid = false
+  }
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
 /// dispatch on the first significant raw token). `context` is carried for
 /// signature symmetry; Doris policy state (feature gates) is read from
 /// RecoveryState.context.
@@ -6533,6 +6715,42 @@ fn parse_doris_segment(
           stream, start_index, end_index, span, state, statement_id,
         )
       }
+    }
+    Some(raw) if bytes_equal_ci(raw, b"ALTER") => {
+      let kind = @syntax.SyntaxKind::AlterTable
+      let valid = parse_doris_alter(cursor, state, stream.source, statement_id)
+      finish_statement(
+        stream, cursor, start_index, end_index, span, valid, state, statement_id,
+        kind, "unexpected tokens after ALTER statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"DROP") => {
+      let kind = doris_drop_form_kind(stream, indices, 0)
+      let valid = parse_doris_drop(cursor, state, stream.source, statement_id)
+      finish_statement(
+        stream, cursor, start_index, end_index, span, valid, state, statement_id,
+        kind, "unexpected tokens after DROP statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"TRUNCATE") => {
+      let valid = parse_doris_truncate(
+        cursor,
+        state,
+        stream.source,
+        statement_id,
+      )
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        valid,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::TruncateTable,
+        "unexpected tokens after TRUNCATE statement",
+      )
     }
     _ =>
       unsupported_statement(

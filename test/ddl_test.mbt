@@ -608,3 +608,100 @@ test "doris03_mixed_ddl_dml_select_script_keeps_statement_ids" {
     assert_true(result.all_spans_in_bounds())
   }
 }
+
+///|
+test "doris_alter_table_add_column_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t ADD COLUMN c INT DEFAULT \"0\""
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "alter_table"))
+  }
+}
+
+///|
+test "doris_alter_table_qualified_name_parses" {
+  let raw = b"ALTER TABLE db.t ADD COLUMN c INT"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "alter_table"))
+}
+
+///|
+test "doris_alter_table_if_exists_parses" {
+  let raw = b"ALTER TABLE IF EXISTS t ADD COLUMN c INT"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_drop_table_parses_and_round_trips" {
+  let raw = b"DROP TABLE t"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "drop_table"))
+  }
+}
+
+///|
+test "doris_drop_table_if_exists_multiple_parses" {
+  let raw = b"DROP TABLE IF EXISTS t1, t2, t3"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "drop_table"))
+}
+
+///|
+test "doris_drop_view_parses" {
+  let raw = b"DROP VIEW v"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "drop_view"))
+}
+
+///|
+test "doris_drop_index_parses" {
+  let raw = b"DROP INDEX idx ON t"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "drop_index"))
+}
+
+///|
+test "doris_truncate_table_parses_and_round_trips" {
+  let raw = b"TRUNCATE TABLE t"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "truncate_table"))
+  }
+}
+
+///|
+test "doris_truncate_without_table_keyword_parses" {
+  let raw = b"TRUNCATE t"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "truncate_table"))
+}
+
+///|
+test "doris_truncate_qualified_name_parses" {
+  let raw = b"TRUNCATE TABLE db.t"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}

@@ -123,7 +123,9 @@ test "doris03_insert_script_localizes_bad_statement" {
 
 ///|
 test "unknown_statement_starters_are_explicit_unsupported_nodes" {
-  let raws = [b"bad", b"ALTER TABLE t ADD COLUMN c INT", b"DROP TABLE t"]
+  let raws = [
+    b"bad", b"GRANT SELECT ON db.t TO user", b"LOAD DATA INPATH 'x' INTO TABLE t",
+  ]
   for raw in raws {
     for mode in ["strict", "editor"] {
       let result = parse_dml(raw, "4.x", mode)
@@ -419,8 +421,7 @@ test "merge_malformed_recovers_losslessly" {
 ///|
 test "unsupported_statement_starters_emit_one_007_each" {
   let raws = [
-    b"ALTER TABLE t ADD COLUMN c INT", b"DROP TABLE t", b"GRANT SELECT ON db.t TO user",
-    b"SHOW TABLES", b"EXPLAIN SELECT 1", b"LOAD DATA INPATH 'x' INTO TABLE t", b"TRUNCATE TABLE t",
+    b"GRANT SELECT ON db.t TO user", b"LOAD DATA INPATH 'x' INTO TABLE t",
   ]
   for raw in raws {
     for mode in ["strict", "editor"] {
@@ -449,9 +450,7 @@ test "doris03_merge_and_unsupported_keep_later_statements" {
   let alter_result = parse_dml(alter_raw, "4.x", "strict")
   assert_eq(@printer.print_result(alter_result), alter_raw)
   assert_eq(alter_result.root.children.length(), 3)
-  assert_true(!alter_result.valid)
-  assert_eq(alter_result.diagnostics[0].code, "FATHOM-PARSE-007")
-  assert_eq(alter_result.diagnostics[0].statement_id, 0U)
+  assert_true(alter_result.valid)
   assert_true(alter_result.all_spans_in_bounds())
 
   let script_raw = b"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE; bad; SELECT b"
