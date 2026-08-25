@@ -179,10 +179,10 @@ Expected-error rows are explicit failures with recovery/version goldens. Support
 | Classification | Count |
 |---|---|
 | contextual | 26 |
-| non-reserved | 6 |
-| reserved | 87 |
+| non-reserved | 24 |
+| reserved | 91 |
 
-By introduced profile: 2.1: 115, 3.x: 2, 4.x: 2 (total 119 words).
+By introduced profile: 2.1: 137, 3.x: 2, 4.x: 2 (total 141 words).
 
 ## Flink Cross-Dialect Coverage (CORPUS-01 / PARITY-03)
 
