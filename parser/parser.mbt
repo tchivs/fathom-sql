@@ -7277,6 +7277,40 @@ fn parse_doris_segment(
         "unexpected tokens after USE statement",
       )
     }
+    // Doris admin/management statements — consume all tokens, generic kind.
+    Some(raw) if bytes_equal_ci(raw, b"ADMIN") ||
+      bytes_equal_ci(raw, b"CANCEL") ||
+      bytes_equal_ci(raw, b"STOP") ||
+      bytes_equal_ci(raw, b"PAUSE") ||
+      bytes_equal_ci(raw, b"RESUME") ||
+      bytes_equal_ci(raw, b"RECOVER") ||
+      bytes_equal_ci(raw, b"KILL") ||
+      bytes_equal_ci(raw, b"INSTALL") ||
+      bytes_equal_ci(raw, b"UNINSTALL") ||
+      bytes_equal_ci(raw, b"BACKUP") ||
+      bytes_equal_ci(raw, b"RESTORE") ||
+      bytes_equal_ci(raw, b"COMPACT") ||
+      bytes_equal_ci(raw, b"FLUSH") ||
+      bytes_equal_ci(raw, b"WARM") ||
+      bytes_equal_ci(raw, b"CLEAR") ||
+      bytes_equal_ci(raw, b"SWITCH") ||
+      bytes_equal_ci(raw, b"RECYCLE") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::Statement,
+        "unexpected tokens after admin statement",
+      )
+    }
     _ =>
       unsupported_statement(
         stream, start_index, end_index, span, state, statement_id,

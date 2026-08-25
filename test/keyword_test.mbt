@@ -427,6 +427,57 @@ fn tsv_rows() -> Array[(Bytes, String, String, String)] {
     (
       b"COMMIT", "contextual", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON COMMIT trigger; absent from the official reserved list)",
     ),
+    (
+      b"ADMIN", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Administration/ADMIN-SET-CONFIG/ (absent from the official reserved list)",
+    ),
+    (
+      b"CANCEL", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/CANCEL-LOAD/ (absent from the official reserved list)",
+    ),
+    (
+      b"STOP", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/STOP-ROUTINE-LOAD/ (absent from the official reserved list)",
+    ),
+    (
+      b"PAUSE", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/PAUSE-ROUTINE-LOAD/ (absent from the official reserved list)",
+    ),
+    (
+      b"RESUME", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RESUME-ROUTINE-LOAD/ (absent from the official reserved list)",
+    ),
+    (
+      b"RECOVER", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RECOVER/ (absent from the official reserved list)",
+    ),
+    (
+      b"KILL", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/KILL-CONNECTION/ (absent from the official reserved list)",
+    ),
+    (
+      b"INSTALL", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/INSTALL-PLUGIN/ (absent from the official reserved list)",
+    ),
+    (
+      b"UNINSTALL", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/UNINSTALL-PLUGIN/ (absent from the official reserved list)",
+    ),
+    (
+      b"BACKUP", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/BACKUP/ (absent from the official reserved list)",
+    ),
+    (
+      b"RESTORE", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RESTORE/ (absent from the official reserved list)",
+    ),
+    (
+      b"COMPACT", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/COMPACT/ (absent from the official reserved list)",
+    ),
+    (
+      b"FLUSH", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/FLUSH/ (absent from the official reserved list)",
+    ),
+    (
+      b"WARM", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/WARM-UP/ (absent from the official reserved list)",
+    ),
+    (
+      b"CLEAR", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/CLEAR/ (absent from the official reserved list)",
+    ),
+    (
+      b"SWITCH", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/SWITCH/ (absent from the official reserved list)",
+    ),
+    (
+      b"RECYCLE", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RECYCLE/ (absent from the official reserved list)",
+    ),
   ]
 }
 

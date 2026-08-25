@@ -1149,6 +1149,109 @@ let doris_classification_rows : Array[KeywordEntry] = [
     source: async_mv_docs_url +
     " (ON COMMIT trigger; absent from the official reserved list)",
   },
+  // Non-reserved admin/management statement keywords (v1.0.4 coverage).
+  {
+    word: b"ADMIN",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Administration/ADMIN-SET-CONFIG/ (absent from the official reserved list)",
+  },
+  {
+    word: b"CANCEL",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/CANCEL-LOAD/ (absent from the official reserved list)",
+  },
+  {
+    word: b"STOP",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/STOP-ROUTINE-LOAD/ (absent from the official reserved list)",
+  },
+  {
+    word: b"PAUSE",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/PAUSE-ROUTINE-LOAD/ (absent from the official reserved list)",
+  },
+  {
+    word: b"RESUME",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RESUME-ROUTINE-LOAD/ (absent from the official reserved list)",
+  },
+  {
+    word: b"RECOVER",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RECOVER/ (absent from the official reserved list)",
+  },
+  {
+    word: b"KILL",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/KILL-CONNECTION/ (absent from the official reserved list)",
+  },
+  {
+    word: b"INSTALL",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/INSTALL-PLUGIN/ (absent from the official reserved list)",
+  },
+  {
+    word: b"UNINSTALL",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/UNINSTALL-PLUGIN/ (absent from the official reserved list)",
+  },
+  {
+    word: b"BACKUP",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/BACKUP/ (absent from the official reserved list)",
+  },
+  {
+    word: b"RESTORE",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RESTORE/ (absent from the official reserved list)",
+  },
+  {
+    word: b"COMPACT",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/COMPACT/ (absent from the official reserved list)",
+  },
+  {
+    word: b"FLUSH",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/FLUSH/ (absent from the official reserved list)",
+  },
+  {
+    word: b"WARM",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/WARM-UP/ (absent from the official reserved list)",
+  },
+  {
+    word: b"CLEAR",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/CLEAR/ (absent from the official reserved list)",
+  },
+  {
+    word: b"SWITCH",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/SWITCH/ (absent from the official reserved list)",
+  },
+  {
+    word: b"RECYCLE",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RECYCLE/ (absent from the official reserved list)",
+  },
 ]
 
 ///|
@@ -1202,7 +1305,7 @@ test "doris_classification_rows_match_the_frozen_v1_table" {
   // 116 rows, content byte-identical to the v1 classification_rows (D-08:
   // the baseline gate pins acceptance; this test pins the row inventory).
   let rows = doris_classification_rows
-  assert_eq(rows.length(), 116)
+  assert_eq(rows.length(), 133)
   let spot = [
     b"SELECT", b"WITH", b"QUALIFY", b"TABLET", b"DISTRIBUTED", b"MERGE", b"VIEW",
     b"DEFAULT", b"BUCKETS", b"PROPERTIES",

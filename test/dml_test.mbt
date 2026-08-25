@@ -418,7 +418,7 @@ test "merge_malformed_recovers_losslessly" {
 
 ///|
 test "unsupported_statement_starters_emit_one_007_each" {
-  let raws = [b"ADMIN SHOW REPLICA DISTRIBUTION FROM t"]
+  let raws = [b"BENCHMARK SELECT 1"]
   for raw in raws {
     for mode in ["strict", "editor"] {
       let result = parse_dml(raw, "4.x", mode)
