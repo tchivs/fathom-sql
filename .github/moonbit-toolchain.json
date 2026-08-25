@@ -31,8 +31,8 @@
       "filename": "moonbit-linux-x86_64.tar.gz",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "a824bc7739e226e1b40ea0f8c4e4f4c6f796fc3b4abfa6e9abe3bd119a30d938",
-      "sidecarDigest": "0e81deb35eca29e892415cf954ea42b48a43bcf277ad36a3ae1e97d2d1dfe732",
+      "sha256": "b8f9273653f9af49c447775a7ecc7d20a2784849a15fe489a03afd6718c75d0d",
+      "sidecarDigest": "b8f9273653f9af49c447775a7ecc7d20a2784849a15fe489a03afd6718c75d0d",
       "targetPlatform": "linux-x86_64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz"
     },
