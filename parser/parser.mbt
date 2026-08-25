@@ -7270,7 +7270,7 @@ fn parse_doris_segment(
         "unexpected tokens after ANALYZE statement",
       )
     }
-    Some(raw) if bytes_equal_ci(raw, b"SET") => {
+    Some(raw) if bytes_equal_ci(raw, b"SET") || bytes_equal_ci(raw, b"RESET") => {
       while token_at(cursor) is Some(_) {
         advance(cursor)
       }
@@ -7302,6 +7302,27 @@ fn parse_doris_segment(
         statement_id,
         @syntax.SyntaxKind::UseStatement,
         "unexpected tokens after USE statement",
+      )
+    }
+    // Doris transaction control: BEGIN / START TRANSACTION / COMMIT / ROLLBACK.
+    Some(raw) if bytes_equal_ci(raw, b"BEGIN") ||
+      bytes_equal_ci(raw, b"START") ||
+      bytes_equal_ci(raw, b"COMMIT") ||
+      bytes_equal_ci(raw, b"ROLLBACK") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::BeginTransaction,
+        "unexpected tokens after transaction statement",
       )
     }
     // Doris admin/management statements — consume all tokens, generic kind.
