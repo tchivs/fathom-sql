@@ -22,8 +22,8 @@
       "filename": "moonbit-darwin-aarch64.tar.gz",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "4197777e251a9f379f4133896876476c9a92c9cd1ddcf5287a277fbe56295f4a",
-      "sidecarDigest": "4197777e251a9f379f4133896876476c9a92c9cd1ddcf5287a277fbe56295f4a",
+      "sha256": "f9d8a453a723977f9029f963193e091e52289bf0f6d5223940d1ef840b5121b1",
+      "sidecarDigest": "f9d8a453a723977f9029f963193e091e52289bf0f6d5223940d1ef840b5121b1",
       "targetPlatform": "darwin-aarch64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz"
     },
@@ -40,8 +40,8 @@
       "filename": "moonbit-windows-x86_64.zip",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "a4c9af8bcfbf4e5bca84e6175cce09d6d88910c478d2c0d71bf0c3f2202e06ae",
-      "sidecarDigest": "a4c9af8bcfbf4e5bca84e6175cce09d6d88910c478d2c0d71bf0c3f2202e06ae",
+      "sha256": "915a560cc4950a124bfedf5302ec6bf0d0f98d8ea6b2ae7978e4680641281963",
+      "sidecarDigest": "915a560cc4950a124bfedf5302ec6bf0d0f98d8ea6b2ae7978e4680641281963",
       "targetPlatform": "windows-x86_64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip"
     }
