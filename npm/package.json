@@ -1,6 +1,6 @@
 {
   "name": "@fathom-sql/sql",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Fathom SQL Parser SDK — MoonBit-built parse/format/complete/lint/fingerprint/lineage for Doris and Flink SQL",
   "type": "module",
   "files": [

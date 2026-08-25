@@ -2,7 +2,7 @@
   "name": "sql",
   "displayName": "Fathom SQL Language Client",
   "description": "Standard VS Code client for the local Fathom SQL language server",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "fathom-sql",
   "engines": {
     "vscode": "^1.91.0"

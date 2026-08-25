@@ -1,6 +1,6 @@
 # Fathom SQL Language Client
 
-[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.3-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.4-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
 [![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](https://github.com/tchivs/fathom-sql/blob/master/LICENSE)
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
@@ -24,7 +24,7 @@ provide a remote fallback.
    `fathom-lsp-macos-aarch64`, or `fathom-lsp-windows-x86_64.exe`), verify its
    SHA-256 against `fathom-lsp-manifest.json`, and place it on your `PATH`
    (recommended: `~/.fathom/bin`).
-3. Verify the server: `fathom-lsp --version` must print `fathom-lsp 1.0.3`.
+3. Verify the server: `fathom-lsp --version` must print `fathom-lsp 1.0.4`.
 4. Set `fathom.serverPath` to the installed executable if it is not on
    `PATH`, and set the required `fathom.dialect` / `fathom.profile` settings
    (see Configuration below).
