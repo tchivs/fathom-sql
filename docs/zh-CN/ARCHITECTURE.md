@@ -6,7 +6,7 @@ English: [English architecture](../ARCHITECTURE.md) | 简体中文
 
 Fathom 是一个使用 MoonBit 实现的 Doris SQL Parser SDK：它接收源字节序列（通常为 UTF-8；非法编码会产生词法诊断）、Doris 版本 profile、解析模式和资源限制，输出带字节位置的无损具体语法树（CST）、诊断信息及恢复状态；在同一解析结果之上，调用方可以选择原样打印、确定性格式化或注入 catalog 做有限的表引用解析。系统采用分层流水线架构，核心链路是 `SourceText → Lexer → TokenStream → Parser → Syntax CST`，`api` 包提供跨层的稳定门面，`printer`、`formatter` 和可选的 `analyzer` 从 CST 分叉，彼此不把 Doris 执行语义引入解析核心。
 
-`moon.mod` 将模块声明为 `fathom/sql`，版本为 `0.1.0`，首选目标为 `native`；核心库包的 manifest 显式声明为 `pkgtype(kind: "library")`，`test/moon.pkg` 未声明包类型；`fathom-sql/moon.pkg` 声明 `pkgtype(kind: "executable")`，提供薄 CLI 适配器。`moon.mod` 中记录的 MoonBit 工具链版本为 `moon 0.1.20260724`。
+`moon.mod` 将模块声明为 `fathom/sql`，版本为 `1.0.4`，首选目标为 `native`；核心库包的 manifest 显式声明为 `pkgtype(kind: "library")`，`test/moon.pkg` 未声明包类型；`fathom-sql/moon.pkg` 声明 `pkgtype(kind: "executable")`，提供薄 CLI 适配器。`moon.mod` 中记录的 MoonBit 工具链版本为 `moon 0.1.20260724`。
 
 ## 组件图
 

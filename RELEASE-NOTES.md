@@ -47,8 +47,8 @@ verification coverage.
 - **macOS Intel is not a release target** — the official MoonBit channel
   ships no Intel-macOS build (verified across all official channels,
   2026-08-14); ARM64 binaries cannot run on Intel hardware.
-- Product version `1.0.0` is decoupled from the `moon.mod` module version
-  `0.1.0` (see `docs/VERSIONING.md`).
+- Product version `1.0.4` is aligned with the `moon.mod` module version
+  `1.0.4` (see `docs/VERSIONING.md`).
 
 ## Further reading
 

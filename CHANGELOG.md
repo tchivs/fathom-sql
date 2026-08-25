@@ -33,6 +33,17 @@ in this file. The prior public baseline is the `v0.1.0` release.
   （BEGIN/COMMIT/ROLLBACK/RESET 是 Flink 独有特性，非 Doris 缺失）
 - Doris ALTER TABLE 从"盲目消费剩余 token"重构为结构化子操作调度
 
+### CI/CD 修复
+
+- **GitHub Actions 版本统一**：`setup-node` v4→v6 + Node 20→22
+  （publish-vscode.yml、npm-publish.yml）；`setup-java` v5→v6
+  （ci.yml、jetbrains-plugin.yml）
+- **`moon.mod` 版本对齐**：`0.1.0` → `1.0.4`，与产品 semver 一致
+  （VERSIONING.md 叙述同步更新）
+- **`setup-node` 缓存修复**：`cache-dependency-path` 从 glob `**/package-lock.json`
+  改为显式列出 `web/` 和 `vscode/` 两个 lockfile，确保两者均参与缓存 key
+
+
 ## [1.0.3] - 2026-08-24
 
 ### Changed
