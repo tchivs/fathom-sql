@@ -3780,6 +3780,8 @@ fn create_form_kind(
       @syntax.SyntaxKind::CreateIndex
     Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") =>
       @syntax.SyntaxKind::CreateMaterializedView
+    Some(raw) if bytes_equal_ci(raw, b"DATABASE") =>
+      @syntax.SyntaxKind::CreateDatabase
     _ => @syntax.SyntaxKind::CreateTable
   }
 }
@@ -3822,7 +3824,8 @@ fn is_doris_create_form(
     Some(raw) if bytes_equal_ci(raw, b"TABLE") ||
       bytes_equal_ci(raw, b"VIEW") ||
       bytes_equal_ci(raw, b"INDEX") ||
-      bytes_equal_ci(raw, b"MATERIALIZED") => true
+      bytes_equal_ci(raw, b"MATERIALIZED") ||
+      bytes_equal_ci(raw, b"DATABASE") => true
     _ => false
   }
 }
@@ -3870,6 +3873,15 @@ fn parse_create(
           cursor, state, source, statement_id, async_mv,
         ) &&
         valid
+    Some(raw) if bytes_equal_ci(raw, b"DATABASE") => {
+      // CREATE DATABASE <name> [CHARACTER SET ...] [COLLATE ...] [PROPERTIES ...]
+      advance(cursor) // DATABASE
+      valid = consume_qualified_name(cursor, state, source, statement_id) &&
+        valid
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+    }
     Some(_) => {
       let at = match token_at(cursor) {
         Some(token) => token.span
@@ -3881,9 +3893,7 @@ fn parse_create(
       )
       valid = false
     }
-    // WR-01: a bare CREATE / CREATE TEMPORARY / CREATE EXTERNAL at EOF must
-    // not pass the valid gate silently — every other statement family reports
-    // the incomplete-statement diagnostic (FATHOM-PARSE-002) and finish_statement
+    // the incomplete-statement diagnostic
     // pushes the Missing node because valid is false.
     None => {
       let at = match token_at(cursor) {
@@ -6367,7 +6377,8 @@ fn parse_segment(
 
 ///|
 /// Doris DROP second-word dispatch: TABLE, VIEW, INDEX. Falls back to
-/// DropTable for unknown forms (D-02 coarse per-family kind).
+/// Doris DROP second-word dispatch: TABLE, VIEW, INDEX, DATABASE,
+/// MATERIALIZED VIEW. Falls back to DropTable for unknown forms.
 fn doris_drop_form_kind(
   stream : @token.TokenStream,
   indices : Array[Int],
@@ -6382,6 +6393,10 @@ fn doris_drop_form_kind(
           @syntax.SyntaxKind::DropView
         Some(raw) if bytes_equal_ci(raw, b"INDEX") =>
           @syntax.SyntaxKind::DropIndex
+        Some(raw) if bytes_equal_ci(raw, b"DATABASE") =>
+          @syntax.SyntaxKind::DropDatabase
+        Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") =>
+          @syntax.SyntaxKind::DropTable
         _ => @syntax.SyntaxKind::DropTable
       }
     None => @syntax.SyntaxKind::DropTable
@@ -6669,11 +6684,16 @@ fn parse_doris_drop(
       cursor, b"DROP", state, source, statement_id, "expected DROP",
     ) &&
     valid
-  // TABLE | VIEW | INDEX
+  // TABLE | VIEW | INDEX | DATABASE | MATERIALIZED VIEW
   match raw_at(cursor) {
     Some(raw) if bytes_equal_ci(raw, b"TABLE") ||
       bytes_equal_ci(raw, b"VIEW") ||
-      bytes_equal_ci(raw, b"INDEX") => advance(cursor)
+      bytes_equal_ci(raw, b"INDEX") ||
+      bytes_equal_ci(raw, b"DATABASE") => advance(cursor)
+    Some(raw) if bytes_equal_ci(raw, b"MATERIALIZED") => {
+      advance(cursor) // MATERIALIZED
+      ignore(consume_word(cursor, b"VIEW"))
+    }
     _ => {
       let at = match token_at(cursor) {
         Some(token) => token.span.start_byte
@@ -6682,7 +6702,7 @@ fn parse_doris_drop(
       add_diagnostic(
         state,
         "FATHOM-PARSE-002",
-        "expected TABLE, VIEW, or INDEX after DROP",
+        "expected TABLE, VIEW, INDEX, DATABASE, or MATERIALIZED VIEW after DROP",
         "drop",
         make_span(source, at, at),
         statement_id,

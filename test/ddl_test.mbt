@@ -967,3 +967,29 @@ test "doris_alter_view_parses_and_round_trips" {
   assert_eq(@printer.print_result(result), raw)
   assert_true(has_kind(result.root, "alter_table"))
 }
+
+///|
+test "doris_create_database_parses_and_round_trips" {
+  let raw = b"CREATE DATABASE db1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "create_database"))
+}
+
+///|
+test "doris_drop_database_parses_and_round_trips" {
+  let raw = b"DROP DATABASE db1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "drop_database"))
+}
+
+///|
+test "doris_drop_materialized_view_parses_and_round_trips" {
+  let raw = b"DROP MATERIALIZED VIEW mv1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
