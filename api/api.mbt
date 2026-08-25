@@ -466,6 +466,11 @@ fn kind_id(kind : @syntax.SyntaxKind) -> String {
     @syntax.SyntaxKind::UseStatement => "use_statement"
     @syntax.SyntaxKind::TruncateTable => "truncate_table"
     @syntax.SyntaxKind::DropIndex => "drop_index"
+    @syntax.SyntaxKind::LoadStatement => "load_statement"
+    @syntax.SyntaxKind::ExportStatement => "export_statement"
+    @syntax.SyntaxKind::GrantStatement => "grant_statement"
+    @syntax.SyntaxKind::RevokeStatement => "revoke_statement"
+    @syntax.SyntaxKind::BeginTransaction => "begin_transaction"
   }
 }
 

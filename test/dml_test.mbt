@@ -123,9 +123,7 @@ test "doris03_insert_script_localizes_bad_statement" {
 
 ///|
 test "unknown_statement_starters_are_explicit_unsupported_nodes" {
-  let raws = [
-    b"bad", b"GRANT SELECT ON db.t TO user", b"LOAD DATA INPATH 'x' INTO TABLE t",
-  ]
+  let raws = [b"bad"]
   for raw in raws {
     for mode in ["strict", "editor"] {
       let result = parse_dml(raw, "4.x", mode)
@@ -420,9 +418,7 @@ test "merge_malformed_recovers_losslessly" {
 
 ///|
 test "unsupported_statement_starters_emit_one_007_each" {
-  let raws = [
-    b"GRANT SELECT ON db.t TO user", b"LOAD DATA INPATH 'x' INTO TABLE t",
-  ]
+  let raws = [b"ADMIN SHOW REPLICA DISTRIBUTION FROM t"]
   for raw in raws {
     for mode in ["strict", "editor"] {
       let result = parse_dml(raw, "4.x", mode)

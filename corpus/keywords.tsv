@@ -118,3 +118,7 @@ SCHEDULE	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-stateme
 EVERY	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON SCHEDULE EVERY interval; absent from the official reserved list)
 STARTS	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (STARTS start-time clause; absent from the official reserved list)
 COMMIT	contextual	2.1	https://doris.apache.org/docs/4.x/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW/ (ON COMMIT trigger; absent from the official reserved list)
+LOAD	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+EXPORT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+GRANT	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/
+REVOKE	reserved	2.1	https://doris.apache.org/docs/4.x/sql-manual/basic-element/reserved-keywords/

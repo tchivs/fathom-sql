@@ -293,6 +293,13 @@ fn clause_breaks(kind : @syntax.SyntaxKind) -> Array[Bytes] {
     @syntax.SyntaxKind::DropIndex => [b"INDEX"]
     // Doris TRUNCATE TABLE (parser.mbt parse_doris_truncate).
     @syntax.SyntaxKind::TruncateTable => [b"TABLE"]
+    // Doris LOAD/EXPORT/GRANT/REVOKE: object keyword only.
+    @syntax.SyntaxKind::LoadStatement => [b"DATA"]
+    @syntax.SyntaxKind::ExportStatement => [b"TABLE"]
+    @syntax.SyntaxKind::GrantStatement => []
+    @syntax.SyntaxKind::RevokeStatement => []
+    // Flink BEGIN/COMMIT/ROLLBACK: no clause breaks (single-line).
+    @syntax.SyntaxKind::BeginTransaction => []
     _ => []
   }
 }
@@ -427,7 +434,12 @@ pub fn flink_statement_covered(family : @syntax.SyntaxKind) -> Bool {
     | @syntax.SyntaxKind::SetOption
     | @syntax.SyntaxKind::UseStatement
     | @syntax.SyntaxKind::DropIndex
-    | @syntax.SyntaxKind::TruncateTable => true
+    | @syntax.SyntaxKind::TruncateTable
+    | @syntax.SyntaxKind::LoadStatement
+    | @syntax.SyntaxKind::ExportStatement
+    | @syntax.SyntaxKind::GrantStatement
+    | @syntax.SyntaxKind::RevokeStatement
+    | @syntax.SyntaxKind::BeginTransaction => true
     _ => false
   }
 }

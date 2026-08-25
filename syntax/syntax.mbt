@@ -53,6 +53,11 @@ pub(all) enum SyntaxKind {
   UseStatement
   TruncateTable
   DropIndex
+  LoadStatement
+  ExportStatement
+  GrantStatement
+  RevokeStatement
+  BeginTransaction
 } derive(Eq, @debug.Debug)
 
 ///|

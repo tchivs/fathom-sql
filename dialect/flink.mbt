@@ -454,6 +454,30 @@ let flink_classification_rows : Array[KeywordEntry] = [
     source: "flink-sql-parser Parser-calcite-1.32.0.jj:7392 (COMMIT)",
   },
   {
+    word: b"BEGIN",
+    classification: Reserved,
+    introduced_profile: "flink-1.20.5",
+    source: "flink-sql-parser Parser-calcite-1.32.0.jj:7385 (BEGIN)",
+  },
+  {
+    word: b"ROLLBACK",
+    classification: Reserved,
+    introduced_profile: "flink-1.20.5",
+    source: "flink-sql-parser Parser-calcite-1.32.0.jj:7399 (ROLLBACK)",
+  },
+  {
+    word: b"START",
+    classification: Reserved,
+    introduced_profile: "flink-2.1.3",
+    source: "flink-sql-parser SqlBeginTransactionSpecification (START TRANSACTION)",
+  },
+  {
+    word: b"TRANSACTION",
+    classification: Reserved,
+    introduced_profile: "flink-2.1.3",
+    source: "flink-sql-parser SqlBeginTransactionSpecification (START TRANSACTION)",
+  },
+  {
     word: b"IF",
     classification: Reserved,
     introduced_profile: "flink-1.20.5",

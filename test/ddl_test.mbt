@@ -705,3 +705,109 @@ test "doris_truncate_qualified_name_parses" {
   assert_true(result.valid)
   assert_eq(@printer.print_result(result), raw)
 }
+
+///|
+test "doris_load_data_parses_and_round_trips" {
+  let raw = b"LOAD DATA INFILE 'data.csv' INTO TABLE t"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "load_statement"))
+  }
+}
+
+///|
+test "doris_load_data_with_properties_parses" {
+  let raw = b"LOAD DATA INFILE 'data.csv' INTO TABLE t PROPERTIES (\"format\" = \"csv\")"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_export_table_parses_and_round_trips" {
+  let raw = b"EXPORT TABLE t TO 'output'"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "export_statement"))
+  }
+}
+
+///|
+test "doris_grant_parses_and_round_trips" {
+  let raw = b"GRANT SELECT ON db.t TO user1"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "grant_statement"))
+  }
+}
+
+///|
+test "doris_revoke_parses_and_round_trips" {
+  let raw = b"REVOKE SELECT ON db.t FROM user1"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "revoke_statement"))
+  }
+}
+
+///|
+/// Flink BEGIN/COMMIT/ROLLBACK transaction statements.
+fn parse_flink(
+  raw : Bytes,
+  profile : String,
+  mode : String,
+) -> @api.ParseResult {
+  match @api.parse_with_ids(raw, "flink", profile, mode) {
+    Ok(result) => result
+    Err(_) => panic()
+  }
+}
+
+///|
+test "flink_begin_parses_and_round_trips" {
+  let raw = b"BEGIN"
+  for mode in ["strict", "editor"] {
+    let result = parse_flink(raw, "flink-2.3.0", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "begin_transaction"))
+  }
+}
+
+///|
+test "flink_commit_parses_and_round_trips" {
+  let raw = b"COMMIT"
+  let result = parse_flink(raw, "flink-2.3.0", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "begin_transaction"))
+}
+
+///|
+test "flink_rollback_parses_and_round_trips" {
+  let raw = b"ROLLBACK"
+  let result = parse_flink(raw, "flink-2.3.0", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "begin_transaction"))
+}
+
+///|
+test "flink_start_transaction_parses" {
+  let raw = b"START TRANSACTION"
+  let result = parse_flink(raw, "flink-2.3.0", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "begin_transaction"))
+}

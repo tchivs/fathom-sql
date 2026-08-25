@@ -837,6 +837,30 @@ let doris_classification_rows : Array[KeywordEntry] = [
     source: reserved_keywords_url,
   },
   {
+    word: b"LOAD",
+    classification: Reserved,
+    introduced_profile: "2.1",
+    source: reserved_keywords_url,
+  },
+  {
+    word: b"EXPORT",
+    classification: Reserved,
+    introduced_profile: "2.1",
+    source: reserved_keywords_url,
+  },
+  {
+    word: b"GRANT",
+    classification: Reserved,
+    introduced_profile: "2.1",
+    source: reserved_keywords_url,
+  },
+  {
+    word: b"REVOKE",
+    classification: Reserved,
+    introduced_profile: "2.1",
+    source: reserved_keywords_url,
+  },
+  {
     word: b"TABLE",
     classification: Reserved,
     introduced_profile: "2.1",

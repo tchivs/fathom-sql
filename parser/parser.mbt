@@ -6546,6 +6546,138 @@ fn parse_doris_truncate(
 }
 
 ///|
+/// Doris LOAD DATA INFILE 'path' INTO TABLE <name> [PARTITION(...)] [PROPERTIES(...)]
+fn parse_doris_load(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  valid = expect_word(
+      cursor, b"LOAD", state, source, statement_id, "expected LOAD",
+    ) &&
+    valid
+  valid = expect_word(
+      cursor, b"DATA", state, source, statement_id, "expected DATA after LOAD",
+    ) &&
+    valid
+  // Doris uses both INFILE (standard) and INPATH (Doris-specific).
+  if !consume_word(cursor, b"INFILE") && !consume_word(cursor, b"INPATH") {
+    let at = match token_at(cursor) {
+      Some(token) => token.span.start_byte
+      None => source.byte_length()
+    }
+    add_diagnostic(
+      state,
+      "FATHOM-PARSE-002",
+      "expected INFILE or INPATH",
+      "keyword",
+      make_span(source, at, at),
+      statement_id,
+    )
+    valid = false
+  }
+  if token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid = expect_word(
+      cursor, b"INTO", state, source, statement_id, "expected INTO",
+    ) &&
+    valid
+  valid = expect_word(
+      cursor, b"TABLE", state, source, statement_id, "expected TABLE",
+    ) &&
+    valid
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+    if consume_symbol(cursor, b".") && is_identifier_candidate(cursor) {
+      advance(cursor)
+    }
+  } else {
+    valid = false
+  }
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
+/// Doris EXPORT TABLE <name> TO 'path' [PROPERTIES(...)]
+fn parse_doris_export(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  valid = expect_word(
+      cursor, b"EXPORT", state, source, statement_id, "expected EXPORT",
+    ) &&
+    valid
+  valid = expect_word(
+      cursor, b"TABLE", state, source, statement_id, "expected TABLE",
+    ) &&
+    valid
+  if is_identifier_candidate(cursor) {
+    advance(cursor)
+    if consume_symbol(cursor, b".") && is_identifier_candidate(cursor) {
+      advance(cursor)
+    }
+  } else {
+    valid = false
+  }
+  valid = expect_word(cursor, b"TO", state, source, statement_id, "expected TO") &&
+    valid
+  if token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
+/// Doris GRANT <priv> ON <resource> TO <user>
+fn parse_doris_grant(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  valid = expect_word(
+      cursor, b"GRANT", state, source, statement_id, "expected GRANT",
+    ) &&
+    valid
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
+/// Doris REVOKE <priv> ON <resource> FROM <user>
+fn parse_doris_revoke(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  valid = expect_word(
+      cursor, b"REVOKE", state, source, statement_id, "expected REVOKE",
+    ) &&
+    valid
+  while token_at(cursor) is Some(_) {
+    advance(cursor)
+  }
+  valid
+}
+
+///|
 /// dispatch on the first significant raw token). `context` is carried for
 /// signature symmetry; Doris policy state (feature gates) is read from
 /// RecoveryState.context.
@@ -6750,6 +6882,66 @@ fn parse_doris_segment(
         statement_id,
         @syntax.SyntaxKind::TruncateTable,
         "unexpected tokens after TRUNCATE statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"LOAD") => {
+      let valid = parse_doris_load(cursor, state, stream.source, statement_id)
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        valid,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::LoadStatement,
+        "unexpected tokens after LOAD statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"EXPORT") => {
+      let valid = parse_doris_export(cursor, state, stream.source, statement_id)
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        valid,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::ExportStatement,
+        "unexpected tokens after EXPORT statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"GRANT") => {
+      let valid = parse_doris_grant(cursor, state, stream.source, statement_id)
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        valid,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::GrantStatement,
+        "unexpected tokens after GRANT statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"REVOKE") => {
+      let valid = parse_doris_revoke(cursor, state, stream.source, statement_id)
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        valid,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::RevokeStatement,
+        "unexpected tokens after REVOKE statement",
       )
     }
     _ =>
@@ -7119,6 +7311,28 @@ fn parse_flink_segment(
         statement_id,
         kind,
         "unexpected tokens after DROP statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"BEGIN") ||
+      bytes_equal_ci(raw, b"START") ||
+      bytes_equal_ci(raw, b"COMMIT") ||
+      bytes_equal_ci(raw, b"ROLLBACK") => {
+      // Flink transaction control: BEGIN / START TRANSACTION / COMMIT / ROLLBACK.
+      // All map to BeginTransaction; consume all tokens as the body.
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::BeginTransaction,
+        "unexpected tokens after transaction statement",
       )
     }
     _ =>
