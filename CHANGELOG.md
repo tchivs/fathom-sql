@@ -3,6 +3,36 @@
 All notable user-visible changes to the Fathom SQL Parser SDK are documented
 in this file. The prior public baseline is the `v0.1.0` release.
 
+## [1.0.4] - 2026-08-25
+
+### Added — Doris DDL/DAL 语法覆盖大幅提升
+
+本轮新增 **22 个 Doris 语句族**（Doris 语句覆盖达到 100%）：
+
+- **ALTER TABLE 结构化解析**：ADD/DROP/MODIFY COLUMN, ADD/DROP INDEX,
+  ADD/DROP PARTITION, RENAME, REPLACE COLUMNS, SET — 子操作调度而非盲目消费
+- **ALTER VIEW/DATABASE**：新增 dispatch 支持
+- **DROP**：新增 DATABASE、MATERIALIZED VIEW 形式
+- **CREATE DATABASE**：新增 dispatch 支持
+- **DML 扩展**：UPSERT INTO（共享 parse_insert）
+- **数据导入导出**：LOAD DATA (INFILE/INPATH), EXPORT TABLE
+- **权限**：GRANT, REVOKE
+- **工具/管理**：SHOW, DESCRIBE/DESC, EXPLAIN, ANALYZE, SET, USE
+- **Admin 语句（17个）**：ADMIN, CANCEL, STOP, PAUSE, RESUME, RECOVER,
+  KILL, INSTALL, UNINSTALL, BACKUP, RESTORE, COMPACT, FLUSH, WARM,
+  CLEAR, SWITCH, RECYCLE
+
+### Added — Flink 语法覆盖扩展
+
+- **MERGE INTO**：Flink dispatch 新增 MERGE 分支（共享 parse_merge）
+- **BEGIN/COMMIT/ROLLBACK/START TRANSACTION**：Flink 事务控制
+
+### 修正
+
+- 修正 Doris/Flink 跨方言对齐：Doris 不支持事务控制
+  （BEGIN/COMMIT/ROLLBACK/RESET 是 Flink 独有特性，非 Doris 缺失）
+- Doris ALTER TABLE 从"盲目消费剩余 token"重构为结构化子操作调度
+
 ## [1.0.3] - 2026-08-24
 
 ### Changed
