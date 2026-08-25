@@ -6944,6 +6944,110 @@ fn parse_doris_segment(
         "unexpected tokens after REVOKE statement",
       )
     }
+    // Doris utility statements — consume all tokens, map to existing kinds.
+    Some(raw) if bytes_equal_ci(raw, b"SHOW") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::ShowStatement,
+        "unexpected tokens after SHOW statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"DESCRIBE") ||
+      bytes_equal_ci(raw, b"DESC") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::DescribeStatement,
+        "unexpected tokens after DESCRIBE statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"EXPLAIN") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::ExplainStatement,
+        "unexpected tokens after EXPLAIN statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"ANALYZE") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::AnalyzeStatement,
+        "unexpected tokens after ANALYZE statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"SET") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::SetOption,
+        "unexpected tokens after SET statement",
+      )
+    }
+    Some(raw) if bytes_equal_ci(raw, b"USE") => {
+      while token_at(cursor) is Some(_) {
+        advance(cursor)
+      }
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        true,
+        state,
+        statement_id,
+        @syntax.SyntaxKind::UseStatement,
+        "unexpected tokens after USE statement",
+      )
+    }
     _ =>
       unsupported_statement(
         stream, start_index, end_index, span, state, statement_id,

@@ -811,3 +811,69 @@ test "flink_start_transaction_parses" {
   assert_eq(@printer.print_result(result), raw)
   assert_true(has_kind(result.root, "begin_transaction"))
 }
+
+///|
+test "doris_show_tables_parses_and_round_trips" {
+  let raw = b"SHOW TABLES"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "show_statement"))
+  }
+}
+
+///|
+test "doris_describe_table_parses_and_round_trips" {
+  let raw = b"DESCRIBE t"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "describe_statement"))
+}
+
+///|
+test "doris_desc_short_form_parses" {
+  let raw = b"DESC t"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "describe_statement"))
+}
+
+///|
+test "doris_explain_select_parses_and_round_trips" {
+  let raw = b"EXPLAIN SELECT 1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "explain_statement"))
+}
+
+///|
+test "doris_analyze_table_parses_and_round_trips" {
+  let raw = b"ANALYZE TABLE t"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "analyze_statement"))
+}
+
+///|
+test "doris_set_variable_parses_and_round_trips" {
+  let raw = b"SET enable_nereids_planner = true"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "set_option"))
+}
+
+///|
+test "doris_use_database_parses_and_round_trips" {
+  let raw = b"USE db1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "use_statement"))
+}

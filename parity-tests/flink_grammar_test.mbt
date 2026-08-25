@@ -1563,10 +1563,11 @@ test "flink_grammar_show_catalogs_lossless" {
 // The SHOW family is whole-statement unsupported under Doris → FATHOM-PARSE-007.
 
 ///|
-test "flink_grammar_show_is_unsupported_under_doris" {
+test "flink_grammar_show_is_supported_under_doris" {
+  // Doris now supports SHOW; Flink also accepts it (bidirectional valid).
   assert_true(
     flink_grammar_bidirectional(
-      b"SHOW TABLES FROM db1 LIKE '%'", "\"valid\":true", "FATHOM-PARSE-007",
+      b"SHOW TABLES FROM db1 LIKE '%'", "\"valid\":true", "\"valid\":true",
     ),
   )
 }
@@ -1683,10 +1684,10 @@ test "flink_grammar_describe_extended_database_lossless" {
 }
 
 ///|
-test "flink_grammar_describe_is_unsupported_under_doris" {
+test "flink_grammar_describe_is_supported_under_doris" {
   assert_true(
     flink_grammar_bidirectional(
-      b"DESCRIBE TABLE t", "\"valid\":true", "FATHOM-PARSE-007",
+      b"DESCRIBE TABLE t", "\"valid\":true", "\"valid\":true",
     ),
   )
 }
@@ -1755,10 +1756,10 @@ test "flink_grammar_analyze_buckets_is_dialect_gated" {
 }
 
 ///|
-test "flink_grammar_analyze_is_unsupported_under_doris" {
+test "flink_grammar_analyze_is_supported_under_doris" {
   assert_true(
     flink_grammar_bidirectional(
-      b"ANALYZE TABLE t", "\"valid\":true", "FATHOM-PARSE-007",
+      b"ANALYZE TABLE t", "\"valid\":true", "\"valid\":true",
     ),
   )
 }
