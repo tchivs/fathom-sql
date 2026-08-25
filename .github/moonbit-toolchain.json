@@ -4,7 +4,7 @@
       "filename": "core-latest.tar.gz",
       "provenance": "recorded-digest",
       "role": "core",
-      "sha256": "d92b84ea0bc11ec9a9fe57d313416a6694a5826f4307e8e65d5075079ee913ca",
+      "sha256": "5e5a3bdb0679250979808c4f0fc5b373261ab55632f1890660bfc914543f3276",
       "sidecarDigest": null,
       "targetPlatform": "core-tar.gz",
       "url": "https://cli.moonbitlang.com/cores/core-latest.tar.gz"
@@ -31,7 +31,7 @@
       "filename": "moonbit-linux-x86_64.tar.gz",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "0e81deb35eca29e892415cf954ea42b48a43bcf277ad36a3ae1e97d2d1dfe732",
+      "sha256": "a824bc7739e226e1b40ea0f8c4e4f4c6f796fc3b4abfa6e9abe3bd119a30d938",
       "sidecarDigest": "0e81deb35eca29e892415cf954ea42b48a43bcf277ad36a3ae1e97d2d1dfe732",
       "targetPlatform": "linux-x86_64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz"
