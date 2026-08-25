@@ -877,3 +877,93 @@ test "doris_use_database_parses_and_round_trips" {
   assert_eq(@printer.print_result(result), raw)
   assert_true(has_kind(result.root, "use_statement"))
 }
+
+///|
+test "doris_alter_table_drop_column_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t DROP COLUMN c"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "alter_table"))
+}
+
+///|
+test "doris_alter_table_modify_column_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t MODIFY COLUMN c BIGINT DEFAULT \"0\" COMMENT \"big\""
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_rename_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t RENAME COLUMN old_col new_col"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_add_index_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t ADD INDEX idx (c) USING BITMAP COMMENT \"index\""
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_add_partition_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t ADD PARTITION (p1 VALUES LESS THAN (\"2024-01-01\"))"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_drop_partition_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t DROP PARTITION p1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_multiple_actions_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t ADD COLUMN a INT, DROP COLUMN b, MODIFY COLUMN c BIGINT"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_set_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t SET (\"replication_num\" = \"3\")"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_replace_columns_parses_and_round_trips" {
+  let raw = b"ALTER TABLE t REPLACE COLUMNS (a INT) WITH (a BIGINT)"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_table_if_exists_parses_and_round_trips" {
+  let raw = b"ALTER TABLE IF EXISTS t ADD COLUMN c INT"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+}
+
+///|
+test "doris_alter_view_parses_and_round_trips" {
+  let raw = b"ALTER VIEW v AS SELECT 1"
+  let result = parse_ddl(raw, "4.x", "strict")
+  assert_true(result.valid)
+  assert_eq(@printer.print_result(result), raw)
+  assert_true(has_kind(result.root, "alter_table"))
+}

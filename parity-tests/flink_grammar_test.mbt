@@ -2679,12 +2679,11 @@ test "flink_grammar_alter_function_lossless" {
 // ALTER has no Doris dispatch arm → whole-statement FATHOM-PARSE-007.
 
 ///|
-test "flink_grammar_alter_view_is_rejected_under_doris" {
-  // Doris supports ALTER TABLE but not ALTER VIEW — the TABLE keyword check
-  // emits FATHOM-PARSE-002 (expected TABLE), not 007 (unsupported statement).
+test "flink_grammar_alter_view_is_supported_under_doris" {
+  // Doris now supports ALTER VIEW (v1.0.4 structured ALTER dispatch).
   assert_true(
     flink_grammar_bidirectional(
-      b"ALTER VIEW v AS SELECT 1", "\"valid\":true", "FATHOM-PARSE-002",
+      b"ALTER VIEW v AS SELECT 1", "\"valid\":true", "\"valid\":true",
     ),
   )
 }

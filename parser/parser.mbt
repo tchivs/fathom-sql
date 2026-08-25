@@ -6395,36 +6395,42 @@ fn doris_drop_form_kind(
 /// through the end of the statement; the CST preserves the raw children for
 /// round-trip. The parser validates only the structural prefix (ALTER TABLE
 /// <identifier>); the action body is accepted as-is under editor recovery.
-fn parse_doris_alter(
+
+///|
+/// Doris ALTER second-word dispatch: TABLE, VIEW, DATABASE. Falls back to
+/// AlterTable for unknown forms (coarse per-family kind, D-02).
+fn doris_alter_form_kind(
+  stream : @token.TokenStream,
+  indices : Array[Int],
+  start_index : Int,
+) -> @syntax.SyntaxKind {
+  match indices.get(start_index + 1) {
+    Some(i) =>
+      match stream.raw(i) {
+        Some(raw) if bytes_equal_ci(raw, b"VIEW") =>
+          @syntax.SyntaxKind::AlterTable
+        Some(raw) if bytes_equal_ci(raw, b"DATABASE") =>
+          @syntax.SyntaxKind::AlterTable
+        _ => @syntax.SyntaxKind::AlterTable
+      }
+    None => @syntax.SyntaxKind::AlterTable
+  }
+}
+
+///|
+/// Consume a qualified identifier: <name> or <db>.<name>
+fn consume_qualified_name(
   cursor : Cursor,
   state : RecoveryState,
   source : @source.SourceText,
   statement_id : UInt,
 ) -> Bool {
-  let mut valid = true
-  // ALTER TABLE [IF EXISTS] <name> <body...>
-  valid = expect_word(
-      cursor, b"ALTER", state, source, statement_id, "expected ALTER",
-    ) &&
-    valid
-  valid = expect_word(
-      cursor, b"TABLE", state, source, statement_id, "expected TABLE after ALTER",
-    ) &&
-    valid
-  // optional IF EXISTS
-  if consume_word(cursor, b"IF") {
-    ignore(consume_word(cursor, b"EXISTS"))
-  }
-  // table name — consume identifier (or qualified db.table) and remaining
   if is_identifier_candidate(cursor) {
     advance(cursor)
-    // consume qualified name: db.table
-    if consume_symbol(cursor, b".") {
-      ignore(consume_word(cursor, b"table"))
-      if is_identifier_candidate(cursor) {
-        advance(cursor)
-      }
+    if consume_symbol(cursor, b".") && is_identifier_candidate(cursor) {
+      advance(cursor)
     }
+    true
   } else {
     let at = match token_at(cursor) {
       Some(token) => token.span.start_byte
@@ -6433,18 +6439,221 @@ fn parse_doris_alter(
     add_diagnostic(
       state,
       "FATHOM-PARSE-002",
-      "expected table name",
+      "expected identifier",
       "identifier",
       make_span(source, at, at),
       statement_id,
     )
-    valid = false
+    false
   }
-  // Consume remaining tokens (ADD COLUMN, DROP COLUMN, RENAME, MODIFY, ...)
+}
+
+///|
+/// Consume a parenthesized group `(...)` — advance past matching parens.
+fn consume_paren_group(cursor : Cursor) -> Unit {
+  if consume_symbol(cursor, b"(") {
+    let mut depth = 1
+    while depth > 0 {
+      match token_at(cursor) {
+        Some(_) => {
+          if raw_at(cursor) is Some(b"(") {
+            depth = depth + 1
+          }
+          if raw_at(cursor) is Some(b")") {
+            depth = depth - 1
+          }
+          if depth > 0 || !(raw_at(cursor) is Some(b")")) {
+            advance(cursor)
+          }
+        }
+        None => break
+      }
+    }
+    // consume the closing )
+    if raw_at(cursor) is Some(b")") {
+      advance(cursor)
+    }
+  }
+}
+
+///|
+/// Doris ALTER TABLE [IF EXISTS] <name> <actions...>
+/// Structured sub-action dispatch: ADD COLUMN/INDEX, DROP COLUMN/INDEX,
+/// MODIFY COLUMN, RENAME, REPLACE, ADD/DROP PARTITION, SET, etc.
+fn parse_doris_alter(
+  cursor : Cursor,
+  state : RecoveryState,
+  source : @source.SourceText,
+  statement_id : UInt,
+) -> Bool {
+  let mut valid = true
+  // ALTER
+  valid = expect_word(
+      cursor, b"ALTER", state, source, statement_id, "expected ALTER",
+    ) &&
+    valid
+  // TABLE (or VIEW/DATABASE — all route here; the second word is consumed)
+  match raw_at(cursor) {
+    Some(raw) if bytes_equal_ci(raw, b"TABLE") ||
+      bytes_equal_ci(raw, b"VIEW") ||
+      bytes_equal_ci(raw, b"DATABASE") => advance(cursor)
+    _ =>
+      valid = expect_word(
+          cursor, b"TABLE", state, source, statement_id, "expected TABLE/VIEW/DATABASE after ALTER",
+        ) &&
+        valid
+  }
+  // optional IF EXISTS
+  if consume_word(cursor, b"IF") {
+    ignore(consume_word(cursor, b"EXISTS"))
+  }
+  // object name
+  valid = consume_qualified_name(cursor, state, source, statement_id) && valid
+  // Process one or more comma-separated alter actions
+  let mut first_action = true
   while token_at(cursor) is Some(_) {
-    advance(cursor)
+    if !first_action {
+      // Consume comma separator between actions
+      if !consume_symbol(cursor, b",") {
+        break
+      }
+    }
+    first_action = false
+    match raw_at(cursor) {
+      Some(raw) if bytes_equal_ci(raw, b"ADD") => {
+        advance(cursor) // ADD
+        // ADD COLUMN <name> <type> [...] | ADD INDEX <name> (...) [...] |
+        // ADD PARTITION (...) | ADD ROLLUP ...
+        match raw_at(cursor) {
+          Some(r) if bytes_equal_ci(r, b"COLUMN") => {
+            advance(cursor) // COLUMN
+            valid = consume_qualified_name(cursor, state, source, statement_id) &&
+              valid
+            // Consume column definition body (type, DEFAULT, COMMENT, etc.)
+            consume_alter_action_body(cursor)
+          }
+          Some(r) if bytes_equal_ci(r, b"INDEX") => {
+            advance(cursor) // INDEX
+            // index name
+            if is_identifier_candidate(cursor) {
+              advance(cursor)
+            }
+            // (col1, col2, ...)
+            consume_paren_group(cursor)
+            consume_alter_action_body(cursor)
+          }
+          Some(r) if bytes_equal_ci(r, b"PARTITION") => {
+            advance(cursor) // PARTITION
+            consume_paren_group(cursor)
+            consume_alter_action_body(cursor)
+          }
+          Some(r) if bytes_equal_ci(r, b"ROLLUP") => {
+            advance(cursor) // ROLLUP
+            consume_alter_action_body(cursor)
+          }
+          _ => consume_alter_action_body(cursor)
+        }
+      }
+      Some(raw) if bytes_equal_ci(raw, b"DROP") => {
+        advance(cursor) // DROP
+        match raw_at(cursor) {
+          Some(r) if bytes_equal_ci(r, b"COLUMN") => {
+            advance(cursor) // COLUMN
+            valid = consume_qualified_name(cursor, state, source, statement_id) &&
+              valid
+          }
+          Some(r) if bytes_equal_ci(r, b"PARTITION") => {
+            advance(cursor) // PARTITION
+            if is_identifier_candidate(cursor) {
+              advance(cursor)
+            }
+            consume_alter_action_body(cursor)
+          }
+          Some(r) if bytes_equal_ci(r, b"INDEX") => {
+            advance(cursor) // INDEX
+            if is_identifier_candidate(cursor) {
+              advance(cursor)
+            }
+            consume_alter_action_body(cursor)
+          }
+          _ => consume_alter_action_body(cursor)
+        }
+      }
+      Some(raw) if bytes_equal_ci(raw, b"MODIFY") => {
+        advance(cursor) // MODIFY
+        match raw_at(cursor) {
+          Some(r) if bytes_equal_ci(r, b"COLUMN") => {
+            advance(cursor) // COLUMN
+            valid = consume_qualified_name(cursor, state, source, statement_id) &&
+              valid
+            consume_alter_action_body(cursor)
+          }
+          Some(r) if bytes_equal_ci(r, b"PARTITION") => {
+            advance(cursor) // PARTITION
+            consume_paren_group(cursor)
+            consume_alter_action_body(cursor)
+          }
+          _ => consume_alter_action_body(cursor)
+        }
+      }
+      Some(raw) if bytes_equal_ci(raw, b"RENAME") => {
+        advance(cursor) // RENAME
+        // RENAME COLUMN <old> <new> | RENAME <old> <new>
+        ignore(consume_word(cursor, b"COLUMN"))
+        if is_identifier_candidate(cursor) {
+          advance(cursor)
+        }
+        if is_identifier_candidate(cursor) {
+          advance(cursor)
+        }
+        consume_alter_action_body(cursor)
+      }
+      Some(raw) if bytes_equal_ci(raw, b"REPLACE") => {
+        advance(cursor) // REPLACE
+        // REPLACE COLUMNS (...) WITH (...) ...
+        ignore(consume_word(cursor, b"COLUMNS"))
+        consume_paren_group(cursor)
+        ignore(consume_word(cursor, b"WITH"))
+        consume_paren_group(cursor)
+        consume_alter_action_body(cursor)
+      }
+      Some(raw) if bytes_equal_ci(raw, b"SET") => {
+        advance(cursor) // SET
+        // SET (key = value, ...) or SET DEFAULT...
+        consume_paren_group(cursor)
+        consume_alter_action_body(cursor)
+      }
+      _ =>
+        // Unknown action — consume remaining tokens for round-trip safety
+        consume_alter_action_body(cursor)
+    }
   }
   valid
+}
+
+///|
+/// Consume remaining tokens in an alter action body (until comma at depth 0
+/// or end of statement). This handles DEFAULT, COMMENT, USING, PROPERTIES,
+/// and other clause keywords that appear after the action verb+object.
+fn consume_alter_action_body(cursor : Cursor) -> Unit {
+  let mut depth = 0
+  while token_at(cursor) is Some(_) {
+    match raw_at(cursor) {
+      Some(b"(") => depth = depth + 1
+      Some(b")") =>
+        if depth > 0 {
+          depth = depth - 1
+        } else {
+          // Closing paren at depth 0 — belongs to the outer context, stop
+          break
+        }
+      Some(b",") if depth == 0 =>
+        // Comma at depth 0 — separator between alter actions, stop
+        break
+      _ => ()
+    }
+    advance(cursor)
+  }
 }
 
 ///|
@@ -6849,7 +7058,7 @@ fn parse_doris_segment(
       }
     }
     Some(raw) if bytes_equal_ci(raw, b"ALTER") => {
-      let kind = @syntax.SyntaxKind::AlterTable
+      let kind = doris_alter_form_kind(stream, indices, 0)
       let valid = parse_doris_alter(cursor, state, stream.source, statement_id)
       finish_statement(
         stream, cursor, start_index, end_index, span, valid, state, statement_id,
