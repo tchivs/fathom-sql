@@ -993,3 +993,15 @@ test "doris_drop_materialized_view_parses_and_round_trips" {
   assert_true(result.valid)
   assert_eq(@printer.print_result(result), raw)
 }
+
+///|
+test "doris_upsert_parses_and_round_trips" {
+  let raw = b"UPSERT INTO t VALUES (1, 2)"
+  for mode in ["strict", "editor"] {
+    let result = parse_ddl(raw, "4.x", mode)
+    assert_true(result.valid)
+    assert_eq(result.diagnostics.length(), 0)
+    assert_eq(@printer.print_result(result), raw)
+    assert_true(has_kind(result.root, "insert"))
+  }
+}

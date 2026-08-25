@@ -861,6 +861,12 @@ let doris_classification_rows : Array[KeywordEntry] = [
     source: reserved_keywords_url,
   },
   {
+    word: b"UPSERT",
+    classification: NonReserved,
+    introduced_profile: "2.1",
+    source: "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/ (UPSERT INTO; absent from the official reserved list)",
+  },
+  {
     word: b"TABLE",
     classification: Reserved,
     introduced_profile: "2.1",
@@ -1305,7 +1311,7 @@ test "doris_classification_rows_match_the_frozen_v1_table" {
   // 116 rows, content byte-identical to the v1 classification_rows (D-08:
   // the baseline gate pins acceptance; this test pins the row inventory).
   let rows = doris_classification_rows
-  assert_eq(rows.length(), 133)
+  assert_eq(rows.length(), 134)
   let spot = [
     b"SELECT", b"WITH", b"QUALIFY", b"TABLET", b"DISTRIBUTED", b"MERGE", b"VIEW",
     b"DEFAULT", b"BUCKETS", b"PROPERTIES",

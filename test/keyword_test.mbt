@@ -478,6 +478,9 @@ fn tsv_rows() -> Array[(Bytes, String, String, String)] {
     (
       b"RECYCLE", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/Data-administration/RECYCLE/ (absent from the official reserved list)",
     ),
+    (
+      b"UPSERT", "non-reserved", "2.1", "https://doris.apache.org/docs/4.x/sql-manual/sql-statements/data-modification/DML/INSERT/ (UPSERT INTO; absent from the official reserved list)",
+    ),
   ]
 }
 

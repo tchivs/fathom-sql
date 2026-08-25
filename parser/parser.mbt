@@ -3085,9 +3085,23 @@ fn parse_insert(
   if !depth_allowed(cursor, state, source, statement_id) {
     return false
   }
-  let mut valid = expect_word(
-    cursor, b"INSERT", state, source, statement_id, "expected INSERT statement",
-  )
+  let mut valid = true
+  // Accept INSERT or UPSERT as the leading verb.
+  if !consume_word(cursor, b"INSERT") && !consume_word(cursor, b"UPSERT") {
+    let at = match token_at(cursor) {
+      Some(token) => token.span.start_byte
+      None => source.byte_length()
+    }
+    add_diagnostic(
+      state,
+      "FATHOM-PARSE-002",
+      "expected INSERT statement",
+      "keyword",
+      make_span(source, at, at),
+      statement_id,
+    )
+    valid = false
+  }
   if consume_word(cursor, b"OVERWRITE") {
     valid = expect_word(
         cursor, b"table", state, source, statement_id, "expected table after INSERT OVERWRITE",
@@ -7011,6 +7025,19 @@ fn parse_doris_segment(
         @syntax.SyntaxKind::Insert,
         "unexpected tokens after INSERT statement",
       )
+    Some(raw) if bytes_equal_ci(raw, b"UPSERT") =>
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        parse_insert(cursor, state, stream.source, statement_id),
+        state,
+        statement_id,
+        @syntax.SyntaxKind::Insert,
+        "unexpected tokens after UPSERT statement",
+      )
     Some(raw) if bytes_equal_ci(raw, b"UPDATE") =>
       finish_statement(
         stream,
@@ -7680,6 +7707,19 @@ fn parse_flink_segment(
         "unexpected tokens after DROP statement",
       )
     }
+    Some(raw) if bytes_equal_ci(raw, b"MERGE") =>
+      finish_statement(
+        stream,
+        cursor,
+        start_index,
+        end_index,
+        span,
+        parse_merge(cursor, state, stream.source, statement_id),
+        state,
+        statement_id,
+        @syntax.SyntaxKind::Merge,
+        "unexpected tokens after MERGE statement",
+      )
     Some(raw) if bytes_equal_ci(raw, b"BEGIN") ||
       bytes_equal_ci(raw, b"START") ||
       bytes_equal_ci(raw, b"COMMIT") ||

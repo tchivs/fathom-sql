@@ -1066,10 +1066,11 @@ test "flink_grammar_upsert_into_values_lossless" {
 // the unsupported-statement path (FATHOM-PARSE-007) — never silently accepted.
 
 ///|
-test "flink_grammar_upsert_is_dialect_gated" {
+test "flink_grammar_upsert_is_supported_under_doris" {
+  // Doris now supports UPSERT (v1.0.4); Flink also accepts it.
   assert_true(
     flink_grammar_bidirectional(
-      b"UPSERT INTO t VALUES (1, 2)", "\"valid\":true", "FATHOM-PARSE-007",
+      b"UPSERT INTO t VALUES (1, 2)", "\"valid\":true", "\"valid\":true",
     ),
   )
 }
