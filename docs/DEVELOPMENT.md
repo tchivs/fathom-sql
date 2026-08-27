@@ -74,7 +74,7 @@ After completing a syntax or formatting change, it is recommended to run at leas
 ```bash
 moon fmt --check
 moon check
-moon test --target native --package test --package parity --package lsp --package api --package source --package token --package lexer --package parser --package printer --package syntax --package completion --package analyzer
+moon test --target native --package test --package parity-tests --package lsp --package api --package source --package token --package lexer --package parser --package printer --package syntax --package completion --package analyzer
 python3 corpus/tools/generate_corpus_report.py --check
 python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 ```
@@ -82,7 +82,7 @@ python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 > Bare `moon test` currently triggers MoonBit error 4219 (the `binding` `foreign_library`
 > `#export_name` in a test-target build) on the pinned toolchain — a documented boundary
 > since v1 (04-03). Use the per-package invocation above for the full behavioral suite;
-> run `moon test --target wasm --package parity` for the linear-Wasm runtime parity gate.
+> run `moon test --target wasm --package parity-tests` for the linear-Wasm runtime parity gate.
 
 If the change affects only MoonBit packages, the corpus Python checks can still serve as a complete pre-commit consistency check; if the change affects `corpus/manifest.tsv`, `corpus/coverage.tsv`, or `corpus/keywords.tsv`, the corresponding validation command must be run.
 

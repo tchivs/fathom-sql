@@ -10,7 +10,7 @@ Fathom uses MoonBit's built-in test runner to verify Doris SQL parsing, recovery
 
 - **Test framework**: MoonBit's built-in `test "name" { ... }` test blocks and built-in assertions such as `assert_true`, `assert_eq`, and `panic`.
 - **Toolchain**: The repository's `moon.mod` records `moon 0.1.20260724 (5f1406a 2026-07-24)` as the toolchain; run `moon version` to confirm the current environment. `moon.mod` sets `native` as the preferred target.
-- **Test package**: `test/moon.pkg` imports `api`, `parser`, `printer`, `source`, `syntax`, `token`, `formatter`, and `analyzer`; test files are concentrated under `test/`.
+- **Test package**: `test/moon.pkg` imports `api`, `parser`, `printer`, `source`, `syntax`, `formatter`, `analyzer`, `binding`, `dialect`, and `lineage`; test files are concentrated under `test/`.
 - **Dependency installation**: MoonBit tests have no additional runtime test dependencies. Install a MoonBit CLI compatible with the repository, then run `moon check` from the project root to complete module checking.
 - **Environment requirements**: The test package does not read environment variables and does not require a database, Doris FE, a network, or a resident service. All core tests can run offline.
 
@@ -46,7 +46,7 @@ moon test --target native
 > `binding` package is a `foreign_library` whose `#export_name` cannot appear in a
 > test-target build — a documented boundary since v1 (04-03). Run the per-package
 > invocation from DEVELOPMENT.md for the full behavioral suite, and
-> `moon test --target wasm --package parity` for the linear-Wasm runtime parity gate.
+> `moon test --target wasm --package parity-tests` for the linear-Wasm runtime parity gate.
 
 `moon test` compiles and runs the `test/` test package. The current test code is divided by domain as follows:
 
@@ -59,7 +59,13 @@ moon test --target native
 | `test/dml_test.mbt` | DML such as INSERT, UPDATE, DELETE, and MERGE; version gates, error recovery, multi-statement input, and lossless replay. |
 | `test/ddl_test.mbt` | DDL such as CREATE TABLE/VIEW/INDEX/MATERIALIZED VIEW; version gates, recovery, spans, and replay. |
 | `test/analyzer_test.mbt` | Injected `Catalog` lookup, table-reference resolution, syntax results unaffected by the catalog, and node/diagnostic lookup by statement ID. |
+| `test/analyzer_anal01_test.mbt` | ANAL-01 end-to-end tracer tests: parse to analyze over the real parser, asserting bindings with flattened byte spans, the independent analyzer diagnostic channel (ANLY-01), and quoted/exact matching; freezes the select-basic AnalysisResult via snapshot golden. |
+| `test/analyzer_public_surface_test.mbt` | Public-surface end-to-end tests: parse to `@analyzer.source_tokens` and `@analyzer.split_select_model` over the real parser, asserting the cross-package-readable SelectModel structure, the empty-document total function, and the public `has_error_missing` scan. |
 | `test/formatter_test.mbt` | Formatting goldens, keyword/indentation/newline options, `format(format(x)) == format(x)` idempotence, output reparsing, and rejection of error trees. |
+| `test/fingerprint_test.mbt` | `@api.fingerprint_text` integration tests: the full raw to parse to normalize to hash pipeline behind the public API (FING-01). |
+| `test/lineage_test.mbt` | LINE-01 end-to-end integration tests: parse to lineage over the real parser and the `@api.lineage_text` facade, asserting edge/gap structure with flattened byte spans and deterministic ordering via snapshot goldens. |
+| `test/lint_test.mbt` | `@api.lint_text`/`@api.fix_text` integration tests: the raw to parse to lint to fix pipeline behind the public API, including the D-33 refusal path (LINT-01). |
+| `test/binding_wire_test.mbt` | Binding-package wire tests: exercises the `foreign_library` export surface (`#export_name`) from the integration test package, since `binding` cannot be the direct target of a native test build (error 4219). |
 | `test/corpus_test.mbt` | Embedded manifest fixtures organized by Doris profile and statement category, the expected-error oracle, statement IDs, and whole-input replay. |
 
 ### Individual Files and Subsets
@@ -170,11 +176,14 @@ For machine-readable or HTML reports, select a format supported by the MoonBit c
 `.github/workflows/ci.yml` runs on push to `master` and pull requests:
 
 - **check** — `moon fmt --check`; `moon check` for native, JS, and linear-Wasm targets.
-- **test** — `moon test` (native, full suite).
-- **linear-wasm-parity** — `moon build --target wasm binding` and `moon build --target wasm parity`, then `moon test --target wasm --package parity` (executes the parity corpus **on the linear-Wasm backend**) plus `moon test --target native --package parity` for the byte-parity cross-check.
-- **corpus** — `generate_corpus_report.py --check` and `check_keywords.py corpus/keywords.tsv`.
+- **test** — `moon test` (native, full suite via per-package invocation).
+- **linear-wasm-parity** — `moon build --target wasm binding` and `moon build --target wasm parity-tests`, then `moon test --target wasm --package parity-tests` (executes the parity corpus **on the linear-Wasm backend**) plus `moon test --target native --package parity-tests` and `moon test --target js --package parity-tests` for cross-backend byte parity, followed by `compare_backends.py`.
+- **parity-gate** — baseline snapshot gate (`moon test --package parity-tests`), baseline diff self-check, baseline corpus hash pin, and frozen-vs-current regeneration proof (`diff_parity.py --frozen-only`).
+- **corpus** — offline Flink corpus verifier (`verify_corpus.py --check`), `generate_corpus_report.py --check`, and `check_keywords.py corpus/keywords.tsv`.
+- **naming-gate** — `check_naming.py` rejects product-level remnants of the legacy identity in source, config, CI, extensions, and docs.
+- **host-packaging-smoke** — builds native `fathom-lsp` and JS `binding`, then runs offline Web Chromium, VS Code extension-host (Xvfb), and JetBrains plugin smokes.
 
-`.github/workflows/fathom-native-release.yml` gates the GitHub Release job on the same `linear-wasm-parity` step (in addition to the native multi-platform build), so a release cannot publish without the linear-Wasm runtime execution parity passing.
+`.github/workflows/fathom-native-release.yml` gates the GitHub Release job on an equivalent `release-gates` job (native, JavaScript, and linear-Wasm parity plus `compare_backends` and `diff_parity`), in addition to the native multi-platform build, so a release cannot publish without the linear-Wasm runtime execution parity passing.
 
 There is no automatic coverage upload or automatic FE/Nereids differential testing (the FE script is deliberately manual-only, D-20). Before submitting, run at least the following from the repository root:
 

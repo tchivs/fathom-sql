@@ -17,7 +17,7 @@
 | 后端 | Native / JS (ESM) / Wasm（线性） |
 | 方言 | Doris (2.1/3.x/4.x)、Flink (flink-1.20.5/2.1.3/2.3.0) |
 | 模块名 | `fathom/sql` |
-| 产品版本 | 1.0.0 |
+| 产品版本 | 1.0.4 |
 | 源码规模 | 96 .mbt 文件，~53K 行 |
 | 模块数 | 23 MoonBit 包 + npm/vscode/jetbrains/web 生态层 |
 

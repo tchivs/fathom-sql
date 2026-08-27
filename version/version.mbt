@@ -1,8 +1,6 @@
 /// Single source of product version identity (VER-01/D-01).
-///
-/// `moon.mod`'s module version stays `0.1.0` (Phase 13 release-planning
-/// decision); the product semver is decoupled from the module version and
-/// lives here only. Both release binaries report this constant via
+/// `moon.mod`'s module version is aligned with the product semver
+/// (`1.0.4`); both release binaries report this constant via
 /// `--version` (VER-02/D-02). Bumping the product version requires editing
 /// `product_version()` and following docs/VERSIONING.md (tag + CHANGELOG).
 

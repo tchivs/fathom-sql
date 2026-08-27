@@ -137,7 +137,7 @@ interface FormatOptions {
 - **Lineage is Doris-only**: `lineage()` rejects a Flink selection with a
   structured `FATHOM-SCHEMA-*` error.
 
-See the [full release notes and boundary disclosure](https://github.com/tchivs/fathom-sql/releases/tag/v1.0.0)
+See the [full release notes and boundary disclosure](https://github.com/tchivs/fathom-sql/releases/tag/v1.0.4)
 in the GitHub repository.
 
 ## Building from source

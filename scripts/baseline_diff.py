@@ -7,7 +7,7 @@ Usage:
       --approve .planning/phases/09-dialect-boundary-and-neutral-naming/approved-changes.md
 
   --frozen and --current are self-documenting aliases for --left and --right
-  (used by scripts/diff_parity.py's regenerated-comparison wrapper, D-03).
+  (D-03); --left/--right stay canonical.
 
 Walks both snapshot directories, compares every *.json file, and groups
 differences into:
@@ -215,8 +215,8 @@ def main(argv):
     parser = argparse.ArgumentParser(
         description="Group baseline snapshot diffs into approved vs unexpected."
     )
-    # --frozen/--current are self-documenting aliases used by the
-    # scripts/diff_parity.py wrapper (D-03); --left/--right stay canonical.
+    # --frozen/--current are self-documenting aliases (D-03);
+    # --left/--right stay canonical.
     parser.add_argument("--left", "--frozen", dest="left", required=True,
                         help="left snapshot directory")
     parser.add_argument("--right", "--current", dest="right", required=True,

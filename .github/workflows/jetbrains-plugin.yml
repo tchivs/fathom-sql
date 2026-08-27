@@ -13,11 +13,15 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: jetbrains-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
     name: Build and verify IntelliJ plugin
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: jetbrains
@@ -36,6 +40,16 @@ jobs:
       - name: Run source contract smoke
         run: python3 scripts/source-smoke.py
 
+      - name: Verify gradle-wrapper.jar checksum
+        shell: bash
+        run: |
+          expected="$(grep distributionSha256Sum jetbrains/gradle/wrapper/gradle-wrapper.properties | cut -d= -f2 | tr -d ' ')"
+          actual="$(sha256sum jetbrains/gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1)"
+          if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+            echo "gradle-wrapper.jar checksum mismatch or missing" >&2
+            exit 1
+          fi
+          echo "gradle-wrapper.jar checksum OK"
       - name: Run Kotlin tests, compatibility verification, and packaging
         run: ./gradlew --no-daemon clean test verifyPlugin buildPlugin
 

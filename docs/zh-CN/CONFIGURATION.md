@@ -46,19 +46,23 @@ pkgtype(kind: "library")
 
 ### 必需的解析设置
 
-每次构造 `ParseOptions` 都必须明确指定 Doris profile 和解析模式：
+每次构造 `ParseOptions` 都必须明确指定方言（dialect）、Doris profile 和解析模式：
 
-- **Profile**：只能是 `2.1`、`3.x` 或 `4.x`；未知值返回 `ParseError::UnknownProfile`，不会回退到通用 MySQL 方言。
+- **方言（Dialect）**：只允许 `doris` 或 `flink`；未知值返回 `ParseError::UnknownDialect`。Flink 发布 profile 已锁定（Phase 10），并在所有工具链入口接受。
+- **Profile**：profile 仅在其所属方言下有效——`doris` 接受 `2.1`、`3.x` 或 `4.x`；`flink` 接受 `flink-2.3.0`、`flink-2.1.3` 或 `flink-1.20.5`。未知或跨方言值返回 `ParseError::UnknownProfile`，不会回退到通用方言。
 - **Mode**：只能是 `strict` 或 `editor`；未知值返回 `ParseError::UnknownMode`。
 - **Manifest 元数据（可选入口）**：使用 `from_manifest` 时，`exact_release` 和 `feature_introduction` 必须与所选 profile 的内置元数据完全匹配，否则返回 `ProfileMetadataMismatch`；不受支持的 feature introduction 返回 `UnsupportedFeatureIntroduction`。
 
-三个 profile 的内置元数据如下：
+已发布 profile 的内置元数据如下：
 
 | Profile ID | `exact_release` | `feature_introduction` |
 |---|---|---|
 | `2.1` | `2.1` | `2.1 baseline SELECT; DML/DDL released` |
 | `3.x` | `3.x` | `2.1 baseline SELECT; DML/DDL released; 3.x window and QUALIFY` |
 | `4.x` | `4.x` | `2.1 baseline SELECT; DML/DDL released; 4.x released SELECT` |
+| `flink-2.3.0` | `flink-2.3.0` | `primary profile` |
+| `flink-2.1.3` | `flink-2.1.3` | `flink-2.1.3 regression profile` |
+| `flink-1.20.5` | `flink-1.20.5` | `flink-1.20.5 regression profile` |
 
 示例：
 
@@ -116,7 +120,7 @@ let formatted = @api.format_text(b"select id, name from users", parse_options, f
 
 Fathom 是库而不是需要启动配置的常驻应用，因此不存在“缺少配置导致进程启动失败”的设置。必需设置只存在于 API 调用边界：
 
-1. 解析和格式化必须选择有效的 Doris profile 与模式。
+1. 解析和格式化必须选择有效的方言、profile 与模式（无隐式回退）。
 2. 使用 manifest 入口时，release 和 feature introduction 元数据必须和 profile 一致。
 3. 若提供自定义 `ParseLimits`，所有限制必须为非负值。
 4. 若提供自定义 `FormatOptions`，`indent` 必须非负，`line_width` 必须大于零。
@@ -128,6 +132,34 @@ Fathom 是库而不是需要启动配置的常驻应用，因此不存在“缺�
 仓库中没有 `.env.development`、`.env.production`、`.env.test`，也没有 `NODE_ENV` 条件分支或其他环境配置加载器。开发、测试和发布环境使用同一套源码及 MoonBit 清单；差异应通过调用方显式传入 `ParseOptions`、`ParseLimits` 和 `FormatOptions`，或通过构建命令显式选择目标。
 
 例如，编辑器场景可以选择 `editor` 模式并降低资源上限，批处理场景可以选择 `strict` 模式并使用默认限制；这两种行为属于调用参数，不是环境变量覆盖。
+
+## 编辑器宿主与 CLI 方言/Profile 选择
+
+SDK 附带编辑器宿主（VS Code、IntelliJ）和 Web demo，它们按工作区/会话选择方言和已发布 profile，与 `api` 包完全一致：一个显式的 `(dialect, profile)` 对，无隐式回退。宿主常量镜像服务端的权威校验（`binding.validate_dialect_profile` / LSP `validate_selection`）；缺失、未知或跨方言的对都是显式配置错误，绝不会强制转换为默认值。
+
+### 有效的 (dialect, profile) 对
+
+| 方言 | Profile |
+|---|---|
+| `doris` | `2.1`、`3.x`、`4.x` |
+| `flink` | `flink-2.3.0`、`flink-2.1.3`、`flink-1.20.5` |
+
+profile 仅在其所属方言下有效：`flink` + `2.1` 和 `doris` + `flink-2.3.0` 均被拒绝。服务端保持权威——如果宿主接受了服务端拒绝的对，那是服务端错误，绝不是静默回退。
+
+### 按宿主选择
+
+| 宿主 | 选择入口 | Flink 选择示例 |
+|---|---|---|
+| VS Code | `fathom.dialect` + `fathom.profile` 设置（加上 `fathom.serverPath` 指向本地 `fathom-lsp` 可执行文件） | `fathom.dialect: "flink"`、`fathom.profile: "flink-2.3.0"` |
+| IntelliJ | `FathomSettings` 应用设置——方言和 profile 下拉菜单；profile 列表会根据所选方言重新填充 | 方言 `flink`，profile `flink-2.3.0` |
+| Web demo | `#dialect` 和 `#profile` 选择器；profile 选择器在方言变更时重新填充 | 方言 `flink`，profile `flink-2.3.0` |
+| CLI | `fathom-sql parse|format|lsp --dialect <d> --profile <p>` | `--dialect flink --profile flink-2.3.0` |
+
+Web/VS Code/IntelliJ 宿主各自维护按方言分组的静态 profile 映射（离线优先，PARITY-03）；它们从不动态拉取 profile，也不共享跨宿主的 JSON 定义。
+
+### 按文件 LSP 覆盖
+
+除上述工作区/会话默认值外，LSP 还通过 `didOpen`/`didChange` 扩展字段 `dialect` 和 `profile` 支持按文件覆盖。优先级为：文档 > 工作区/会话。不执行自动检测，也不根据文件扩展名猜测——flink 文件必须显式携带 flink 选择。
 
 ## 配置相关文件
 

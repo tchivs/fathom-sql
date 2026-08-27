@@ -8,10 +8,14 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: publish-vscode-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -40,8 +44,21 @@ jobs:
         shell: bash
         run: |
           ver="$(node -p 'require("./package.json").version')"
+          set +e
           body=$(curl -sS -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" -H "Content-Type: application/json" -H "Accept: application/json;api-version=7.1-preview.1" -d '{"filters":[{"criteria":[{"filterType":7,"value":"fathom-sql.sql"}]}],"flags":950}')
-          exists=$(printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); ext=d.get("results",[{}])[0].get("extensions",[]); vs=ext[0].get("versions",[]) if ext else []; print("true" if any(v.get("version")==sys.argv[1] for v in vs) else "false")' "$ver" 2>/dev/null || echo "false")
+          curl_rc=$?
+          set -e
+          if [ "$curl_rc" -ne 0 ]; then
+            echo "::error::curl failed to query marketplace (exit code $curl_rc)"
+            exit 1
+          fi
+          exists=$(printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); ext=d.get("results",[{}])[0].get("extensions",[]); vs=ext[0].get("versions",[]) if ext else []; print("true" if any(v.get("version")==sys.argv[1] for v in vs) else "false")' "$ver" 2>/tmp/vscode_query_err)
+          py_rc=$?
+          if [ "$py_rc" -ne 0 ]; then
+            echo "::error::failed to parse marketplace response as JSON"
+            cat /tmp/vscode_query_err >&2
+            exit 1
+          fi
           echo "already_published=$exists" >> "$GITHUB_OUTPUT"
       - name: Publish
         if: ${{ steps.exists.outputs.already_published != 'true' }}

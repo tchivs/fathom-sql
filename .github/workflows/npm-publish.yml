@@ -14,10 +14,14 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -65,6 +69,17 @@ jobs:
         run: |
           cd npm
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            npm pack
+            tarball=$(ls *.tgz | head -1)
+            echo "=== Tarball contents ==="
+            tar tzf "$tarball"
+            for f in binding.js binding.wasm package.json; do
+              if ! tar tzf "$tarball" | grep -q "package/$f$"; then
+                echo "ERROR: $f not found in tarball" >&2
+                exit 1
+              fi
+            done
+            echo "Tarball content check passed"
             npm publish --dry-run
           else
             npm publish --access public

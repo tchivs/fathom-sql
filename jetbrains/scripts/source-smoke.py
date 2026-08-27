@@ -30,7 +30,7 @@ require(
     "Kotlin JVM version",
 )
 require(build_path, r'plugin\("com\.redhat\.devtools\.lsp4ij",\s*"0\.20\.1"\)', "LSP4IJ version")
-if re.search(r"org\\.eclipse\\.lsp4j|lsp4j\\s*[:\\\"]", build, re.IGNORECASE):
+if re.search(r"org\.eclipse\.lsp4j|lsp4j\s*[:\"]", build, re.IGNORECASE):
     errors.append("build.gradle.kts: independently declared LSP4J runtime")
 require(build_path, r"sinceBuild\s*=\s*\"252\"", "minimum IntelliJ build")
 require(build_path, r"select\s*\{", "Plugin Verifier product matrix")

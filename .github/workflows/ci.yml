@@ -8,11 +8,15 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
     name: moon check + fmt
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -43,6 +47,7 @@ jobs:
   test:
     name: moon test (native)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -64,8 +69,8 @@ jobs:
             --package fingerprint --package lint --package fathom-sql
 
   linear-wasm-parity:
-    name: linear-Wasm runtime execution parity
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -116,8 +121,8 @@ jobs:
         run: python3 scripts/compare_backends.py
 
   parity-gate:
-    name: v1 baseline parity gate (no --update)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -162,8 +167,8 @@ jobs:
         run: python3 scripts/diff_parity.py --frozen-only
 
   corpus:
-    name: corpus report + keyword check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -191,8 +196,8 @@ jobs:
         run: python3 corpus/tools/check_keywords.py corpus/keywords.tsv
 
   naming-gate:
-    name: neutral naming inventory gate (NAME-04)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -213,8 +218,8 @@ jobs:
         run: python3 scripts/check_naming.py
 
   host-packaging-smoke:
-    name: Three-host packaging smoke (offline)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -293,6 +298,16 @@ jobs:
           npm run build
           xvfb-run -a node scripts/host-verify.mjs
 
+      - name: Verify gradle-wrapper.jar checksum
+        shell: bash
+        run: |
+          expected="$(grep distributionSha256Sum jetbrains/gradle/wrapper/gradle-wrapper.properties | cut -d= -f2 | tr -d ' ')"
+          actual="$(sha256sum jetbrains/gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1)"
+          if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+            echo "gradle-wrapper.jar checksum mismatch or missing" >&2
+            exit 1
+          fi
+          echo "gradle-wrapper.jar checksum OK"
       - name: IntelliJ Gradle build + LSP launch smoke
         shell: bash
         run: |

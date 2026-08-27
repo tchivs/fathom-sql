@@ -10,7 +10,7 @@ Fathom 使用 MoonBit 内置测试运行器验证 Doris SQL 的解析、恢复�
 
 - **测试框架**：MoonBit 内置 `test "name" { ... }` 测试块以及 `assert_true`、`assert_eq`、`panic` 等内置断言。
 - **工具链**：仓库 `moon.mod` 记录的工具链为 `moon 0.1.20260724 (5f1406a 2026-07-24)`；运行 `moon version` 可确认当前环境。`moon.mod` 将 `native` 设为首选目标。
-- **测试包**：`test/moon.pkg` 导入 `api`、`parser`、`printer`、`source`、`syntax`、`token`、`formatter` 和 `analyzer`，测试文件集中在 `test/`。
+- **测试包**：`test/moon.pkg` 导入 `api`、`parser`、`printer`、`source`、`syntax`、`formatter`、`analyzer`、`binding`、`dialect` 和 `lineage`，测试文件集中在 `test/`。
 - **依赖安装**：MoonBit 测试没有额外的运行时测试依赖。安装与仓库兼容的 MoonBit CLI 后，在项目根目录运行 `moon check` 即可完成模块检查。
 - **环境要求**：测试包不读取环境变量，也不需要数据库、Doris FE、网络或常驻服务。所有核心测试可离线运行。
 
@@ -42,6 +42,12 @@ moon test
 moon test --target native
 ```
 
+> **注意（固定工具链）：** 直接运行 `moon test` 会触发 MoonBit 错误 4219，因为
+> `binding` 包是 `foreign_library`，其 `#export_name` 不能出现在 test-target 构建中
+> — 这是自 v1 (04-03) 起的已知边界。请使用 DEVELOPMENT.md 中的逐包命令运行完整
+> 行为套件，并使用 `moon test --target wasm --package parity-tests` 执行线性 Wasm
+> 运行时 parity 门禁。
+
 `moon test` 会编译并执行 `test/` 测试包。当前测试代码按领域拆分如下：
 
 | 文件 | 覆盖范围 |
@@ -53,7 +59,13 @@ moon test --target native
 | `test/dml_test.mbt` | INSERT、UPDATE、DELETE、MERGE 等 DML、版本门控、错误恢复、multi-statement 和无损 replay。 |
 | `test/ddl_test.mbt` | CREATE TABLE/VIEW/INDEX/MATERIALIZED VIEW 等 DDL、版本门控、恢复、span 和 replay。 |
 | `test/analyzer_test.mbt` | 注入式 `Catalog` 查找、表引用解析、语法结果不受 catalog 影响，以及按 statement id 查询节点和诊断。 |
+| `test/analyzer_anal01_test.mbt` | ANAL-01 端到端 tracer 测试：在真实 parser 上 parse 到 analyze，断言带扁平化字节 span 的 binding、独立分析器诊断通道 (ANLY-01) 和引号/精确匹配；通过 snapshot golden 冻结 select-basic AnalysisResult。 |
+| `test/analyzer_public_surface_test.mbt` | 公共接口端到端测试：在真实 parser 上 parse 到 `@analyzer.source_tokens` 和 `@analyzer.split_select_model`，断言跨包可读的 SelectModel 结构、空文档全函数和公共 `has_error_missing` 扫描。 |
 | `test/formatter_test.mbt` | 格式化 golden、关键字/缩进/换行选项、`format(format(x)) == format(x)` 幂等性、输出重解析和错误树拒绝。 |
+| `test/fingerprint_test.mbt` | `@api.fingerprint_text` 集成测试：公共 API 背后的 raw → parse → normalize → hash 完整管线 (FING-01)。 |
+| `test/lineage_test.mbt` | LINE-01 端到端集成测试：在真实 parser 上 parse 到 lineage 以及 `@api.lineage_text` facade，断言带扁平化字节 span 的 edge/gap 结构和通过 snapshot golden 的确定性排序。 |
+| `test/lint_test.mbt` | `@api.lint_text`/`@api.fix_text` 集成测试：公共 API 背后的 raw → parse → lint → fix 管线，包括 D-33 拒绝路径 (LINT-01)。 |
+| `test/binding_wire_test.mbt` | binding 包 wire 测试：在集成测试包中验证 `foreign_library` 导出面 (`#export_name`)，因为 `binding` 不能作为 native 测试构建的直接目标 (错误 4219)。 |
 | `test/corpus_test.mbt` | 按 Doris profile 和语句类别组织的内嵌 manifest fixture、expected-error oracle、statement id 和整体 replay。 |
 
 ### 单文件和子集
@@ -164,11 +176,14 @@ moon coverage report -f summary
 `.github/workflows/ci.yml` 在 push 到 `master` 和 PR 时运行：
 
 - **check** — `moon fmt --check`;native、JS、线性 Wasm 目标的 `moon check`。
-- **test** — `moon test`(native,完整套件)。
-- **linear-wasm-parity** — `moon build --target wasm binding` 与 `moon build --target wasm parity`,然后 `moon test --target wasm --package parity`(在**线性 Wasm 后端**上执行 parity 语料)加 `moon test --target native --package parity` 做字节级 parity 交叉校验。
-- **corpus** — `generate_corpus_report.py --check` 与 `check_keywords.py corpus/keywords.tsv`。
+- **test** — `moon test`(native,通过逐包调用运行完整套件)。
+- **linear-wasm-parity** — `moon build --target wasm binding` 与 `moon build --target wasm parity-tests`,然后 `moon test --target wasm --package parity-tests`(在**线性 Wasm 后端**上执行 parity 语料)加 `moon test --target native --package parity-tests` 和 `moon test --target js --package parity-tests` 做三后端字节级 parity 交叉校验,随后运行 `compare_backends.py`。
+- **parity-gate** — baseline snapshot 门禁(`moon test --package parity-tests`)、baseline diff 自检、baseline corpus 哈希固定,以及 frozen-vs-current 重生成证明(`diff_parity.py --frozen-only`)。
+- **corpus** — 离线 Flink corpus 验证器(`verify_corpus.py --check`)、`generate_corpus_report.py --check` 与 `check_keywords.py corpus/keywords.tsv`。
+- **naming-gate** — `check_naming.py` 拒绝源码、配置、CI、扩展和文档中的旧产品身份残留。
+- **host-packaging-smoke** — 构建原生 `fathom-lsp` 和 JS `binding`,然后离线运行 Web Chromium、VS Code 扩展宿主 (Xvfb) 和 JetBrains 插件冒烟测试。
 
-`.github/workflows/fathom-native-release.yml` 将 GitHub Release job 门禁在相同的 `linear-wasm-parity` 步骤上(外加原生多平台构建),因此发布前必须通过线性 Wasm 运行时执行 parity。
+`.github/workflows/fathom-native-release.yml` 将 GitHub Release job 门禁在等效的 `release-gates` job 上(native、JavaScript 和线性 Wasm parity 加 `compare_backends` 和 `diff_parity`),外加原生多平台构建,因此发布前必须通过线性 Wasm 运行时执行 parity。
 
 没有自动上传覆盖率或自动运行 FE/Nereids 差分(FE 脚本刻意保持手动,D-20)。提交前至少应在仓库根目录执行：
 
