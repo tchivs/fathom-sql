@@ -4,7 +4,7 @@
       "filename": "core-latest.tar.gz",
       "provenance": "recorded-digest",
       "role": "core",
-      "sha256": "5e5a3bdb0679250979808c4f0fc5b373261ab55632f1890660bfc914543f3276",
+      "sha256": "787aeca27aeff9038d7d8a0ebdc5c9b162b8aa26696e9663f24a9a910001ae16",
       "sidecarDigest": null,
       "targetPlatform": "core-tar.gz",
       "url": "https://cli.moonbitlang.com/cores/core-latest.tar.gz"
@@ -13,7 +13,7 @@
       "filename": "core-latest.zip",
       "provenance": "recorded-digest",
       "role": "core",
-      "sha256": "cb40b0e2184c1e73e8678ba2b521de35e55116b0ed7aeea861591e6095de3cb8",
+      "sha256": "fb0aabb24c0b1243783a13fe6b610330f8031fe04f0b7945b3fbd79022499ce8",
       "sidecarDigest": null,
       "targetPlatform": "core-zip",
       "url": "https://cli.moonbitlang.com/cores/core-latest.zip"
@@ -22,8 +22,8 @@
       "filename": "moonbit-darwin-aarch64.tar.gz",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "f9d8a453a723977f9029f963193e091e52289bf0f6d5223940d1ef840b5121b1",
-      "sidecarDigest": "f9d8a453a723977f9029f963193e091e52289bf0f6d5223940d1ef840b5121b1",
+      "sha256": "e96495a5031738cee853bbead4cf73f7a84eb7518a0174febd6f92a4541a42e4",
+      "sidecarDigest": "e96495a5031738cee853bbead4cf73f7a84eb7518a0174febd6f92a4541a42e4",
       "targetPlatform": "darwin-aarch64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-darwin-aarch64.tar.gz"
     },
@@ -31,8 +31,8 @@
       "filename": "moonbit-linux-x86_64.tar.gz",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "b8f9273653f9af49c447775a7ecc7d20a2784849a15fe489a03afd6718c75d0d",
-      "sidecarDigest": "b8f9273653f9af49c447775a7ecc7d20a2784849a15fe489a03afd6718c75d0d",
+      "sha256": "bd7c809dff778988cc7358046cc68e11388d1a729e5afaf8732fd066b13ef05e",
+      "sidecarDigest": "bd7c809dff778988cc7358046cc68e11388d1a729e5afaf8732fd066b13ef05e",
       "targetPlatform": "linux-x86_64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz"
     },
@@ -40,14 +40,14 @@
       "filename": "moonbit-windows-x86_64.zip",
       "provenance": "official-sidecar",
       "role": "binary",
-      "sha256": "915a560cc4950a124bfedf5302ec6bf0d0f98d8ea6b2ae7978e4680641281963",
-      "sidecarDigest": "915a560cc4950a124bfedf5302ec6bf0d0f98d8ea6b2ae7978e4680641281963",
+      "sha256": "74a669a639942b41877883a76b63605a40974307899c963bd7e1550613ad7965",
+      "sidecarDigest": "74a669a639942b41877883a76b63605a40974307899c963bd7e1550613ad7965",
       "targetPlatform": "windows-x86_64",
       "url": "https://cli.moonbitlang.com/binaries/latest/moonbit-windows-x86_64.zip"
     }
   ],
   "channelKey": "latest",
-  "expectedMoonVersion": "bW9vbiAwLjEuMjAyNjA4MTkgKGZjMmE0ZWUgMjAyNi0wOC0xOSkKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
-  "provenance": "official channel content-locked snapshot (D-01/D-03 revision 2026-08-14); core digests recorded, official checksum absent",
+  "expectedMoonVersion": "bW9vbiAwLjEuMjAyNjA4MjcgKGQwYWFhMDcgMjAyNi0wOC0yNykKCkZlYXR1cmUgZmxhZ3MgZW5hYmxlZDogcnJfbW9vbl9tb2QscnJfbW9vbl9wa2cK",
+  "provenance": "official channel content-locked snapshot (D-01/D-03 revision 2026-08-27); core digests recorded, official checksum absent",
   "schemaVersion": 1
 }
