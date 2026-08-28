@@ -6,7 +6,7 @@ English: [README.md](README.md) | 简体中文
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.4-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
 [![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](LICENSE)
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260827-2f80ed)](https://www.moonbitlang.com/)
 [![Targets](https://img.shields.io/badge/targets-native%20%7C%20js%20%7C%20wasm-555555)](moon.mod)
 [![Doris](https://img.shields.io/badge/Doris-2.1%20%7C%203.x%20%7C%204.x-blue)](https://doris.apache.org/)
 [![Flink](https://img.shields.io/badge/Flink-1.20.5%20%7C%202.1.3%20%7C%202.3.0-blue)](https://flink.apache.org/)
@@ -90,12 +90,12 @@ cd jetbrains
 
 ### MoonBit 库
 
-克隆仓库并用 MoonBit 工具链（`moon 0.1.20260819`，内容锁定）从源码构建：
+克隆仓库并用 MoonBit 工具链（`moon 0.1.20260827`，内容锁定）从源码构建：
 
 ```bash
 git clone https://github.com/tchivs/fathom-sql.git
 cd fathom-sql
-moon version   # 确认：moon 0.1.20260819 (fc2a4ee 2026-08-19)
+moon version   # 确认：moon 0.1.20260827 (d0aaa07 2026-08-27)
 moon check
 ```
 
@@ -192,16 +192,20 @@ match formatted {
 
 ```text
 api/        面向调用方的 parse/format facade、选项、结果和诊断类型
-token/      token 类型、关键字分类和方言 profile 元数据
+source/     源快照、字节 Span 和行索引
+dialect/    Doris 和 Flink profile、方言元数据与共享 profile 枚举
 lexer/      Dialect 感知的词法分析
+token/      token 类型和关键字分类
 parser/     手写递归下降文档解析器与 Pratt 表达式解析路径
 syntax/     无损 CST 节点、叶子和错误/缺失结构
 printer/    从 CST 或 ParseResult 精确重放源字节
 formatter/  基于 CST 的格式化布局与安全拒绝逻辑
 analyzer/   基于调用方 Catalog 的最小名字解析层
+fingerprint/  内容归一化 SQL 指纹（FNV-1a 64-bit）
+lint/      Doris lint 规则集与 autofix 支持
+lineage/    从 DML/DDL 推导列级血缘
 test/       MoonBit 行为测试、格式化测试和 corpus 测试
 corpus/     按 Doris 版本组织的 SQL fixture、manifest 与覆盖报告
-```
 
 公共调用通常从 `api` 开始；需要直接操作 CST、源码快照或分析器时，再分别使用对应包。`analyzer` 不参与 parser 的语法有效性和诊断结果。
 

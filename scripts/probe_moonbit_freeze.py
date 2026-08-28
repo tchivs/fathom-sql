@@ -323,7 +323,6 @@ def cmd_runner(args):
                 for fn in files:
                     os.chmod(os.path.join(root, fn), 0o755)
         exe = os.path.join(bindir, "bin", "moon.exe" if sys.platform == "win32" else "moon")
-        print(f"DEBUG exe={exe} exists={os.path.exists(exe)} moonc={os.path.exists(os.path.join(bindir, 'bin', 'moonc'))}", flush=True)
         if not os.path.exists(exe):
             fail(f"moon executable missing after extraction: {exe}")
         if sys.platform != "win32":

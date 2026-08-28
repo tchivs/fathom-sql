@@ -55,8 +55,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import baseline_diff  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SNAPSHOT_DIR = ROOT / "parity-tests" / "__snapshot__"
-
 
 # ---------------------------------------------------------------------------
 # Interruption handling

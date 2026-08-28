@@ -71,7 +71,7 @@ Constructors:
 | Constructor | Description |
 |---|---|
 | `ParseOptions::new(dialect_id, profile_id, mode_id)` | Accepts `"doris"`/`"flink"`, `"2.1"`/`"3.x"`/`"4.x"`, and `"strict"`/`"editor"`, using default limits. |
-| `ParseOptions::for_profile(profile, mode)` | Uses `@token.DorisProfile` and `ParseMode`, with default limits. |
+| `ParseOptions::for_profile(profile, mode)` | Uses `@dialect.DorisProfile` and `ParseMode`, with default limits. |
 | `ParseOptions::for_profile_with_limits(profile, mode, limits)` | Uses enum profile/mode values and caller-provided `ParseLimits`. |
 | `ParseOptions::for_profile_with_metadata(profile, metadata, mode)` | Creates options after validating complete `ProfileMetadata`. |
 | `ParseOptions::from_manifest(profile_id, exact_release, feature_introduction, mode_id)` | Creates options after validating profile metadata from manifest strings. |

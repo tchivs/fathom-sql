@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md)
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.4-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
 [![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](LICENSE)
-[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260819-2f80ed)](https://www.moonbitlang.com/)
+[![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260827-2f80ed)](https://www.moonbitlang.com/)
 [![Targets](https://img.shields.io/badge/targets-native%20%7C%20js%20%7C%20wasm-555555)](moon.mod)
 [![Doris](https://img.shields.io/badge/Doris-2.1%20%7C%203.x%20%7C%204.x-blue)](https://doris.apache.org/)
 [![Flink](https://img.shields.io/badge/Flink-1.20.5%20%7C%202.1.3%20%7C%202.3.0-blue)](https://flink.apache.org/)
@@ -90,12 +90,12 @@ Prebuilt `fathom-lsp` binaries for three platforms, with SHA-256 verification. S
 
 ### MoonBit Library
 
-Clone and build from source with the MoonBit toolchain (`moon 0.1.20260819`, content-locked):
+Clone and build from source with the MoonBit toolchain (`moon 0.1.20260827`, content-locked):
 
 ```bash
 git clone https://github.com/tchivs/fathom-sql.git
 cd fathom-sql
-moon version   # confirm: moon 0.1.20260819 (fc2a4ee 2026-08-19)
+moon version   # confirm: moon 0.1.20260827 (d0aaa07 2026-08-27)
 moon check
 ```
 
@@ -193,17 +193,19 @@ The formatting result contains `accepted`, output bytes, formatting/parsing diag
 ```text
 api/        Caller-facing parse/format facade, options, result, and diagnostic types
 source/     Source snapshots, byte Spans, and line indexes
+dialect/    Doris and Flink profiles, dialect metadata, and shared profile enums
 lexer/      Dialect-aware lexical analysis
-token/      Token types, keyword classifications, and dialect profile metadata
+token/      Token types and keyword classifications
 parser/     Handwritten recursive-descent document parser and Pratt expression parsing path
 syntax/     Lossless CST nodes, leaves, and error/missing structures
 printer/    Precise replay of source bytes from a CST or ParseResult
 formatter/  CST-based formatting layout and safe rejection logic
 analyzer/   Minimal name-resolution layer based on a caller-provided Catalog
+fingerprint/  Content-normalized SQL fingerprinting (FNV-1a 64-bit)
+lint/      Doris lint rule set with autofix support
+lineage/    Column-level lineage derivation from DML/DDL
 test/       MoonBit behavior tests, formatting tests, and corpus tests
 corpus/     SQL fixtures, manifests, and coverage reports organized by Doris version
-```
-
 
 ## Verification and Testing
 

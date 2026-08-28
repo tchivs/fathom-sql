@@ -69,7 +69,7 @@ pub struct ParseOptions {
 | 构造器 | 说明 |
 |---|---|
 | `ParseOptions::new(dialect_id, profile_id, mode_id)` | 接收 `"doris"`/`"flink"`、`"2.1"`/`"3.x"`/`"4.x"`（或 flink 的 `"flink-2.3.0"`/`"flink-2.1.3"`/`"flink-1.20.5"`）和 `"strict"`/`"editor"`，使用默认限制。 |
-| `ParseOptions::for_profile(profile, mode)` | 使用 `@token.DorisProfile` 和 `ParseMode`，使用默认限制。 |
+| `ParseOptions::for_profile(profile, mode)` | 使用 `@dialect.DorisProfile` 和 `ParseMode`，使用默认限制。 |
 | `ParseOptions::for_profile_with_limits(profile, mode, limits)` | 使用枚举 profile/mode 和调用方提供的 `ParseLimits`。 |
 | `ParseOptions::for_profile_with_metadata(profile, metadata, mode)` | 校验完整 `ProfileMetadata` 后创建选项。 |
 | `ParseOptions::from_manifest(profile_id, exact_release, feature_introduction, mode_id)` | 用 manifest 字符串校验 profile 元数据后创建选项。 |

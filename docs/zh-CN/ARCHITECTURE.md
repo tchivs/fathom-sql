@@ -6,7 +6,7 @@ English: [English architecture](../ARCHITECTURE.md) | 简体中文
 
 Fathom 是一个使用 MoonBit 实现的 Doris SQL Parser SDK：它接收源字节序列（通常为 UTF-8；非法编码会产生词法诊断）、Doris 版本 profile、解析模式和资源限制，输出带字节位置的无损具体语法树（CST）、诊断信息及恢复状态；在同一解析结果之上，调用方可以选择原样打印、确定性格式化或注入 catalog 做有限的表引用解析。系统采用分层流水线架构，核心链路是 `SourceText → Lexer → TokenStream → Parser → Syntax CST`，`api` 包提供跨层的稳定门面，`printer`、`formatter` 和可选的 `analyzer` 从 CST 分叉，彼此不把 Doris 执行语义引入解析核心。
 
-`moon.mod` 将模块声明为 `fathom/sql`，版本为 `1.0.4`，首选目标为 `native`；核心库包的 manifest 显式声明为 `pkgtype(kind: "library")`，`test/moon.pkg` 未声明包类型；`fathom-sql/moon.pkg` 声明 `pkgtype(kind: "executable")`，提供薄 CLI 适配器。`moon.mod` 中记录的 MoonBit 工具链版本为 `moon 0.1.20260724`。
+`moon.mod` 将模块声明为 `fathom/sql`，版本为 `1.0.4`，首选目标为 `native`；核心库包的 manifest 显式声明为 `pkgtype(kind: "library")`，`test/moon.pkg` 未声明包类型；`fathom-sql/moon.pkg` 声明 `pkgtype(kind: "executable")`，提供薄 CLI 适配器。`moon.mod` 中记录的 MoonBit 工具链版本为 `moon 0.1.20260827`。
 
 ## 组件图
 
@@ -16,7 +16,7 @@ graph TD
     API --> Parser[parser：递归下降 + Pratt]
     API --> Formatter[formatter：确定性格式化]
     Source --> Lexer[lexer：源代码词法扫描]
-    Profiles[token：Doris profiles / TokenStream] --> Lexer
+    Profiles[dialect：Doris profiles / TokenStream] --> Lexer
     Lexer --> Parser
     Parser --> Syntax[syntax：无损 CST]
     Syntax --> Printer[printer：原样字节重放]
@@ -28,10 +28,11 @@ graph TD
 ### 依赖边界
 
 - `source` 是最底层的源快照与字节坐标包，不依赖其他仓库包。
-- `token` 依赖 `source`，集中定义 `DorisProfile`、版本元数据、关键字分类、token 类型和 `TokenStream`。
-- `lexer` 依赖 `source` 与 `token`，为 parser 提供 source-backed 的词法流；它不构造语法树。
+- `dialect` 依赖 `source`，定义 `DorisProfile`、`FlinkProfile`、`ProfileMetadata` 和 `ValidatedProfileContext`；是 profile 身份与 release/feature 元数据的唯一权威来源。
+- `token` 依赖 `source` 与 `dialect`，集中定义关键字分类、token 类型和 `TokenStream`。
+- `lexer` 依赖 `source`、`token` 与 `dialect`，为 parser 提供 source-backed 的词法流；它不构造语法树。
 - `syntax` 仅依赖 `source`，定义不持有源字节的不可变 CST 节点和叶子。
-- `parser` 依赖 `source`、`token`、`lexer`、`syntax`，是唯一负责语法产生式、表达式优先级和恢复的核心包。
+- `parser` 依赖 `source`、`token`、`lexer`、`syntax` 和 `dialect`，是唯一负责语法产生式、表达式优先级和恢复的核心包。
 - `api` 依赖 `parser`、`formatter` 以及底层数据包，负责参数校验、结果转为 primitive 传输结构，并提供 `parse` / `format_text` 门面。
 - `printer` 依赖 CST 与源快照；它可通过 `api.ParseResult` 重放 primitive 树，但不改变树。
 - `formatter` 依赖 CST、源快照和 token 分类，未依赖 analyzer，因此格式化不需要 catalog。
@@ -40,8 +41,7 @@ graph TD
 ## 数据流
 
 一次 `api.parse` 请求按以下路径执行：
-
-1. **建立解析选项**：调用方用 `ParseOptions` 指定 `2.1`、`3.x` 或 `4.x` profile，选择 `Strict` 或 `Editor` 模式，并可设置最大字节数、token 数、递归深度、恢复步数和诊断数。profile 元数据在 `token` 中校验，未知 profile、模式或不匹配的发布元数据在进入解析前返回 `ParseError`。
+1. **建立解析选项**：调用方用 `ParseOptions` 指定 `2.1`、`3.x` 或 `4.x` profile，选择 `Strict` 或 `Editor` 模式，并可设置最大字节数、token 数、递归深度、恢复步数和诊断数。profile 元数据在 `dialect` 中校验，未知 profile、模式或不匹配的发布元数据在进入解析前返回 `ParseError`。
 2. **创建源快照**：`api.parse` 调用 `SourceText::new_with_limit`。输入大小先于行索引构建进行检查；成功后，`SourceText` 保存原始 `Bytes` 与支持 LF、CRLF 混合输入的 `LineIndex`。所有 `Span` 使用字节偏移，并且必须落在源快照边界内。
 3. **词法扫描**：`parser.parse_with_limits_context` 调用 `lexer.lex_with_limit`。lexer 从同一份 `SourceText` 读取字符，生成带 span 的 `TokenStream`，保留空白、换行、注释和 BOM；未知字符、非法 UTF-8 和未闭合字面量保留为错误或未知 token，并可在 token 限制下记录截断位置。
 4. **按语句解析**：parser 按分号切分文档中的语句片段，忽略 trivia 参与语法判断但把 trivia 作为源绑定叶子保留在树中。关键字首先选择 `SELECT`、DML、DDL 或其他语句族；查询和子查询通过递归下降处理，表达式通过单一 Pratt 路径处理运算符优先级、后缀和列表结构。
@@ -54,7 +54,7 @@ graph TD
 | 抽象 | 位置 | 作用 |
 |---|---|---|
 | `SourceText`、`Span`、`LineIndex` | `source/source.mbt` | 保存一次不可变源快照，提供字节范围校验、切片和行列索引；节点只引用 span，不复制整段源码。 |
-| `DorisProfile`、`ProfileMetadata`、`ValidatedProfileContext` | `token/token.mbt` | 表示 `2.1`、`3.x`、`4.x` 三个已发布 profile，并在解析前验证 release 与 feature introduction 元数据。 |
+| `DorisProfile`、`ProfileMetadata`、`ValidatedProfileContext` | `dialect/doris.mbt` | 表示 `2.1`、`3.x`、`4.x` 三个已发布 profile，并在解析前验证 release 与 feature introduction 元数据。 |
 | `ClassificationEntry` / `TokenKind` / `TokenStream` | `token/token.mbt` | 以表驱动的关键字分类区分 reserved、non-reserved、contextual 词，并为 lexer/parser 提供带源位置的 token 流。 |
 | `lex_with_limit` / `lex` | `lexer/lexer.mbt` | 执行同步、源绑定的词法扫描，识别标识符、数字、引号、字符串、符号、trivia、未知和错误材料。 |
 | `SyntaxKind`、`SyntaxLeaf`、`SyntaxNode` | `syntax/syntax.mbt` | 定义 `Document`、语句族、表达式、trivia、error、skipped、missing 等 CST 节点；构造时验证 span 包含关系和源码顺序。 |
@@ -72,7 +72,8 @@ graph TD
 ├── moon.mod              # MoonBit 模块名、版本和首选构建目标
 ├── moon.pkg              # 根 library 包声明
 ├── source/               # SourceText、Span、LineIndex 和源输入限制
-├── token/                # Doris profile、关键字分类、Token 和 TokenStream
+├── dialect/             # Doris 和 Flink profile、profile 元数据与 feature introduction 门控
+├── token/                # 关键字分类、Token 类型和 TokenStream
 ├── lexer/                # 保留 trivia 与错误材料的词法扫描器
 ├── syntax/               # 不拥有源字节的不可变 lossless CST
 ├── parser/               # 递归下降语句解析、Pratt 表达式和恢复
@@ -85,5 +86,4 @@ graph TD
 ├── _build/               # MoonBit 生成的构建输出和依赖锁定信息
 └── docs/                 # 项目架构及其他开发文档
 ```
-
-这种组织把“源字节保真”和“语法树结构”拆成两个低耦合层：`source` 管理坐标与原文，`syntax` 管理树不变量，因而 printer 可以无损重放而 parser 不需要在每个节点中复制文本。`token` 同时承载 Doris 版本和关键字事实，lexer 与 parser 共享同一套分类；`parser` 不依赖 analyzer，确保没有 catalog 时仍能完成纯语法检查。`api` 位于包图上层，把 MoonBit 内部对象转换为适合 Native、Wasm 或 JavaScript 边界消费的 primitive 结果；格式化、打印和分析则保持为可单独调用的后处理分支。`corpus/` 与 `test/` 分离了版本化语料和执行测试逻辑，便于分别审查覆盖矩阵与回归行为。
+这种组织把"源字节保真"和"语法树结构"拆成两个低耦合层：`source` 管理坐标与原文，`syntax` 管理树不变量，因而 printer 可以无损重放而 parser 不需要在每个节点中复制文本。`dialect` 承载 Doris 和 Flink 版本事实，`token` 承载关键字分类，lexer 与 parser 共享同一套分类；`parser` 不依赖 analyzer，确保没有 catalog 时仍能完成纯语法检查。`api` 位于包图上层，把 MoonBit 内部对象转换为适合 Native、Wasm 或 JavaScript 边界消费的 primitive 结果；格式化、打印和分析则保持为可单独调用的后处理分支。`corpus/` 与 `test/` 分离了版本化语料和执行测试逻辑，便于分别审查覆盖矩阵与回归行为。

@@ -53,7 +53,6 @@ TASK_TRANSIENT_PATHS = (
     ".planning/phases/14-release-hygiene-toolchain-pinning/14-RELEASE-READINESS.md",
     "scripts/classify_release_status.py",
     "scripts/tests/test_classify_release_status.py",
-    "scripts/tests/__init__.py",
 )
 
 DEFAULT_PORCELAIN_COMMAND = "git status --porcelain=v1 -z --untracked-files=all"
