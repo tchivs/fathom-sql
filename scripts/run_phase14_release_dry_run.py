@@ -115,7 +115,7 @@ def main():
         require(r.returncode == 0, f"push failed: {r.stderr[:300]}")
 
         d = gh("workflow", "run", str(wf_id), "-R", "tchivs/fathom-sql",
-               "--ref", branch, "-f", "tag=v1.0.4", "-f", "dry_run=true")
+               "--ref", branch, "-f", "tag=v1.0.5", "-f", "dry_run=true")
         require(d.returncode == 0, f"dispatch failed: {d.stderr[:300]}")
 
         run_id = None
@@ -188,7 +188,7 @@ def main():
         require(len(manifest["platforms"]) == 3, "aggregate must retain three platform records")
 
         # publication absence: no GitHub Release for the dispatched tag
-        rel = gh("release", "view", "v1.0.4", "-R", "tchivs/fathom-sql")
+        rel = gh("release", "view", "v1.0.5", "-R", "tchivs/fathom-sql")
         require(rel.returncode != 0, "dry run must not create a GitHub Release")
 
         # cleanup: delete temporary remote + local branch and verify absence

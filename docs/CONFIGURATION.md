@@ -22,7 +22,7 @@ The root `moon.mod` defines the module identity and default build target:
 
 ```moonbit
 name = "fathom/sql"
-version = "1.0.4"
+version = "1.0.5"
 preferred_target = "native"
 ```
 

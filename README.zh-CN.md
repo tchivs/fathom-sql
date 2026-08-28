@@ -3,7 +3,7 @@ English: [README.md](README.md) | 简体中文
 
 [![GitHub Release](https://img.shields.io/github/v/release/tchivs/fathom-sql?include_prereleases&label=Release)](https://github.com/tchivs/fathom-sql/releases)
 [![npm version](https://img.shields.io/npm/v/@fathom-sql/sql?label=npm)](https://www.npmjs.com/package/@fathom-sql/sql)
-[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.4-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-fathom--sql.sql%20v1.0.5-0078d4?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=fathom-sql.sql)
 [![CI](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/tchivs/fathom-sql/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/tchivs/fathom-sql?color=blue)](LICENSE)
 [![MoonBit](https://img.shields.io/badge/MoonBit-0.1.20260827-2f80ed)](https://www.moonbitlang.com/)
@@ -220,7 +220,7 @@ Doris SQL 的支持范围以 `corpus/manifest.tsv`、`corpus/coverage.tsv` 和 `
 ## 从 GitHub Release 安装 `fathom-lsp`
 
 预编译的 `fathom-lsp` 二进制随每个 GitHub Release 发布
-（<https://github.com/tchivs/fathom-sql/releases>）。选择与所需版本匹配的 release tag（例如 `v1.0.4`；二进制通过 `--version` 报告 `fathom-lsp 1.0.4`）。
+（<https://github.com/tchivs/fathom-sql/releases>）。选择与所需版本匹配的 release tag（例如 `v1.0.5`；二进制通过 `--version` 报告 `fathom-lsp 1.0.5`）。
 
 ### 各平台资产
 
@@ -236,8 +236,8 @@ Doris SQL 的支持范围以 `corpus/manifest.tsv`、`corpus/coverage.tsv` 和 `
 
 ```bash
 # Linux/macOS
-curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.4/fathom-lsp-linux-x86_64
-curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.4/fathom-lsp-manifest.json
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.5/fathom-lsp-linux-x86_64
+curl -fLO https://github.com/tchivs/fathom-sql/releases/download/v1.0.5/fathom-lsp-manifest.json
 python3 - <<'PY'
 import hashlib, json
 m = json.load(open("fathom-lsp-manifest.json"))
@@ -262,7 +262,7 @@ Windows 上将 `fathom-lsp-windows-x86_64.exe` 移入所选目录并加入 `PATH
 ### 验证安装
 
 ```bash
-fathom-lsp --version   # 输出：fathom-lsp 1.0.4
+fathom-lsp --version   # 输出：fathom-lsp 1.0.5
 ```
 
 ## 许可证

@@ -4,7 +4,7 @@
 
 ## 职责
 
-产品版本标识单一来源：提供 `--version` 输出。moon.mod 模块版本（1.0.4）与产品 semver 对齐。
+产品版本标识单一来源：提供 `--version` 输出。moon.mod 模块版本（1.0.5）与产品 semver 对齐。
 
 ## 关键文件
 
@@ -15,8 +15,8 @@
 ## 公开接口
 
 ```moonbit
-pub fn product_version() -> String  // "1.0.4"
-pub fn version_line(name : String) -> String  // "<name> 1.0.4\n"
+pub fn product_version() -> String  // "1.0.5"
+pub fn version_line(name : String) -> String  // "<name> 1.0.5\n"
 pub fn print_and_exit(name : String) -> Unit  // native-only, #cfg
 ```
 
@@ -31,6 +31,6 @@ pub fn print_and_exit(name : String) -> Unit  // native-only, #cfg
 
 ## 注意事项
 
-- moon.mod 的模块版本与产品 semver 对齐为 `1.0.4`，产品 semver 仅在此处维护
+- moon.mod 的模块版本与产品 semver 对齐为 `1.0.5`，产品 semver 仅在此处维护
 - FFI helpers 用 `#cfg` 限定 native only——js/wasm 构建不引入此包
 - 升级版本需编辑 `product_version()` 并遵循 `docs/VERSIONING.md`（tag + CHANGELOG）

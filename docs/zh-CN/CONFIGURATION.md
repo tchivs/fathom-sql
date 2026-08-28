@@ -22,7 +22,7 @@ Fathom 是一个以 MoonBit 实现的 Doris SQL 解析与格式化库。它没�
 
 ```moonbit
 name = "fathom/sql"
-version = "1.0.4"
+version = "1.0.5"
 preferred_target = "native"
 ```
 

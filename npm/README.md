@@ -81,7 +81,7 @@ The binding is self-contained — no Node built-ins, no `fs`, no `path`.
 
 ```html
 <script type="module">
-  import { parse } from 'https://esm.sh/@fathom-sql/sql@1.0.4';
+  import { parse } from 'https://esm.sh/@fathom-sql/sql@1.0.5';
 
   const result = parse('SELECT * FROM t', 'doris', '4.x', 'strict');
   console.log(result.valid);
@@ -137,7 +137,7 @@ interface FormatOptions {
 - **Lineage is Doris-only**: `lineage()` rejects a Flink selection with a
   structured `FATHOM-SCHEMA-*` error.
 
-See the [full release notes and boundary disclosure](https://github.com/tchivs/fathom-sql/releases/tag/v1.0.4)
+See the [full release notes and boundary disclosure](https://github.com/tchivs/fathom-sql/releases/tag/v1.0.5)
 in the GitHub repository.
 
 ## Building from source

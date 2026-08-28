@@ -1,14 +1,14 @@
 /// Single source of product version identity (VER-01/D-01).
 /// `moon.mod`'s module version is aligned with the product semver
-/// (`1.0.4`); both release binaries report this constant via
+/// (`1.0.5`); both release binaries report this constant via
 /// `--version` (VER-02/D-02). Bumping the product version requires editing
 /// `product_version()` and following docs/VERSIONING.md (tag + CHANGELOG).
 
 ///|
-/// Product semver, no `v` prefix (the release tag is `v1.0.4`; the binary
-/// reports `1.0.4`).
+/// Product semver, no `v` prefix (the release tag is `v1.0.5`; the binary
+/// reports `1.0.5`).
 pub fn product_version() -> String {
-  "1.0.4"
+  "1.0.5"
 }
 
 ///|
@@ -40,11 +40,11 @@ extern "c" fn exit_process(code : Int) = "exit"
 
 ///|
 test "product_version_is_1_0_4" {
-  assert_eq(product_version(), "1.0.4")
+  assert_eq(product_version(), "1.0.5")
 }
 
 ///|
 test "version_line_format" {
-  assert_eq(version_line("fathom-sql"), "fathom-sql 1.0.4\n")
-  assert_eq(version_line("fathom-lsp"), "fathom-lsp 1.0.4\n")
+  assert_eq(version_line("fathom-sql"), "fathom-sql 1.0.5\n")
+  assert_eq(version_line("fathom-lsp"), "fathom-lsp 1.0.5\n")
 }

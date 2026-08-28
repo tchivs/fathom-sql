@@ -3,6 +3,6 @@
 // moon version: Feature flags enabled: rr_moon_mod,rr_moon_pkg
 name = "fathom/sql"
 
-version = "1.0.4"
+version = "1.0.5"
 
 preferred_target = "native"
