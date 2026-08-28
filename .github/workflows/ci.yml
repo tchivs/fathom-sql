@@ -301,10 +301,10 @@ jobs:
       - name: Verify gradle-wrapper.jar checksum
         shell: bash
         run: |
-          expected="$(grep distributionSha256Sum jetbrains/gradle/wrapper/gradle-wrapper.properties | cut -d= -f2 | tr -d ' ')"
+          expected="7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172"
           actual="$(sha256sum jetbrains/gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1)"
-          if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-            echo "gradle-wrapper.jar checksum mismatch or missing" >&2
+          if [ "$expected" != "$actual" ]; then
+            echo "gradle-wrapper.jar checksum mismatch: expected $expected, got $actual" >&2
             exit 1
           fi
           echo "gradle-wrapper.jar checksum OK"
