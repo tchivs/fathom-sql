@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           expected="7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172"
-          actual="$(sha256sum jetbrains/gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1)"
+          actual="$(sha256sum gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1)"
           if [ "$expected" != "$actual" ]; then
             echo "gradle-wrapper.jar checksum mismatch: expected $expected, got $actual" >&2
             exit 1
